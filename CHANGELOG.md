@@ -16,3 +16,4 @@ First public release.
 - Battery records, battery type library, shopping list and replacement estimates.
 - MQTT discovery sensors attached to each Zigbee2MQTT device, weekly summary, backup and restore, CSV export.
 - Optional integration: summary sensors, a dashboard card, and problems mirrored into Settings → Repairs (on by default, cleared automatically when fixed).
+- Icons for the app in the app store and for the integration in HACS and on the Devices & services page.
