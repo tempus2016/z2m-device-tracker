@@ -102,6 +102,7 @@ class Metrics:
         out: dict[str, Any] = {}
 
         if lqi:
+
             def avg_since(seconds: float, until: float | None = None) -> float | None:
                 total = count = 0.0
                 for hour, value_sum, n in lqi:
@@ -144,7 +145,7 @@ class Metrics:
         denom = sum((x - mean_x) ** 2 for x in xs)
         if not denom:
             return None
-        slope = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys)) / denom
+        slope = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys, strict=True)) / denom
         if slope >= -0.02 or ys[0] - ys[-1] < 3:
             return None
         current = ys[-1]

@@ -25,9 +25,7 @@ import yaml
 IEEE_RE = re.compile(r"^0x[0-9a-f]{16}$")
 HA_IDENT_RE = re.compile(r"zigbee2mqtt_(0x[0-9a-f]{16})$")
 UNIQUE_ID_RE = re.compile(r"^(0x[0-9a-f]{16})_(.+?)_zigbee2mqtt$")
-LOG_LINE_RE = re.compile(
-    r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\].*?topic '([^']+)', payload '(.*)'\s*$"
-)
+LOG_LINE_RE = re.compile(r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\].*?topic '([^']+)', payload '(.*)'\s*$")
 
 EVENT_KINDS = {
     "device_joined": "joined",

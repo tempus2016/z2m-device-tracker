@@ -7,10 +7,7 @@ arch:
   - amd64
   - aarch64
 init: false
-startup: application
-boot: auto
 ingress: true
-ingress_port: 8099
 panel_icon: mdi:zigbee
 panel_title: Zigbee Tracker
 homeassistant_api: true
@@ -35,6 +32,7 @@ options:
     - interview_failed
     - joined
     - left
+    - network_offline
     - offline
     - silent
     - unidentified

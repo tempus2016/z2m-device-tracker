@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 App documentation
+    url: https://github.com/tempus2016/z2m-device-tracker/blob/main/z2m_tracker/DOCS.md
+    about: Every app option, and where the data is kept
+  - name: 📚 README
+    url: https://github.com/tempus2016/z2m-device-tracker#readme
+    about: What it does, and how to install the app and the integration

@@ -1,4 +1,25 @@
-# Z2M Device Tracker
+<h1 align="center">Z2M Device Tracker</h1>
+
+<p align="center">
+  <strong>History, health and alerts for every Zigbee2MQTT device.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/tempus2016/z2m-device-tracker/releases"><img src="https://img.shields.io/github/v/release/tempus2016/z2m-device-tracker" alt="Latest Release"></a>
+  <a href="https://hacs.xyz/docs/faq/custom_repositories/"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg" alt="HACS Custom"></a>
+  <a href="https://github.com/tempus2016/z2m-device-tracker/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License"></a>
+  <img src="https://img.shields.io/badge/Home%20Assistant-2025.1+-blue" alt="HA Version">
+  <img src="https://img.shields.io/badge/arch-amd64%20%7C%20aarch64-blue" alt="Supported architectures">
+</p>
+
+<p align="center">
+  <a href="https://github.com/tempus2016/z2m-device-tracker/actions/workflows/lint.yml"><img src="https://github.com/tempus2016/z2m-device-tracker/actions/workflows/lint.yml/badge.svg" alt="Lint"></a>
+  <a href="https://github.com/tempus2016/z2m-device-tracker/actions/workflows/app.yml"><img src="https://github.com/tempus2016/z2m-device-tracker/actions/workflows/app.yml/badge.svg" alt="App"></a>
+  <a href="https://github.com/tempus2016/z2m-device-tracker/actions/workflows/hassfest.yml"><img src="https://github.com/tempus2016/z2m-device-tracker/actions/workflows/hassfest.yml/badge.svg" alt="hassfest"></a>
+  <a href="https://github.com/tempus2016/z2m-device-tracker/actions/workflows/hacs.yml"><img src="https://github.com/tempus2016/z2m-device-tracker/actions/workflows/hacs.yml/badge.svg" alt="HACS validation"></a>
+  <a href="https://github.com/tempus2016/z2m-device-tracker/actions/workflows/codeql.yml"><img src="https://github.com/tempus2016/z2m-device-tracker/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
+  <a href="https://github.com/tempus2016/z2m-device-tracker/commits/main"><img src="https://img.shields.io/github/commit-activity/y/tempus2016/z2m-device-tracker" alt="Commit activity"></a>
+</p>
 
 A Home Assistant app and integration that keeps a full history of every device on your Zigbee2MQTT networks, watches their health, and tells you when something needs attention.
 
@@ -48,6 +69,10 @@ type: custom:z2m-tracker-card
 title: Zigbee devices
 max_items: 5
 ```
+
+## Contributing
+
+Bug reports and ideas go in the [issues](https://github.com/tempus2016/z2m-device-tracker/issues). For code, see [CONTRIBUTING.md](CONTRIBUTING.md), and report security problems privately as described in [SECURITY.md](SECURITY.md).
 
 ## Credits
 

@@ -1,0 +1,55 @@
+name: App
+
+# Checks the app (add-on) definition the way the Supervisor will read it: config.yaml
+# schema, options against schema, build.yaml, and the image the Dockerfile produces.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: App lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Lint the app definition
+        uses: frenck/action-addon-linter@b9cfd1bc62ba60d2c4fc96317b5f7ada5923f4a7 # v2.21.1
+        with:
+          path: "./z2m_tracker"
+
+  build:
+    name: App build (${{ matrix.arch }})
+    runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, aarch64]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build the image
+        # Same base image the Supervisor builds from, read out of build.yaml so the two
+        # cannot drift. Built, not pushed: the Supervisor builds it on each install.
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          base=$(python3 -c "import sys, yaml; print(yaml.safe_load(open('z2m_tracker/build.yaml'))['build_from'][sys.argv[1]])" "$ARCH")
+          docker build --build-arg "BUILD_FROM=${base}" -t z2m-tracker:ci z2m_tracker
+          docker run --rm --entrypoint python3 z2m-tracker:ci -c "import sys; sys.path.insert(0, '/app'); import paho.mqtt, yaml, websocket; import tracker, health, discovery, metrics, ha, history_import, battery_library"

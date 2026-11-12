@@ -153,7 +153,16 @@ def _display_name(record: dict) -> str | None:
 class Tracker:
     """Keeps a persistent history of every device seen on Zigbee2MQTT."""
 
-    def __init__(self, data_path: str, base_topics: list[str], config_dir: str, local_tz: tzinfo, metrics: Metrics, options: dict, oui: dict[str, str]) -> None:
+    def __init__(
+        self,
+        data_path: str,
+        base_topics: list[str],
+        config_dir: str,
+        local_tz: tzinfo,
+        metrics: Metrics,
+        options: dict,
+        oui: dict[str, str],
+    ) -> None:
         self.data_path = data_path
         self.base_topics = base_topics
         self.config_dir = config_dir
@@ -361,7 +370,9 @@ class Tracker:
             if record["instance"] == base_topic and record["status"] == STATUS_ACTIVE and ieee not in listed:
                 record["status"] = STATUS_REMOVED
                 record["removed_at"] = now
-                self._add_event(now, base_topic, ieee, record["friendly_name"], "removed", "Gone from the Z2M device list")
+                self._add_event(
+                    now, base_topic, ieee, record["friendly_name"], "removed", "Gone from the Z2M device list"
+                )
                 changed = True
 
         self.names[base_topic] = names
@@ -385,12 +396,17 @@ class Tracker:
             self.data["devices"][ieee] = record
         record["last_seen"] = _max_time(record["last_seen"], now)
 
-        if event_type in ("device_joined", "device_interview", "device_announce") and base_topic in self.pairing_sessions:
+        if (
+            event_type in ("device_joined", "device_interview", "device_announce")
+            and base_topic in self.pairing_sessions
+        ):
             session = self.pairing_sessions[base_topic]
             if session.get("target") == ieee and session.get("active") and not session.get("rejoined"):
                 session["rejoined"] = now
                 via = session.get("via_name") or "the chosen router"
-                self._add_event(now, base_topic, ieee, name, "re-paired", f"Rejoined while pairing was open only through {via}")
+                self._add_event(
+                    now, base_topic, ieee, name, "re-paired", f"Rejoined while pairing was open only through {via}"
+                )
                 self._changed(structural=True)
             if event_type != "device_announce" and ieee not in session["joined"]:
                 session["joined"].append(ieee)
@@ -485,7 +501,9 @@ class Tracker:
             record["battery"] = battery
             replaced_from = self.metrics.add_battery(ieee, battery)
             if replaced_from is not None:
-                self._record_replacement(record, now[:10], "Detected", f"Battery went from {replaced_from:.0f}% to {battery:.0f}%")
+                self._record_replacement(
+                    record, now[:10], "Detected", f"Battery went from {replaced_from:.0f}% to {battery:.0f}%"
+                )
                 structural = True
         if isinstance(parsed.get("battery_low"), bool):
             if record.get("battery_low") != parsed["battery_low"]:
@@ -507,7 +525,14 @@ class Tracker:
                 self._add_event(now, base_topic, ieee, name, "firmware updated", f"Now on {slim['installed_version']}")
             if slim != previous:
                 if slim["state"] == "available" and previous.get("state") != "available":
-                    self._add_event(now, base_topic, ieee, name, "update available", f"{slim['installed_version']} → {slim['latest_version']}")
+                    self._add_event(
+                        now,
+                        base_topic,
+                        ieee,
+                        name,
+                        "update available",
+                        f"{slim['installed_version']} → {slim['latest_version']}",
+                    )
                 record["update"] = slim
                 structural = True
 
@@ -582,7 +607,9 @@ class Tracker:
         info["links"] = len(links)
         self._record_scan(base_topic, now, parents, neighbours)
         self.data["networkmap"][base_topic] = info
-        self._add_event(now, base_topic, "network", "Network", "routing scanned", f"{info['nodes']} nodes, {info['links']} links")
+        self._add_event(
+            now, base_topic, "network", "Network", "routing scanned", f"{info['nodes']} nodes, {info['links']} links"
+        )
         self._changed(structural=True)
 
     # ------------------------------------------------------------ scan history
@@ -612,7 +639,9 @@ class Tracker:
             dev = self.data["devices"].get(ieee)
             if not dev or dev.get("type") not in ("Router", "Coordinator"):
                 continue
-            routers = [n for n in nbrs if (self.data["devices"].get(n["ieee"]) or {}).get("type") in ("Router", "Coordinator")]
+            routers = [
+                n for n in nbrs if (self.data["devices"].get(n["ieee"]) or {}).get("type") in ("Router", "Coordinator")
+            ]
             for n in sorted(routers, key=lambda x: -(x.get("lqi") or 0))[:4]:
                 key = "|".join(sorted([ieee, n["ieee"]]))
                 if key not in links or (n.get("lqi") or 0) > (links[key][2] or 0):
@@ -645,7 +674,9 @@ class Tracker:
             moment = moment.replace(tzinfo=self.local_tz)
         return moment.astimezone(timezone.utc).isoformat(timespec="seconds")
 
-    def _add_event(self, when: str, base_topic: str, ieee: str, name: str | None, kind: str, detail: str, notify: bool = False) -> None:
+    def _add_event(
+        self, when: str, base_topic: str, ieee: str, name: str | None, kind: str, detail: str, notify: bool = False
+    ) -> None:
         event = {"time": when, "instance": base_topic, "ieee": ieee, "name": name, "kind": kind, "detail": detail}
         events = self.data["events"]
         events.append(event)
@@ -683,7 +714,9 @@ class Tracker:
         raw = None if ok else ((result or {}).get("error") or "No response from Zigbee2MQTT")
         error = None if ok else friendly_z2m_error(raw)
         with self.lock:
-            self._add_event(_now(), base_topic, ieee, name, "reconfigured" if ok else "reconfigure failed", "" if ok else str(error))
+            self._add_event(
+                _now(), base_topic, ieee, name, "reconfigured" if ok else "reconfigure failed", "" if ok else str(error)
+            )
             if ok:
                 for reading in (self.data["devices"][ieee].get("readings") or {}).values():
                     reading["reports"] = 0
@@ -724,7 +757,9 @@ class Tracker:
             for old in removed_by_name.get(_slug(record["friendly_name"]), []):
                 if old["ieee"] != record["ieee"] and old["ieee"] not in seen:
                     seen.add(old["ieee"])
-                    out.setdefault(record["ieee"], []).append({"ieee": old["ieee"], "name": _display_name(old), "removed_at": old.get("removed_at")})
+                    out.setdefault(record["ieee"], []).append(
+                        {"ieee": old["ieee"], "name": _display_name(old), "removed_at": old.get("removed_at")}
+                    )
         return out
 
     def _network_issues(self, now: float) -> list[dict]:
@@ -740,11 +775,33 @@ class Tracker:
                     age = 0
                 if age >= 120:
                     mins = int(age // 60)
-                    out.append({"key": f"network_offline:{bt}", "kind": "network_offline", "label": "Network offline", "severity": "warning", "ieee": f"network:{bt}",
-                                "title": "Zigbee2MQTT offline", "detail": f"Not responding for {mins} min. Every device on this network is unreachable. Check the coordinator's power and network connection.", "name": f"{label} network", "instance": bt})
+                    out.append(
+                        {
+                            "key": f"network_offline:{bt}",
+                            "kind": "network_offline",
+                            "label": "Network offline",
+                            "severity": "warning",
+                            "ieee": f"network:{bt}",
+                            "title": "Zigbee2MQTT offline",
+                            "detail": f"Not responding for {mins} min. Every device on this network is unreachable. Check the coordinator's power and network connection.",
+                            "name": f"{label} network",
+                            "instance": bt,
+                        }
+                    )
             if (bridge.get("info") or {}).get("restart_required") and "restart_required" not in disabled:
-                out.append({"key": f"restart_required:{bt}", "kind": "restart_required", "label": "Restart needed", "severity": "info", "ieee": f"network:{bt}",
-                            "title": "Restart needed", "detail": "Zigbee2MQTT says it needs a restart to apply a settings change.", "name": f"{label} network", "instance": bt})
+                out.append(
+                    {
+                        "key": f"restart_required:{bt}",
+                        "kind": "restart_required",
+                        "label": "Restart needed",
+                        "severity": "info",
+                        "ieee": f"network:{bt}",
+                        "title": "Restart needed",
+                        "detail": "Zigbee2MQTT says it needs a restart to apply a settings change.",
+                        "name": f"{label} network",
+                        "instance": bt,
+                    }
+                )
         return out
 
     def radio(self) -> dict:
@@ -755,14 +812,23 @@ class Tracker:
         for bt in self.base_topics:
             info = ((self.data.get("bridges") or {}).get(bt) or {}).get("info") or {}
             if info.get("channel"):
-                nets.append({"topic": bt, "channel": int(info["channel"]), "pan_id": info.get("pan_id"), "mhz": zfreq(info["channel"])})
+                nets.append(
+                    {
+                        "topic": bt,
+                        "channel": int(info["channel"]),
+                        "pan_id": info.get("pan_id"),
+                        "mhz": zfreq(info["channel"]),
+                    }
+                )
         wifi = []
         for part in str(self.options.get("wifi_channels") or "").replace(";", ",").split(","):
             part = part.strip()
             if part.isdigit() and 1 <= int(part) <= 14 and int(part) not in wifi:
                 wifi.append(int(part))
         findings = []
-        label = lambda bt: "Main" if bt == "zigbee2mqtt" else bt.replace("zigbee2mqtt_", "").replace("_", " ").capitalize()
+        label = lambda bt: (
+            "Main" if bt == "zigbee2mqtt" else bt.replace("zigbee2mqtt_", "").replace("_", " ").capitalize()
+        )
 
         def score(channel: int, avoid: list[int]) -> float:
             f = zfreq(channel)
@@ -775,9 +841,19 @@ class Tracker:
                 gap = abs(net["mhz"] - wfreq(w))
                 if gap <= 12:
                     best_w = max((1, 6, 11), key=lambda c: abs(net["mhz"] - wfreq(c)))
-                    findings.append({"sev": 2, "text": f"{label(net['topic'])} network (Zigbee channel {net['channel']}, {net['mhz']} MHz) overlaps Wi-Fi channel {w}. The easiest fix is moving your Wi-Fi to channel {best_w} in the router settings. Changing the Zigbee channel means re-pairing every device."})
+                    findings.append(
+                        {
+                            "sev": 2,
+                            "text": f"{label(net['topic'])} network (Zigbee channel {net['channel']}, {net['mhz']} MHz) overlaps Wi-Fi channel {w}. The easiest fix is moving your Wi-Fi to channel {best_w} in the router settings. Changing the Zigbee channel means re-pairing every device.",
+                        }
+                    )
                 elif gap <= 16:
-                    findings.append({"sev": 1, "text": f"{label(net['topic'])} network (Zigbee channel {net['channel']}) sits just beside Wi-Fi channel {w}. Usually fine, but busy Wi-Fi can still cause occasional drops."})
+                    findings.append(
+                        {
+                            "sev": 1,
+                            "text": f"{label(net['topic'])} network (Zigbee channel {net['channel']}) sits just beside Wi-Fi channel {w}. Usually fine, but busy Wi-Fi can still cause occasional drops.",
+                        }
+                    )
         by_channel: dict[int, list] = {}
         for net in nets:
             by_channel.setdefault(net["channel"], []).append(net)
@@ -787,9 +863,21 @@ class Tracker:
                 candidates = [c for c in range(11, 27) if c != channel]
                 best = max(candidates, key=lambda c: score(c, others))
                 names = " and ".join(label(n["topic"]) for n in group)
-                findings.append({"sev": 1, "text": f"{names} both use Zigbee channel {channel}. Separate networks on one channel share its airtime, which matters if their coordinators or devices are within range of each other. If one of them has dropouts, moving the smaller network to channel {best} would separate them. That needs every device on it re-paired, so only do it if there's a real problem."})
+                findings.append(
+                    {
+                        "sev": 1,
+                        "text": f"{names} both use Zigbee channel {channel}. Separate networks on one channel share its airtime, which matters if their coordinators or devices are within range of each other. If one of them has dropouts, moving the smaller network to channel {best} would separate them. That needs every device on it re-paired, so only do it if there's a real problem.",
+                    }
+                )
         if nets and not findings:
-            findings.append({"sev": 0, "text": "No overlap: your Zigbee channels are clear of the Wi-Fi channels you've entered" + ("" if wifi else " (add your Wi-Fi channels in Settings to check them too)") + "."})
+            findings.append(
+                {
+                    "sev": 0,
+                    "text": "No overlap: your Zigbee channels are clear of the Wi-Fi channels you've entered"
+                    + ("" if wifi else " (add your Wi-Fi channels in Settings to check them too)")
+                    + ".",
+                }
+            )
         return {"networks": nets, "wifi": wifi, "findings": findings}
 
     def evaluate_health(self) -> tuple[list[dict], bool]:
@@ -861,10 +949,35 @@ class Tracker:
         buffer = io.StringIO()
         writer = csv.writer(buffer)
         columns = [
-            "ieee", "name", "former_names", "status", "network", "vendor", "model", "model_id", "manufacturer",
-            "radio_vendor", "description", "type", "power_source", "firmware", "first_seen", "last_seen", "removed_at",
-            "lqi_24h", "battery", "battery_type", "battery_quantity", "battery_installed", "battery_last_replaced", "battery_replacements", "uptime_30d", "area", "ha_name",
-            *ASSET_FIELDS, "note",
+            "ieee",
+            "name",
+            "former_names",
+            "status",
+            "network",
+            "vendor",
+            "model",
+            "model_id",
+            "manufacturer",
+            "radio_vendor",
+            "description",
+            "type",
+            "power_source",
+            "firmware",
+            "first_seen",
+            "last_seen",
+            "removed_at",
+            "lqi_24h",
+            "battery",
+            "battery_type",
+            "battery_quantity",
+            "battery_installed",
+            "battery_last_replaced",
+            "battery_replacements",
+            "uptime_30d",
+            "area",
+            "ha_name",
+            *ASSET_FIELDS,
+            "note",
         ]
         writer.writerow(columns)
         with self.lock:
@@ -872,21 +985,49 @@ class Tracker:
                 if record.get("type") == "Coordinator":
                     continue
                 name = _display_name(record) or ""
-                former = sorted({n["name"] for n in record.get("names") or [] if n.get("name") and n["name"] != name and not IEEE_RE.match(n["name"].lower())})
+                former = sorted(
+                    {
+                        n["name"]
+                        for n in record.get("names") or []
+                        if n.get("name") and n["name"] != name and not IEEE_RE.match(n["name"].lower())
+                    }
+                )
                 summary = self.metrics.summary(record["ieee"], now)
                 battery = self.battery_summary(record)
                 asset = record.get("asset") or {}
-                writer.writerow([
-                    record["ieee"], name, "; ".join(former), record["status"], record.get("instance") or "",
-                    record.get("vendor") or "", record.get("model") or "", record.get("model_id") or "", record.get("manufacturer") or "",
-                    self._oui_vendor(record["ieee"]) or "", record.get("description") or "", record.get("type") or "",
-                    record.get("power_source") or "", " ".join(str(x) for x in (record.get("software_build_id"), record.get("date_code")) if x),
-                    record.get("first_seen") or "", record.get("last_seen") or "", record.get("removed_at") or "",
-                    summary.get("lqi_24h") if summary.get("lqi_24h") is not None else "", record.get("battery") if record.get("battery") is not None else "",
-                    battery["type"], battery["quantity"] or "", battery["installed"], battery["last_replaced"] or "", len(battery["replacements"]), uptime(record, now) or "",
-                    record.get("area") or "", record.get("ha_name") or "",
-                    *[asset.get(field, "") for field in ASSET_FIELDS], record.get("note") or "",
-                ])
+                writer.writerow(
+                    [
+                        record["ieee"],
+                        name,
+                        "; ".join(former),
+                        record["status"],
+                        record.get("instance") or "",
+                        record.get("vendor") or "",
+                        record.get("model") or "",
+                        record.get("model_id") or "",
+                        record.get("manufacturer") or "",
+                        self._oui_vendor(record["ieee"]) or "",
+                        record.get("description") or "",
+                        record.get("type") or "",
+                        record.get("power_source") or "",
+                        " ".join(str(x) for x in (record.get("software_build_id"), record.get("date_code")) if x),
+                        record.get("first_seen") or "",
+                        record.get("last_seen") or "",
+                        record.get("removed_at") or "",
+                        summary.get("lqi_24h") if summary.get("lqi_24h") is not None else "",
+                        record.get("battery") if record.get("battery") is not None else "",
+                        battery["type"],
+                        battery["quantity"] or "",
+                        battery["installed"],
+                        battery["last_replaced"] or "",
+                        len(battery["replacements"]),
+                        uptime(record, now) or "",
+                        record.get("area") or "",
+                        record.get("ha_name") or "",
+                        *[asset.get(field, "") for field in ASSET_FIELDS],
+                        record.get("note") or "",
+                    ]
+                )
         return buffer.getvalue().encode("utf-8-sig")
 
     def set_note(self, ieee: str, note: str) -> bool:
@@ -919,7 +1060,14 @@ class Tracker:
         replacements.append(entry)
         replacements.sort(key=lambda r: r.get("date") or "")
         del replacements[: max(0, len(replacements) - 50)]
-        self._add_event(_now(), record.get("instance") or "unknown", record["ieee"], record.get("friendly_name"), "battery replaced", f"{date}{f' · {note}' if note else ''} ({source.lower()})")
+        self._add_event(
+            _now(),
+            record.get("instance") or "unknown",
+            record["ieee"],
+            record.get("friendly_name"),
+            "battery replaced",
+            f"{date}{f' · {note}' if note else ''} ({source.lower()})",
+        )
         return entry
 
     def set_battery_info(self, ieee: str, values: dict) -> bool:
@@ -1008,7 +1156,9 @@ class Tracker:
             if muted:
                 until = None
                 if days:
-                    until = datetime.fromtimestamp(time.time() + float(days) * 86400, tz=timezone.utc).isoformat(timespec="seconds")
+                    until = datetime.fromtimestamp(time.time() + float(days) * 86400, tz=timezone.utc).isoformat(
+                        timespec="seconds"
+                    )
                 current[kind] = until
             else:
                 current.pop(kind, None)
@@ -1021,7 +1171,9 @@ class Tracker:
 
     def _bridge(self, base_topic: str) -> dict:
         bridges = self.data.setdefault("bridges", {})
-        return bridges.setdefault(base_topic, {"state": None, "since": None, "outages": [], "restarts": [], "info": {}, "health": {}})
+        return bridges.setdefault(
+            base_topic, {"state": None, "since": None, "outages": [], "restarts": [], "info": {}, "health": {}}
+        )
 
     def _handle_bridge_state(self, base_topic: str, text: str) -> None:
         state = text.strip()
@@ -1039,7 +1191,14 @@ class Tracker:
         if state == "offline":
             bridge["outages"].append({"start": now, "end": None})
             del bridge["outages"][: max(0, len(bridge["outages"]) - 100)]
-            self._add_event(now, base_topic, "network", "Network", "network offline", "Zigbee2MQTT stopped (coordinator or service offline)")
+            self._add_event(
+                now,
+                base_topic,
+                "network",
+                "Network",
+                "network offline",
+                "Zigbee2MQTT stopped (coordinator or service offline)",
+            )
         elif previous == "offline":
             if bridge["outages"] and not bridge["outages"][-1].get("end"):
                 bridge["outages"][-1]["end"] = now
@@ -1057,7 +1216,9 @@ class Tracker:
             now = _now()
             bridge["restarts"].append(now)
             del bridge["restarts"][: max(0, len(bridge["restarts"]) - 100)]
-            self._add_event(now, base_topic, "network", "Network", "zigbee2mqtt restarted", f"Was up {int(previous // 3600)} h")
+            self._add_event(
+                now, base_topic, "network", "Network", "zigbee2mqtt restarted", f"Was up {int(previous // 3600)} h"
+            )
             self.revision += 1
         bridge["health"] = {
             "uptime_sec": uptime,
@@ -1088,7 +1249,14 @@ class Tracker:
         if bridge.get("info") != slim:
             old = bridge.get("info") or {}
             if old.get("version") and slim["version"] and old["version"] != slim["version"]:
-                self._add_event(_now(), base_topic, "network", "Network", "zigbee2mqtt updated", f"{old['version']} → {slim['version']}")
+                self._add_event(
+                    _now(),
+                    base_topic,
+                    "network",
+                    "Network",
+                    "zigbee2mqtt updated",
+                    f"{old['version']} → {slim['version']}",
+                )
             bridge["info"] = slim
             self._changed(structural=True)
         on = bool(info.get("permit_join"))
@@ -1110,15 +1278,31 @@ class Tracker:
         if via and seconds:
             with self.lock:
                 router = self.data["devices"].get(via)
-                if router is None or router.get("instance") != base_topic or router.get("type") not in ("Router", "Coordinator") or router["status"] != STATUS_ACTIVE:
+                if (
+                    router is None
+                    or router.get("instance") != base_topic
+                    or router.get("type") not in ("Router", "Coordinator")
+                    or router["status"] != STATUS_ACTIVE
+                ):
                     return {"ok": False, "error": "Choose a router or the coordinator on this network"}
-                via_name = router.get("friendly_name") or ("Coordinator" if router.get("type") == "Coordinator" else via)
+                via_name = router.get("friendly_name") or (
+                    "Coordinator" if router.get("type") == "Coordinator" else via
+                )
             payload["device"] = "Coordinator" if router.get("type") == "Coordinator" else via_name
         result = self.request(base_topic, "permit_join", payload, timeout=15)
         ok = bool(result and result.get("status") == "ok")
         with self.lock:
             if ok and seconds:
-                self.pairing_sessions[base_topic] = {"started": _now(), "seconds": seconds, "active": True, "joined": [], "via": via, "via_name": via_name, "target": target, "rejoined": None}
+                self.pairing_sessions[base_topic] = {
+                    "started": _now(),
+                    "seconds": seconds,
+                    "active": True,
+                    "joined": [],
+                    "via": via,
+                    "via_name": via_name,
+                    "target": target,
+                    "rejoined": None,
+                }
                 end = datetime.fromtimestamp(time.time() + seconds, tz=timezone.utc).isoformat(timespec="seconds")
                 self.permit[base_topic] = {"on": True, "end": end}
             elif ok:
@@ -1137,7 +1321,9 @@ class Tracker:
             if record is None or record["status"] != STATUS_ACTIVE:
                 return {"ok": False, "error": "Device is not active in Zigbee2MQTT"}
             base_topic = record["instance"]
-        result = self.request(base_topic, "device/rename", {"from": ieee, "to": new_name, "homeassistant_rename": True}, timeout=20)
+        result = self.request(
+            base_topic, "device/rename", {"from": ieee, "to": new_name, "homeassistant_rename": True}, timeout=20
+        )
         ok = bool(result and result.get("status") == "ok")
         return {"ok": ok, "error": None if ok else friendly_z2m_error((result or {}).get("error") or "No response")}
 
@@ -1151,8 +1337,14 @@ class Tracker:
         if action == "check":
             result = self.request(base_topic, "device/ota_update/check", {"id": ieee}, timeout=60)
             ok = bool(result and result.get("status") == "ok")
-            available = ((result or {}).get("data") or {}).get("update_available", ((result or {}).get("data") or {}).get("updateAvailable"))
-            return {"ok": ok, "available": available, "error": None if ok else friendly_z2m_error((result or {}).get("error") or "No response")}
+            available = ((result or {}).get("data") or {}).get(
+                "update_available", ((result or {}).get("data") or {}).get("updateAvailable")
+            )
+            return {
+                "ok": ok,
+                "available": available,
+                "error": None if ok else friendly_z2m_error((result or {}).get("error") or "No response"),
+            }
         if action == "update":
             with self.lock:
                 self._add_event(_now(), base_topic, ieee, name, "firmware update started", "")
@@ -1164,7 +1356,14 @@ class Tracker:
                 result = self.request(base_topic, "device/ota_update/update", {"id": ieee}, timeout=3600)
                 with self.lock:
                     if not result or result.get("status") != "ok":
-                        self._add_event(_now(), base_topic, ieee, name, "firmware update failed", friendly_z2m_error((result or {}).get("error") or "No response"))
+                        self._add_event(
+                            _now(),
+                            base_topic,
+                            ieee,
+                            name,
+                            "firmware update failed",
+                            friendly_z2m_error((result or {}).get("error") or "No response"),
+                        )
                         rec = self.data["devices"].get(ieee)
                         if rec and (rec.get("update") or {}).get("state") == "updating":
                             rec["update"]["state"] = "available"
@@ -1184,21 +1383,47 @@ class Tracker:
                     continue
                 level = record.get("battery")
                 est = self.metrics.summary(record["ieee"], now).get("battery_estimate_days")
-                due = (est is not None and est <= days) or record.get("battery_low") is True or (isinstance(level, (int, float)) and level <= 25 and est is None)
+                due = (
+                    (est is not None and est <= days)
+                    or record.get("battery_low") is True
+                    or (isinstance(level, (int, float)) and level <= 25 and est is None)
+                )
                 if not due:
                     continue
                 info = self.battery_summary(record)
                 key = info["type"] or "Unknown type"
                 group = groups.setdefault(key, {"type": key, "count": 0, "devices": []})
                 group["count"] += int(info["quantity"] or 1)
-                group["devices"].append({"ieee": record["ieee"], "name": _display_name(record) or record["ieee"], "battery": level, "days": est, "quantity": info["quantity"] or 1})
+                group["devices"].append(
+                    {
+                        "ieee": record["ieee"],
+                        "name": _display_name(record) or record["ieee"],
+                        "battery": level,
+                        "days": est,
+                        "quantity": info["quantity"] or 1,
+                    }
+                )
         for group in groups.values():
-            group["devices"].sort(key=lambda d: (d["days"] if d["days"] is not None else 999, d["battery"] if d["battery"] is not None else 101))
+            group["devices"].sort(
+                key=lambda d: (
+                    d["days"] if d["days"] is not None else 999,
+                    d["battery"] if d["battery"] is not None else 101,
+                )
+            )
         return sorted(groups.values(), key=lambda g: (g["type"] == "Unknown type", -g["count"]))
 
     def backup(self) -> bytes:
         with self.lock, self.metrics.lock:
-            return json.dumps({"format": "z2m-tracker-backup", "version": 1, "created": _now(), "history": self.data, "metrics": self.metrics.series}, ensure_ascii=False).encode("utf-8")
+            return json.dumps(
+                {
+                    "format": "z2m-tracker-backup",
+                    "version": 1,
+                    "created": _now(),
+                    "history": self.data,
+                    "metrics": self.metrics.series,
+                },
+                ensure_ascii=False,
+            ).encode("utf-8")
 
     def restore(self, payload: dict) -> dict:
         if not isinstance(payload, dict) or payload.get("format") != "z2m-tracker-backup":
@@ -1207,7 +1432,13 @@ class Tracker:
         if not isinstance(history.get("devices"), dict):
             return {"ok": False, "error": "The backup has no device list"}
         with self.lock:
-            self.data = {"devices": {}, "events": list(history.get("events") or []), "imported": history.get("imported"), "networkmap": history.get("networkmap") or {}, "alerted": list(history.get("alerted") or [])}
+            self.data = {
+                "devices": {},
+                "events": list(history.get("events") or []),
+                "imported": history.get("imported"),
+                "networkmap": history.get("networkmap") or {},
+                "alerted": list(history.get("alerted") or []),
+            }
             for key, value in history.items():
                 if key not in ("devices", "events", "imported", "networkmap", "alerted"):
                     self.data[key] = value
@@ -1240,8 +1471,22 @@ class Tracker:
             if not new.get("asset") and old.get("asset"):
                 new["asset"] = dict(old["asset"])
             now = _now()
-            self._add_event(now, new["instance"], new_ieee, new.get("friendly_name"), "linked", f"Replaces {_display_name(old) or old_ieee} ({old_ieee})")
-            self._add_event(now, old["instance"] or "unknown", old_ieee, _display_name(old), "linked", f"Replaced by {_display_name(new) or new_ieee} ({new_ieee})")
+            self._add_event(
+                now,
+                new["instance"],
+                new_ieee,
+                new.get("friendly_name"),
+                "linked",
+                f"Replaces {_display_name(old) or old_ieee} ({old_ieee})",
+            )
+            self._add_event(
+                now,
+                old["instance"] or "unknown",
+                old_ieee,
+                _display_name(old),
+                "linked",
+                f"Replaced by {_display_name(new) or new_ieee} ({new_ieee})",
+            )
             self._changed(structural=True)
         self.evaluate_health()
         return {"ok": True}

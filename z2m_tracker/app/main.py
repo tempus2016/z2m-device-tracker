@@ -17,9 +17,9 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import paho.mqtt.client as mqtt
-
 from battery_library import BatteryLibrary
-from discovery import AVAILABILITY, BASE as DISCOVERY_BASE, Discovery
+from discovery import AVAILABILITY, Discovery
+from discovery import BASE as DISCOVERY_BASE
 from ha import HomeAssistant
 from health import CHECKS, DEFAULT_NOTIFY, mutes_of
 from metrics import Metrics
@@ -71,6 +71,7 @@ DEFAULT_OPTIONS = {
 CHECK_KEYS = {key for key, _, _, _ in CHECKS}
 EVENT_KEYS = {"joined": "joined", "left": "left", "interview failed": "interview_failed"}
 
+
 # Settings the web UI may change, with validators returning the clean value (or raising ValueError).
 def _bool(value):
     if isinstance(value, bool):
@@ -83,6 +84,7 @@ def _int(low, high):
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not low <= int(value) <= high:
             raise ValueError(f"must be a number from {low} to {high}")
         return int(value)
+
     return check
 
 
@@ -188,7 +190,15 @@ class Alerts:
                 _LOGGER.exception("Sending alert failed")
 
     def _send(self, key: str, kind: str, ieee: str, name: str, title: str, message: str, instance: str | None) -> None:
-        data = {"key": key, "kind": kind, "ieee": ieee, "name": name, "title": title, "message": message, "network": instance}
+        data = {
+            "key": key,
+            "kind": kind,
+            "ieee": ieee,
+            "name": name,
+            "title": title,
+            "message": message,
+            "network": instance,
+        }
         _LOGGER.info("Alert: %s - %s", title, message)
 
         def job() -> None:
@@ -230,7 +240,15 @@ class Alerts:
             channels.append(options["notify_service"])
         if options.get("fire_events", True):
             channels.append("z2m_tracker_alert event")
-        self._send("test", "test", "", "Zigbee Tracker", "Zigbee Tracker test", "Notifications from the Zigbee Tracker are working.", None)
+        self._send(
+            "test",
+            "test",
+            "",
+            "Zigbee Tracker",
+            "Zigbee Tracker test",
+            "Notifications from the Zigbee Tracker are working.",
+            None,
+        )
         return channels
 
     def on_event(self, event: dict) -> None:
@@ -244,8 +262,20 @@ class Alerts:
             "left": f"{name} left the {event['instance']} network.",
             "interview failed": f"{name} joined but its interview failed, so Zigbee2MQTT can't identify it.",
         }
-        title = {"joined": "Zigbee device joined", "left": "Zigbee device left", "interview failed": "Zigbee interview failed"}.get(kind, f"Zigbee: {kind}")
-        self._send(f"event:{kind}:{event['ieee']}:{event['time']}", kind, event["ieee"], name, title, messages.get(kind, event.get("detail") or ""), event.get("instance"))
+        title = {
+            "joined": "Zigbee device joined",
+            "left": "Zigbee device left",
+            "interview failed": "Zigbee interview failed",
+        }.get(kind, f"Zigbee: {kind}")
+        self._send(
+            f"event:{kind}:{event['ieee']}:{event['time']}",
+            kind,
+            event["ieee"],
+            name,
+            title,
+            messages.get(kind, event.get("detail") or ""),
+            event.get("instance"),
+        )
 
     def check(self) -> None:
         issues, _ = tracker.evaluate_health()
@@ -262,7 +292,15 @@ class Alerts:
             return
         for key in sorted(set(current) - sent):
             issue = current[key]
-            self._send(key, issue["kind"], issue["ieee"], issue["name"], f"Zigbee: {issue['name']} - {issue['label']}", issue["detail"], issue.get("instance"))
+            self._send(
+                key,
+                issue["kind"],
+                issue["ieee"],
+                issue["name"],
+                f"Zigbee: {issue['name']} - {issue['label']}",
+                issue["detail"],
+                issue.get("instance"),
+            )
         for key in sent - set(current):
             self._dismiss(key)
 
@@ -279,7 +317,10 @@ def on_connect(client, userdata, flags, reason_code, properties):
         _LOGGER.error("MQTT connect failed: %s", reason_code)
         return
     _LOGGER.info("Connected to MQTT, subscribing to %s", ", ".join(f"{topic}/#" for topic in base_topics))
-    client.subscribe([(f"{topic}/#", 0) for topic in base_topics] + [(f"{DISCOVERY_BASE}/+/reconfigure", 0), (f"{DISCOVERY_BASE}/+/battery_replaced", 0)])
+    client.subscribe(
+        [(f"{topic}/#", 0) for topic in base_topics]
+        + [(f"{DISCOVERY_BASE}/+/reconfigure", 0), (f"{DISCOVERY_BASE}/+/battery_replaced", 0)]
+    )
     client.publish(AVAILABILITY, "online", qos=1, retain=True)
     threading.Thread(target=discovery.sync, kwargs={"force": True}, name="discovery", daemon=True).start()
 
@@ -294,7 +335,11 @@ def on_message(client, userdata, message):
     if topic.startswith(f"{DISCOVERY_BASE}/") and topic.endswith("/battery_replaced"):
         ieee = topic.split("/")[1]
         _LOGGER.info("Battery replacement recorded from Home Assistant for %s", ieee)
-        threading.Thread(target=record_battery_replaced, args=(ieee, datetime.now(tracker.local_tz).date().isoformat(), "Home Assistant", ""), daemon=True).start()
+        threading.Thread(
+            target=record_battery_replaced,
+            args=(ieee, datetime.now(tracker.local_tz).date().isoformat(), "Home Assistant", ""),
+            daemon=True,
+        ).start()
         return
     if topic.startswith(f"{DISCOVERY_BASE}/") and topic.endswith("/reconfigure"):
         ieee = topic.split("/")[1]
@@ -356,7 +401,11 @@ def record_battery_replaced(ieee: str, date: str, source: str, note: str) -> dic
         return None
     device_id = tracker.ha_device_ids.get(ieee)
     if device_id and ieee in tracker.ha_battery:
-        when = f"{date}T12:00:00" if date != datetime.now(tracker.local_tz).date().isoformat() else datetime.now(tracker.local_tz).isoformat(timespec="seconds")
+        when = (
+            f"{date}T12:00:00"
+            if date != datetime.now(tracker.local_tz).date().isoformat()
+            else datetime.now(tracker.local_tz).isoformat(timespec="seconds")
+        )
         entry["battery_notes_synced"] = home_assistant.battery_notes_replaced(device_id, when)
         if entry["battery_notes_synced"]:
             tracker.ha_battery.setdefault(ieee, {})["last_replaced"] = when
@@ -376,7 +425,7 @@ def settings_payload() -> dict:
         networkmap = dict(tracker.data.get("networkmap") or {})
     return {
         "settings": {key: options.get(key) for key in SETTINGS},
-        "checks": [{"key": k, "label": l, "description": d, "event": e} for k, l, d, e in CHECKS],
+        "checks": [{"key": k, "label": label, "description": d, "event": e} for k, label, d, e in CHECKS],
         "networks": [{"topic": t, "label": t, "panel": options["_panels"].get(t)} for t in base_topics],
         "muted": sorted(muted, key=lambda m: m["name"].lower()),
         "entities": len(discovery._configs),
@@ -423,7 +472,9 @@ def refresh_home_assistant() -> None:
             tracker.ha_device_ids = dict(home_assistant.device_ids)
             tracker.ha_battery = dict(home_assistant.battery)
             tracker._changed(structural=True)
-        _LOGGER.info("Linked %d HA devices, %d with Battery Notes", len(home_assistant.device_ids), len(home_assistant.battery))
+        _LOGGER.info(
+            "Linked %d HA devices, %d with Battery Notes", len(home_assistant.device_ids), len(home_assistant.battery)
+        )
     except Exception:  # noqa: BLE001 - HA lookups are optional
         _LOGGER.exception("Reading Home Assistant registries failed")
 
@@ -472,17 +523,25 @@ def weekly_summary_text() -> tuple[str, str]:
     with tracker.lock:
         issues = [i for i in tracker.issues if i["severity"] == "warning"]
         events = [e for e in tracker.data["events"] if (e.get("time") or "") >= week_ago]
-        active = sum(1 for r in tracker.data["devices"].values() if r["status"] == "active" and r.get("type") != "Coordinator")
+        active = sum(
+            1 for r in tracker.data["devices"].values() if r["status"] == "active" and r.get("type") != "Coordinator"
+        )
     shopping = tracker.battery_shopping(60)
     joined = sorted({e.get("name") or e["ieee"] for e in events if e["kind"] in ("added", "joined")})
     removed = sorted({e.get("name") or e["ieee"] for e in events if e["kind"] == "removed"})
     lines = [f"{active} active devices."]
     if issues:
-        lines.append(f"Needs attention ({len(issues)}): " + "; ".join(f"{i['name']} ({i['label'].lower()})" for i in issues[:8]) + ("…" if len(issues) > 8 else ""))
+        lines.append(
+            f"Needs attention ({len(issues)}): "
+            + "; ".join(f"{i['name']} ({i['label'].lower()})" for i in issues[:8])
+            + ("…" if len(issues) > 8 else "")
+        )
     else:
         lines.append("Nothing needs attention.")
     if shopping:
-        lines.append("Batteries for the next 60 days: " + ", ".join(f"{g['count']}× {g['type']}" for g in shopping) + ".")
+        lines.append(
+            "Batteries for the next 60 days: " + ", ".join(f"{g['count']}× {g['type']}" for g in shopping) + "."
+        )
     if joined:
         lines.append("New this week: " + ", ".join(joined[:6]) + ".")
     if removed:
@@ -492,7 +551,9 @@ def weekly_summary_text() -> tuple[str, str]:
             outages = [o for o in bridge.get("outages", []) if (o.get("start") or "") >= week_ago]
             if outages:
                 net = "Main" if bt == "zigbee2mqtt" else bt.replace("zigbee2mqtt_", "").replace("_", " ").capitalize()
-                lines.append(f"{net} network went offline {len(outages)} time{'s' if len(outages) != 1 else ''} this week.")
+                lines.append(
+                    f"{net} network went offline {len(outages)} time{'s' if len(outages) != 1 else ''} this week."
+                )
     title = f"Zigbee weekly summary: {len(issues)} need attention" if issues else "Zigbee weekly summary: all good"
     return title, "\n".join(lines)
 
@@ -540,7 +601,9 @@ class Handler(BaseHTTPRequestHandler):
         self.send_error(403)
         return False
 
-    def _send(self, status: int, body: bytes, content_type: str = "application/json", extra: dict | None = None) -> None:
+    def _send(
+        self, status: int, body: bytes, content_type: str = "application/json", extra: dict | None = None
+    ) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
@@ -588,7 +651,11 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/version":
             self._json(200, {"version": tracker.version, "app": VERSION})
         elif path == "/api/scans":
-            query = dict(part.split("=", 1) for part in (self.path.split("?", 1)[1] if "?" in self.path else "").split("&") if "=" in part)
+            query = dict(
+                part.split("=", 1)
+                for part in (self.path.split("?", 1)[1] if "?" in self.path else "").split("&")
+                if "=" in part
+            )
             net = query.get("net", "")
             if net not in base_topics:
                 self._json(400, {"error": "Unknown network"})
@@ -596,7 +663,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, {"scans": tracker.scan_history(net)})
         elif path == "/api/backup":
             stamp = datetime.now().strftime("%Y-%m-%d")
-            self._send(200, tracker.backup(), "application/json", {"Content-Disposition": f'attachment; filename="zigbee-tracker-backup-{stamp}.json"'})
+            self._send(
+                200,
+                tracker.backup(),
+                "application/json",
+                {"Content-Disposition": f'attachment; filename="zigbee-tracker-backup-{stamp}.json"'},
+            )
         elif path == "/api/areas":
             try:
                 self._json(200, {"areas": home_assistant.list_areas()})
@@ -604,7 +676,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(502, {"error": str(err)})
         elif path == "/api/export.csv":
             stamp = datetime.now().strftime("%Y-%m-%d")
-            self._send(200, tracker.export_csv(), "text/csv; charset=utf-8", {"Content-Disposition": f'attachment; filename="zigbee-devices-{stamp}.csv"'})
+            self._send(
+                200,
+                tracker.export_csv(),
+                "text/csv; charset=utf-8",
+                {"Content-Disposition": f'attachment; filename="zigbee-devices-{stamp}.csv"'},
+            )
         else:
             self.send_error(404)
 
@@ -634,7 +711,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200 if ok else 404, {"ok": ok})
             elif path == "/api/mute":
                 days = body.get("days")
-                ok = tracker.set_muted(ieee, str(body.get("kind") or ""), bool(body.get("muted")), float(days) if isinstance(days, (int, float)) and days > 0 else None)
+                ok = tracker.set_muted(
+                    ieee,
+                    str(body.get("kind") or ""),
+                    bool(body.get("muted")),
+                    float(days) if isinstance(days, (int, float)) and days > 0 else None,
+                )
                 self._json(200 if ok else 404, {"ok": ok})
             elif path == "/api/link":
                 result = tracker.link(str(body.get("old") or ""), str(body.get("new") or ""))
@@ -647,7 +729,9 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/networkmap":
                 instance = body.get("instance") if body.get("instance") in base_topics else None
                 started = run_networkmap(instance)
-                self._json(200 if started else 409, {"ok": started, "error": None if started else "A scan is already running"})
+                self._json(
+                    200 if started else 409, {"ok": started, "error": None if started else "A scan is already running"}
+                )
             elif path == "/api/forget":
                 ok = tracker.forget(ieee)
                 self._json(200 if ok else 404, {"ok": ok})
@@ -663,7 +747,10 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/battery/replaced":
                 date = str(body.get("date") or datetime.now(tracker.local_tz).date().isoformat())
                 entry = record_battery_replaced(ieee, date, "Zigbee Tracker", str(body.get("note") or ""))
-                self._json(200 if entry else 400, {"ok": bool(entry), "entry": entry, "error": None if entry else "Invalid device or date"})
+                self._json(
+                    200 if entry else 400,
+                    {"ok": bool(entry), "entry": entry, "error": None if entry else "Invalid device or date"},
+                )
             elif path == "/api/battery/remove":
                 ok = tracker.remove_battery_replacement(ieee, int(body.get("index", -1)))
                 threading.Thread(target=discovery.sync, daemon=True).start()
@@ -688,7 +775,12 @@ class Handler(BaseHTTPRequestHandler):
                     self._json(200, {"ok": True})
             elif path == "/api/pairing":
                 instance = body.get("instance") if body.get("instance") in base_topics else base_topics[0]
-                result = tracker.start_pairing(instance, int(body.get("seconds") or 0), str(body.get("via") or "") or None, str(body.get("target") or "") or None)
+                result = tracker.start_pairing(
+                    instance,
+                    int(body.get("seconds") or 0),
+                    str(body.get("via") or "") or None,
+                    str(body.get("target") or "") or None,
+                )
                 self._json(200 if result["ok"] else 502, result)
             elif path == "/api/ota":
                 result = tracker.ota(ieee, str(body.get("action") or ""))

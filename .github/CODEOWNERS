@@ -1,0 +1,12 @@
+# Auto-requests review on every pull request, including from forks.
+
+*                               @tempus2016
+
+# The places where a silent change is most expensive.
+/.github/                       @tempus2016
+/z2m_tracker/config.yaml        @tempus2016
+/z2m_tracker/Dockerfile         @tempus2016
+/z2m_tracker/build.yaml         @tempus2016
+/custom_components/             @tempus2016
+/hacs.json                      @tempus2016
+/repository.yaml                @tempus2016
