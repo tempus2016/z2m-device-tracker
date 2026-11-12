@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- New installs now alert when a Zigbee2MQTT network goes offline. The Network offline check was missing from the default alert list, so it only showed on the Health tab. Existing installs keep their current choice: to get these alerts, set Network offline to Show and notify under Settings, Checks.
+
 ## 1.0.0
 
 First public release.
