@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - ci
+    # Don't bump onto a release that is hours old — a freshly published action
+    # version is the one most likely to be yanked or compromised.
+    cooldown:
+      default-days: 7
+
+  # The app's Python packages are pinned in z2m_tracker/Dockerfile and its base image in
+  # z2m_tracker/build.yaml. Dependabot cannot read either, so those are bumped by hand.

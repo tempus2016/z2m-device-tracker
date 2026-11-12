@@ -1,0 +1,88 @@
+name: Bug Report
+description: Report something in the app, the integration or the card that does not work as documented
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+assignees:
+  - tempus2016
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. The more of the following you fill in, the
+        faster it can be reproduced.
+
+        Please check the [app documentation](https://github.com/tempus2016/z2m-device-tracker/blob/main/z2m_tracker/DOCS.md)
+        and the [existing issues](https://github.com/tempus2016/z2m-device-tracker/issues) first.
+
+  - type: dropdown
+    id: part
+    attributes:
+      label: Which part is affected?
+      options:
+        - The app (sidebar page, history, alerts, network map)
+        - The integration (sensors)
+        - The dashboard card
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: app_version
+    attributes:
+      label: Z2M Device Tracker version
+      description: Settings → Apps → Z2M Device Tracker shows the app version. HACS shows the integration version.
+      placeholder: e.g. 1.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+      description: Settings → System → About
+      placeholder: e.g. 2026.11.1
+    validations:
+      required: true
+
+  - type: input
+    id: z2m_version
+    attributes:
+      label: Zigbee2MQTT version, and how many instances
+      placeholder: e.g. 2.6.2, two instances (zigbee2mqtt and zigbee2mqtt_upstairs)
+    validations:
+      required: true
+
+  - type: input
+    id: broker
+    attributes:
+      label: MQTT broker
+      placeholder: e.g. the Mosquitto broker app, or an external broker
+    validations:
+      required: false
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what did you get instead? Screenshots help.
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: App configuration
+      description: Settings → Apps → Z2M Device Tracker → Configuration → ⋮ → Edit in YAML. Remove anything private.
+      render: yaml
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: App log
+      description: Settings → Apps → Z2M Device Tracker → Log. Paste anything around the time it went wrong.
+      render: shell
+    validations:
+      required: false

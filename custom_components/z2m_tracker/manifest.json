@@ -1,6 +1,9 @@
 {
   "domain": "z2m_tracker",
   "name": "Z2M Device Tracker",
+  "after_dependencies": [
+    "hassio"
+  ],
   "codeowners": [
     "@tempus2016"
   ],
@@ -13,11 +16,8 @@
   "documentation": "https://github.com/tempus2016/z2m-device-tracker",
   "integration_type": "service",
   "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/tempus2016/z2m-device-tracker/issues",
   "requirements": [],
   "single_config_entry": true,
-  "version": "1.0.0",
-  "issue_tracker": "https://github.com/tempus2016/z2m-device-tracker/issues",
-  "after_dependencies": [
-    "hassio"
-  ]
+  "version": "1.0.0"
 }

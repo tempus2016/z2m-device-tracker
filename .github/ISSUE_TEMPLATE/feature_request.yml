@@ -1,0 +1,37 @@
+name: Feature Request
+description: Suggest something the tracker should be able to do
+title: "[FR]: "
+labels: ["enhancement", "needs-triage"]
+assignees:
+  - tempus2016
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas are welcome. Say what you are trying to find out or keep an eye on in your
+        Zigbee network, rather than only the button you would like.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The problem, rather than the solution. How do you deal with it today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like the tracker to do?
+      description: Where would it show up? The sidebar page, an alert, a sensor, the card?
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What have you tried instead?
+      description: Zigbee2MQTT's own frontend, automations, other integrations.
+    validations:
+      required: false

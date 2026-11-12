@@ -1,0 +1,36 @@
+# Path-based pull request labels, applied by .github/workflows/labeler.yml.
+# Every label named here must exist — they are defined in .github/labels.yml.
+
+app:
+  - changed-files:
+      - any-glob-to-any-file:
+          - z2m_tracker/**
+
+integration:
+  - changed-files:
+      - any-glob-to-any-file:
+          - custom_components/z2m_tracker/*.py
+          - custom_components/z2m_tracker/*.json
+          - custom_components/z2m_tracker/*.yaml
+          - custom_components/z2m_tracker/translations/**
+
+card:
+  - changed-files:
+      - any-glob-to-any-file:
+          - custom_components/z2m_tracker/www/**
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - README.md
+          - z2m_tracker/DOCS.md
+          - CONTRIBUTING.md
+          - SECURITY.md
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/**
+          - pyproject.toml
+          - hacs.json
+          - repository.yaml
