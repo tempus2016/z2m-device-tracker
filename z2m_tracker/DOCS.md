@@ -23,6 +23,24 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `weekly_summary` | `true` | Send a weekly summary notification. |
 | `summary_day` / `summary_hour` | `0` / `9` | When to send it (0 = Monday). |
 | `wifi_channels` | empty | Your 2.4 GHz Wi-Fi channels, e.g. `1, 6`, used for the radio channel check. |
+| `chatty_per_hour` | `1200` | Messages an hour (averaged over 6 hours) above which a device is flagged as chatty. |
+
+## More checks
+
+These checks show in Health but don't notify until you set them to **Show and notify** in Settings → Checks.
+
+| Check | Flags |
+| --- | --- |
+| Flapping | A device that goes offline 4+ times or leaves the network twice in 24 hours, even when each drop is too short for the Offline alert. |
+| Chatty device | Message rate above `chatty_per_hour`, or 5 times its own usual rate (and at least 360 an hour). |
+| Battery draining fast | Battery fell at least 3 times faster over the last 14 days than its rate since the last battery change (needs about 5 weeks of history). |
+| Binding lost | A binding (to a device, a group, or the coordinator for reporting) that disappeared and didn't come back within 10 minutes. Bindings removed with Zigbee2MQTT's Unbind are logged but not flagged. |
+| Single point of failure | A router that, in the latest routing scan, is the only path to the coordinator for other routers. Also listed in the Map tab's advice. |
+| Coordinator backup | `coordinator_backup.json` missing, without a network key, not matching the running channel/PAN ID, or more than 3 days old. Only checked when the Zigbee2MQTT data folder is inside the HA config folder. |
+
+The device panel's Info tab also shows message rates, Zigbee2MQTT's own counters (messages, leaves, address changes) and the device's bindings.
+
+The integration can mirror warnings and notify-enabled checks into **Settings → Repairs**. Turn it off in the integration's options.
 
 ## Data
 

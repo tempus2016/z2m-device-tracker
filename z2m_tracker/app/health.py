@@ -9,7 +9,23 @@ WARNING = "warning"
 INFO = "info"
 
 # Issue kinds that notify by default (info-level kinds only show in the UI unless enabled).
-ALERT_KINDS = {"offline", "frozen", "battery_low", "weak_signal", "silent", "unidentified", "network_offline"}
+ALERT_KINDS = {
+    "offline",
+    "frozen",
+    "battery_low",
+    "weak_signal",
+    "silent",
+    "unidentified",
+    "network_offline",
+    "flapping",
+    "binding_lost",
+    "coordinator_backup",
+}
+
+FLAP_OUTAGES = 4
+FLAP_LEAVES = 2
+BINDING_GRACE_SECONDS = 600
+DEFAULT_CHATTY_PER_HOUR = 1200
 
 # Everything the Settings page can switch: (key, label, description, is_event)
 CHECKS = [
@@ -35,6 +51,42 @@ CHECKS = [
     ("replacement", "Possible replacement", "An active device has the same name as a removed one.", False),
     ("network_offline", "Network offline", "Zigbee2MQTT or its coordinator stops responding for 2 minutes.", False),
     ("restart_required", "Restart needed", "Zigbee2MQTT says it needs a restart to apply settings.", False),
+    (
+        "flapping",
+        "Flapping",
+        "Drops offline 4 or more times in 24 hours, or leaves the network twice, even if each drop is short.",
+        False,
+    ),
+    (
+        "chatty",
+        "Chatty device",
+        "Sends more messages an hour than the chatty threshold, or 5 times its usual rate. Floods the mesh for everyone.",
+        False,
+    ),
+    (
+        "battery_drain",
+        "Battery draining fast",
+        "Battery fell at least 3 times faster over the last 14 days than its usual rate. Often a weak link to its router.",
+        False,
+    ),
+    (
+        "binding_lost",
+        "Binding lost",
+        "A binding (device to device, group or coordinator reporting) disappeared and hasn't come back after 10 minutes.",
+        False,
+    ),
+    (
+        "single_point",
+        "Single point of failure",
+        "A router that is the only path to the coordinator for other routers in the last routing scan.",
+        False,
+    ),
+    (
+        "coordinator_backup",
+        "Coordinator backup",
+        "Zigbee2MQTT's coordinator_backup.json is missing, more than 3 days old, or doesn't match the running network.",
+        False,
+    ),
     ("joined", "Device joined", "A device joins one of your networks.", True),
     ("left", "Device left", "A device leaves one of your networks.", True),
     ("interview_failed", "Interview failed", "A newly joined device couldn't be identified.", True),
@@ -52,6 +104,12 @@ KIND_LABELS = {
     "update": "Firmware update",
     "unidentified": "Unidentified",
     "replacement": "Possible replacement",
+    "flapping": "Flapping",
+    "chatty": "Chatty device",
+    "battery_drain": "Battery draining fast",
+    "binding_lost": "Binding lost",
+    "single_point": "Single point of failure",
+    "coordinator_backup": "Coordinator backup",
 }
 
 
@@ -182,6 +240,77 @@ def device_issues(
             INFO,
             "Firmware update available",
             f"{update.get('installed_version')} → {update.get('latest_version')}",
+        )
+
+    if summary.get("outages_24h", 0) >= FLAP_OUTAGES or summary.get("leaves_24h", 0) >= FLAP_LEAVES:
+        parts = []
+        if summary.get("outages_24h"):
+            parts.append(f"went offline {summary['outages_24h']} times")
+        if summary.get("leaves_24h"):
+            parts.append(f"left the network {summary['leaves_24h']} times")
+        add(
+            "flapping",
+            WARNING,
+            "Keeps dropping out",
+            f"In the last 24 h it {' and '.join(parts)}. Usually a weak or unstable link, a failing power supply, or a router nearby that keeps restarting.",
+        )
+
+    chatty_limit = max(1, int(options.get("chatty_per_hour", DEFAULT_CHATTY_PER_HOUR) or DEFAULT_CHATTY_PER_HOUR))
+    rate = summary.get("msg_rate_6h")
+    usual = summary.get("msg_rate_prev")
+    if rate is not None and rate >= chatty_limit:
+        add(
+            "chatty",
+            WARNING,
+            "Very chatty",
+            f"About {rate:.0f} messages an hour (one every {3600 / rate:.1f} s) over the last 6 h. That much traffic slows the whole mesh. Raise its reporting interval or set debounce/throttle for it in Zigbee2MQTT.",
+        )
+    elif rate is not None and usual and rate >= 5 * usual and rate >= 360:
+        add(
+            "chatty",
+            INFO,
+            "Chattier than usual",
+            f"About {rate:.0f} messages an hour over the last 6 h, against its usual {usual:.0f}. Something changed: a stuck sensor, a reporting setting, or an automation sending commands in a loop.",
+        )
+
+    drain = summary.get("battery_drain")
+    if drain:
+        parent = summary.get("parent")
+        via = f" It connects through {parent['name']} (LQI {parent['lqi']})." if parent and parent.get("name") else ""
+        add(
+            "battery_drain",
+            WARNING,
+            "Battery draining fast",
+            f"Dropped {drain['dropped']:.0f}% in the last {drain['days']} days, about {drain['factor']:.0f}× its usual rate of {drain['usual_rate']:.2f}% a day.{via} Often a weak link to its router (it keeps retrying), or a sensor stuck reporting.",
+        )
+
+    lost = [b for b in record.get("lost_bindings") or [] if (_age(b.get("lost_at"), now) or 0) >= BINDING_GRACE_SECONDS]
+    if lost:
+        names = "; ".join(b.get("label") or b.get("key", "") for b in lost[:4]) + ("…" if len(lost) > 4 else "")
+        to_coord = any(b.get("coordinator") for b in lost)
+        fix = (
+            "Reconfigure re-creates the reporting bindings to the coordinator."
+            if to_coord
+            else "Re-create it in Zigbee2MQTT on the device's Bind tab."
+        )
+        add(
+            "binding_lost",
+            WARNING,
+            "Binding lost",
+            f"{len(lost)} binding{'s' if len(lost) != 1 else ''} gone since {lost[0].get('lost_at', '')[:16].replace('T', ' ')} UTC: {names}. {fix}",
+        )
+
+    spof = summary.get("single_point")
+    if spof:
+        routers = spof["routers"]
+        devices = spof["devices"]
+        shown = ", ".join(r["name"] for r in routers[:4]) + ("…" if len(routers) > 4 else "")
+        extra = f", plus {devices} battery device{'s' if devices != 1 else ''} behind them" if devices else ""
+        add(
+            "single_point",
+            INFO,
+            "Single point of failure",
+            f"In the last routing scan it was the only path to the coordinator for {len(routers)} router{'s' if len(routers) != 1 else ''} ({shown}){extra}. If it loses power they have to find another way in. Another router between them and the rest of the mesh removes the risk.",
         )
 
     for suggestion in suggestions:

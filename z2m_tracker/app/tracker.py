@@ -92,6 +92,9 @@ def _new_record(ieee: str, instance: str | None) -> dict[str, Any]:
         "successor": None,
         "muted": [],
         "battery_info": {},
+        "bindings": None,
+        "lost_bindings": [],
+        "z2m_stats": None,
     }
 
 
@@ -127,6 +130,28 @@ def _add_historic_name(record: dict, name: str | None, when: str | None, source:
     record["names"].append({"name": name, "from": when, "until": None, "source": source, "historic": True})
     record["names"].sort(key=lambda entry: entry.get("from") or "")
     return True
+
+
+def _bindings_of(device: dict) -> list[dict] | None:
+    """Bindings from a bridge/devices entry, or None when Z2M didn't include endpoint data."""
+    endpoints = device.get("endpoints")
+    if not isinstance(endpoints, dict):
+        return None
+    out = []
+    for ep, info in endpoints.items():
+        for binding in (info or {}).get("bindings") or []:
+            target = binding.get("target") or {}
+            cluster = binding.get("cluster") or "?"
+            if target.get("type") == "group":
+                ident = f"group:{target.get('id')}"
+            else:
+                ident = f"{str(target.get('ieee_address') or '').lower()}/{target.get('endpoint')}"
+            out.append({"key": f"{ep}:{cluster}>{ident}", "ep": str(ep), "cluster": cluster, "target": ident})
+    return sorted(out, key=lambda b: b["key"])
+
+
+BACKUP_MAX_AGE = 3 * 86400
+BACKUP_REFRESH = 600
 
 
 def friendly_z2m_error(raw: str | None) -> str:
@@ -189,6 +214,11 @@ class Tracker:
         self.scans: dict[str, list] = {}
         self.scans_path: str | None = None
         self.pairing_sessions: dict[str, dict] = {}
+        self.groups: dict[str, dict[str, str]] = {}
+        self._unbinds: dict[str, float] = {}
+        self._spof_cache: dict[str, tuple] = {}
+        self._backups: dict[str, dict] = {}
+        self._backups_at = 0.0
 
     # ------------------------------------------------------------ persistence
 
@@ -269,6 +299,14 @@ class Tracker:
                             self._handle_info(base_topic, parsed)
                     elif rest == "bridge/state":
                         self._handle_bridge_state(base_topic, text)
+                    elif rest == "bridge/groups":
+                        parsed = json.loads(text)
+                        if isinstance(parsed, list):
+                            self.groups[base_topic] = {
+                                str(g.get("id")): g.get("friendly_name") or f"Group {g.get('id')}"
+                                for g in parsed
+                                if isinstance(g, dict)
+                            }
                     elif rest == "bridge/health":
                         parsed = json.loads(text)
                         if isinstance(parsed, dict):
@@ -362,6 +400,8 @@ class Tracker:
                         self._add_event(now, base_topic, ieee, name, "model changed", f"{record[key]} → {value}")
                     record[key] = value
                     changed = True
+            if self._update_bindings(base_topic, record, device, name, now, tracking_already):
+                changed = True
             record["last_listed"] = now
             if "Z2M live" not in record["sources"]:
                 record["sources"].append("Z2M live")
@@ -380,6 +420,100 @@ class Tracker:
         if self.lists_received >= set(self.base_topics):
             self.lists_ready.set()
         self._changed(structural=changed)
+
+    # --------------------------------------------------------------- bindings
+
+    def binding_label(self, base_topic: str, binding: dict) -> str:
+        target = binding.get("target") or ""
+        if target.startswith("group:"):
+            gid = target.split(":", 1)[1]
+            dest = f"group {self.groups.get(base_topic, {}).get(gid) or gid}"
+        else:
+            ieee, _, ep = target.partition("/")
+            rec = self.data["devices"].get(ieee)
+            if rec and rec.get("type") == "Coordinator":
+                dest = "Coordinator"
+            else:
+                dest = (_display_name(rec) if rec else None) or ieee
+                if ep and ep not in ("None", "1"):
+                    dest += f" (endpoint {ep})"
+        return f"{binding.get('cluster')} → {dest}"
+
+    def _is_coordinator_target(self, binding: dict) -> bool:
+        ieee = (binding.get("target") or "").partition("/")[0]
+        return (self.data["devices"].get(ieee) or {}).get("type") == "Coordinator"
+
+    def _update_bindings(
+        self, base_topic: str, record: dict, device: dict, name: str | None, now: str, tracking_already: bool
+    ) -> bool:
+        current = _bindings_of(device)
+        if current is None or record.get("type") == "Coordinator":
+            return False
+        interview = record.get("interview_state")
+        if interview and interview != "SUCCESSFUL":
+            return False
+        previous = record.get("bindings")
+        record["bindings"] = current
+        if previous is None:
+            return True
+        old = {b["key"]: b for b in previous}
+        new = {b["key"]: b for b in current}
+        if old.keys() == new.keys():
+            return False
+        removed = [old[k] for k in sorted(old.keys() - new.keys())]
+        added = [new[k] for k in sorted(new.keys() - old.keys())]
+        lost = record.setdefault("lost_bindings", [])
+        if added:
+            back = {b["key"] for b in added}
+            restored = [b for b in lost if b["key"] in back]
+            record["lost_bindings"] = lost = [b for b in lost if b["key"] not in back]
+            text = "; ".join(self.binding_label(base_topic, b) for b in added[:6]) + ("…" if len(added) > 6 else "")
+            self._add_event(
+                now,
+                base_topic,
+                record["ieee"],
+                name,
+                "binding restored" if restored and len(restored) == len(added) else "binding added",
+                text,
+            )
+        if removed:
+            unbound_at = self._unbinds.pop(record["ieee"], 0)
+            intended = time.time() - unbound_at < 180
+            text = "; ".join(self.binding_label(base_topic, b) for b in removed[:6]) + ("…" if len(removed) > 6 else "")
+            self._add_event(now, base_topic, record["ieee"], name, "unbound" if intended else "binding removed", text)
+            if not intended and tracking_already:
+                known = {b["key"] for b in lost}
+                for b in removed:
+                    if b["key"] not in known:
+                        lost.append(
+                            {
+                                **b,
+                                "label": self.binding_label(base_topic, b),
+                                "coordinator": self._is_coordinator_target(b),
+                                "lost_at": now,
+                            }
+                        )
+                del lost[: max(0, len(lost) - 50)]
+        return True
+
+    def acknowledge_bindings(self, ieee: str) -> bool:
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            if record is None:
+                return False
+            if record.get("lost_bindings"):
+                self._add_event(
+                    _now(),
+                    record.get("instance") or "unknown",
+                    ieee,
+                    record.get("friendly_name"),
+                    "binding change accepted",
+                    f"{len(record['lost_bindings'])} lost binding(s) dismissed",
+                )
+            record["lost_bindings"] = []
+            self._changed(structural=True)
+        self.evaluate_health()
+        return True
 
     def _handle_event(self, base_topic: str, payload: dict) -> None:
         event_type = payload.get("type")
@@ -443,6 +577,15 @@ class Tracker:
             pending["event"].set()
         if kind == "networkmap":
             self._ingest_networkmap(base_topic, payload)
+        elif kind == "device/unbind" and payload.get("status") == "ok":
+            source = str((payload.get("data") or {}).get("from") or "")
+            ieee = (
+                self.names.get(base_topic, {}).get(source)
+                or self.names.get(base_topic, {}).get(source.rsplit("/", 1)[0])
+                or source.lower()
+            )
+            if ieee in self.data["devices"]:
+                self._unbinds[ieee] = time.time()
 
     def _handle_availability(self, base_topic: str, name: str, payload: str) -> None:
         record = self._record_for(base_topic, name)
@@ -488,6 +631,7 @@ class Tracker:
         seen = self._to_utc_iso(parsed.get("last_seen")) or now
         record["last_seen"] = _max_time(record["last_seen"], seen)
         structural = False
+        self.metrics.add_message(ieee)
 
         lqi = parsed.get("linkquality")
         if isinstance(lqi, (int, float)) and not isinstance(lqi, bool):
@@ -762,6 +906,181 @@ class Tracker:
                     )
         return out
 
+    # ------------------------------------------------- single points of failure
+
+    def single_points(self, base_topic: str) -> list[dict]:
+        """Routers that are the only path to the coordinator for other routers, from the latest scan."""
+        scanned_at = (self.data.get("networkmap") or {}).get(base_topic, {}).get("scanned_at")
+        if not scanned_at:
+            return []
+        cached = self._spof_cache.get(base_topic)
+        if cached and cached[0] == scanned_at and cached[1] == self.revision:
+            return cached[2]
+        records = self.data["devices"]
+        nodes = {
+            ieee
+            for ieee, r in records.items()
+            if r.get("instance") == base_topic
+            and r["status"] == STATUS_ACTIVE
+            and r.get("type") in ("Router", "Coordinator")
+            and (r.get("routing") or {}).get("scanned_at") == scanned_at
+        }
+        coordinator = next((i for i in nodes if records[i].get("type") == "Coordinator"), None)
+        result: list[dict] = []
+        if coordinator:
+            edges: dict[str, set[str]] = {i: set() for i in nodes}
+            for ieee in nodes:
+                for n in (records[ieee].get("routing") or {}).get("neighbours") or []:
+                    other = n.get("ieee")
+                    if other in nodes and other != ieee and (n.get("lqi") or 0) > 0:
+                        edges[ieee].add(other)
+                        edges[other].add(ieee)
+
+            def reach(skip: str | None) -> set[str]:
+                seen = {coordinator}
+                stack = [coordinator]
+                while stack:
+                    for other in edges[stack.pop()]:
+                        if other != skip and other not in seen:
+                            seen.add(other)
+                            stack.append(other)
+                return seen
+
+            connected = reach(None)
+            ends_by_parent: dict[str, list[str]] = {}
+            for ieee, r in records.items():
+                parent = ((r.get("routing") or {}).get("parent") or {}).get("ieee")
+                if (
+                    r.get("instance") == base_topic
+                    and r["status"] == STATUS_ACTIVE
+                    and r.get("type") == "EndDevice"
+                    and parent
+                    and (r.get("routing") or {}).get("scanned_at") == scanned_at
+                ):
+                    ends_by_parent.setdefault(parent, []).append(ieee)
+            for router in sorted(connected - {coordinator}):
+                cut = connected - reach(router) - {router}
+                if not cut:
+                    continue
+                behind = [e for p in cut for e in ends_by_parent.get(p, [])]
+                result.append(
+                    {
+                        "ieee": router,
+                        "name": _display_name(records[router]) or router,
+                        "routers": sorted(
+                            ({"ieee": i, "name": _display_name(records[i]) or i} for i in cut),
+                            key=lambda x: x["name"].lower(),
+                        ),
+                        "devices": len(behind),
+                        "device_list": sorted(behind),
+                        "children": len(ends_by_parent.get(router, [])),
+                    }
+                )
+            result.sort(key=lambda x: -(len(x["routers"]) + x["devices"]))
+        self._spof_cache[base_topic] = (scanned_at, self.revision, result)
+        return result
+
+    # ------------------------------------------------------ coordinator backup
+
+    def _z2m_dirs(self) -> dict[str, str]:
+        """Map base topic -> Zigbee2MQTT data folder, for folders inside the HA config directory."""
+        found: dict[str, str] = {}
+        try:
+            entries = sorted(os.listdir(self.config_dir))
+        except OSError:
+            return found
+        for entry in entries:
+            folder = os.path.join(self.config_dir, entry)
+            config = os.path.join(folder, "configuration.yaml")
+            if not entry.lower().startswith("zigbee2mqtt") or not os.path.isfile(config):
+                continue
+            topic = "zigbee2mqtt"
+            try:
+                with open(config, encoding="utf-8") as handle:
+                    in_mqtt = False
+                    for line in handle:
+                        if re.match(r"^\S", line):
+                            in_mqtt = line.startswith("mqtt:")
+                            continue
+                        match = re.match(r"^\s+base_topic:\s*['\"]?([^'\"#\s]+)", line)
+                        if in_mqtt and match:
+                            topic = match.group(1)
+                            break
+            except OSError:
+                continue
+            found.setdefault(topic, folder)
+        return found
+
+    def coordinator_backups(self, force: bool = False) -> dict[str, dict]:
+        if not force and time.time() - self._backups_at < BACKUP_REFRESH:
+            return self._backups
+        dirs = self._z2m_dirs()
+        out: dict[str, dict] = {}
+        for bt in self.base_topics:
+            folder = dirs.get(bt)
+            if not folder:
+                out[bt] = {"found": False}
+                continue
+            path = os.path.join(folder, "coordinator_backup.json")
+            info: dict[str, Any] = {
+                "found": True,
+                "folder": os.path.relpath(folder, self.config_dir),
+                "exists": os.path.isfile(path),
+            }
+            if info["exists"]:
+                try:
+                    info["modified"] = datetime.fromtimestamp(os.path.getmtime(path), tz=timezone.utc).isoformat(
+                        timespec="seconds"
+                    )
+                    with open(path, encoding="utf-8") as handle:
+                        backup = json.load(handle)
+                    meta = backup.get("metadata") or {}
+                    info.update(
+                        {
+                            "date": self._to_utc_iso((meta.get("internal") or {}).get("date")) or info["modified"],
+                            "source": meta.get("source"),
+                            "channel": backup.get("channel"),
+                            "pan_id": backup.get("pan_id"),
+                            "devices": len(backup.get("devices") or []),
+                            "has_key": bool((backup.get("network_key") or {}).get("key")),
+                        }
+                    )
+                except (OSError, ValueError, AttributeError) as err:
+                    info["error"] = f"Couldn't read it: {err}"
+            out[bt] = info
+        self._backups = out
+        self._backups_at = time.time()
+        return out
+
+    def _backup_issue(self, bt: str, now: float) -> str | None:
+        info = self._backups.get(bt) or {}
+        if not info.get("found"):
+            return None
+        bridge = (self.data.get("bridges") or {}).get(bt) or {}
+        if not info.get("exists"):
+            return "There's no coordinator_backup.json in its data folder. Without it, a replacement coordinator can't take over the network and every device must be re-paired."
+        if info.get("error"):
+            return f"coordinator_backup.json exists but is unreadable. {info['error']}"
+        if not info.get("has_key"):
+            return "coordinator_backup.json has no network key, so it can't restore the network."
+        net = bridge.get("info") or {}
+        try:
+            pan = int(str(info.get("pan_id")), 16) if info.get("pan_id") is not None else None
+        except ValueError:
+            pan = None
+        if net.get("channel") and info.get("channel") and int(net["channel"]) != int(info["channel"]):
+            return f"The backup is for channel {info['channel']} but the network runs on channel {net['channel']}. It's from an older network and wouldn't restore this one."
+        if net.get("pan_id") is not None and pan is not None and int(net["pan_id"]) != pan:
+            return f"The backup's PAN ID ({pan}) doesn't match the running network ({net['pan_id']}). It's from an older network and wouldn't restore this one."
+        try:
+            age = now - datetime.fromisoformat(info.get("date") or "").timestamp()
+        except ValueError:
+            age = 0
+        uptime = (bridge.get("health") or {}).get("uptime_sec") or 0
+        if age > BACKUP_MAX_AGE and bridge.get("state") == "online" and uptime > 86400:
+            return f"The last coordinator backup is {int(age // 86400)} days old. Zigbee2MQTT normally refreshes it at least daily, so writing it may be failing."
+        return None
+
     def _network_issues(self, now: float) -> list[dict]:
         out = []
         disabled = set(self.options.get("disabled_checks") or [])
@@ -802,6 +1121,22 @@ class Tracker:
                         "instance": bt,
                     }
                 )
+            if "coordinator_backup" not in disabled:
+                problem = self._backup_issue(bt, now)
+                if problem:
+                    out.append(
+                        {
+                            "key": f"coordinator_backup:{bt}",
+                            "kind": "coordinator_backup",
+                            "label": "Coordinator backup",
+                            "severity": "warning",
+                            "ieee": f"network:{bt}",
+                            "title": "Coordinator backup",
+                            "detail": problem,
+                            "name": f"{label} network",
+                            "instance": bt,
+                        }
+                    )
         return out
 
     def radio(self) -> dict:
@@ -880,13 +1215,42 @@ class Tracker:
             )
         return {"networks": nets, "wifi": wifi, "findings": findings}
 
+    def _context(self, now: float) -> dict[str, dict]:
+        """Per-device extras for the health checks: recent outages/leaves, parent, single points of failure."""
+        day_ago = datetime.fromtimestamp(now - 86400, tz=timezone.utc).isoformat(timespec="seconds")
+        leaves: dict[str, int] = {}
+        for event in reversed(self.data["events"]):
+            if (event.get("time") or "") < day_ago:
+                break
+            if event.get("kind") == "left":
+                leaves[event["ieee"]] = leaves.get(event["ieee"], 0) + 1
+        spof = {item["ieee"]: item for bt in self.base_topics for item in self.single_points(bt)}
+        out: dict[str, dict] = {}
+        for ieee, record in self.data["devices"].items():
+            extra: dict[str, Any] = {
+                "outages_24h": sum(1 for o in record.get("outages") or [] if (o.get("start") or "") >= day_ago),
+                "leaves_24h": leaves.get(ieee, 0),
+            }
+            parent = (record.get("routing") or {}).get("parent") or {}
+            if parent.get("ieee"):
+                extra["parent"] = {
+                    "name": _display_name(self.data["devices"].get(parent["ieee"]) or {}) or parent["ieee"],
+                    "lqi": parent.get("lqi"),
+                }
+            if ieee in spof:
+                extra["single_point"] = spof[ieee]
+            out[ieee] = extra
+        return out
+
     def evaluate_health(self) -> tuple[list[dict], bool]:
         now = time.time()
+        self.coordinator_backups()
         with self.lock:
             suggestions = self._suggestions()
+            context = self._context(now)
             issues = []
             for record in self.data["devices"].values():
-                summary = self.metrics.summary(record["ieee"], now)
+                summary = {**self.metrics.summary(record["ieee"], now), **context.get(record["ieee"], {})}
                 for issue in device_issues(record, summary, self.options, now, suggestions.get(record["ieee"], [])):
                     issue["name"] = _display_name(record) or record["ieee"]
                     issue["instance"] = record["instance"]
@@ -936,6 +1300,9 @@ class Tracker:
                 "battery_shopping": self.battery_shopping(60),
                 "bridges": self.data.get("bridges") or {},
                 "radio": self.radio(),
+                "single_points": {bt: self.single_points(bt) for bt in self.base_topics},
+                "backups": self._backups,
+                "groups": self.groups,
                 "scan_times": {bt: [x["at"] for x in self.scans.get(bt) or []] for bt in self.base_topics},
                 "pairing": {bt: {**s, "joined": list(s["joined"])} for bt, s in self.pairing_sessions.items()},
                 "panels": self.options.get("_panels", {}),
@@ -1220,6 +1587,19 @@ class Tracker:
                 now, base_topic, "network", "Network", "zigbee2mqtt restarted", f"Was up {int(previous // 3600)} h"
             )
             self.revision += 1
+        for ieee, stats in (health.get("devices") or {}).items():
+            record = self.data["devices"].get(str(ieee).lower())
+            if record is None or not isinstance(stats, dict):
+                continue
+            record["z2m_stats"] = {
+                "messages": stats.get("messages"),
+                "per_sec": stats.get("messages_per_sec"),
+                "leave_count": stats.get("leave_count"),
+                "nwk_changes": stats.get("network_address_changes"),
+                "since": _now()
+                if not isinstance(uptime, (int, float))
+                else datetime.fromtimestamp(time.time() - uptime, tz=timezone.utc).isoformat(timespec="minutes"),
+            }
         bridge["health"] = {
             "uptime_sec": uptime,
             "memory_mb": process.get("memory_used_mb"),

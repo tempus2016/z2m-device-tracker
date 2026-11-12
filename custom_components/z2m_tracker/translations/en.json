@@ -18,7 +18,11 @@
       "init": {
         "title": "Z2M Device Tracker",
         "data": {
-          "app_url": "App URL"
+          "app_url": "App URL",
+          "repairs": "Show problems in Settings > Repairs"
+        },
+        "data_description": {
+          "repairs": "Mirrors the app's warnings and the checks set to notify. Each one clears itself when the problem is fixed."
         }
       }
     }
@@ -27,6 +31,12 @@
     "import_history": {
       "name": "Import history",
       "description": "Ask the app to re-scan Z2M databases, configuration backups, logs and Home Assistant registries for devices and names, and merge them into the history."
+    }
+  },
+  "issues": {
+    "device_issue": {
+      "title": "Zigbee: {name} - {title}",
+      "description": "{detail}\n\n[Open the Zigbee Tracker]({panel})"
     }
   }
 }

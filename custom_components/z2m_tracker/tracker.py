@@ -4,17 +4,19 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from collections.abc import Callable
 from datetime import timedelta
 from typing import Any
 
 import aiohttp
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
 
-from .const import SIGNAL_UPDATED, STATUS_ACTIVE, STATUS_REMOVED
+from .const import DOMAIN, SIGNAL_UPDATED, STATUS_ACTIVE, STATUS_REMOVED
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,8 +32,9 @@ class TrackerAppError(Exception):
 class Z2MTracker:
     """Mirrors the app's device history and forwards edits to it."""
 
-    def __init__(self, hass: HomeAssistant, app_url: str) -> None:
+    def __init__(self, hass: HomeAssistant, app_url: str, repairs: bool = True) -> None:
         self.hass = hass
+        self.repairs = repairs
         self.app_url = app_url.rstrip("/")
         host = self.app_url.split("://", 1)[-1].split(":", 1)[0].split("/", 1)[0]
         self.panel = f"/app/{host.replace('-', '_')}"
@@ -53,6 +56,7 @@ class Z2MTracker:
         if self._unsub_poll:
             self._unsub_poll()
             self._unsub_poll = None
+        self._clear_repairs()
 
     async def _request(self, method: str, path: str, body: dict | None = None) -> Any:
         try:
@@ -87,7 +91,10 @@ class Z2MTracker:
             "events": payload.get("events") or [],
             "imported": payload.get("imported"),
             "issues": payload.get("issues") or [],
+            "options": payload.get("options") or {},
         }
+        if self.repairs:
+            self._sync_repairs()
         self.base_topics = payload.get("instances") or []
         changed = payload.get("version") != self._version or not self.available
         self._version = payload.get("version")
@@ -101,6 +108,45 @@ class Z2MTracker:
                 await self._async_load()
             except TrackerAppError as err:
                 _LOGGER.debug("Refresh after edit failed: %s", err)
+
+    # ---------------------------------------------------------------- repairs
+
+    @callback
+    def _sync_repairs(self) -> None:
+        """Mirror the app's alerting issues into Settings > Repairs; they clear when fixed."""
+        options = self.data.get("options") or {}
+        notify = set(options.get("notify_checks") or []) - set(options.get("disabled_checks") or [])
+        wanted: dict[str, dict] = {}
+        for issue in self.data.get("issues") or []:
+            if issue.get("severity") == "warning" or issue.get("kind") in notify:
+                wanted["issue_" + re.sub(r"[^a-z0-9_]+", "_", str(issue.get("key", "")).lower())] = issue
+        registry = ir.async_get(self.hass)
+        for domain, issue_id in list(registry.issues):
+            if domain == DOMAIN and issue_id not in wanted:
+                ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+        for issue_id, issue in wanted.items():
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                issue_id,
+                is_fixable=False,
+                is_persistent=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="device_issue",
+                translation_placeholders={
+                    "name": str(issue.get("name") or issue.get("ieee") or ""),
+                    "title": str(issue.get("label") or issue.get("title") or ""),
+                    "detail": str(issue.get("detail") or ""),
+                    "panel": self.panel,
+                },
+            )
+
+    @callback
+    def _clear_repairs(self) -> None:
+        registry = ir.async_get(self.hass)
+        for domain, issue_id in list(registry.issues):
+            if domain == DOMAIN:
+                ir.async_delete_issue(self.hass, DOMAIN, issue_id)
 
     @callback
     def _notify(self) -> None:

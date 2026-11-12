@@ -66,6 +66,7 @@ DEFAULT_OPTIONS = {
     "disabled_checks": [],
     "notify_checks": list(DEFAULT_NOTIFY),
     "wifi_channels": "",
+    "chatty_per_hour": 1200,
 }
 
 CHECK_KEYS = {key for key, _, _, _ in CHECKS}
@@ -122,6 +123,7 @@ SETTINGS = {
     "summary_day": _int(0, 6),
     "summary_hour": _int(0, 23),
     "wifi_channels": _wifi,
+    "chatty_per_hour": _int(60, 36000),
     "disabled_checks": _kinds,
     "notify_checks": _kinds,
 }
@@ -453,7 +455,13 @@ def apply_settings(changes: dict) -> dict:
     options["alert_on_join"] = "joined" in (options.get("notify_checks") or [])
     if "ha_entities" in clean:
         discovery.enabled = clean["ha_entities"]
-    if {"disabled_checks", "offline_alert_minutes", "frozen_alert_hours", "battery_alert_percent"} & set(clean):
+    if {
+        "disabled_checks",
+        "offline_alert_minutes",
+        "frozen_alert_hours",
+        "battery_alert_percent",
+        "chatty_per_hour",
+    } & set(clean):
         tracker.evaluate_health()
     if {"alerts_enabled", "notify_checks", "disabled_checks"} & set(clean):
         alerts.rebaseline()
@@ -717,6 +725,9 @@ class Handler(BaseHTTPRequestHandler):
                     bool(body.get("muted")),
                     float(days) if isinstance(days, (int, float)) and days > 0 else None,
                 )
+                self._json(200 if ok else 404, {"ok": ok})
+            elif path == "/api/bindings/ack":
+                ok = tracker.acknowledge_bindings(ieee)
                 self._json(200 if ok else 404, {"ok": ok})
             elif path == "/api/link":
                 result = tracker.link(str(body.get("old") or ""), str(body.get("new") or ""))
