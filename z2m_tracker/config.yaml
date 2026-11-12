@@ -1,0 +1,73 @@
+name: Z2M Device Tracker
+version: "1.0.0"
+slug: z2m_tracker
+description: History, health monitoring and alerts for every Zigbee2MQTT device - names, renames, signal, battery, routing and removals.
+url: https://github.com/tempus2016/z2m-device-tracker
+arch:
+  - amd64
+  - aarch64
+init: false
+startup: application
+boot: auto
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:zigbee
+panel_title: Zigbee Tracker
+homeassistant_api: true
+hassio_api: true
+services:
+  - mqtt:need
+map:
+  - homeassistant_config:ro
+options:
+  base_topics:
+    - zigbee2mqtt
+  z2m_panels: []
+  alerts_enabled: true
+  persistent_notifications: true
+  fire_events: true
+  notify_service: ""
+  alert_on_join: true
+  disabled_checks: []
+  notify_checks:
+    - battery_low
+    - frozen
+    - interview_failed
+    - joined
+    - left
+    - offline
+    - silent
+    - unidentified
+    - weak_signal
+  offline_alert_minutes: 60
+  frozen_alert_hours: 24
+  battery_alert_percent: 15
+  networkmap_hour: 3
+  ha_entities: true
+  weekly_summary: true
+  summary_day: 0
+  summary_hour: 9
+  wifi_channels: ""
+schema:
+  base_topics:
+    - str
+  z2m_panels:
+    - str
+  alerts_enabled: bool
+  persistent_notifications: bool
+  fire_events: bool
+  notify_service: str?
+  alert_on_join: bool
+  disabled_checks:
+    - str
+  notify_checks:
+    - str
+  offline_alert_minutes: int(0,10080)
+  frozen_alert_hours: int(0,720)
+  battery_alert_percent: int(0,100)
+  networkmap_hour: int(-1,23)
+  ha_entities: bool
+  weekly_summary: bool
+  summary_day: int(0,6)
+  summary_hour: int(0,23)
+  wifi_channels: str?
