@@ -1,0 +1,11 @@
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["custom_components/z2m_tracker/www", "z2m_tracker/app/www"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]
+ignore = [
+    "E501",  # line length handled by the formatter
+    "E731",  # short lambda helpers inside methods
+]

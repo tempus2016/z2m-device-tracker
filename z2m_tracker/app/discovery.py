@@ -45,102 +45,142 @@ class Discovery:
             return f"{PREFIX}/{component}/{BASE}/{ieee}_{key}/config", payload
 
         out: dict[str, dict] = {}
-        topic, cfg = entity("binary_sensor", "attention", {
-            "name": "Needs attention",
-            "device_class": "problem",
-            "state_topic": state_topic,
-            "value_template": "{{ 'ON' if value_json.attention else 'OFF' }}",
-            "json_attributes_topic": state_topic,
-            "json_attributes_template": "{{ {'issues': value_json.issues} | tojson }}",
-        })
+        topic, cfg = entity(
+            "binary_sensor",
+            "attention",
+            {
+                "name": "Needs attention",
+                "device_class": "problem",
+                "state_topic": state_topic,
+                "value_template": "{{ 'ON' if value_json.attention else 'OFF' }}",
+                "json_attributes_topic": state_topic,
+                "json_attributes_template": "{{ {'issues': value_json.issues} | tojson }}",
+            },
+        )
         out[topic] = cfg
         if record.get("readings"):
-            topic, cfg = entity("binary_sensor", "frozen", {
-                "name": "Reading frozen",
-                "device_class": "problem",
-                "icon": "mdi:snowflake-alert",
-                "state_topic": state_topic,
-                "value_template": "{{ 'ON' if value_json.frozen else 'OFF' }}",
-            })
+            topic, cfg = entity(
+                "binary_sensor",
+                "frozen",
+                {
+                    "name": "Reading frozen",
+                    "device_class": "problem",
+                    "icon": "mdi:snowflake-alert",
+                    "state_topic": state_topic,
+                    "value_template": "{{ 'ON' if value_json.frozen else 'OFF' }}",
+                },
+            )
             out[topic] = cfg
-        topic, cfg = entity("button", "reconfigure", {
-            "name": "Reconfigure",
-            "icon": "mdi:refresh",
-            "entity_category": "config",
-            "command_topic": f"{BASE}/{ieee}/reconfigure",
-            "payload_press": "PRESS",
-        })
+        topic, cfg = entity(
+            "button",
+            "reconfigure",
+            {
+                "name": "Reconfigure",
+                "icon": "mdi:refresh",
+                "entity_category": "config",
+                "command_topic": f"{BASE}/{ieee}/reconfigure",
+                "payload_press": "PRESS",
+            },
+        )
         out[topic] = cfg
-        topic, cfg = entity("sensor", "lqi_24h", {
-            "name": "Signal (24 h avg)",
-            "icon": "mdi:signal",
-            "state_class": "measurement",
-            "entity_category": "diagnostic",
-            "enabled_by_default": False,
-            "state_topic": state_topic,
-            "value_template": "{{ value_json.lqi_24h }}",
-        })
-        out[topic] = cfg
-        topic, cfg = entity("sensor", "uptime_30d", {
-            "name": "Uptime (30 days)",
-            "icon": "mdi:percent-circle-outline",
-            "unit_of_measurement": "%",
-            "state_class": "measurement",
-            "entity_category": "diagnostic",
-            "enabled_by_default": False,
-            "state_topic": state_topic,
-            "value_template": "{{ value_json.uptime_30d }}",
-        })
-        out[topic] = cfg
-        if record.get("power_source") == "Battery" or isinstance(record.get("battery"), (int, float)):
-            topic, cfg = entity("sensor", "battery_days", {
-                "name": "Battery days left",
-                "icon": "mdi:battery-clock",
-                "device_class": "duration",
-                "unit_of_measurement": "d",
+        topic, cfg = entity(
+            "sensor",
+            "lqi_24h",
+            {
+                "name": "Signal (24 h avg)",
+                "icon": "mdi:signal",
                 "state_class": "measurement",
                 "entity_category": "diagnostic",
                 "enabled_by_default": False,
                 "state_topic": state_topic,
-                "value_template": "{{ value_json.battery_days }}",
-            })
+                "value_template": "{{ value_json.lqi_24h }}",
+            },
+        )
+        out[topic] = cfg
+        topic, cfg = entity(
+            "sensor",
+            "uptime_30d",
+            {
+                "name": "Uptime (30 days)",
+                "icon": "mdi:percent-circle-outline",
+                "unit_of_measurement": "%",
+                "state_class": "measurement",
+                "entity_category": "diagnostic",
+                "enabled_by_default": False,
+                "state_topic": state_topic,
+                "value_template": "{{ value_json.uptime_30d }}",
+            },
+        )
+        out[topic] = cfg
+        if record.get("power_source") == "Battery" or isinstance(record.get("battery"), (int, float)):
+            topic, cfg = entity(
+                "sensor",
+                "battery_days",
+                {
+                    "name": "Battery days left",
+                    "icon": "mdi:battery-clock",
+                    "device_class": "duration",
+                    "unit_of_measurement": "d",
+                    "state_class": "measurement",
+                    "entity_category": "diagnostic",
+                    "enabled_by_default": False,
+                    "state_topic": state_topic,
+                    "value_template": "{{ value_json.battery_days }}",
+                },
+            )
             out[topic] = cfg
         if self.tracker.is_battery_device(record):
-            topic, cfg = entity("button", "battery_replaced", {
-                "name": "Battery replaced",
-                "icon": "mdi:battery-sync",
-                "entity_category": "config",
-                "command_topic": f"{BASE}/{ieee}/battery_replaced",
-                "payload_press": "PRESS",
-            })
+            topic, cfg = entity(
+                "button",
+                "battery_replaced",
+                {
+                    "name": "Battery replaced",
+                    "icon": "mdi:battery-sync",
+                    "entity_category": "config",
+                    "command_topic": f"{BASE}/{ieee}/battery_replaced",
+                    "payload_press": "PRESS",
+                },
+            )
             out[topic] = cfg
-            topic, cfg = entity("sensor", "battery_last_replaced", {
-                "name": "Battery last replaced",
-                "icon": "mdi:battery-clock-outline",
-                "device_class": "date",
-                "entity_category": "diagnostic",
-                "state_topic": state_topic,
-                "value_template": "{{ value_json.battery_replaced }}",
-            })
+            topic, cfg = entity(
+                "sensor",
+                "battery_last_replaced",
+                {
+                    "name": "Battery last replaced",
+                    "icon": "mdi:battery-clock-outline",
+                    "device_class": "date",
+                    "entity_category": "diagnostic",
+                    "state_topic": state_topic,
+                    "value_template": "{{ value_json.battery_replaced }}",
+                },
+            )
             out[topic] = cfg
-            topic, cfg = entity("sensor", "battery_kind", {
-                "name": "Battery type",
-                "icon": "mdi:battery-unknown",
-                "entity_category": "diagnostic",
-                "enabled_by_default": False,
-                "state_topic": state_topic,
-                "value_template": "{{ value_json.battery_type }}",
-            })
+            topic, cfg = entity(
+                "sensor",
+                "battery_kind",
+                {
+                    "name": "Battery type",
+                    "icon": "mdi:battery-unknown",
+                    "entity_category": "diagnostic",
+                    "enabled_by_default": False,
+                    "state_topic": state_topic,
+                    "value_template": "{{ value_json.battery_type }}",
+                },
+            )
             out[topic] = cfg
         if record.get("type") == "EndDevice":
-            topic, cfg = entity("sensor", "parent", {
-                "name": "Connected via",
-                "icon": "mdi:router-wireless",
-                "entity_category": "diagnostic",
-                "enabled_by_default": False,
-                "state_topic": state_topic,
-                "value_template": "{{ value_json.parent }}",
-            })
+            topic, cfg = entity(
+                "sensor",
+                "parent",
+                {
+                    "name": "Connected via",
+                    "icon": "mdi:router-wireless",
+                    "entity_category": "diagnostic",
+                    "enabled_by_default": False,
+                    "state_topic": state_topic,
+                    "value_template": "{{ value_json.parent }}",
+                },
+            )
             out[topic] = cfg
         return out
 
@@ -186,7 +226,9 @@ class Discovery:
                     for topic, cfg in self._entities(record, summary, issues).items():
                         desired[topic] = json.dumps(cfg, separators=(",", ":"))
                     record_for_state = dict(record, _uptime=uptime(record, now))
-                    states[f"{BASE}/{record['ieee']}"] = json.dumps(self._state(record_for_state, summary, issues), separators=(",", ":"))
+                    states[f"{BASE}/{record['ieee']}"] = json.dumps(
+                        self._state(record_for_state, summary, issues), separators=(",", ":")
+                    )
             previous_topics = set(self.tracker.data.get("discovery_topics") or [])
 
         with self.lock:

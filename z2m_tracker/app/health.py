@@ -15,8 +15,18 @@ ALERT_KINDS = {"offline", "frozen", "battery_low", "weak_signal", "silent", "uni
 CHECKS = [
     ("offline", "Offline", "Z2M reports the device unavailable for longer than the offline threshold.", False),
     ("silent", "Not heard from", "No messages for 2 days from a device without availability reporting.", False),
-    ("frozen", "Frozen reading", "Temperature, humidity, pressure or air quality hasn't changed while the device keeps reporting.", False),
-    ("battery_low", "Low battery", "Battery at or below the battery threshold, or the device reports low battery.", False),
+    (
+        "frozen",
+        "Frozen reading",
+        "Temperature, humidity, pressure or air quality hasn't changed while the device keeps reporting.",
+        False,
+    ),
+    (
+        "battery_low",
+        "Low battery",
+        "Battery at or below the battery threshold, or the device reports low battery.",
+        False,
+    ),
     ("battery_soon", "Battery running down", "Battery expected to reach 10% within 45 days.", False),
     ("weak_signal", "Weak signal", "Average link quality below 30 over the last 24 hours.", False),
     ("signal_drop", "Signal dropping", "Link quality today is well below the previous week.", False),
@@ -84,7 +94,9 @@ def active_mutes(record: dict, now: float) -> list[str]:
     return out
 
 
-def device_issues(record: dict, summary: dict, options: dict, now: float, suggestions: list[dict]) -> list[dict[str, Any]]:
+def device_issues(
+    record: dict, summary: dict, options: dict, now: float, suggestions: list[dict]
+) -> list[dict[str, Any]]:
     ieee = record["ieee"]
     issues: list[dict[str, Any]] = []
     if record.get("type") == "Coordinator" or record.get("status") != "active":
@@ -94,7 +106,17 @@ def device_issues(record: dict, summary: dict, options: dict, now: float, sugges
     def add(kind: str, severity: str, title: str, detail: str) -> None:
         if kind in muted:
             return
-        issues.append({"key": f"{kind}:{ieee}", "kind": kind, "label": KIND_LABELS[kind], "severity": severity, "ieee": ieee, "title": title, "detail": detail})
+        issues.append(
+            {
+                "key": f"{kind}:{ieee}",
+                "kind": kind,
+                "label": KIND_LABELS[kind],
+                "severity": severity,
+                "ieee": ieee,
+                "title": title,
+                "detail": detail,
+            }
+        )
 
     offline_minutes = max(0, int(options.get("offline_alert_minutes", 60)))
     if record.get("availability") == "offline":
@@ -107,7 +129,12 @@ def device_issues(record: dict, summary: dict, options: dict, now: float, sugges
             add("silent", WARNING, "Not heard from", f"No messages for {_span(age)}.")
 
     if record.get("interview_state") and record.get("interview_state") != "SUCCESSFUL":
-        add("unidentified", WARNING, "Never identified", "Interview didn't complete, so the model is unknown. Try re-pairing it.")
+        add(
+            "unidentified",
+            WARNING,
+            "Never identified",
+            "Interview didn't complete, so the model is unknown. Try re-pairing it.",
+        )
 
     frozen_hours = max(0, int(options.get("frozen_alert_hours", 24)))
     if frozen_hours:
@@ -127,12 +154,22 @@ def device_issues(record: dict, summary: dict, options: dict, now: float, sugges
     if lqi_24h is not None and lqi_24h < 30:
         add("weak_signal", WARNING, "Weak signal", f"Average link quality {lqi_24h:.0f} over 24 h.")
     elif lqi_24h is not None and lqi_prev and lqi_24h < lqi_prev * 0.6 and lqi_24h < 80:
-        add("signal_drop", INFO, "Signal dropping", f"Link quality {lqi_24h:.0f} today vs {lqi_prev:.0f} over the previous week.")
+        add(
+            "signal_drop",
+            INFO,
+            "Signal dropping",
+            f"Link quality {lqi_24h:.0f} today vs {lqi_prev:.0f} over the previous week.",
+        )
 
     battery = record.get("battery")
     threshold = int(options.get("battery_alert_percent", 15))
     if record.get("battery_low") is True or (isinstance(battery, (int, float)) and battery <= threshold):
-        add("battery_low", WARNING, "Low battery", f"Battery at {battery:.0f}%." if isinstance(battery, (int, float)) else "Device reports low battery.")
+        add(
+            "battery_low",
+            WARNING,
+            "Low battery",
+            f"Battery at {battery:.0f}%." if isinstance(battery, (int, float)) else "Device reports low battery.",
+        )
     else:
         days = summary.get("battery_estimate_days")
         if days is not None and days <= 45:
@@ -140,10 +177,20 @@ def device_issues(record: dict, summary: dict, options: dict, now: float, sugges
 
     update = record.get("update") or {}
     if update.get("state") == "available":
-        add("update", INFO, "Firmware update available", f"{update.get('installed_version')} → {update.get('latest_version')}")
+        add(
+            "update",
+            INFO,
+            "Firmware update available",
+            f"{update.get('installed_version')} → {update.get('latest_version')}",
+        )
 
     for suggestion in suggestions:
-        add("replacement", INFO, "Possible replacement", f"Has the same name as removed device {suggestion['name']} ({suggestion['ieee']}). Link them to carry over history.")
+        add(
+            "replacement",
+            INFO,
+            "Possible replacement",
+            f"Has the same name as removed device {suggestion['name']} ({suggestion['ieee']}). Link them to carry over history.",
+        )
         break
 
     return issues
