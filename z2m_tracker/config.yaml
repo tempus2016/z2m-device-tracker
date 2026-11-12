@@ -35,6 +35,7 @@ options:
     - interview_failed
     - joined
     - left
+    - network_offline
     - offline
     - silent
     - unidentified
