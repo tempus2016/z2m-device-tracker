@@ -416,13 +416,15 @@
     ghost: { label: "Unidentified", c: "var(--error)" },
     removed: { label: "Removed", c: "var(--disabled)" },
   };
-  const KIND_ICON = { offline: "wifi-off", silent: "wifi-off", frozen: "thermometer", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant" };
+  const KIND_ICON = { offline: "wifi-off", silent: "wifi-off", frozen: "thermometer", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
+    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", coordinator_backup: "download" };
   const EVENT_ICON = (k) => {
     if (k.startsWith("interview")) return k.endsWith("successful") ? ["check", "var(--success)"] : ["alert-circle", "var(--error)"];
     return ({ joined: ["plus", "var(--success)"], added: ["plus", "var(--success)"], rejoined: ["plus", "var(--success)"], online: ["wifi", "var(--success)"], offline: ["wifi-off", "var(--error)"],
       left: ["minus", "var(--warning)"], removed: ["delete", "var(--text-2)"], renamed: ["pencil", "var(--state-icon)"], "model changed": ["swap-horizontal", "var(--state-icon)"], moved: ["swap-horizontal", "var(--state-icon)"],
       linked: ["link-variant", "var(--state-icon)"], reconfigured: ["refresh", "var(--success)"], "reconfigure failed": ["refresh", "var(--error)"], "battery replaced": ["battery-sync", "var(--success)"],
-      "update available": ["chip", "var(--info)"], "routing scanned": ["sitemap", "var(--state-icon)"] })[k] || ["information-outline", "var(--text-2)"];
+      "update available": ["chip", "var(--info)"], "routing scanned": ["sitemap", "var(--state-icon)"],
+      "binding added": ["link-variant", "var(--success)"], "binding restored": ["link-variant", "var(--success)"], "binding removed": ["link-variant", "var(--error)"], unbound: ["link-variant", "var(--text-2)"], "binding change accepted": ["check", "var(--text-2)"] })[k] || ["information-outline", "var(--text-2)"];
   };
 
   const $ = (s) => document.querySelector(s);
@@ -627,6 +629,12 @@
     const d = state.byIeee.get(i.ieee);
     const out = [];
     if (i.kind === "frozen" || i.kind === "silent") out.push(`<button class="btn" data-act="reconfigure" data-ieee="${esc(i.ieee)}">Reconfigure</button>`);
+    if (i.kind === "binding_lost") {
+      if ((d?.lost_bindings || []).some((b) => b.coordinator)) out.push(`<button class="btn" data-act="reconfigure" data-ieee="${esc(i.ieee)}">Reconfigure</button>`);
+      out.push(`<button class="btn" data-act="bindings-ack" data-ieee="${esc(i.ieee)}">It was intended</button>`);
+      return out.join("");
+    }
+    if (i.kind === "single_point") out.push(`<button class="btn" data-view="map">Map</button>`);
     if (i.kind === "replacement" && d?.suggestions?.[0]) out.push(`<button class="btn" data-act="link" data-old="${esc(d.suggestions[0].ieee)}" data-new="${esc(i.ieee)}">Link</button>`);
     out.push(`<button class="btn" data-act="mute" data-ieee="${esc(i.ieee)}" data-kind="${esc(i.kind)}">Ignore</button>`);
     return out.join("");
@@ -643,7 +651,7 @@
       const tone = i.severity === "warning" ? "var(--warning)" : "var(--info)";
       if (String(i.ieee).startsWith("network:")) {
         const panel = state.data.panels?.[i.instance];
-        return `<div class="row"><span class="state-ic" style="color:${tone}">${ic(i.kind === "network_offline" ? "lan-disconnect" : "refresh")}</span>
+        return `<div class="row"><span class="state-ic" style="color:${tone}">${ic(i.kind === "network_offline" ? "lan-disconnect" : i.kind === "coordinator_backup" ? "download" : "refresh")}</span>
           <div class="text"><div class="t1">${esc(i.title)}: ${esc(i.name)}</div><div class="t2">${esc(i.detail)}</div></div>
           <div class="acts">${panel ? `<a class="btn" href="${esc(panel)}" target="_top">Open Zigbee2MQTT</a>` : ""}</div></div>`;
       }
@@ -681,6 +689,9 @@
       const restarts = (b.restarts || []).filter((r) => new Date(r).getTime() >= week).length;
       const last = [...(b.outages || [])].reverse()[0];
       const panel = state.data.panels?.[bt];
+      const bk = (state.data.backups || {})[bt];
+      const backup = !bk ? null : !bk.found ? "Data folder not inside /config, can't check" : !bk.exists ? "Missing" : bk.error ? bk.error
+        : `${relTime(bk.date)} · ${bk.devices} devices${bk.has_key ? "" : " · no network key"}`;
       return `<div class="coord">
         <div class="row" style="border:0;min-height:56px"><span class="state-ic" style="color:${b.state ? (online ? "var(--success)" : "var(--error)") : "var(--text-2)"}">${ic(online ? "zigbee" : "lan-disconnect")}</span>
           <div class="text"><div class="t1">${esc(netLabel(bt))} network</div><div class="t2">${b.state ? `${online ? "Online" : "Offline"} since ${esc(fmtDate(b.since))}` : "Waiting for status from Zigbee2MQTT"}</div></div>
@@ -688,7 +699,8 @@
         ${kv([["Zigbee2MQTT", info.version], ["Coordinator", [info.coordinator_type, info.firmware ? `firmware ${info.firmware}` : null].filter(Boolean).join(" · ")], ["Channel / PAN ID", info.channel ? `${info.channel} / ${info.pan_id ?? "?"}` : null],
           ["Running for", h.uptime_sec ? span(h.uptime_sec) : null], ["Memory", h.memory_mb ? `${Math.round(h.memory_mb)} MB` : null],
           ["Last 7 days", `${outages.length} outage${outages.length === 1 ? "" : "s"}${outages.length ? ` (${downMin} min down)` : ""} · ${restarts} restart${restarts === 1 ? "" : "s"}`],
-          ["Last outage", last ? `${fmtDate(last.start)}${last.end ? ` for ${span((new Date(last.end) - new Date(last.start)) / 1000)}` : " (ongoing)"}` : "None recorded"]])}
+          ["Last outage", last ? `${fmtDate(last.start)}${last.end ? ` for ${span((new Date(last.end) - new Date(last.start)) / 1000)}` : " (ongoing)"}` : "None recorded"],
+          ["Coordinator backup", backup]])}
       </div>`;
     }).join("");
     return `<div class="card"><div class="card-header">${ic("router-wireless")}<div>Coordinators<small>Zigbee2MQTT and coordinator status for each network</small></div></div>${nets}</div>`;
@@ -824,7 +836,14 @@
       if (!a.routers && a.ends.length >= 2) out.push({ sev: a.weak ? 2 : 1, icon: "power-plug", text: `${esc(area)} has ${a.ends.length} battery devices but no router${a.weak ? `, and ${a.weak} of them have below-average links` : ""}. A mains-powered Zigbee smart plug in ${esc(area)} would give them a closer, stronger connection.` });
     });
 
-    // 5. devices missing from the scan
+    // 5. single points of failure (computed by the app from the latest scan)
+    (state.data.single_points?.[bt] || []).forEach((p) => {
+      const names = p.routers.slice(0, 5).map((r) => link(r.ieee)).join(", ") + (p.routers.length > 5 ? "…" : "");
+      out.push({ sev: p.routers.length + p.devices >= 3 ? 2 : 1, icon: "router-wireless",
+        text: `${link(p.ieee)} is the only path to the coordinator for ${p.routers.length} router${p.routers.length === 1 ? "" : "s"} (${names})${p.devices ? ` and ${p.devices} battery device${p.devices === 1 ? "" : "s"} behind them` : ""}${p.children ? `. It also carries ${p.children} battery device${p.children === 1 ? "" : "s"} directly` : ""}. If it loses power, all of them have to find another way in. A router placed between them and the rest of the mesh gives a second path.` });
+    });
+
+    // 6. devices missing from the scan
     const missing = devs.filter((d) => !d.routing && d.type !== "Coordinator" && statusOf(d) === "active");
     if (missing.length) out.push({ sev: 1, icon: "help-circle-outline", text: `${missing.length} active device${missing.length === 1 ? " wasn't" : "s weren't"} in the scan: ${missing.slice(0, 6).map((d) => link(d.ieee)).join(", ")}${missing.length > 6 ? "…" : ""}. Sleepy battery devices often miss scans. If one keeps missing, check its signal.` });
 
@@ -1057,6 +1076,7 @@
         ${num("offline_alert_minutes", "Offline for", "How long a device is unavailable before it's flagged", 0, 10080, "min")}
         ${num("frozen_alert_hours", "Reading unchanged for", "How long a reading can stay identical while the device keeps reporting", 1, 720, "h")}
         ${num("battery_alert_percent", "Low battery at", "Battery level at or below which a device is flagged", 0, 100, "%")}
+        ${num("chatty_per_hour", "Chatty above", "Messages an hour, averaged over 6 hours, before a device counts as chatty", 60, 36000, "/h")}
       </div>
       <div class="card"><div class="card-header"><div>Routing scan<small>Maps which router each device connects through. Adds network traffic for a few minutes.</small></div></div>
         <div class="set-row"><div class="text"><div class="t1">Wi-Fi channels (2.4 GHz)</div><div class="t2">Used to check your Zigbee channels for overlap. Your router's Wi-Fi settings show the channel, e.g. 1, 6 or 11.</div></div><div class="ctl"><input class="field" id="wifiCh" style="width:120px" value="${esc(s.wifi_channels || "")}" placeholder="e.g. 9" inputmode="numeric"><button class="btn" data-act="save-wifi">Save</button></div></div>
@@ -1137,7 +1157,25 @@
       ${r ? kv([[d.type === "EndDevice" ? "Connects through" : "Child devices", d.type === "EndDevice" ? (r.parent ? nameOf(state.byIeee.get(r.parent.ieee)) || r.parent.ieee : "Not found in scan") : r.children], ["Depth", r.depth], ["Scanned", fmtDate(r.scanned_at)]]) +
         (r.neighbours?.length ? `<div class="rep-list">${r.neighbours.slice(0, 6).map((n) => `<div><span>${devLink(n.ieee)}</span><span class="muted">LQI ${esc(n.lqi ?? "?")}</span></div>`).join("")}</div>` : "")
         : `<div class="card-content muted">Not scanned yet. The routing scan runs nightly, or start one from the menu.</div>`}
+      ${tabTraffic(d)}
       ${d.features?.length ? `<div class="sub-h">Capabilities</div><div class="caps">${d.features.map((f) => `<span>${esc(f)}</span>`).join("")}</div>` : ""}`;
+  };
+
+  const tabTraffic = (d) => {
+    if (d.status === "removed" || d.type === "Coordinator") return "";
+    const m = d.metrics || {}, z = d.z2m_stats || {};
+    const rate = m.msg_rate_6h;
+    const counting = rate === undefined && m.msg_24h === undefined ? `<div class="card-content muted">Message counts start from the last app update. Nothing received from this device since then.</div>` : "";
+    const traffic = counting + kv([["Messages, last 6 h", rate !== undefined ? `${Math.round(rate)} an hour${rate ? ` (one every ${rate >= 3600 ? "<1" : Math.round(3600 / rate)} s)` : ""}` : null],
+      ["Usual rate", m.msg_rate_prev !== undefined ? `${Math.round(m.msg_rate_prev)} an hour` : null], ["Messages, last 24 h", m.msg_24h],
+      ["Since Zigbee2MQTT started", z.messages !== undefined && z.messages !== null ? `${z.messages} messages · left ${z.leave_count ?? 0}× · address changed ${z.nwk_changes ?? 0}×` : null]]);
+    const lost = d.lost_bindings || [];
+    const bindings = d.bindings;
+    const label = (b) => { const t = b.target || ""; if (t.startsWith("group:")) { const g = t.slice(6); return `group ${esc(state.data.groups?.[d.instance]?.[g] || g)}`; } const [ieee, ep] = t.split("/"); const o = state.byIeee.get(ieee); return o?.type === "Coordinator" ? "Coordinator" : `${devLink(ieee)}${ep && ep !== "1" && ep !== "None" ? ` (endpoint ${esc(ep)})` : ""}`; };
+    const list = bindings === null || bindings === undefined ? `<div class="card-content muted">Not reported by Zigbee2MQTT yet.</div>`
+      : !bindings.length && !lost.length ? `<div class="card-content muted">No bindings.</div>`
+      : `<div class="rep-list">${bindings.map((b) => `<div><span>${esc(b.cluster)} → ${label(b)}</span><span class="muted">endpoint ${esc(b.ep)}</span></div>`).join("")}${lost.map((b) => `<div><span style="color:var(--error)">${esc(b.cluster)} → ${label(b)}</span><span class="muted">lost ${esc(relTime(b.lost_at).toLowerCase())}</span></div>`).join("")}</div>`;
+    return `<div class="sub-h">Traffic</div>${traffic}<div class="sub-h">Bindings</div>${list}`;
   };
 
   const tabHealth = (d) => {
@@ -1297,7 +1335,7 @@
     else if (state.view === "activity") renderActivity();
     else if (state.view === "map") renderMap();
     if (state.view !== "map" && MAP.rendered) { Object.values(MAP.sims).forEach((x) => x.stop()); MAP.sims = {}; MAP.rendered = null; }
-    else if (state.view === "settings" && !state.settingsShown) { state.settingsShown = true; renderSettings(); }
+    if (state.view === "settings" && !state.settingsShown) { state.settingsShown = true; renderSettings(); }
     if (state.view !== "settings") state.settingsShown = false;
     if (state.open && !(usePane() && state.view === "devices")) renderMore();
     if ($("#pairDlg").open) renderPair();
@@ -1391,6 +1429,7 @@
     restore() { $("#restoreFile").click(); },
     async unmute(b) { try { await api("api/mute", { ieee: b.dataset.ieee, kind: b.dataset.kind, muted: false }); snack("No longer ignored"); if (state.view === "settings") await renderSettings(); load(); } catch (err) { snack(err.message); } },
     async "unmute-all"() { for (const m of state.settings?.muted || []) { try { await api("api/mute", { ieee: m.ieee, kind: m.kind, muted: false }); } catch (e) { /* keep going */ } } snack("Nothing ignored now"); await renderSettings(); load(); },
+    async "bindings-ack"(b) { try { await api("api/bindings/ack", { ieee: b.dataset.ieee }); snack("Lost bindings dismissed"); load(); } catch (err) { snack(err.message); } },
     async link(b) { try { await api("api/link", { old: b.dataset.old, new: b.dataset.new }); snack("Linked. History, notes and asset details carried over"); load(); } catch (err) { snack(err.message); } },
     async "link-sel"() { const old = $("#linkSel")?.value; if (!old) { snack("Choose the removed device first"); return; } try { await api("api/link", { old, new: state.open }); snack("Linked"); load(); } catch (err) { snack(err.message); } },
     async unlink(b) { try { await api("api/unlink", { old: b.dataset.old, new: b.dataset.new }); snack("Unlinked"); load(); } catch (err) { snack(err.message); } },

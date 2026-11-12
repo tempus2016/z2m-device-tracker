@@ -46,6 +46,7 @@ options:
   summary_day: 0
   summary_hour: 9
   wifi_channels: ""
+  chatty_per_hour: 1200
 schema:
   base_topics:
     - str
@@ -69,3 +70,4 @@ schema:
   summary_day: int(0,6)
   summary_hour: int(0,23)
   wifi_channels: str?
+  chatty_per_hour: int(60,36000)?

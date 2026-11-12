@@ -8,7 +8,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
 
-from .const import APP_PORT, APP_SLUG_SUFFIX, CONF_APP_URL, DEFAULT_APP_URL, DOMAIN
+from .const import APP_PORT, APP_SLUG_SUFFIX, CONF_APP_URL, CONF_REPAIRS, DEFAULT_APP_URL, DOMAIN
 
 
 def detect_app_url(hass) -> str:
@@ -52,5 +52,10 @@ class Z2MTrackerOptionsFlow(OptionsFlow):
         )
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema({vol.Required(CONF_APP_URL, default=current): str}),
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_APP_URL, default=current): str,
+                    vol.Required(CONF_REPAIRS, default=self.config_entry.options.get(CONF_REPAIRS, True)): bool,
+                }
+            ),
         )
