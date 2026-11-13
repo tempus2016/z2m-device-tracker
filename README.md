@@ -25,6 +25,8 @@ A Home Assistant app and integration that keeps a full history of every device o
 
 Ever had a device show up as `0x30eb5affff5cf5ca` and had no idea what it used to be? This records every name, model, area and change, and keeps it after the device is gone.
 
+<p align="center"><img src="https://raw.githubusercontent.com/tempus2016/z2m-device-tracker/main/docs/images/devices.png" alt="The Zigbee Tracker sidebar: every device with its area, model, status, battery and signal" width="900"></p>
+
 It has two parts, both in this repository:
 
 | Part | What it does | Install from |
@@ -45,6 +47,21 @@ It has two parts, both in this repository:
 - **Batteries**: battery type and count (built-in library from Battery Notes), replacement records, estimates and a shopping list.
 - **Home Assistant entities**: MQTT discovery sensors attached to each Zigbee2MQTT device for use in automations.
 - Weekly summary, temporary ignore, backup and restore, CSV export.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%" valign="top"><img src="https://raw.githubusercontent.com/tempus2016/z2m-device-tracker/main/docs/images/device-history.png" alt="A device's names and logbook, kept after it leaves"><br><b>Device history</b>: a device's names and logbook, kept after it leaves</td>
+    <td width="50%" valign="top"><img src="https://raw.githubusercontent.com/tempus2016/z2m-device-tracker/main/docs/images/health-issues.png" alt="What needs attention, and what's worth a look"><br><b>Health</b>: what needs attention, and what's worth a look</td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top"><img src="https://raw.githubusercontent.com/tempus2016/z2m-device-tracker/main/docs/images/map.png" alt="Routing, link quality and advice on better routers"><br><b>Network map</b>: routing, link quality and advice on better routers</td>
+    <td width="50%" valign="top"><img src="https://raw.githubusercontent.com/tempus2016/z2m-device-tracker/main/docs/images/radio.png" alt="Zigbee channels against your Wi-Fi channels"><br><b>Radio channels</b>: Zigbee channels against your Wi-Fi channels</td>
+  </tr>
+</table>
+
+The screenshots use made-up demo devices. More are in the [wiki](https://github.com/tempus2016/z2m-device-tracker/wiki).
 
 ## Install the app
 
