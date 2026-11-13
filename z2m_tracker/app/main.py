@@ -24,6 +24,7 @@ from ha import HomeAssistant
 from health import CHECKS, DEFAULT_NOTIFY, mutes_of
 from metrics import Metrics
 from tracker import Tracker
+from tracker import _display_name as tracker_display_name
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
 _LOGGER = logging.getLogger("z2m_tracker")
@@ -415,6 +416,109 @@ def record_battery_replaced(ieee: str, date: str, source: str, note: str) -> dic
     return entry
 
 
+REPLACE_CARRY = ("name", "area", "bindings", "notes", "battery", "remove")
+
+
+def replace_device(old_ieee: str, new_ieee: str, carry: dict) -> dict:
+    """Swap a dead device for a new one: carry over what was chosen, then link both histories."""
+    problem = tracker.replace_problem(old_ieee, new_ieee)
+    if problem:
+        return {"ok": False, "error": problem, "steps": []}
+    want = {key: bool(carry.get(key)) for key in REPLACE_CARRY}
+    with tracker.lock:
+        old = dict(tracker.data["devices"][old_ieee])
+        new_instance = tracker.data["devices"][new_ieee]["instance"]
+    old_name = tracker_display_name(old)
+    steps: list[dict] = []
+    carried: list[str] = []
+
+    def step(key: str, label: str, ok: bool, detail: str = "") -> None:
+        steps.append({"key": key, "label": label, "ok": ok, "detail": detail})
+
+    if want["remove"]:
+        if old["status"] != "active":
+            step("remove", "Remove the old device", True, "Already gone from Zigbee2MQTT")
+        else:
+            result = tracker.remove_from_z2m(old_ieee)
+            step(
+                "remove",
+                "Remove the old device",
+                result["ok"],
+                "Removed from Zigbee2MQTT" if result["ok"] else result["error"],
+            )
+            if result["ok"]:
+                # Give Home Assistant a moment to drop the old entities so their IDs are free for the new device.
+                time.sleep(3)
+    new_name = None
+    if want["name"]:
+        if not old_name:
+            step("name", "Name", False, "The old device never had a name")
+        else:
+            result = tracker.rename(new_ieee, old_name)
+            if result["ok"]:
+                new_name = old_name
+                carried.append("name")
+            step("name", "Name", result["ok"], f"Renamed to {old_name}" if result["ok"] else result["error"])
+    if want["area"]:
+        area_name = old.get("area")
+        if not area_name:
+            step("area", "Area", False, "The old device had no area")
+        else:
+            try:
+                if new_ieee not in tracker.ha_device_ids:
+                    refresh_home_assistant()
+                device_id = tracker.ha_device_ids.get(new_ieee)
+                area_id = next((a["id"] for a in home_assistant.list_areas() if a["name"] == area_name), None)
+                if not device_id:
+                    step("area", "Area", False, "The new device isn't in Home Assistant yet. Set the area later.")
+                elif not area_id:
+                    step("area", "Area", False, f"Home Assistant has no area called {area_name} any more")
+                else:
+                    home_assistant.set_device_area(device_id, area_id)
+                    with tracker.lock:
+                        record = tracker.data["devices"].get(new_ieee)
+                        if record is not None:
+                            record["area"] = area_name
+                            tracker._changed(structural=True)
+                    carried.append("area")
+                    step("area", "Area", True, f"Set to {area_name}")
+            except Exception as err:  # noqa: BLE001 - HA errors are reported per step
+                step("area", "Area", False, str(err))
+    if want["bindings"]:
+        if old.get("instance") != new_instance:
+            step("bindings", "Bindings", False, "The new device is on a different network")
+        else:
+            result = tracker.rebind(old_ieee, new_ieee)
+            parts = []
+            if result.get("done"):
+                parts.append(f"{result['done']} re-created")
+            for failure in result.get("failed") or []:
+                parts.append(f"{'; '.join(failure['labels'])}: {failure['error']}")
+            if result.get("skipped"):
+                parts.append(f"{result['skipped']} skipped because the target is no longer in Zigbee2MQTT")
+            if result.get("error"):
+                parts.append(result["error"])
+            if result.get("done"):
+                carried.append("bindings")
+            step(
+                "bindings", "Bindings", result["ok"], ". ".join(p.rstrip(".") for p in parts) or "Nothing to re-create"
+            )
+    copied = tracker.carry_over(old_ieee, new_ieee, want["notes"], want["battery"])
+    if want["notes"]:
+        got = [x for x in copied if x in ("note", "asset")]
+        carried += ["notes"] if got else []
+        step("notes", "Notes and asset details", True, "Copied" if got else "Nothing to copy")
+    if want["battery"]:
+        carried += ["battery record"] if "battery" in copied else []
+        step("battery", "Battery record", True, "Copied" if "battery" in copied else "Nothing to copy")
+    linked = tracker.link_replacement(old_ieee, new_ieee, carried, new_name)
+    step("link", "Link both histories", linked, "Each logbook points to the other" if linked else "Couldn't link")
+    if want["battery"]:
+        threading.Thread(target=discovery.sync, daemon=True).start()
+    _LOGGER.info("Replaced %s with %s: %s", old_ieee, new_ieee, ", ".join(carried) or "history only")
+    return {"ok": all(s["ok"] for s in steps), "steps": steps}
+
+
 def settings_payload() -> dict:
     with tracker.lock:
         now_ts = time.time()
@@ -736,6 +840,10 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/link":
                 result = tracker.link(str(body.get("old") or ""), str(body.get("new") or ""))
                 self._json(200 if result["ok"] else 400, result)
+            elif path == "/api/replace":
+                carry = body.get("carry") if isinstance(body.get("carry"), dict) else {}
+                result = replace_device(str(body.get("old") or ""), str(body.get("new") or ""), carry)
+                self._json(200 if result["ok"] or result["steps"] else 400, result)
             elif path == "/api/unlink":
                 self._json(200, tracker.unlink(str(body.get("old") or ""), str(body.get("new") or "")))
             elif path == "/api/reconfigure":
