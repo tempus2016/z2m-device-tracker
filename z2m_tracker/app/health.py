@@ -18,7 +18,11 @@ ALERT_KINDS = {
     "silent",
     "unidentified",
     "network_offline",
+    "pairing_open",
 }
+# Checks added to notify_checks after release. Existing installs get each one switched on once at
+# upgrade (their saved list predates it); removing it in Settings afterwards sticks.
+NEW_NOTIFY_KINDS = ("pairing_open",)
 
 FLAP_OUTAGES = 4
 FLAP_LEAVES = 2
@@ -49,6 +53,12 @@ CHECKS = [
     ("replacement", "Possible replacement", "An active device has the same name as a removed one.", False),
     ("network_offline", "Network offline", "Zigbee2MQTT or its coordinator stops responding for 2 minutes.", False),
     ("restart_required", "Restart needed", "Zigbee2MQTT says it needs a restart to apply settings.", False),
+    (
+        "pairing_open",
+        "Pairing left open",
+        "Pairing (permit join) stays open for 10 minutes, or something other than the Zigbee Tracker opened it.",
+        False,
+    ),
     (
         "flapping",
         "Flapping",
@@ -109,6 +119,13 @@ KIND_LABELS = {
     "single_point": "Single point of failure",
     "coordinator_backup": "Coordinator backup",
 }
+
+
+def offer_new_kinds(notify_checks: list[str], offered: list[str]) -> tuple[list[str], list[str], list[str]]:
+    """Switch each NEW_NOTIFY_KINDS entry on once. Returns (notify_checks, offered, added)."""
+    new = [kind for kind in NEW_NOTIFY_KINDS if kind not in offered]
+    added = [kind for kind in new if kind not in notify_checks]
+    return sorted(set(notify_checks) | set(added)), sorted(set(offered) | set(new)), added
 
 
 def _age(iso: str | None, now: float) -> float | None:

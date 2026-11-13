@@ -23,7 +23,7 @@ from battery_library import BatteryLibrary
 from discovery import AVAILABILITY, Discovery
 from discovery import BASE as DISCOVERY_BASE
 from ha import HomeAssistant
-from health import CHECKS, DEFAULT_NOTIFY, mutes_of
+from health import CHECKS, DEFAULT_NOTIFY, mutes_of, offer_new_kinds
 from metrics import Metrics
 from ota import OtaManager, parse_window
 from tracker import Tracker
@@ -167,6 +167,24 @@ def load_options() -> dict:
     if not options.get("alert_on_join", True) and "joined" in options["notify_checks"]:
         options["notify_checks"] = [k for k in options["notify_checks"] if k != "joined"]
     return options
+
+
+def offer_new_notify_kinds() -> None:
+    with tracker.lock:
+        checks, offered, added = offer_new_kinds(
+            list(options.get("notify_checks") or []), list(tracker.data.get("notify_offered") or [])
+        )
+        if offered == sorted(tracker.data.get("notify_offered") or []):
+            return
+        tracker.data["notify_offered"] = offered
+        tracker.dirty = True
+    if not added:
+        return
+    options["notify_checks"] = checks
+    _LOGGER.info("Alerts now notify for new check(s): %s", ", ".join(added))
+    persisted = home_assistant.save_app_options({k: v for k, v in options.items() if not k.startswith("_")})
+    if not persisted:
+        _LOGGER.warning("Couldn't save the updated alert list to the app configuration")
 
 
 def local_timezone():
@@ -330,8 +348,8 @@ class Alerts:
                 issue["kind"],
                 issue["ieee"],
                 issue["name"],
-                f"Zigbee: {issue['name']} - {issue['label']}",
-                issue["detail"],
+                issue.get("notify_title") or f"Zigbee: {issue['name']} - {issue['label']}",
+                issue.get("notify_message") or issue["detail"],
                 issue.get("instance"),
             )
         for key in sent - set(current):
@@ -988,6 +1006,8 @@ class Handler(BaseHTTPRequestHandler):
                     str(body.get("via") or "") or None,
                     str(body.get("target") or "") or None,
                 )
+                if result["ok"] and not body.get("seconds"):
+                    alerts.check()
                 self._json(200 if result["ok"] else 502, result)
             elif path == "/api/ota":
                 if body.get("action") == "update":
@@ -1032,6 +1052,7 @@ def main() -> None:
     _LOGGER.info("Z2M Device Tracker %s: %d devices loaded (%s), base topics: %s", VERSION, count, source, base_topics)
     if source == "migrated":
         tracker.save(force=True)
+    threading.Thread(target=offer_new_notify_kinds, name="notify-kinds", daemon=True).start()
 
     client = start_mqtt()
     threading.Thread(target=scheduler, name="scheduler", daemon=True).start()

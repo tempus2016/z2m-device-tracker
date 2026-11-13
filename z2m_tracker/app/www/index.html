@@ -653,6 +653,10 @@
   const ISSUE_VARS = {
     flapping: (p) => { p.what = listOf([p.outages ? t("issue.flapping.outages", { n: p.outages }) : null, p.leaves ? t("issue.flapping.leaves", { n: p.leaves }) : null].filter(Boolean)); },
     single_point: (p) => { p.extra = p.devices ? t("issue.single_point.extra", { n: p.devices }) : ""; },
+    pairing_open: (p) => {
+      const parts = [p.origin === "frontend" || p.origin === "mqtt" ? t(`issue.pairing_open.${p.origin}`) : null, p.device ? t("issue.pairing_open.device", { device: p.device }) : null, p.left != null ? t("issue.pairing_open.left", { duration: span(p.left) }) : null];
+      p.extra = parts.filter(Boolean).map((x) => ` · ${x}`).join("");
+    },
   };
   const issueVars = (i) => {
     const p = { ...(i.params || {}) };
@@ -875,9 +879,11 @@
       const tone = i.severity === "warning" ? "var(--warning)" : "var(--info)";
       if (String(i.ieee).startsWith("network:")) {
         const panel = state.data.panels?.[i.instance];
-        return `<div class="row"><span class="state-ic" style="color:${tone}">${ic(i.kind === "network_offline" ? "lan-disconnect" : i.kind === "coordinator_backup" ? "download" : "refresh")}</span>
+        const icon = { network_offline: "lan-disconnect", coordinator_backup: "download", pairing_open: "link-variant" }[i.kind] || "refresh";
+        const close = i.kind === "pairing_open" ? `<button class="btn danger" data-act="pair-stop" data-net="${esc(i.instance)}">${th("health.close_now")}</button>` : "";
+        return `<div class="row"><span class="state-ic" style="color:${tone}">${ic(icon)}</span>
           <div class="text"><div class="t1">${esc(issueTitle(i))}: ${esc(issueName(i))}</div><div class="t2">${esc(issueDetail(i))}</div></div>
-          <div class="acts">${panel ? `<a class="btn" href="${esc(panel)}" target="_top">${th("health.open_z2m")}</a>` : ""}</div></div>`;
+          <div class="acts">${close}${panel ? `<a class="btn" href="${esc(panel)}" target="_top">${th("health.open_z2m")}</a>` : ""}</div></div>`;
       }
       return `<div class="row"><span class="state-ic" style="color:${tone}">${ic(KIND_ICON[i.kind] || "alert")}</span>
         <div class="text row-open" data-open="${esc(i.ieee)}" style="cursor:pointer"><div class="t1">${esc(issueTitle(i))}: ${esc(issueName(i))}</div><div class="t2">${esc(issueDetail(i))}${d?.area ? ` · ${esc(d.area)}` : ""}</div></div>
@@ -1936,7 +1942,7 @@
       } catch (err) { snack(err.message, 5000); }
       b.disabled = false;
     },
-    async "pair-stop"() { const net = state.move ? state.byIeee.get(state.move.target)?.instance : state.pairNet; try { await api("api/pairing", { instance: net, seconds: 0 }); snack(t("pair.closed")); await load(); } catch (err) { snack(err.message); } },
+    async "pair-stop"(b) { const net = b?.dataset.net || (state.move ? state.byIeee.get(state.move.target)?.instance : state.pairNet); try { await api("api/pairing", { instance: net, seconds: 0 }); snack(t("pair.closed")); await load(); } catch (err) { snack(err.message); } },
     async "pair-save"(b) {
       const ieee = b.dataset.ieee, d = state.byIeee.get(ieee), box = b.closest(".pair-dev");
       const name = box.querySelector("[name=name]").value.trim(), area = box.querySelector("[name=area]")?.value || "", btype = box.querySelector("[name=btype]")?.value.trim();

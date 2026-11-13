@@ -27,6 +27,10 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `ota_window` | empty | Time window for automatic firmware updates, e.g. `02:00-05:00` (local time, may cross midnight). Empty turns automatic updates off. A failed update is retried once, the next night. |
 | `ota_min_battery` | `30` | Battery devices below this level are skipped by automatic and bulk updates. **Update anyway** overrides it for one device. |
 
+## Pairing left open
+
+While pairing (permit join) is open, any nearby Zigbee device can join. The **Pairing left open** check warns and notifies when pairing stays open for 10 minutes, or straight away when something other than the Zigbee Tracker opened it (the Zigbee2MQTT frontend, Home Assistant or an automation). **Close now** on the Health tab closes it. Existing installs get this alert switched on once when they update; turn it off in Settings → Checks if you don't want it.
+
 ## More checks
 
 These checks show in Health but don't notify until you set them to **Show and notify** in Settings → Checks.
