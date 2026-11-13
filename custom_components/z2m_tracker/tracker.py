@@ -92,6 +92,7 @@ class Z2MTracker:
             "imported": payload.get("imported"),
             "issues": payload.get("issues") or [],
             "options": payload.get("options") or {},
+            "battery_shopping": payload.get("battery_shopping") or [],
         }
         if self.repairs:
             self._sync_repairs()
@@ -208,6 +209,14 @@ class Z2MTracker:
     async def async_forget(self, ieee: str) -> None:
         await self._request("POST", "/api/forget", {"ieee": ieee})
         await self.async_refresh_now()
+
+    async def async_battery_replaced(self, ieees: list[str], note: str = "") -> None:
+        """Record a battery replacement for each device, dated today in the app's time zone."""
+        try:
+            for ieee in ieees:
+                await self._request("POST", "/api/battery/replaced", {"ieee": ieee, "note": note})
+        finally:
+            await self.async_refresh_now()
 
     async def async_import_history(self) -> dict[str, Any]:
         result = await self._request("POST", "/api/import")
