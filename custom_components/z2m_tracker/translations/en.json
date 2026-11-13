@@ -22,7 +22,7 @@
           "repairs": "Show problems in Settings > Repairs"
         },
         "data_description": {
-          "repairs": "Mirrors the app's warnings and the checks set to notify. Each one clears itself when the problem is fixed."
+          "repairs": "Mirrors the app's warnings and the checks set to notify. Each one clears itself when the problem is fixed. Nothing shows while alerts are off in the app."
         }
       }
     }
