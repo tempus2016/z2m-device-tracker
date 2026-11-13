@@ -42,6 +42,9 @@ SAVE_INTERVAL = 30
 METRICS_SAVE_INTERVAL = 300
 HEALTH_INTERVAL = 60
 HA_REFRESH_INTERVAL = 6 * 3600
+# Wait this long after a registry change before re-reading, so a burst of changes
+# (a new device brings a dozen entities) costs one refresh.
+HA_CHANGE_DELAY = 5
 FIRST_IMPORT_WAIT = 120
 
 # Ingress proxy (supervisor) and HA Core on the internal hassio network.
@@ -170,6 +173,14 @@ home_assistant = HomeAssistant(CONFIG_DIR)
 tracker.battery_lib = BatteryLibrary(APP_DIR / "battery_library.json")
 discovery = Discovery(tracker, VERSION, bool(options.get("ha_entities", True)))
 stop_event = threading.Event()
+ha_changed_at = 0.0
+
+
+def ha_registry_changed() -> None:
+    global ha_changed_at
+    ha_changed_at = time.time()
+
+
 scan_lock = threading.Lock()
 
 
@@ -479,6 +490,10 @@ def refresh_home_assistant() -> None:
         with tracker.lock:
             tracker.ha_device_ids = dict(home_assistant.device_ids)
             tracker.ha_battery = dict(home_assistant.battery)
+            for ieee, record in tracker.data["devices"].items():
+                if ieee in home_assistant.device_ids:
+                    record["area"] = home_assistant.areas.get(ieee)
+                    record["ha_name"] = home_assistant.names.get(ieee)
             tracker._changed(structural=True)
         _LOGGER.info(
             "Linked %d HA devices, %d with Battery Notes", len(home_assistant.device_ids), len(home_assistant.battery)
@@ -488,6 +503,7 @@ def refresh_home_assistant() -> None:
 
 
 def scheduler() -> None:
+    global ha_changed_at
     last_save = last_metrics = last_ha = last_health = 0.0
     last_scan_day = None
     while not stop_event.wait(5):
@@ -499,7 +515,9 @@ def scheduler() -> None:
             if now - last_metrics >= METRICS_SAVE_INTERVAL:
                 metrics.save()
                 last_metrics = now
-            if now - last_ha >= HA_REFRESH_INTERVAL:
+            changed = ha_changed_at and now - ha_changed_at >= HA_CHANGE_DELAY
+            if changed or now - last_ha >= HA_REFRESH_INTERVAL:
+                ha_changed_at = 0.0
                 refresh_home_assistant()
                 last_ha = now
             if now - last_health >= HEALTH_INTERVAL:
@@ -827,6 +845,10 @@ def main() -> None:
 
     client = start_mqtt()
     threading.Thread(target=scheduler, name="scheduler", daemon=True).start()
+    if home_assistant.available:
+        threading.Thread(
+            target=home_assistant.watch, args=(ha_registry_changed, stop_event), name="ha-watch", daemon=True
+        ).start()
     if not tracker.data.get("imported"):
         threading.Thread(target=first_import, name="first-import", daemon=True).start()
 

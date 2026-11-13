@@ -1,4 +1,4 @@
-"""Home Assistant access: Core API (via Supervisor) and read-only registry files."""
+"""Home Assistant access: Core API and WebSocket (via Supervisor), registry files as a fallback."""
 
 from __future__ import annotations
 
@@ -6,13 +6,17 @@ import json
 import logging
 import os
 import re
+import threading
 import urllib.error
 import urllib.request
-from typing import Any
+from typing import Any, Callable
 
 _LOGGER = logging.getLogger("z2m_tracker")
 
 API = "http://supervisor/core/api"
+WEBSOCKET = "ws://supervisor/core/websocket"
+# Registry changes that can alter a device's link, name, area or Battery Notes entities.
+REGISTRY_EVENTS = ("device_registry_updated", "area_registry_updated", "entity_registry_updated")
 IDENT_RE = re.compile(r"zigbee2mqtt_(0x[0-9a-f]{16})$")
 
 
@@ -21,6 +25,8 @@ class HomeAssistant:
         self.config_dir = config_dir
         self.token = os.environ.get("SUPERVISOR_TOKEN") or ""
         self.device_ids: dict[str, str] = {}
+        self.areas: dict[str, str | None] = {}
+        self.names: dict[str, str | None] = {}
         self.battery: dict[str, dict[str, Any]] = {}
 
     @property
@@ -70,18 +76,26 @@ class HomeAssistant:
         )
         return result is not None
 
-    def _ws_call(self, messages: list[dict]) -> list:
-        """Run HA WebSocket commands (area registry etc. have no REST API)."""
+    def _ws_connect(self, timeout: float = 15):
         import websocket  # websocket-client, installed in the Dockerfile
 
         if not self.token:
             raise RuntimeError("No Home Assistant access")
-        ws = websocket.create_connection("ws://supervisor/core/websocket", timeout=15)
+        ws = websocket.create_connection(WEBSOCKET, timeout=timeout)
         try:
             json.loads(ws.recv())
             ws.send(json.dumps({"type": "auth", "access_token": self.token}))
             if json.loads(ws.recv()).get("type") != "auth_ok":
                 raise RuntimeError("Home Assistant rejected the app's token")
+        except Exception:
+            ws.close()
+            raise
+        return ws
+
+    def _ws_call(self, messages: list[dict]) -> list:
+        """Run HA WebSocket commands (area registry etc. have no REST API)."""
+        ws = self._ws_connect()
+        try:
             results = []
             for index, message in enumerate(messages, 1):
                 ws.send(json.dumps({"id": index, **message}))
@@ -148,21 +162,50 @@ class HomeAssistant:
         except (OSError, ValueError):
             return {}
 
+    def _registries(self) -> tuple[list, list, list]:
+        """Device, area and entity registries. Asked live, because HA writes the files
+        to disk a few seconds after a change; the files are the fallback."""
+        if self.token:
+            try:
+                devices, areas, entities = self._ws_call(
+                    [
+                        {"type": "config/device_registry/list"},
+                        {"type": "config/area_registry/list"},
+                        {"type": "config/entity_registry/list"},
+                    ]
+                )
+                return devices or [], areas or [], entities or []
+            except Exception as err:  # noqa: BLE001 - fall back to the files
+                _LOGGER.warning("Reading HA registries over the WebSocket failed, using the files: %s", err)
+        return (
+            self._load_storage("core.device_registry").get("devices", []),
+            self._load_storage("core.area_registry").get("areas", []),
+            self._load_storage("core.entity_registry").get("entities", []),
+        )
+
     def refresh(self) -> None:
-        """Map IEEE → HA device id and collect Battery Notes info."""
-        devices = self._load_storage("core.device_registry").get("devices", [])
+        """Map IEEE → HA device id, name and area, and collect Battery Notes info."""
+        devices, area_list, entities = self._registries()
+        area_names = {area.get("area_id"): area.get("name") for area in area_list}
         device_to_ieee: dict[str, str] = {}
         ieee_to_device: dict[str, str] = {}
+        areas: dict[str, str | None] = {}
+        names: dict[str, str | None] = {}
         for device in devices:
             for identifier in device.get("identifiers") or []:
                 if len(identifier) > 1:
                     match = IDENT_RE.search(str(identifier[1]))
                     if match:
-                        ieee_to_device[match.group(1)] = device["id"]
-                        device_to_ieee[device["id"]] = match.group(1)
+                        ieee = match.group(1)
+                        ieee_to_device[ieee] = device["id"]
+                        device_to_ieee[device["id"]] = ieee
+                        areas[ieee] = area_names.get(device.get("area_id"))
+                        name = device.get("name_by_user") or device.get("name")
+                        names[ieee] = str(name) if name and str(name).lower() != ieee else None
         self.device_ids = ieee_to_device
+        self.areas = areas
+        self.names = names
 
-        entities = self._load_storage("core.entity_registry").get("entities", [])
         wanted: dict[str, tuple[str, str]] = {}
         for entity in entities:
             if entity.get("platform") != "battery_notes":
@@ -181,3 +224,31 @@ class HomeAssistant:
                 ieee, key = hit
                 battery.setdefault(ieee, {})["type" if key == "battery_type" else "last_replaced"] = state["state"]
         self.battery = battery
+
+    def watch(self, on_change: Callable[[], None], stop_event: threading.Event) -> None:
+        """Call on_change whenever HA's device, area or entity registry changes.
+        Runs until stop_event is set, reconnecting after a dropped connection."""
+        import websocket  # websocket-client, installed in the Dockerfile
+
+        while not stop_event.is_set():
+            ws = None
+            try:
+                ws = self._ws_connect()
+                for index, event_type in enumerate(REGISTRY_EVENTS, 1):
+                    ws.send(json.dumps({"id": index, "type": "subscribe_events", "event_type": event_type}))
+                ws.settimeout(60)
+                _LOGGER.info("Watching Home Assistant's device registry for changes")
+                on_change()  # catch anything missed while disconnected
+                while not stop_event.is_set():
+                    try:
+                        message = json.loads(ws.recv())
+                    except websocket.WebSocketTimeoutException:
+                        continue
+                    if message.get("type") == "event":
+                        on_change()
+            except Exception as err:  # noqa: BLE001 - reconnect below
+                _LOGGER.warning("Home Assistant registry watch lost, retrying in 30 s: %s", err)
+            finally:
+                if ws is not None:
+                    ws.close()
+            stop_event.wait(30)
