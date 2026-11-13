@@ -116,6 +116,10 @@
   .alert > .mdi { color: var(--a); }
   .alert .body { flex: 1; min-width: 0; padding: 4px 0; }
   .alert b { font-weight: 500; }
+  /* In the narrow device pane, keep the message readable: buttons that don't fit move under it. */
+  .alerts .alert { flex-wrap: wrap; }
+  .alerts .alert .body { flex: 1 1 55%; }
+  .alert-acts { display: flex; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
   .btn { appearance: none; border: 0; background: none; height: 36px; padding: 0 12px; border-radius: 18px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500; font-size: 14px; color: var(--primary-text); text-decoration: none; white-space: nowrap; }
   .btn:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); }
   .btn.filled { background: var(--primary); color: var(--primary-ink); padding: 0 20px; }
@@ -1538,7 +1542,7 @@
       </div>
       ${u.state === "updating" ? `<div class="alerts"><div class="alert" style="--a:var(--info)">${ic("chip")}<div class="body"><b>${th("more.updating")}${u.progress !== undefined && u.progress !== null ? ` · ${Math.round(u.progress)} %` : ""}</b>${u.remaining ? ` · ${th("more.time_left", { duration: esc(span(u.remaining)) })}` : ""}. ${th("more.keep_powered")}<div class="bar"><i style="width:${Math.max(2, Math.min(100, u.progress || 0))}%"></i></div></div></div></div>` : ""}
       ${u.state === "available" && d.status !== "removed" ? `<div class="alerts"><div class="alert" style="--a:var(--info)">${ic("chip")}<div class="body"><b>${th("issue.update.title")}</b> · ${esc(u.installed_version)} → ${esc(u.latest_version)}</div><button class="btn" data-act="ota-update">${th("common.update")}</button></div></div>` : ""}
-      <div class="alerts">${(d.issues || []).map((i) => `<div class="alert" style="--a:${i.severity === "warning" ? "var(--warning)" : "var(--info)"}">${ic(KIND_ICON[i.kind] || "alert")}<div class="body"><b>${esc(issueTitle(i))}.</b> ${esc(issueDetail(i))}</div>${issueActions(i)}</div>`).join("")}
+      <div class="alerts">${(d.issues || []).map((i) => `<div class="alert" style="--a:${i.severity === "warning" ? "var(--warning)" : "var(--info)"}">${ic(KIND_ICON[i.kind] || "alert")}<div class="body"><b>${esc(issueTitle(i))}.</b> ${esc(issueDetail(i))}</div><div class="alert-acts">${issueActions(i)}</div></div>`).join("")}
         ${st === "removed" ? `<div class="alert" style="--a:var(--text-2)">${ic("information-outline")}<div class="body"><b>${th("more.removed")}</b> ${d.removed_at ? th("more.removed_on", { date: esc(fmtDate(d.removed_at)) }) : th("more.removed_no_date")}.${d.successor ? ` ${th("more.replaced_by", { device: devLink(d.successor) })}.` : ""}</div></div>` : ""}</div>
       ${kv([[th("devices.col.model"), deviceLine(d) || t("common.unknown")], [th("more.description"), d.description], [th("devices.col.area"), d.area], [th("more.network"), netLabel(d.instance)], [th("more.signal_24h"), lqi === null ? null : Math.round(lqi)],
         [th("devices.col.battery"), typeof d.battery === "number" ? `${Math.round(d.battery)} %` : power], [th("more.first_seen"), fmtDate(d.first_seen) || t("common.unknown")], [th("devices.col.last_seen"), fmtDate(d.last_seen) || t("time.never")],
