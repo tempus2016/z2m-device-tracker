@@ -85,6 +85,12 @@ CHECKS = [
         "Zigbee2MQTT's coordinator_backup.json is missing, more than 3 days old, or doesn't match the running network.",
         False,
     ),
+    (
+        "group_member_offline",
+        "Group members offline",
+        "A Zigbee2MQTT group has members that have been offline for longer than the offline threshold.",
+        False,
+    ),
     ("joined", "Device joined", "A device joins one of your networks.", True),
     ("left", "Device left", "A device leaves one of your networks.", True),
     ("interview_failed", "Interview failed", "A newly joined device couldn't be identified.", True),
@@ -108,6 +114,7 @@ KIND_LABELS = {
     "binding_lost": "Binding lost",
     "single_point": "Single point of failure",
     "coordinator_backup": "Coordinator backup",
+    "group_member_offline": "Group members offline",
 }
 
 

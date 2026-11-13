@@ -203,6 +203,7 @@
   "issue.label.coordinator_backup": "Coordinator backup",
   "issue.label.network_offline": "Network offline",
   "issue.label.restart_required": "Restart needed",
+  "issue.label.group_member_offline": "Group members offline",
   "issue.offline.title": "Offline",
   "issue.offline.detail": "Unavailable for {duration}.",
   "issue.silent.title": "Not heard from",
@@ -269,6 +270,11 @@
   "issue.network_offline.detail": "Not responding for {duration}. Every device on this network is unreachable. Check the coordinator's power and network connection.",
   "issue.restart_required.title": "Restart needed",
   "issue.restart_required.detail": "Zigbee2MQTT says it needs a restart to apply a settings change.",
+  "issue.group_member_offline.title": "Group members offline",
+  "issue.group_member_offline.detail": {
+    "one": "{n} of {total} members offline: {names}.",
+    "other": "{n} of {total} members offline: {names}."
+  },
   "issue.backup_missing.title": "Coordinator backup",
   "issue.backup_missing.detail": "There's no coordinator_backup.json in its data folder. Without it, a replacement coordinator can't take over the network and every device must be re-paired.",
   "issue.backup_unreadable.title": "Coordinator backup",
@@ -320,6 +326,8 @@
   "check.single_point.description": "A router that is the only path to the coordinator for other routers in the last routing scan.",
   "check.coordinator_backup.label": "Coordinator backup",
   "check.coordinator_backup.description": "Zigbee2MQTT's coordinator_backup.json is missing, more than 3 days old, or doesn't match the running network.",
+  "check.group_member_offline.label": "Group members offline",
+  "check.group_member_offline.description": "A Zigbee2MQTT group has members that have been offline for longer than the offline threshold.",
   "check.joined.label": "Device joined",
   "check.joined.description": "A device joins one of your networks.",
   "check.left.label": "Device left",
@@ -376,6 +384,26 @@
     "other": "about {n} days"
   },
   "shop.takes": "takes {n}",
+  "groups.title": "Groups",
+  "groups.subtitle": {
+    "one": "{n} Zigbee2MQTT group, all members fine",
+    "other": "{n} Zigbee2MQTT groups, all members fine"
+  },
+  "groups.subtitle_problems": {
+    "one": "{n} Zigbee2MQTT group, {bad} with members to check",
+    "other": "{n} Zigbee2MQTT groups, {bad} with members to check"
+  },
+  "groups.online": {
+    "one": "{online} of {n} member online",
+    "other": "{online} of {n} members online"
+  },
+  "groups.left_one": "1 member left the group on {date}",
+  "groups.left_many": "{n} members left the group",
+  "groups.offline_n": "{n} offline",
+  "groups.check": "Check",
+  "groups.chip_offline": "{name} · offline {duration}",
+  "groups.chip_offline_now": "{name} · offline",
+  "groups.chip_left": "{name} · left {date}",
   "shop.title": "Batteries to buy",
   "shop.subtitle": "{total} for devices expected to run low within 60 days",
   "shop.unknown_type": "Unknown type",

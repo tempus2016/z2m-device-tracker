@@ -23,6 +23,9 @@ _LOGGER = logging.getLogger("z2m_tracker")
 
 MAX_EVENTS = 3000
 MAX_OUTAGES = 200
+# "Left the group" facts kept in history.json, and how long the Groups card shows one.
+MAX_GROUP_LEFT = 100
+GROUP_LEFT_DAYS = 30
 STATUS_ACTIVE = "active"
 STATUS_REMOVED = "removed"
 
@@ -228,6 +231,8 @@ class Tracker:
         self.scans_path: str | None = None
         self.pairing_sessions: dict[str, dict] = {}
         self.groups: dict[str, dict[str, str]] = {}
+        # Current member IEEEs per group per base topic (memory only; bridge/groups is retained).
+        self.group_members: dict[str, dict[str, list[str]]] = {}
         self._unbinds: dict[str, float] = {}
         self._spof_cache: dict[str, tuple] = {}
         self._backups: dict[str, dict] = {}
@@ -317,11 +322,7 @@ class Tracker:
                     elif rest == "bridge/groups":
                         parsed = json.loads(text)
                         if isinstance(parsed, list):
-                            self.groups[base_topic] = {
-                                str(g.get("id")): g.get("friendly_name") or f"Group {g.get('id')}"
-                                for g in parsed
-                                if isinstance(g, dict)
-                            }
+                            self._handle_groups(base_topic, parsed)
                     elif rest == "bridge/health":
                         parsed = json.loads(text)
                         if isinstance(parsed, dict):
@@ -435,6 +436,135 @@ class Tracker:
         if self.lists_received >= set(self.base_topics):
             self.lists_ready.set()
         self._changed(structural=changed)
+
+    # ----------------------------------------------------------------- groups
+
+    def _handle_groups(self, base_topic: str, groups: list) -> None:
+        """bridge/groups: [{id, friendly_name, members: [{ieee_address, endpoint}], scenes}]."""
+        names: dict[str, str] = {}
+        members: dict[str, list[str]] = {}
+        for group in groups:
+            if not isinstance(group, dict) or group.get("id") is None:
+                continue
+            gid = str(group["id"])
+            names[gid] = group.get("friendly_name") or f"Group {gid}"
+            ieees: list[str] = []
+            for member in group.get("members") or []:
+                ieee = str((member or {}).get("ieee_address") or "").lower() if isinstance(member, dict) else ""
+                if ieee and ieee not in ieees:
+                    ieees.append(ieee)
+            members[gid] = ieees
+        previous = self.group_members.get(base_topic)
+        facts = list(self.data.get("group_left") or [])
+        # Forget facts for groups that are gone, and for members that are back in their group.
+        kept = [
+            f
+            for f in facts
+            if f.get("instance") != base_topic
+            or (f.get("group") in members and f.get("ieee") not in members[f.get("group")])
+        ]
+        if previous is not None:
+            now = _now()
+            for gid, current in members.items():
+                for ieee in previous.get(gid) or []:
+                    if ieee in current:
+                        continue
+                    kept = [
+                        f
+                        for f in kept
+                        if not (f.get("instance") == base_topic and f.get("group") == gid and f.get("ieee") == ieee)
+                    ]
+                    kept.append({"instance": base_topic, "group": gid, "ieee": ieee, "at": now})
+        kept = kept[-MAX_GROUP_LEFT:]
+        if kept != facts:
+            self.data["group_left"] = kept
+            self._changed(structural=True)
+        if names != self.groups.get(base_topic) or members != previous:
+            self.revision += 1
+        self.groups[base_topic] = names
+        self.group_members[base_topic] = members
+
+    def group_health(self, now: float) -> list[dict]:
+        """Each group with its members' state and members that left it recently (still on the network)."""
+        devices = self.data["devices"]
+        cutoff = datetime.fromtimestamp(now - GROUP_LEFT_DAYS * 86400, tz=timezone.utc).isoformat(timespec="seconds")
+        left_by: dict[tuple[str, str], list[dict]] = {}
+        for fact in self.data.get("group_left") or []:
+            record = devices.get(fact.get("ieee"))
+            # A device that left the network drops out of its groups first; only flag it once it's back.
+            if (fact.get("at") or "") < cutoff or record is None or record["status"] != STATUS_ACTIVE:
+                continue
+            left_by.setdefault((fact.get("instance"), fact.get("group")), []).append(
+                {"ieee": fact["ieee"], "name": _display_name(record) or fact["ieee"], "at": fact["at"]}
+            )
+        out = []
+        for bt in self.base_topics:
+            names = self.groups.get(bt) or {}
+            for gid, ieees in (self.group_members.get(bt) or {}).items():
+                left = left_by.get((bt, gid), [])
+                if not ieees and not left:
+                    continue
+                members = []
+                for ieee in ieees:
+                    record = devices.get(ieee) or {}
+                    offline = record.get("status") == STATUS_ACTIVE and record.get("availability") == "offline"
+                    seconds = None
+                    if offline and record.get("availability_since"):
+                        try:
+                            seconds = max(
+                                0, int(now - datetime.fromisoformat(record["availability_since"]).timestamp())
+                            )
+                        except ValueError:
+                            seconds = None
+                    members.append(
+                        {
+                            "ieee": ieee,
+                            "name": _display_name(record) or ieee,
+                            "offline": offline,
+                            "offline_seconds": seconds,
+                        }
+                    )
+                out.append(
+                    {
+                        "instance": bt,
+                        "id": gid,
+                        "name": names.get(gid) or f"Group {gid}",
+                        "members": members,
+                        "total": len(members),
+                        "offline": sum(1 for m in members if m["offline"]),
+                        "left": left,
+                    }
+                )
+        out.sort(key=lambda g: (-g["offline"], not g["left"], g["name"].lower()))
+        return out
+
+    def _group_issues(self, now: float) -> list[dict]:
+        if "group_member_offline" in set(self.options.get("disabled_checks") or []):
+            return []
+        limit = max(0, int(self.options.get("offline_alert_minutes", 60))) * 60
+        out = []
+        for group in self.group_health(now):
+            late = [m for m in group["members"] if m["offline"] and (m["offline_seconds"] or 0) >= limit]
+            if not late:
+                continue
+            names = ", ".join(m["name"] for m in late)
+            n, total = len(late), group["total"]
+            out.append(
+                {
+                    "key": f"group_member_offline:{group['instance']}:{group['id']}",
+                    "kind": "group_member_offline",
+                    "label": "Group members offline",
+                    "severity": "info",
+                    "ieee": f"group:{group['instance']}:{group['id']}",
+                    "title": "Group members offline",
+                    "detail": f"{n} of {total} member{'' if total == 1 else 's'} offline: {names}.",
+                    "msg": "group_member_offline",
+                    "params": {"n": n, "total": total, "names": names},
+                    "name": group["name"],
+                    "instance": group["instance"],
+                }
+            )
+        return out
 
     # --------------------------------------------------------------- bindings
 
@@ -1382,6 +1512,7 @@ class Tracker:
                     issue["instance"] = record["instance"]
                     issues.append(issue)
             issues.extend(self._network_issues(now))
+            issues.extend(self._group_issues(now))
             order = {"warning": 0, "info": 1}
             issues.sort(key=lambda i: (order.get(i["severity"], 2), i["name"].lower()))
             changed = [i["key"] for i in issues] != [i["key"] for i in self.issues]
@@ -1429,6 +1560,7 @@ class Tracker:
                 "single_points": {bt: self.single_points(bt) for bt in self.base_topics},
                 "backups": self._backups,
                 "groups": self.groups,
+                "group_health": self.group_health(now),
                 "scan_times": {bt: [x["at"] for x in self.scans.get(bt) or []] for bt in self.base_topics},
                 "pairing": {bt: {**s, "joined": list(s["joined"])} for bt, s in self.pairing_sessions.items()},
                 "panels": self.options.get("_panels", {}),
