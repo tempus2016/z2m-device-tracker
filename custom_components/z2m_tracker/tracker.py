@@ -345,6 +345,15 @@ class Z2MTracker:
     async def async_network_scan(self, base_topic: str | None = None) -> None:
         await self._request("POST", "/api/networkmap", {"instance": base_topic} if base_topic else {})
 
+    async def async_pause_alerts(self, minutes: int | None = None) -> None:
+        """Pause every alert for some minutes; None pauses until resumed."""
+        await self._request("POST", "/api/alerts/pause", {"minutes": minutes})
+        await self.async_refresh_now()
+
+    async def async_resume_alerts(self) -> None:
+        await self._request("POST", "/api/alerts/resume", {})
+        await self.async_refresh_now()
+
     # ---------------------------------------------------------- repair fixes
 
     async def async_acknowledge_bindings(self, ieee: str) -> None:

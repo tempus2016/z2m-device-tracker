@@ -108,6 +108,14 @@ CHECKS = [
 ]
 DEFAULT_NOTIFY = sorted(ALERT_KINDS | {"joined", "left", "interview_failed"})
 
+
+def notify_kinds(options: dict) -> set[str]:
+    """Issue and event kinds that send a notification with these settings."""
+    if not options.get("alerts_enabled", True):
+        return set()
+    return set(options.get("notify_checks") or []) - set(options.get("disabled_checks") or [])
+
+
 KIND_LABELS = {
     "offline": "Offline",
     "silent": "Not heard from",

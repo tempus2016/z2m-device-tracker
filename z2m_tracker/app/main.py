@@ -23,7 +23,7 @@ from battery_library import BatteryLibrary
 from discovery import AVAILABILITY, Discovery
 from discovery import BASE as DISCOVERY_BASE
 from ha import HomeAssistant
-from health import CHECKS, DEFAULT_NOTIFY, alert_plan, alert_title, mutes_of, nested
+from health import CHECKS, DEFAULT_NOTIFY, alert_plan, alert_title, mutes_of, nested, notify_kinds
 from metrics import Metrics
 from ota import OtaManager, parse_window
 from tracker import Tracker
@@ -271,9 +271,7 @@ class Alerts:
 
     @staticmethod
     def notify_set() -> set[str]:
-        if not options.get("alerts_enabled", True):
-            return set()
-        return set(options.get("notify_checks") or []) - set(options.get("disabled_checks") or [])
+        return notify_kinds(options)
 
     def rebaseline(self) -> None:
         """Treat issues that already exist as notified, so enabling a type doesn't flood."""
@@ -321,6 +319,10 @@ class Alerts:
             "left": "Zigbee device left",
             "interview failed": "Zigbee interview failed",
         }.get(kind, f"Zigbee: {kind}")
+        if tracker.alerts_paused():
+            # Events happen once, so there is nothing to send when the pause ends: drop it.
+            _LOGGER.info("Alerts paused, not sent: %s - %s", title, messages.get(kind, ""))
+            return
         self._send(
             f"event:{kind}:{event['ieee']}:{event['time']}",
             kind,
@@ -333,6 +335,10 @@ class Alerts:
 
     def check(self) -> None:
         issues, _ = tracker.evaluate_health()
+        if tracker.alerts_paused():
+            # Leave "alerted" alone, so issues found during the pause still count as new when it ends.
+            # Issues that clear before then are never sent; notifications already shown stay up.
+            return
         enabled = self.notify_set()
         with tracker.lock:
             initialised = tracker.data.get("alerts_initialised")
@@ -970,6 +976,19 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/settings":
                 result = apply_settings(body.get("changes") if isinstance(body.get("changes"), dict) else {})
                 self._json(200 if result["ok"] else 400, result)
+            elif path == "/api/alerts/pause":
+                try:
+                    state = tracker.pause_alerts(body.get("minutes"), body.get("until"), body.get("at"))
+                except ValueError as err:
+                    self._json(400, {"ok": False, "error": str(err)})
+                else:
+                    self._json(200, {"ok": True, "alerts_paused": state})
+            elif path == "/api/alerts/resume":
+                resumed = tracker.resume_alerts()
+                if resumed:
+                    # Send what is still wrong now rather than at the next health check.
+                    threading.Thread(target=alerts.check, name="alerts-resume", daemon=True).start()
+                self._json(200, {"ok": True, "resumed": resumed})
             elif path == "/api/test-notification":
                 self._json(200, {"ok": True, "channels": alerts.test()})
             elif path == "/api/battery":
