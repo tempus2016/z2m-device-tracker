@@ -587,6 +587,38 @@
   "report.range": "Enter a time from 30 seconds to 7 days",
   "report.saved": "Alerts if no message for {every}",
   "report.cleared": "Expected reporting turned off",
+  "bulk.desc": {
+    "one": "Set on {n} device. Change one device on its Health tab, or many at once here.",
+    "other": "Set on {n} devices. Change one device on its Health tab, or many at once here."
+  },
+  "bulk.open": "Set for many devices…",
+  "bulk.title": "Expected reporting for many devices",
+  "bulk.intro": "Alert when a device is quiet for longer than its usual gap times:",
+  "bulk.mains": "Mains devices",
+  "bulk.battery": "Battery devices",
+  "bulk.unset": "Only devices with no setting",
+  "bulk.col.device": "Device",
+  "bulk.col.gap": "Usual gap",
+  "bulk.col.now": "Now",
+  "bulk.col.new": "New",
+  "bulk.on_change": "reports on change",
+  "bulk.no_data": "not enough data",
+  "bulk.none": "No devices match.",
+  "bulk.pick_group": "Pick mains devices, battery devices or both.",
+  "bulk.count_mains": "{n} of {total} mains devices",
+  "bulk.count_battery": "{n} of {total} battery devices",
+  "bulk.count_all": "{n} of {total} devices",
+  "bulk.apply": "Apply to {n}",
+  "bulk.turn_off": "Turn off for {n}",
+  "bulk.applied": {
+    "one": "Expected reporting set for {n} device",
+    "other": "Expected reporting set for {n} devices"
+  },
+  "bulk.turned_off": {
+    "one": "Expected reporting turned off for {n} device",
+    "other": "Expected reporting turned off for {n} devices"
+  },
+  "bulk.partly": "Done for {n}, {failed} failed: {error}",
   "traffic.counting": "Message counts start from the last app update. Nothing received from this device since then.",
   "traffic.last_6h": "Messages, last 6 h",
   "traffic.per_hour": "{n} an hour",

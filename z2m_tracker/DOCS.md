@@ -33,6 +33,13 @@ Zigbee2MQTT decides when a device is offline: by default after 10 minutes for ma
 
 The check is off for every device until you set a limit, and it notifies by default. It is skipped while that device's Zigbee2MQTT is offline, so a network outage raises one alert, not one per device.
 
+To set it for many devices at once, go to **Settings → Thresholds → Expected reporting** and select **Set for many devices…**. Pick mains devices, battery devices or both, and a multiplier (2×, 3×, 5× or 10×). Each device gets its usual gap between messages times the multiplier, rounded up to a tidy value such as 3 min, 30 min or 6 h. The usual gap comes from the last week's message counts, or the last 6 hours for a device with less history. Untick any device you want to leave alone, then select **Apply**. **Turn off** clears the setting on the ticked devices.
+
+Some devices are left unticked:
+
+- **Reports on change**: devices that only send when something happens, such as door sensors, buttons and plain switches. A device counts as this when it has no regular reading (temperature, humidity, pressure, power, energy, air quality, light level or soil moisture).
+- **Not enough data**: devices with too few messages to tell how often they report.
+
 ## When a device alerts
 
 `offline_alert_minutes` counts from the moment Zigbee2MQTT marks the device offline, not from its last message. So with the defaults, a mains device alerts about 70 minutes after it goes quiet (10 + 60), and a battery device about 26 hours later (25 h + 60 min). Each device's **Health** tab shows its own steps under **When this device alerts**, from Zigbee2MQTT's availability settings: its own timeout or the mains/battery default, the offline delay, and Expected reporting if set. If Zigbee2MQTT availability is off for the device, only **Not heard from** applies, after 2 days.
