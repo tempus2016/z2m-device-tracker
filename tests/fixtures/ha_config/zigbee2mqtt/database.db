@@ -1,0 +1,5 @@
+{"id":1,"type":"Coordinator","ieeeAddr":"0x00124b0000c00001","nwkAddr":0}
+{"id":2,"type":"EndDevice","ieeeAddr":"0x00158d0000500001","manufName":"FakeCo","modelId":"lumi.fake","powerSource":"Battery","dateCode":"20240101","softwareBuildID":"1.2","interviewCompleted":true,"lastSeen":1780000000000}
+{"id":3,"type":"Router","ieeeAddr":"0x00158d0000700001","manufName":"BulbCo","modelId":"BULB-1","powerSource":"Mains (single phase)","interviewCompleted":true,"lastSeen":1700000000000}
+{"id":4,"type":"EndDevice","ieeeAddr":"0x00158d0000900001","interviewCompleted":false}
+this line is not json
