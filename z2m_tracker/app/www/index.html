@@ -699,6 +699,10 @@
     late: (p) => { p.every = span(p.every); },
     router_offline: (p) => { p.names = listOf([...(p.names || []), ...(p.more ? [t("issue.router_offline.more", { n: p.more })] : [])]); },
     router_hopping: (p) => { p.quality = p.lqi_min === null || p.lqi_min === undefined ? "" : p.lqi_min === p.lqi_max ? t("issue.router_hopping.lqi", { lqi: p.lqi_min }) : t("issue.router_hopping.lqi_range", { min: p.lqi_min, max: p.lqi_max }); },
+    pairing_open: (p) => {
+      const parts = [p.origin === "frontend" || p.origin === "mqtt" ? t(`issue.pairing_open.${p.origin}`) : null, p.device ? t("issue.pairing_open.device", { device: p.device }) : null, p.left != null ? t("issue.pairing_open.left", { duration: span(p.left) }) : null];
+      p.extra = parts.filter(Boolean).map((x) => ` · ${x}`).join("");
+    },
   };
   // Offline devices behind an offline router are shown inside the router's issue, not on their own.
   const nestedIssue = (i, keys) => Boolean(i.behind) && keys.has(`offline:${i.behind}`);
@@ -926,9 +930,11 @@
       const tone = i.severity === "warning" ? "var(--warning)" : "var(--info)";
       if (String(i.ieee).startsWith("network:")) {
         const panel = state.data.panels?.[i.instance];
-        return `<div class="row"><span class="state-ic" style="color:${tone}">${ic(i.kind === "network_offline" ? "lan-disconnect" : i.kind === "coordinator_backup" ? "download" : "refresh")}</span>
+        const icon = { network_offline: "lan-disconnect", coordinator_backup: "download", pairing_open: "link-variant" }[i.kind] || "refresh";
+        const close = i.kind === "pairing_open" ? `<button class="btn danger" data-act="pair-stop" data-net="${esc(i.instance)}">${th("health.close_now")}</button>` : "";
+        return `<div class="row"><span class="state-ic" style="color:${tone}">${ic(icon)}</span>
           <div class="text"><div class="t1">${esc(issueTitle(i))}: ${esc(issueName(i))}</div><div class="t2">${esc(issueDetail(i))}</div></div>
-          <div class="acts">${panel ? `<a class="btn" href="${esc(panel)}" target="_top">${th("health.open_z2m")}</a>` : ""}</div></div>`;
+          <div class="acts">${close}${panel ? `<a class="btn" href="${esc(panel)}" target="_top">${th("health.open_z2m")}</a>` : ""}</div></div>`;
       }
       const kids = i.devices?.length ? issues.filter((x) => x.behind === i.ieee && nestedIssue(x, keys)) : [];
       if (kids.length) return routerItem(i, d, kids);
@@ -2123,7 +2129,7 @@
       } catch (err) { snack(err.message, 5000); }
       b.disabled = false;
     },
-    async "pair-stop"() { const net = state.move ? state.byIeee.get(state.move.target)?.instance : state.pairNet; try { await api("api/pairing", { instance: net, seconds: 0 }); snack(t("pair.closed")); await load(); } catch (err) { snack(err.message); } },
+    async "pair-stop"(b) { const net = b?.dataset.net || (state.move ? state.byIeee.get(state.move.target)?.instance : state.pairNet); try { await api("api/pairing", { instance: net, seconds: 0 }); snack(t("pair.closed")); await load(); } catch (err) { snack(err.message); } },
     async "pair-save"(b) {
       const ieee = b.dataset.ieee, d = state.byIeee.get(ieee), box = b.closest(".pair-dev");
       const name = box.querySelector("[name=name]").value.trim(), area = box.querySelector("[name=area]")?.value || "", btype = box.querySelector("[name=btype]")?.value.trim();

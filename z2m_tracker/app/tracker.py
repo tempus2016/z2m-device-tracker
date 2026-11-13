@@ -199,6 +199,32 @@ def _bindings_of(device: dict) -> list[dict] | None:
 
 BACKUP_MAX_AGE = 3 * 86400
 BACKUP_REFRESH = 600
+# Pairing (permit join) open longer than this raises pairing_open even when this app opened it.
+PAIRING_OPEN_ALERT = 600
+# A permit_join request seen this long before Z2M reports pairing open is taken as what opened it.
+PERMIT_HINT_SECONDS = 60
+PERMIT_ORIGIN_TEXT = {
+    "frontend": "opened in the Zigbee2MQTT frontend",
+    "mqtt": "opened from Home Assistant or an automation",
+}
+
+
+def _permit_opening(payload: Any) -> bool:
+    """Whether a bridge/request/permit_join payload opens pairing (Z2M 2.x "time", 1.x "value")."""
+    if isinstance(payload, dict):
+        if "value" in payload:
+            value = payload["value"]
+            return value.strip().lower() == "true" if isinstance(value, str) else bool(value)
+        payload = payload.get("time")
+    if isinstance(payload, bool):
+        return payload
+    if isinstance(payload, str):
+        if payload.strip().lower() in ("true", "false"):
+            return payload.strip().lower() == "true"
+    try:
+        return int(payload) > 0
+    except (TypeError, ValueError):
+        return False
 
 
 def friendly_z2m_error(raw: str | None) -> str:
@@ -294,6 +320,9 @@ class Tracker:
         self.scans: dict[str, list] = {}
         self.scans_path: str | None = None
         self.pairing_sessions: dict[str, dict] = {}
+        # Per base topic while pairing is open: {"since", "origin" (app/mqtt/frontend/None), "device"}.
+        self.permit_meta: dict[str, dict] = {}
+        self._permit_hint: dict[str, dict] = {}
         self.groups: dict[str, dict[str, str]] = {}
         self._unbinds: dict[str, float] = {}
         self._spof_cache: dict[str, tuple] = {}
@@ -383,6 +412,8 @@ class Tracker:
                             self._handle_info(base_topic, parsed)
                     elif rest == "bridge/state":
                         self._handle_bridge_state(base_topic, text)
+                    elif rest == "bridge/request/permit_join":
+                        self._handle_permit_request(base_topic, text)
                     elif rest == "bridge/groups":
                         parsed = json.loads(text)
                         if isinstance(parsed, list):
@@ -729,6 +760,14 @@ class Tracker:
             pending["event"].set()
         if kind == "networkmap":
             self._ingest_networkmap(base_topic, payload)
+        elif kind == "permit_join" and payload.get("status") == "ok":
+            data = payload.get("data") or {}
+            device = data.get("device")
+            if device and _permit_opening(data):
+                for holder in (self.permit_meta.get(base_topic), self._permit_hint.get(base_topic)):
+                    if holder is not None:
+                        holder["device"] = device
+                self.revision += 1
         elif kind == "device/unbind" and payload.get("status") == "ok":
             source = str((payload.get("data") or {}).get("from") or "")
             ieee = (
@@ -1325,6 +1364,10 @@ class Tracker:
                         "instance": bt,
                     }
                 )
+            if "pairing_open" not in disabled:
+                issue = self.pairing_open_issue(bt, now)
+                if issue:
+                    out.append(issue)
             if "coordinator_backup" not in disabled:
                 problem = self._backup_problem(bt, now)
                 if problem:
@@ -2169,20 +2212,120 @@ class Tracker:
             bridge["info"] = slim
             self._changed(structural=True)
         on = bool(info.get("permit_join"))
+        # Z2M 2.x: permit_join_end is an epoch in ms. 1.x: permit_join_timeout is seconds left.
         end = info.get("permit_join_end") or info.get("permit_join_timeout")
         end_iso = None
-        if isinstance(end, (int, float)) and end > 1e11:
-            end_iso = datetime.fromtimestamp(end / 1000, tz=timezone.utc).isoformat(timespec="seconds")
+        if isinstance(end, (int, float)) and not isinstance(end, bool) and end > 0:
+            end_ts = end / 1000 if end > 1e11 else time.time() + end
+            end_iso = datetime.fromtimestamp(end_ts, tz=timezone.utc).isoformat(timespec="seconds")
         state = {"on": on, "end": end_iso}
-        if self.permit.get(base_topic) != state:
+        previous = self.permit.get(base_topic)
+        if on and base_topic not in self.permit_meta:
+            self._permit_opened(base_topic, known_closed=previous is not None and not previous.get("on"))
+        elif not on:
+            self.permit_meta.pop(base_topic, None)
+            self._permit_hint.pop(base_topic, None)
+        if previous != state:
             self.permit[base_topic] = state
             if not on and base_topic in self.pairing_sessions:
                 self.pairing_sessions[base_topic]["active"] = False
             self.revision += 1
 
+    def _handle_permit_request(self, base_topic: str, text: str) -> None:
+        """Someone published bridge/request/permit_join. Remember it if it opens pairing and isn't ours."""
+        try:
+            payload = json.loads(text)
+        except ValueError:
+            payload = text
+        transaction = str(payload.get("transaction") or "") if isinstance(payload, dict) else ""
+        if transaction in self._pending or transaction.startswith("z2mt-") or not _permit_opening(payload):
+            return
+        device = payload.get("device") if isinstance(payload, dict) else None
+        self._permit_hint[base_topic] = {"origin": "mqtt", "at": time.time(), "device": device}
+
+    def _permit_opened(self, base_topic: str, known_closed: bool) -> None:
+        """Z2M reports pairing open and we hadn't seen it open: work out what opened it."""
+        hint = self._permit_hint.pop(base_topic, None)
+        if hint and time.time() - hint["at"] <= PERMIT_HINT_SECONDS:
+            origin, device = hint["origin"], hint.get("device")
+        else:
+            # Closed a moment ago and no MQTT request: the frontend (it talks to Z2M over its websocket).
+            # Open when we first hear from Z2M: we can't tell who opened it.
+            origin, device = ("frontend" if known_closed else None), None
+        self.permit_meta[base_topic] = {"since": time.time(), "origin": origin, "device": device}
+
+    def _z2m_major(self, base_topic: str) -> int | None:
+        version = str((self._bridge(base_topic).get("info") or {}).get("version") or "")
+        match = re.match(r"(\d+)\.", version)
+        return int(match.group(1)) if match else None
+
+    def permit_payload(self, base_topic: str, seconds: int) -> dict[str, Any]:
+        """bridge/request/permit_join payload: 1.x wants {"value": bool, "time"}, 2.x only {"time"} (0 closes)."""
+        if self._z2m_major(base_topic) == 1:
+            return {"value": True, "time": seconds} if seconds else {"value": False}
+        return {"time": seconds}
+
+    def pairing_open_issue(self, base_topic: str, now: float) -> dict | None:
+        """The pairing_open network issue, or None while pairing is closed or only briefly open by us."""
+        permit = self.permit.get(base_topic) or {}
+        meta = self.permit_meta.get(base_topic)
+        if not permit.get("on") or meta is None:
+            return None
+        age = max(0.0, now - meta["since"])
+        origin = meta.get("origin")
+        if age < PAIRING_OPEN_ALERT and origin in ("app", None):
+            return None
+        mins = max(1, round(age / 60))
+        left = None
+        if permit.get("end"):
+            try:
+                left = datetime.fromisoformat(permit["end"]).timestamp() - now
+            except ValueError:
+                left = None
+            if left is not None and left <= 0:
+                left = None
+        label = (
+            "Main"
+            if base_topic == "zigbee2mqtt"
+            else base_topic.replace("zigbee2mqtt_", "").replace("_", " ").capitalize()
+        )
+        parts = [f"Open for {mins} min"]
+        if origin in PERMIT_ORIGIN_TEXT:
+            parts.append(PERMIT_ORIGIN_TEXT[origin])
+        if meta.get("device"):
+            parts.append(f"only through {meta['device']}")
+        if left is not None:
+            parts.append(f"closes by itself in {max(1, round(left / 60))} min")
+        accepted = (
+            f"has accepted new devices for {mins} minute{'' if mins == 1 else 's'}"
+            if age >= 60
+            else "is accepting new devices"
+        )
+        return {
+            "key": f"pairing_open:{base_topic}",
+            "kind": "pairing_open",
+            "label": "Pairing open",
+            "severity": "warning",
+            "ieee": f"network:{base_topic}",
+            "title": "Pairing open",
+            "detail": " · ".join(parts),
+            "msg": "pairing_open",
+            "params": {
+                "seconds": int(age),
+                "origin": origin,
+                "device": meta.get("device"),
+                "left": int(left) if left is not None else None,
+            },
+            "notify_title": "Zigbee pairing still open",
+            "notify_message": f"{label} network {accepted}. Close it if you're not pairing anything.",
+            "name": f"{label} network",
+            "instance": base_topic,
+        }
+
     def start_pairing(self, base_topic: str, seconds: int, via: str | None = None, target: str | None = None) -> dict:
         seconds = max(0, min(254, int(seconds)))
-        payload: dict[str, Any] = {"time": seconds}
+        with self.lock:
+            payload = self.permit_payload(base_topic, seconds)
         via_name = None
         if via and seconds:
             with self.lock:
@@ -2198,6 +2341,9 @@ class Tracker:
                     "Coordinator" if router.get("type") == "Coordinator" else via
                 )
             payload["device"] = "Coordinator" if router.get("type") == "Coordinator" else via_name
+        if seconds:
+            with self.lock:
+                self._permit_hint[base_topic] = {"origin": "app", "at": time.time(), "device": payload.get("device")}
         result = self.request(base_topic, "permit_join", payload, timeout=15)
         ok = bool(result and result.get("status") == "ok")
         with self.lock:
@@ -2214,10 +2360,14 @@ class Tracker:
                 }
                 end = datetime.fromtimestamp(time.time() + seconds, tz=timezone.utc).isoformat(timespec="seconds")
                 self.permit[base_topic] = {"on": True, "end": end}
+                self.permit_meta[base_topic] = {"since": time.time(), "origin": "app", "device": payload.get("device")}
+                self._permit_hint.pop(base_topic, None)
             elif ok:
                 if base_topic in self.pairing_sessions:
                     self.pairing_sessions[base_topic]["active"] = False
                 self.permit[base_topic] = {"on": False, "end": None}
+                self.permit_meta.pop(base_topic, None)
+                self._permit_hint.pop(base_topic, None)
             self.revision += 1
         return {"ok": ok, "error": None if ok else friendly_z2m_error((result or {}).get("error") or "No response")}
 

@@ -23,7 +23,7 @@ from battery_library import BatteryLibrary
 from discovery import AVAILABILITY, Discovery
 from discovery import BASE as DISCOVERY_BASE
 from ha import HomeAssistant
-from health import CHECKS, DEFAULT_NOTIFY, alert_title, mutes_of, nested, notify_kinds
+from health import CHECKS, DEFAULT_NOTIFY, alert_title, mutes_of, nested, notify_kinds, offer_new_kinds
 from metrics import Metrics
 from ota import OtaManager, parse_window
 from tracker import Tracker
@@ -87,9 +87,6 @@ DEFAULT_OPTIONS = {
 }
 
 CHECK_KEYS = {key for key, _, _, _ in CHECKS}
-# Checks added to notify_checks after release. Existing installs get each one switched on once at
-# upgrade (their saved list predates it); removing it in Settings afterwards sticks.
-NEW_NOTIFY_KINDS = ("late",)
 # Companion app data for a critical device's alert: Android delivers it at once (high priority,
 # no time to live), iOS shows it as time-sensitive, which breaks through Focus modes.
 CRITICAL_PUSH = {"priority": "high", "ttl": 0, "push": {"interruption-level": "time-sensitive"}}
@@ -192,17 +189,17 @@ def load_options() -> dict:
 
 def offer_new_notify_kinds() -> None:
     with tracker.lock:
-        offered = set(tracker.data.get("notify_offered") or [])
-        new = [kind for kind in NEW_NOTIFY_KINDS if kind not in offered]
-        if not new:
+        checks, offered, added = offer_new_kinds(
+            list(options.get("notify_checks") or []), list(tracker.data.get("notify_offered") or [])
+        )
+        if offered == sorted(tracker.data.get("notify_offered") or []):
             return
-        tracker.data["notify_offered"] = sorted(offered | set(new))
+        tracker.data["notify_offered"] = offered
         tracker.dirty = True
-    add = [kind for kind in new if kind not in (options.get("notify_checks") or [])]
-    if not add:
+    if not added:
         return
-    options["notify_checks"] = sorted(set(options.get("notify_checks") or []) | set(add))
-    _LOGGER.info("Alerts now notify for new check(s): %s", ", ".join(add))
+    options["notify_checks"] = checks
+    _LOGGER.info("Alerts now notify for new check(s): %s", ", ".join(added))
     persisted = home_assistant.save_app_options({k: v for k, v in options.items() if not k.startswith("_")})
     if not persisted:
         _LOGGER.warning("Couldn't save the updated alert list to the app configuration")
@@ -388,8 +385,8 @@ class Alerts:
                 issue["kind"],
                 issue["ieee"],
                 issue["name"],
-                alert_title(issue),
-                issue["detail"],
+                issue.get("notify_title") or alert_title(issue),
+                issue.get("notify_message") or issue["detail"],
                 issue.get("instance"),
                 critical,
             )
@@ -1089,6 +1086,8 @@ class Handler(BaseHTTPRequestHandler):
                     str(body.get("via") or "") or None,
                     str(body.get("target") or "") or None,
                 )
+                if result["ok"] and not body.get("seconds"):
+                    alerts.check()
                 self._json(200 if result["ok"] else 502, result)
             elif path == "/api/ota":
                 if body.get("action") == "update":
