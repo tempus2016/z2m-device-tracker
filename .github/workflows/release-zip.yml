@@ -1,0 +1,49 @@
+name: Release zip
+
+# HACS installs from the z2m_tracker.zip asset on each release (hacs.json "zip_release"),
+# so GitHub counts every install and update in the asset's download_count. The zip holds
+# the integration files at its root, which is the layout HACS extracts into
+# custom_components/z2m_tracker/. workflow_dispatch rebuilds the asset for an existing tag.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to attach the zip to (e.g. v1.0.0)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  zip:
+    name: Build and attach zip
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+
+      - name: Check manifest version matches the tag
+        run: |
+          manifest_version="$(jq -r .version custom_components/z2m_tracker/manifest.json)"
+          if [ "v${manifest_version}" != "${TAG}" ]; then
+            echo "::error::manifest.json version ${manifest_version} does not match tag ${TAG}"
+            exit 1
+          fi
+
+      - name: Build zip
+        working-directory: custom_components/z2m_tracker
+        run: zip -r -X "${GITHUB_WORKSPACE}/z2m_tracker.zip" . -x '*__pycache__*' '*.pyc'
+
+      - name: Attach zip to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${TAG}" z2m_tracker.zip --clobber --repo "${GITHUB_REPOSITORY}"
