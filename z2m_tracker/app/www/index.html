@@ -408,6 +408,8 @@
   .carry input, .pick input { width: 18px; height: 18px; margin: 0; accent-color: var(--primary); flex: none; cursor: inherit; }
   .carry .ln .text, .pick .text { flex: 1; min-width: 0; } .carry .ln .t2 { font-size: 12px; color: var(--text-2); }
   .carry .ln b { font-weight: 500; }
+  .carry .ln.danger b, .carry .ln.danger > span { color: var(--error); }
+  .carry .ln.danger input { accent-color: var(--error); }
   .pick:has(input:checked) { background: var(--chip-on); }
   .lo-list { display: grid; gap: 2px; margin: 0 -12px 4px; padding: 0; max-height: 50vh; max-height: 50dvh; overflow: auto; overscroll-behavior: contain; }
   .confirm-body .lo-list .pick { display: flex; align-items: flex-start; gap: 12px; font-size: 14px; color: var(--text); margin: 0; }
@@ -3165,7 +3167,7 @@
       const clash = r.carry.name && nameOf(old) && old.status !== "removed" && !r.carry.remove;
       body = `<p class="rep-intro">${th("replace.choose", { name: esc(oldName) })}</p>${repStepper(2)}
         <div class="swap">${repBox(old, [deviceLine(old), repStatus(old)].filter(Boolean).join(" · "), false)}${ic("swap-horizontal")}${repBox(neu, [deviceLine(neu), neu.first_seen ? t("replace.joined", { when: relTime(neu.first_seen, true) }) : ""].filter(Boolean).join(" · "), true)}</div>
-        <div class="carry">${items.map(([k, title, value, hint, dis]) => `<label class="ln ${dis ? "dis" : ""}"><input type="checkbox" data-carry="${k}" ${r.carry[k] && !dis ? "checked" : ""} ${dis ? "disabled" : ""}><div class="text"><b>${esc(title)}</b>${value ? ` <span class="muted">${esc(value)}</span>` : ""}${hint ? `<div class="t2">${esc(hint)}</div>` : ""}</div></label>`).join("")}</div>
+        <div class="carry">${items.map(([k, title, value, hint, dis]) => `<label class="ln ${dis ? "dis" : ""} ${k === "remove" && !dis ? "danger" : ""}"><input type="checkbox" data-carry="${k}" ${r.carry[k] && !dis ? "checked" : ""} ${dis ? "disabled" : ""}><div class="text"><b>${esc(title)}</b>${value ? ` <span class="muted">${esc(value)}</span>` : ""}${hint ? `<div class="t2">${esc(hint)}</div>` : ""}</div></label>`).join("")}</div>
         ${clash ? `<div class="alerts"><div class="alert" style="--a:var(--warning)">${ic("alert")}<div class="body">${th("replace.clash", { name: esc(oldName) })}</div></div></div>` : ""}
         <div class="card-content muted" style="font-size:13px">${th("replace.linked_note")}</div>`;
       foot = `<button class="btn" data-act="rep-back">${th("replace.back")}</button><button class="btn filled" data-act="rep-next">${th("replace.next")}</button>`;
@@ -3182,9 +3184,11 @@
         foot = `<button class="btn" data-act="rep-close">${th("common.done")}</button><button class="btn filled" data-act="rep-open" data-ieee="${esc(r.new)}">${th("replace.open_new")}</button>`;
       } else {
         body = `<p class="rep-intro">${th("replace.ready", { old: esc(oldName), new: esc(nameOf(neu) || neu.ieee) })}</p>${repStepper(3)}
-          <div class="carry rep-steps">${items.length ? items.map(([, title, value]) => `<div class="ln"><span class="muted">${ic("check", "s20")}</span><div class="text"><b>${esc(title)}</b>${value ? ` <span class="muted">${esc(value)}</span>` : ""}</div></div>`).join("") : ""}<div class="ln"><span class="muted">${ic("link-variant", "s20")}</span><div class="text"><b>${th("replace.step.link")}</b></div></div></div>
+          <div class="carry rep-steps">${items.length ? items.map(([k, title, value, hint]) => k === "remove" ? `<div class="ln danger"><span>${ic("delete", "s20")}</span><div class="text"><b>${esc(title)}</b><div class="t2">${esc(hint)}</div></div></div>` : `<div class="ln"><span class="muted">${ic("check", "s20")}</span><div class="text"><b>${esc(title)}</b>${value ? ` <span class="muted">${esc(value)}</span>` : ""}</div></div>`).join("") : ""}<div class="ln"><span class="muted">${ic("link-variant", "s20")}</span><div class="text"><b>${th("replace.step.link")}</b></div></div></div>
+          ${items.some(([k]) => k === "name") && !items.some(([k]) => k === "remove") && old.status !== "removed" ? `<div class="alerts"><div class="alert" style="--a:var(--warning)">${ic("alert")}<div class="body">${th("replace.clash", { name: esc(oldName) })}</div></div></div>` : ""}
           ${r.carry.bindings && bat && items.some(([k]) => k === "bindings") ? `<div class="alerts"><div class="alert" style="--a:var(--warning)">${ic("alert")}<div class="body">${th("replace.battery_warn", { name: esc(nameOf(neu) || t("replace.the_new_device")) })}</div></div></div>` : ""}`;
-        foot = `<button class="btn" data-act="rep-back">${th("replace.back")}</button><button class="btn filled" data-act="rep-apply">${ic("swap-horizontal", "s18")}${th("replace.apply")}</button>`;
+        const removing = items.some(([k]) => k === "remove");
+        foot = `<button class="btn" data-act="rep-back">${th("replace.back")}</button><button class="btn filled ${removing ? "danger" : ""}" data-act="rep-apply">${ic(removing ? "delete" : "swap-horizontal", "s18")}${th(removing ? "replace.apply_remove" : "replace.apply")}</button>`;
       }
     }
     const scroll = dlg.querySelector(".more-body")?.scrollTop || 0;
@@ -3198,7 +3202,8 @@
       const old = state.byIeee.get(b.dataset.ieee || state.open);
       if (!old) return;
       const items = repItems(old, null);
-      const carry = Object.fromEntries(items.map(([k, , , , dis]) => [k, !dis && k !== "battery"]));
+      // Removing is the one step that can't be undone, so it starts ticked only when the old device is already offline.
+      const carry = Object.fromEntries(items.map(([k, , , , dis]) => [k, !dis && k !== "battery" && (k !== "remove" || statusOf(old) === "offline")]));
       state.replace = { old: old.ieee, step: 1, new: null, showAll: false, carry, result: null, busy: false };
       if (!repCandidates(old, false).length) state.replace.showAll = repCandidates(old, true).some((d) => d.model && d.model === old.model);
       renderReplace();

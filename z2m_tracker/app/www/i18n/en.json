@@ -1237,6 +1237,7 @@
   "replace.battery_warn": "{name} runs on battery and may be asleep. Press its button just before you apply, or the bindings may fail.",
   "replace.the_new_device": "The new device",
   "replace.apply": "Apply",
+  "replace.apply_remove": "Apply and remove",
   "devices.chip.critical": "Critical",
   "more.critical": "Critical device",
   "more.critical_desc": "Offline alert after {minutes} min instead of {normal}. High-priority phone alerts that ignore quiet hours.",
