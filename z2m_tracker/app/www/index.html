@@ -499,7 +499,9 @@
   .coord .kv span { font-size: 12px; }
   .coord .kv b { text-align: left; }
   .coord-more { padding: 0 16px 12px 60px; }
-  .coord-more + .kv { margin-top: -4px; }
+  .coord-detail { border-top: 1px solid var(--divider); margin: 0 16px 0 64px; padding-top: 8px; }
+  .coord-detail .kv { padding-left: 0; }
+  .coord-detail .coord-extra { padding-left: 8px; padding-right: 0; }
   .coord-extra { padding: 0 16px 16px 72px; }
   .coord-extra .sub-h { padding: 4px 0 0; font-size: 12px; font-weight: 400; }
   .coord-extra .alert { margin-top: 12px; }
@@ -508,7 +510,7 @@
   .mem-bars i.none { background: var(--divider); opacity: 1; }
   .mem-bars i.hi { background: var(--warning); opacity: 1; }
   .mem-axis { display: flex; justify-content: space-between; padding-top: 4px; font-size: 12px; color: var(--text-2); }
-  @media (max-width: 600px) { .coord .kv { padding-left: 8px; } .coord-extra { padding-left: 16px; } .coord-more { padding-left: 4px; } }
+  @media (max-width: 600px) { .coord .kv { padding-left: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); } .coord-extra { padding-left: 16px; } .coord-more { padding-left: 4px; } .coord-detail { margin: 0 8px; } .coord-detail .kv { padding-left: 0; } .coord-detail .coord-extra { padding-left: 8px; } }
   svg.spectrum { width: 100%; max-width: 720px; height: auto; display: block; margin: 0 auto; }
   svg.spectrum text { font-size: 11px; fill: var(--text-2); font-family: var(--font); }
   svg.spectrum text.on { fill: var(--primary-text); font-weight: 500; }
@@ -1189,19 +1191,24 @@
       const leaves = (state.data.events || []).filter((e) => e.kind === "left" && e.instance === bt && new Date(e.time).getTime() >= week).length;
       const backup = !bk ? null : !bk.found ? t("coord.backup_not_found") : !bk.exists ? t("coord.backup_missing") : bk.error ? bk.error
         : [relTime(bk.date), t("coord.backup_devices", { n: bk.devices }), bk.has_key ? null : t("coord.backup_no_key")].filter(Boolean).join(" · ");
-      const details = coordDetails(info), open = state.openCoords.has(bt);
+      // The five facts worth a glance stay visible; the rest opens on demand. A network that is down, or whose
+      // Zigbee2MQTT memory is growing, starts open. Toggling flips it from that default.
+      const memIssue = (state.data.issues || []).some((i) => i.kind === "z2m_memory" && i.instance === bt);
+      const open = state.openCoords.has(bt) !== (!online || memIssue);
+      const more = [...[[th("coord.connection"), coordConnection(info.connection)], [th("coord.channel_pan"), info.channel ? `${info.channel} / ${info.pan_id ?? "?"}` : null],
+        [th("coord.running_for"), h.uptime_sec ? span(h.uptime_sec) : null], [th("coord.memory"), h.memory_mb ? t("coord.memory_mb", { n: Math.round(h.memory_mb) }) : null],
+        [th("coord.mqtt"), h.mqtt_published != null ? t("coord.mqtt_value", { sent: compactNum(h.mqtt_published), received: compactNum(h.mqtt_received ?? 0) }) : null],
+        [th("coord.last_outage"), last ? (last.end ? t("coord.outage_for", { date: fmtDate(last.start), duration: span((new Date(last.end) - new Date(last.start)) / 1000) }) : t("coord.outage_ongoing", { date: fmtDate(last.start) })) : t("coord.none_recorded")]]
+        .filter(([, v]) => v !== null && v !== undefined && v !== ""), ...coordDetails(info)];
       return `<div class="coord">
         <div class="row" style="border:0;min-height:56px"><span class="state-ic" style="color:${b.state ? (online ? "var(--success)" : "var(--error)") : "var(--text-2)"}">${ic(online ? "zigbee" : "lan-disconnect")}</span>
           <div class="text"><div class="t1">${th("net.network", { name: esc(netLabel(bt)) })}</div><div class="t2">${b.state ? th(online ? "coord.online_since" : "coord.offline_since", { date: esc(fmtDate(b.since)) }) : th("coord.waiting")}</div></div>
           ${panel ? `<a class="btn" href="${esc(panel)}" target="_top">${th("common.open")}${ic("open-in-new", "s18")}</a>` : ""}</div>
-        ${kv([["Zigbee2MQTT", info.version], [th("coord.coordinator"), [info.coordinator_type, info.firmware ? t("coord.firmware", { version: info.firmware }) : null].filter(Boolean).join(" · ")], [th("coord.connection"), coordConnection(info.connection)], [th("coord.channel_pan"), info.channel ? `${info.channel} / ${info.pan_id ?? "?"}` : null],
-          [th("coord.running_for"), h.uptime_sec ? span(h.uptime_sec) : null], [th("coord.memory"), h.memory_mb ? t("coord.memory_mb", { n: Math.round(h.memory_mb) }) : null],
-          [th("coord.mqtt"), h.mqtt_published != null ? t("coord.mqtt_value", { sent: compactNum(h.mqtt_published), received: compactNum(h.mqtt_received ?? 0) }) : null], [th("coord.leaves_week"), String(leaves)],
+        ${kv([["Zigbee2MQTT", info.version], [th("coord.coordinator"), [info.coordinator_type, info.firmware ? t("coord.firmware", { version: info.firmware }) : null].filter(Boolean).join(" · ")],
           [th("coord.last_7_days"), [t("coord.outages", { n: outages.length }) + (outages.length ? ` ${t("coord.down_for", { n: downMin })}` : ""), t("coord.restarts", { n: restarts })].join(" · ")],
-          [th("coord.last_outage"), last ? (last.end ? t("coord.outage_for", { date: fmtDate(last.start), duration: span((new Date(last.end) - new Date(last.start)) / 1000) }) : t("coord.outage_ongoing", { date: fmtDate(last.start) })) : t("coord.none_recorded")],
-          [th("coord.backup"), backup]])}
-        ${details.length ? `<div class="coord-more"><button class="btn" data-act="toggle-coord" data-bt="${esc(bt)}" aria-expanded="${open}">${ic(open ? "chevron-up" : "chevron-down", "s18")}${th(open ? "coord.fewer_details" : "coord.more_details")}</button></div>${open ? kv(details) : ""}` : ""}
-        ${coordHealth(bt, b)}
+          [th("coord.leaves_week"), String(leaves)], [th("coord.backup"), backup]])}
+        ${more.length || b.health ? `<div class="coord-more"><button class="btn" data-act="toggle-coord" data-bt="${esc(bt)}" aria-expanded="${open}">${ic(open ? "chevron-up" : "chevron-down", "s18")}${th(open ? "coord.fewer_details" : "coord.more_details")}</button></div>` : ""}
+        ${open ? `<div class="coord-detail">${kv(more)}${coordHealth(bt, b)}</div>` : ""}
       </div>`;
     }).join("");
     return `<div class="card"><div class="card-header">${ic("router-wireless")}<div>${th("coord.title")}<small>${th("coord.subtitle")}</small></div></div>${nets}</div>`;
