@@ -203,14 +203,15 @@
         .filter((d) => d.battery_record || isNum(d.battery) || d.battery_low === true)
         .map((d) => ({ d, pct: isNum(d.battery) ? d.battery : null }))
         .sort((a, b) => (a.pct ?? (a.d.battery_low === true ? -1 : 101)) - (b.pct ?? (b.d.battery_low === true ? -1 : 101)) || nameOf(a.d).localeCompare(nameOf(b.d)));
-      const isLow = (x) => x.d.battery_low === true || (x.pct !== null && x.pct <= low);
+      const lowOf = (d) => (isNum(d.limits?.battery_percent) ? d.limits.battery_percent : low);
+      const isLow = (x) => x.d.battery_low === true || (x.pct !== null && x.pct <= lowOf(x.d));
       const lowCount = devs.filter(isLow).length;
       const limit = cfg.show_all ? devs.length : Math.max(1, Number(cfg.max_items) || 8);
       const shown = devs.slice(0, limit);
       this._shown = shown.length;
       const rows = shown.map((x) => {
         const { d, pct } = x;
-        const color = isLow(x) ? C_BAD : pct !== null && pct <= Math.max(low * 2, 30) ? C_WARN : C_OK;
+        const color = isLow(x) ? C_BAD : pct !== null && pct <= Math.max(lowOf(d) * 2, 30) ? C_WARN : C_OK;
         const est = d.metrics?.battery_estimate_days;
         const t2 = [d.battery_record?.label, isNum(est) ? `about ${plural(Math.max(0, Math.round(est)), "day")} left` : null, d.area].filter(Boolean).join(" · ");
         const icon = isLow(x) ? "mdi:battery-alert-variant-outline" : pct === null ? "mdi:battery-unknown" : `mdi:battery${pct >= 95 ? "" : `-${Math.max(10, Math.round(pct / 10) * 10)}`}`;

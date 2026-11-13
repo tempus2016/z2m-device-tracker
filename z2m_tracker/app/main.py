@@ -991,6 +991,10 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/critical":
                 ok = tracker.set_critical(ieee, bool(body.get("critical")))
                 self._json(200 if ok else 404, {"ok": ok})
+            elif path == "/api/limits":
+                changes = {k: body[k] for k in ("battery_percent", "frozen_hours") if k in body}
+                result = tracker.set_limits(ieee, changes)
+                self._json(200 if result["ok"] else (404 if result["error"] == "Unknown device" else 400), result)
             elif path == "/api/bindings/ack":
                 ok = tracker.acknowledge_bindings(ieee)
                 self._json(200 if ok else 404, {"ok": ok})

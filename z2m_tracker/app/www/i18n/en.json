@@ -1198,5 +1198,10 @@
   "groups.check": "Check",
   "groups.chip_offline": "{name} · offline {duration}",
   "groups.chip_offline_now": "{name} · offline",
-  "groups.chip_left": "{name} · left {date}"
+  "groups.chip_left": "{name} · left {date}",
+  "dhealth.limits": "Limits for this device",
+  "dhealth.limit_battery": "Low battery at",
+  "dhealth.limit_frozen": "Reading unchanged for",
+  "dhealth.limit_settings": "Settings: {value}",
+  "dhealth.use_settings": "Use Settings values"
 }

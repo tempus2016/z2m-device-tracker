@@ -186,6 +186,41 @@ def offer_new_kinds(notify_checks: list[str], offered: list[str]) -> tuple[list[
     return sorted(set(notify_checks) | set(added)), sorted(set(offered) | set(new)), added
 
 
+# Per-device overrides in record["limits"]: key -> (global option, min, max, default).
+# Ranges match the Settings page; frozen 0 (off) is global-only.
+LIMITS = {
+    "battery_percent": ("battery_alert_percent", 0, 100, 15),
+    "frozen_hours": ("frozen_alert_hours", 1, 720, 24),
+}
+LIMIT_NAMES = {"battery_percent": "Low battery limit", "frozen_hours": "Frozen reading limit"}
+
+
+def limit_of(record: dict, options: dict, key: str) -> int:
+    """The device's own limit when set, otherwise the global option."""
+    option, low, high, default = LIMITS[key]
+    value = (record.get("limits") or {}).get(key)
+    if isinstance(value, int) and not isinstance(value, bool) and low <= value <= high:
+        return value
+    return int(options.get(option, default))
+
+
+def clean_limits(current: dict, changes: dict) -> tuple[dict, str | None]:
+    """Apply {key: int | None} changes to a limits dict. Returns (new limits, error)."""
+    out = dict(current or {})
+    for key, value in changes.items():
+        if key not in LIMITS:
+            continue
+        if value is None or value == "":
+            out.pop(key, None)
+            continue
+        _, low, high, _ = LIMITS[key]
+        whole = isinstance(value, int) or (isinstance(value, float) and value.is_integer())
+        if isinstance(value, bool) or not whole or not low <= int(value) <= high:
+            return dict(current or {}), f"{LIMIT_NAMES[key]} must be a whole number from {low} to {high}"
+        out[key] = int(value)
+    return out, None
+
+
 def _age(iso: str | None, now: float) -> float | None:
     if not iso:
         return None
@@ -453,7 +488,7 @@ def device_issues(
             "unidentified",
         )
 
-    frozen_hours = max(0, int(options.get("frozen_alert_hours", 24)))
+    frozen_hours = max(0, limit_of(record, options, "frozen_hours"))
     if frozen_hours:
         for key, reading in (record.get("readings") or {}).items():
             age = _age(reading.get("changed_at"), now)
@@ -494,7 +529,7 @@ def device_issues(
         )
 
     battery = record.get("battery")
-    threshold = int(options.get("battery_alert_percent", 15))
+    threshold = limit_of(record, options, "battery_percent")
     if record.get("battery_low") is True or (isinstance(battery, (int, float)) and battery <= threshold):
         add(
             "battery_low",
