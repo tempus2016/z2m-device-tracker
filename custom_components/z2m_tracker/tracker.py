@@ -177,6 +177,11 @@ class Z2MTracker:
     def _sync_repairs(self) -> None:
         """Mirror the app's alerting issues into Settings > Repairs; they clear when fixed."""
         options = self.data.get("options") or {}
+        # The app's master alerts switch covers Repairs too.
+        if options.get("alerts_enabled") is False:
+            self._snoozed.clear()
+            self._clear_repairs()
+            return
         notify = set(options.get("notify_checks") or []) - set(options.get("disabled_checks") or [])
         wanted: dict[str, dict] = {}
         issues = self.data.get("issues") or []
