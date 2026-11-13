@@ -23,6 +23,8 @@ _LOGGER = logging.getLogger(__name__)
 POLL_INTERVAL = timedelta(seconds=15)
 FULL_REFRESH_EVERY = 8
 REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=20)
+# Requests the app answers only after Zigbee2MQTT replies (reconfigure waits up to 40 s).
+SLOW_REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=60)
 
 
 class TrackerAppError(Exception):
@@ -58,11 +60,11 @@ class Z2MTracker:
             self._unsub_poll = None
         self._clear_repairs()
 
-    async def _request(self, method: str, path: str, body: dict | None = None) -> Any:
+    async def _request(
+        self, method: str, path: str, body: dict | None = None, timeout: aiohttp.ClientTimeout = REQUEST_TIMEOUT
+    ) -> Any:
         try:
-            async with self._session.request(
-                method, f"{self.app_url}{path}", json=body, timeout=REQUEST_TIMEOUT
-            ) as response:
+            async with self._session.request(method, f"{self.app_url}{path}", json=body, timeout=timeout) as response:
                 payload = await response.json(content_type=None)
                 if response.status >= 400:
                     message = payload.get("error") if isinstance(payload, dict) else None
@@ -213,3 +215,38 @@ class Z2MTracker:
         result = await self._request("POST", "/api/import")
         await self.async_refresh_now()
         return result
+
+    async def async_mute(self, ieee: str, kinds: list[str], days: float | None = None) -> None:
+        """Mute checks for one device; days=None mutes until unmuted in the app."""
+        for kind in kinds:
+            await self._request("POST", "/api/mute", {"ieee": ieee, "kind": kind, "muted": True, "days": days})
+        await self.async_refresh_now()
+
+    async def async_battery_replaced(self, ieee: str, date: str | None = None) -> dict[str, Any]:
+        body = {"ieee": ieee, **({"date": date} if date else {})}
+        result = await self._request("POST", "/api/battery/replaced", body, timeout=SLOW_REQUEST_TIMEOUT)
+        await self.async_refresh_now()
+        return result
+
+    async def async_reconfigure(self, ieee: str) -> None:
+        await self._request("POST", "/api/reconfigure", {"ieee": ieee}, timeout=SLOW_REQUEST_TIMEOUT)
+        await self.async_refresh_now()
+
+    async def async_ota_update(self, ieee: str) -> None:
+        await self._request("POST", "/api/ota", {"ieee": ieee, "action": "update"})
+        await self.async_refresh_now()
+
+    # --------------------------------------------------------------- services
+
+    async def async_set_battery_type(self, ieee: str, battery_type: str) -> None:
+        """Set the battery type, keeping the quantity and install date already recorded."""
+        info = (self.data["devices"].get(ieee) or {}).get("battery_info") or {}
+        body = {
+            "ieee": ieee,
+            "info": {"type": battery_type, "quantity": info.get("quantity"), "installed": info.get("installed")},
+        }
+        await self._request("POST", "/api/battery", body)
+        await self.async_refresh_now()
+
+    async def async_network_scan(self, base_topic: str | None = None) -> None:
+        await self._request("POST", "/api/networkmap", {"instance": base_topic} if base_topic else {})

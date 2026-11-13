@@ -1,2 +1,80 @@
 import_history:
   fields: {}
+
+battery_replaced:
+  fields:
+    device_id: &zigbee_device
+      selector:
+        device:
+          filter:
+            - integration: mqtt
+    ieee: &ieee
+      advanced: true
+      example: "0x00158d0001a2b3c4"
+      selector:
+        text:
+    date:
+      selector:
+        date:
+    battery_type:
+      example: CR2032
+      selector:
+        text:
+
+mute_device:
+  fields:
+    device_id: *zigbee_device
+    ieee: *ieee
+    checks:
+      selector:
+        select:
+          multiple: true
+          translation_key: check
+          options:
+            - offline
+            - silent
+            - frozen
+            - battery_low
+            - battery_soon
+            - battery_drain
+            - weak_signal
+            - signal_drop
+            - unidentified
+            - update
+            - replacement
+            - flapping
+            - chatty
+            - binding_lost
+            - single_point
+    duration:
+      selector:
+        duration:
+          enable_day: true
+
+run_network_scan:
+  fields:
+    base_topic:
+      example: zigbee2mqtt
+      selector:
+        text:
+
+reconfigure:
+  fields:
+    device_id: *zigbee_device
+    ieee: *ieee
+
+ota_update:
+  fields:
+    device_id: *zigbee_device
+    ieee: *ieee
+
+add_note:
+  fields:
+    device_id: *zigbee_device
+    ieee: *ieee
+    text:
+      required: true
+      example: Batteries swapped, new CR2032
+      selector:
+        text:
+          multiline: true

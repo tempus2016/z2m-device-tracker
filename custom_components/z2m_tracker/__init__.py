@@ -17,6 +17,7 @@ from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, Supp
 from homeassistant.exceptions import HomeAssistantError
 
 from .const import CARD_FILE, CONF_APP_URL, CONF_REPAIRS, DEFAULT_APP_URL, DOMAIN, URL_BASE, VERSION
+from .services import async_register_services
 from .tracker import TrackerAppError, Z2MTracker
 from .websocket import async_register_websocket_commands
 
@@ -63,6 +64,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: Z2MTrackerConfigEntry) -
             _import_history,
             supports_response=SupportsResponse.OPTIONAL,
         )
+
+    async_register_services(hass)
 
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
