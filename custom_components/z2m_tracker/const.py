@@ -13,6 +13,7 @@ SIGNAL_UPDATED = f"{DOMAIN}_updated"
 
 URL_BASE = "/z2m_tracker"
 CARD_FILE = "z2m-tracker-card.js"
+CARDS_FILE = "z2m-tracker-cards.js"
 
 STATUS_ACTIVE = "active"
 STATUS_REMOVED = "removed"

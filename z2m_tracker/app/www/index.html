@@ -1640,6 +1640,23 @@
   });
   window.addEventListener("hashchange", () => { const h = decodeURIComponent(location.hash.slice(1)); if (IEEE_RE.test(h) && h !== state.open) openDevice(h); });
 
+  // Deep links from the dashboard cards: /app/<slug>/<ieee>. HA's app panel passes the route
+  // tail to the iframe once it subscribes to properties.
+  if (window.parent !== window) {
+    let routed = null;
+    window.addEventListener("message", (e) => {
+      if (e.source !== window.parent || e.data?.type !== "home-assistant/properties") return;
+      const ieee = decodeURIComponent(String(e.data.route?.path || "").replace(/^\//, "").split("/")[0]);
+      if (!IEEE_RE.test(ieee)) { routed = null; return; }
+      if (ieee === routed) return;
+      routed = ieee;
+      let tries = 0;
+      const open = () => { if (state.byIeee?.has(ieee)) openDevice(ieee); else if (++tries < 20) setTimeout(open, 500); };
+      open();
+    });
+    window.parent.postMessage({ type: "home-assistant/subscribe-properties" }, "*");
+  }
+
   (async () => {
     await load();
     const h = decodeURIComponent(location.hash.slice(1));
