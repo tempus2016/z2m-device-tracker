@@ -1,5 +1,5 @@
 name: Z2M Device Tracker
-version: "1.0.1"
+version: "1.1.0"
 slug: z2m_tracker
 description: History, health monitoring and alerts for every Zigbee2MQTT device - names, renames, signal, battery, routing and removals.
 url: https://github.com/tempus2016/z2m-device-tracker

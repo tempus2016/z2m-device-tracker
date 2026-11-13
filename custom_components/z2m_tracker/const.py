@@ -1,7 +1,7 @@
 """Constants for Z2M Device Tracker."""
 
 DOMAIN = "z2m_tracker"
-VERSION = "1.0.1"
+VERSION = "1.1.0"
 
 CONF_APP_URL = "app_url"
 CONF_REPAIRS = "repairs"
