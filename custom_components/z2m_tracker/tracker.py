@@ -25,6 +25,56 @@ FULL_REFRESH_EVERY = 8
 REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=20)
 
 
+def _wifi_overlap(mhz: int | None, wifi: list[int]) -> str | None:
+    """Same thresholds as the app's radio check: within 12 MHz overlaps, within 16 MHz is close."""
+    if not mhz or not wifi:
+        return None
+    gap = min(abs(mhz - (2484 if w == 14 else 2407 + 5 * w)) for w in wifi)
+    return "overlap" if gap <= 12 else "near" if gap <= 16 else "clear"
+
+
+def _network_summary(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Per-network facts for the network card, trimmed from the app's snapshot."""
+    radio = payload.get("radio") or {}
+    wifi = [int(w) for w in radio.get("wifi") or [] if isinstance(w, int)]
+    channels = {n.get("topic"): n for n in radio.get("networks") or []}
+    out = []
+    for topic in payload.get("instances") or []:
+        bridge = (payload.get("bridges") or {}).get(topic) or {}
+        net = channels.get(topic) or {}
+        scan = (payload.get("networkmap") or {}).get(topic) or {}
+        backup = (payload.get("backups") or {}).get(topic) or {}
+        out.append(
+            {
+                "topic": topic,
+                "state": bridge.get("state"),
+                "channel": net.get("channel"),
+                "wifi_channels": wifi,
+                "wifi": _wifi_overlap(net.get("mhz"), wifi),
+                "scanned_at": scan.get("scanned_at"),
+                "scanning": bool(scan.get("running_since")),
+                "single_points": [
+                    {
+                        "ieee": p.get("ieee"),
+                        "name": p.get("name"),
+                        "routers": len(p.get("routers") or []),
+                        "devices": p.get("devices") or 0,
+                    }
+                    for p in (payload.get("single_points") or {}).get(topic) or []
+                ],
+                "backup": {
+                    "exists": bool(backup.get("exists")),
+                    "date": backup.get("date"),
+                    "has_key": bool(backup.get("has_key")),
+                    "error": bool(backup.get("error")),
+                }
+                if backup.get("found")
+                else None,
+            }
+        )
+    return out
+
+
 class TrackerAppError(Exception):
     """Raised when the app cannot be reached or returns an error."""
 
@@ -92,6 +142,7 @@ class Z2MTracker:
             "imported": payload.get("imported"),
             "issues": payload.get("issues") or [],
             "options": payload.get("options") or {},
+            "networks": _network_summary(payload),
         }
         if self.repairs:
             self._sync_repairs()
@@ -193,6 +244,13 @@ class Z2MTracker:
     @callback
     def issues(self) -> list[dict]:
         return self.data.get("issues") or []
+
+    @callback
+    def battery_alert_percent(self) -> int:
+        try:
+            return int((self.data.get("options") or {}).get("battery_alert_percent", 15))
+        except (TypeError, ValueError):
+            return 15
 
     @callback
     def last_event(self) -> dict | None:

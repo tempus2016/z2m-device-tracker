@@ -91,6 +91,34 @@ title: Zigbee devices
 max_items: 5
 ```
 
+Three more cards read the same data. Each has a visual editor, and tapping a device opens it in the Zigbee Tracker sidebar.
+
+Battery devices, lowest first. Bars turn red at the app's low-battery threshold (`battery_alert_percent`). `show_all: true` ignores `max_items`.
+
+```yaml
+type: custom:z2m-tracker-battery-card
+title: Batteries
+max_items: 8
+show_all: false
+```
+
+How many devices need attention, are worth a look or are fine, then the top issues. `show_info: false` lists only the ones that need attention.
+
+```yaml
+type: custom:z2m-tracker-health-card
+title: Zigbee health
+max_items: 5
+show_info: true
+```
+
+Devices, routers, offline devices and single-point-of-failure routers, plus each network's channel (and whether it overlaps your Wi-Fi), coordinator backup age and last scan.
+
+```yaml
+type: custom:z2m-tracker-network-card
+title: Zigbee network
+show_weak_spots: true
+```
+
 ## Contributing
 
 Bug reports and ideas go in the [issues](https://github.com/tempus2016/z2m-device-tracker/issues). For code, see [CONTRIBUTING.md](CONTRIBUTING.md), and report security problems privately as described in [SECURITY.md](SECURITY.md).
