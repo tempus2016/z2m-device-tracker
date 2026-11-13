@@ -340,6 +340,54 @@ def test_mutes_of_and_active_mutes():
     assert sorted(health.active_mutes(rec, START)) == ["a", "b"]
 
 
+# ------------------------------------------------------------------ late (per-device report interval)
+
+
+def late_issues(rec: dict, summary: dict | None = None, options: dict | None = None) -> list[dict]:
+    return [i for i in health.device_issues(rec, summary or {}, options or {}, START, []) if i["kind"] == "late"]
+
+
+def test_late_is_off_without_an_interval():
+    assert late_issues(record(last_seen=iso(30 * 86400), availability="online")) == []
+
+
+def test_late_after_interval_even_when_z2m_says_online():
+    issues = late_issues(record(report_every=900, last_seen=iso(901), availability="online"))
+    assert len(issues) == 1
+    assert issues[0]["detail"] == "No messages for 15 min. It should report at least every 15 min."
+    assert issues[0]["params"] == {"seconds": 901, "every": 900}
+
+
+def test_late_within_interval_is_quiet():
+    assert late_issues(record(report_every=900, last_seen=iso(899))) == []
+
+
+def test_late_waits_for_the_app_start():
+    # Messages that arrived while the app was down weren't seen; the clock starts at app start.
+    rec = record(report_every=60, last_seen=iso(3600))
+    assert late_issues(rec, {"started": START - 59}) == []
+    assert len(late_issues(rec, {"started": START - 60})) == 1
+
+
+def test_late_skipped_while_network_is_down():
+    rec = record(report_every=60, last_seen=iso(600))
+    assert late_issues(rec, {"network_down": True}) == []
+
+
+def test_late_can_be_muted_or_disabled():
+    rec = record(report_every=60, last_seen=iso(600))
+    assert late_issues({**rec, "muted": {"late": None}}) == []
+    assert late_issues(rec, options={"disabled_checks": ["late"]}) == []
+
+
+def test_late_deadline():
+    assert health.late_deadline(record(), START) is None
+    assert health.late_deadline(record(report_every=60, status="removed"), START) is None
+    assert health.late_deadline(record(report_every=60, type="Coordinator"), START) is None
+    assert health.late_deadline(record(report_every=60, last_seen=iso(10)), START - 100) == START - 10 + 60
+    assert health.late_deadline(record(report_every=60, last_seen=None), START) == START + 60
+
+
 # ------------------------------------------------------------------ catalogue consistency
 
 
@@ -352,7 +400,9 @@ def test_every_device_kind_has_a_label_and_a_check_entry():
 
 
 def test_span():
-    assert health._span(59) == "0 min"
+    assert health._span(59) == "59 s"
+    assert health._span(119) == "119 s"
+    assert health._span(120) == "2 min"
     assert health._span(3599) == "59 min"
     assert health._span(3600) == "1 h"
     assert health._span(172799) == "47 h"

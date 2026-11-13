@@ -16,6 +16,7 @@ ALERT_KINDS = {
     "battery_low",
     "weak_signal",
     "silent",
+    "late",
     "unidentified",
     "network_offline",
 }
@@ -24,11 +25,20 @@ FLAP_OUTAGES = 4
 FLAP_LEAVES = 2
 BINDING_GRACE_SECONDS = 600
 DEFAULT_CHATTY_PER_HOUR = 1200
+# Shortest per-device "should report at least every" interval, and the longest (7 days).
+REPORT_EVERY_MIN = 30
+REPORT_EVERY_MAX = 7 * 86400
 
 # Everything the Settings page can switch: (key, label, description, is_event)
 CHECKS = [
     ("offline", "Offline", "Z2M reports the device unavailable for longer than the offline threshold.", False),
     ("silent", "Not heard from", "No messages for 2 days from a device without availability reporting.", False),
+    (
+        "late",
+        "Stopped reporting",
+        "No messages for longer than the device's own report interval, set on its Health tab.",
+        False,
+    ),
     (
         "frozen",
         "Frozen reading",
@@ -94,6 +104,7 @@ DEFAULT_NOTIFY = sorted(ALERT_KINDS | {"joined", "left", "interview_failed"})
 KIND_LABELS = {
     "offline": "Offline",
     "silent": "Not heard from",
+    "late": "Stopped reporting",
     "frozen": "Frozen reading",
     "weak_signal": "Weak signal",
     "signal_drop": "Signal dropping",
@@ -121,11 +132,29 @@ def _age(iso: str | None, now: float) -> float | None:
 
 
 def _span(seconds: float) -> str:
+    if seconds < 120:
+        return f"{int(seconds)} s"
     if seconds < 3600:
         return f"{int(seconds // 60)} min"
     if seconds < 172800:
         return f"{int(seconds // 3600)} h"
     return f"{int(seconds // 86400)} days"
+
+
+def late_deadline(record: dict, started: float) -> float | None:
+    """When an active device with a report interval counts as late, or None if it has no interval.
+
+    The clock starts no earlier than the app's own start, so a restart doesn't flag
+    devices whose messages arrived while the app was down.
+    """
+    every = record.get("report_every")
+    if not every or record.get("status") != "active" or record.get("type") == "Coordinator":
+        return None
+    try:
+        seen = datetime.fromisoformat(record["last_seen"]).timestamp()
+    except (KeyError, TypeError, ValueError):
+        seen = started
+    return max(seen, started) + every
 
 
 def mutes_of(record: dict) -> dict[str, str | None]:
@@ -187,6 +216,21 @@ def device_issues(
         age = _age(record.get("last_seen"), now)
         if age is not None and age > 2 * 86400:
             add("silent", WARNING, "Not heard from", f"No messages for {_span(age)}.", "silent", seconds=int(age))
+
+    deadline = late_deadline(record, summary.get("started", 0.0))
+    if deadline is not None and now >= deadline and not summary.get("network_down"):
+        every = int(record["report_every"])
+        age = _age(record.get("last_seen"), now)
+        quiet = int(age) if age is not None else every
+        add(
+            "late",
+            WARNING,
+            "Stopped reporting",
+            f"No messages for {_span(quiet)}. It should report at least every {_span(every)}.",
+            "late",
+            seconds=quiet,
+            every=every,
+        )
 
     if record.get("interview_state") and record.get("interview_state") != "SUCCESSFUL":
         add(

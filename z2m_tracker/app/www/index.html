@@ -533,7 +533,7 @@
     ghost: { get label() { return t("status.ghost"); }, c: "var(--error)" },
     removed: { get label() { return t("status.removed"); }, c: "var(--disabled)" },
   };
-  const KIND_ICON = { offline: "wifi-off", silent: "wifi-off", frozen: "thermometer", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
+  const KIND_ICON = { offline: "wifi-off", silent: "wifi-off", late: "history", frozen: "thermometer", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
     flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", coordinator_backup: "download" };
   const EVENT_ICON = (k) => {
     if (k.startsWith("interview")) return k.endsWith("successful") ? ["check", "var(--success)"] : ["alert-circle", "var(--error)"];
@@ -603,7 +603,7 @@
   const fmtDate = (iso, time = true) => { if (!iso) return ""; const d = new Date(typeof iso === "number" ? iso * 1000 : iso); return isNaN(d) ? "" : intl((l) => d.toLocaleString(l, time ? { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" } : { day: "numeric", month: "short", year: "numeric" })); };
   const fmtTime = (iso) => intl((l) => new Date(iso).toLocaleTimeString(l, { hour: "2-digit", minute: "2-digit" }));
   const ago = (iso) => { if (!iso) return null; const t = new Date(iso).getTime(); return isNaN(t) ? null : (Date.now() - t) / 1000; };
-  const span = (s) => (s < 3600 ? t("unit.minutes", { n: Math.max(1, Math.round(s / 60)) }) : s < 172800 ? t("unit.hours", { n: Math.round(s / 3600) }) : t("unit.days", { n: Math.round(s / 86400) }));
+  const span = (s) => (s < 90 ? t("unit.seconds", { n: Math.max(1, Math.round(s)) }) : s < 3600 ? t("unit.minutes", { n: Math.max(1, Math.round(s / 60)) }) : s < 172800 ? t("unit.hours", { n: Math.round(s / 3600) }) : t("unit.days", { n: Math.round(s / 86400) }));
   const unit = (n, word) => relFmt.format(-n, word);
   // inline: for use mid-sentence ("Last seen just now"); Intl output is already lower case where the language wants it.
   const relTime = (iso, inline = false) => { const s = ago(iso); if (s === null) return t(inline ? "time.never_inline" : "time.never"); if (s < 60) return t(inline ? "time.just_now_inline" : "time.just_now"); if (s < 3600) return unit(Math.round(s / 60), "minute"); if (s < 172800) return unit(Math.round(s / 3600), "hour"); if (s < 5184000) return unit(Math.round(s / 86400), "day"); if (s < 63072000) return unit(Math.round(s / 2592000), "month"); return unit(Math.round(s / 31536000), "year"); };
@@ -653,6 +653,7 @@
   const ISSUE_VARS = {
     flapping: (p) => { p.what = listOf([p.outages ? t("issue.flapping.outages", { n: p.outages }) : null, p.leaves ? t("issue.flapping.leaves", { n: p.leaves }) : null].filter(Boolean)); },
     single_point: (p) => { p.extra = p.devices ? t("issue.single_point.extra", { n: p.devices }) : ""; },
+    late: (p) => { p.every = span(p.every); },
   };
   const issueVars = (i) => {
     const p = { ...(i.params || {}) };
@@ -851,7 +852,7 @@
   const issueActions = (i) => {
     const d = state.byIeee.get(i.ieee);
     const out = [];
-    if (i.kind === "frozen" || i.kind === "silent") out.push(`<button class="btn" data-act="reconfigure" data-ieee="${esc(i.ieee)}">${th("common.reconfigure")}</button>`);
+    if (i.kind === "frozen" || i.kind === "silent" || i.kind === "late") out.push(`<button class="btn" data-act="reconfigure" data-ieee="${esc(i.ieee)}">${th("common.reconfigure")}</button>`);
     if (i.kind === "binding_lost") {
       out.push(restoreBindingsBtn(i.ieee, d?.lost_bindings || []));
       out.push(`<button class="btn" data-act="bindings-ack" data-ieee="${esc(i.ieee)}">${th("health.intended")}</button>`);
@@ -1587,9 +1588,25 @@
       ${sparkline(m.lqi_spark, { min: 0, max: 255 })}
       <div class="sub-h">${th("more.availability")}${d.uptime_30d !== null && d.uptime_30d !== undefined ? ` · ${th("dhealth.uptime", { percent: d.uptime_30d })}` : ""}</div>
       ${outages.length ? `<div class="rep-list">${outages.map((o) => { const s = (new Date(o.end || Date.now()) - new Date(o.start)) / 1000; return `<div><span>${esc(fmtDate(o.start))}</span><span class="muted">${o.end ? esc(span(s)) : th("dhealth.ongoing", { duration: esc(span(s)) })}</span></div>`; }).join("")}</div>` : `<div class="card-content muted">${th(d.availability ? "dhealth.no_outages" : "dhealth.no_outages_no_avail")}</div>`}
+      ${reportEvery(d)}
       <div class="sub-h">${th("dhealth.readings")}</div>
       ${readings.length ? `<div class="rep-list">${readings.map(([k, r]) => `<div><span>${esc(readingName(k))}: ${esc(r.value)}</span><span class="muted">${th("dhealth.changed", { when: esc(relTime(r.changed_at, true)), n: esc(r.reports) })}</span></div>`).join("")}</div>` : `<div class="card-content muted">${th("dhealth.no_readings")}</div>`}
       ${(d.muted || []).length ? `<div class="sub-h">${th("settings.ignored")}</div><div class="rep-list">${d.muted.map((k) => `<div><span>${esc(tx(`check.${k}.label`, null, cap(k.replace(/_/g, " "))))}</span><button class="btn" data-act="unmute" data-ieee="${esc(d.ieee)}" data-kind="${esc(k)}">${th("common.stop_ignoring")}</button></div>`).join("")}</div>` : ""}`;
+  };
+
+  // Per-device "should report at least every" interval; stored in seconds, edited as a number + unit.
+  const REPORT_UNITS = [["s", 1], ["min", 60], ["h", 3600]];
+  const reportEvery = (d) => {
+    if (d.status === "removed" || d.type === "Coordinator") return "";
+    const every = d.report_every || 0;
+    const [unitKey, size] = every ? [...REPORT_UNITS].reverse().find(([, n]) => every % n === 0) : ["min", 60];
+    const rate = d.metrics?.msg_rate_prev || d.metrics?.msg_rate_6h;
+    const hint = rate ? th("report.usual", { gap: esc(span(3600 / rate)) }) : th("report.desc");
+    return `<div class="sub-h">${th("report.title")}</div>
+      <div class="set-row"><div class="text"><div class="t1">${every ? th("report.on", { every: esc(span(every)) }) : th("report.off")}</div><div class="t2">${hint}</div></div><div class="ctl">
+        <input class="field" id="repN" type="number" min="1" step="1" style="width:80px" value="${every ? every / size : ""}" placeholder="—" inputmode="numeric" aria-label="${esc(t("report.title"))}">
+        <select class="field" id="repU">${REPORT_UNITS.map(([k]) => `<option value="${k}" ${k === unitKey ? "selected" : ""}>${th(`report.unit_${k}`)}</option>`).join("")}</select>
+        <button class="btn" data-act="save-report-every">${th("common.save")}</button>${every ? `<button class="btn" data-act="clear-report-every">${th("report.turn_off")}</button>` : ""}</div></div>`;
   };
 
   const tabBattery = (d) => {
@@ -1961,6 +1978,13 @@
     async scan() { try { await api("api/networkmap", {}); snack(t("snack.scan_started"), 4000); setTimeout(load, 1500); } catch (err) { snack(err.message); } },
     async import() { try { const r = await api("api/import", {}); snack(t("snack.import_done", { devices: r.new_devices, events: r.new_events }), 4000); load(); } catch (err) { snack(err.message); } },
     theme() { theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]; store.set("z2mt.theme", theme); applyTheme(); snack(t("menu.theme", { theme: t(`theme.${theme}`) })); if (state.view === "settings") renderSettings(false); },
+    async "save-report-every"() {
+      const n = Number($("#repN").value), size = REPORT_UNITS.find(([k]) => k === $("#repU").value)?.[1] || 60;
+      const seconds = Math.round(n * size);
+      if (!n || seconds < 30 || seconds > 604800) { snack(t("report.range")); return; }
+      try { await api("api/report_every", { ieee: state.open, seconds }); snack(t("report.saved", { every: span(seconds) })); load(); } catch (err) { snack(err.message); }
+    },
+    async "clear-report-every"() { try { await api("api/report_every", { ieee: state.open, seconds: null }); snack(t("report.cleared")); load(); } catch (err) { snack(err.message); } },
     async "save-note"() { const note = $("#note").value; try { await api("api/note", { ieee: state.open, note }); state.byIeee.get(state.open).note = note; flash("#savedNote"); state.editing = false; } catch (err) { snack(err.message); } },
     async "save-asset"() { const asset = Object.fromEntries(new FormData($("#assetForm")).entries()); try { await api("api/asset", { ieee: state.open, asset }); state.byIeee.get(state.open).asset = asset; flash("#savedAsset"); state.editing = false; } catch (err) { snack(err.message); } },
     async "save-battery"() { const info = Object.fromEntries(new FormData($("#batForm")).entries()); try { await api("api/battery", { ieee: state.open, info }); flash("#savedBat"); state.editing = false; load(); } catch (err) { snack(err.message); } },

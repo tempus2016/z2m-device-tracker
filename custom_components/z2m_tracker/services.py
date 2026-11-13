@@ -27,6 +27,7 @@ IEEE_RE = re.compile(r"0x[0-9a-f]{16}")
 DEVICE_CHECKS = [
     "offline",
     "silent",
+    "late",
     "frozen",
     "battery_low",
     "battery_soon",

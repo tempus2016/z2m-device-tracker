@@ -83,6 +83,9 @@ DEFAULT_OPTIONS = {
 }
 
 CHECK_KEYS = {key for key, _, _, _ in CHECKS}
+# Checks added to notify_checks after release. Existing installs get each one switched on once at
+# upgrade (their saved list predates it); removing it in Settings afterwards sticks.
+NEW_NOTIFY_KINDS = ("late",)
 EVENT_KEYS = {"joined": "joined", "left": "left", "interview failed": "interview_failed"}
 
 
@@ -167,6 +170,24 @@ def load_options() -> dict:
     if not options.get("alert_on_join", True) and "joined" in options["notify_checks"]:
         options["notify_checks"] = [k for k in options["notify_checks"] if k != "joined"]
     return options
+
+
+def offer_new_notify_kinds() -> None:
+    with tracker.lock:
+        offered = set(tracker.data.get("notify_offered") or [])
+        new = [kind for kind in NEW_NOTIFY_KINDS if kind not in offered]
+        if not new:
+            return
+        tracker.data["notify_offered"] = sorted(offered | set(new))
+        tracker.dirty = True
+    add = [kind for kind in new if kind not in (options.get("notify_checks") or [])]
+    if not add:
+        return
+    options["notify_checks"] = sorted(set(options.get("notify_checks") or []) | set(add))
+    _LOGGER.info("Alerts now notify for new check(s): %s", ", ".join(add))
+    persisted = home_assistant.save_app_options({k: v for k, v in options.items() if not k.startswith("_")})
+    if not persisted:
+        _LOGGER.warning("Couldn't save the updated alert list to the app configuration")
 
 
 def local_timezone():
@@ -662,7 +683,7 @@ def scheduler() -> None:
                 ha_changed_at = 0.0
                 refresh_home_assistant()
                 last_ha = now
-            if now - last_health >= HEALTH_INTERVAL:
+            if now - last_health >= HEALTH_INTERVAL or tracker.late_due(now):
                 alerts.check()
                 discovery.sync()
                 last_health = now
@@ -906,6 +927,13 @@ class Handler(BaseHTTPRequestHandler):
                     float(days) if isinstance(days, (int, float)) and days > 0 else None,
                 )
                 self._json(200 if ok else 404, {"ok": ok})
+            elif path == "/api/report_every":
+                seconds = body.get("seconds")
+                if seconds is not None and (isinstance(seconds, bool) or not isinstance(seconds, (int, float))):
+                    self._json(400, {"ok": False, "error": "seconds must be a number"})
+                    return
+                ok = tracker.set_report_every(ieee, int(seconds) if seconds else None)
+                self._json(200 if ok else 400, {"ok": ok})
             elif path == "/api/bindings/ack":
                 ok = tracker.acknowledge_bindings(ieee)
                 self._json(200 if ok else 404, {"ok": ok})
@@ -1032,6 +1060,7 @@ def main() -> None:
     _LOGGER.info("Z2M Device Tracker %s: %d devices loaded (%s), base topics: %s", VERSION, count, source, base_topics)
     if source == "migrated":
         tracker.save(force=True)
+    threading.Thread(target=offer_new_notify_kinds, name="notify-kinds", daemon=True).start()
 
     client = start_mqtt()
     threading.Thread(target=scheduler, name="scheduler", daemon=True).start()

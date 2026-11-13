@@ -12,7 +12,7 @@
   const isNum = (v) => typeof v === "number" && Number.isFinite(v);
   const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
   const netLabel = (bt) => (bt === "zigbee2mqtt" ? "Main" : String(bt).replace("zigbee2mqtt_", "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()));
-  const KIND_ICON = { offline: "mdi:wifi-off", silent: "mdi:wifi-off", frozen: "mdi:thermometer-alert", weak_signal: "mdi:signal-cellular-1", signal_drop: "mdi:signal-cellular-2", battery_low: "mdi:battery-alert-variant-outline", battery_soon: "mdi:battery-clock-outline", update: "mdi:chip", unidentified: "mdi:help-circle-outline", replacement: "mdi:link-variant" };
+  const KIND_ICON = { offline: "mdi:wifi-off", silent: "mdi:wifi-off", late: "mdi:timer-sand", frozen: "mdi:thermometer-alert", weak_signal: "mdi:signal-cellular-1", signal_drop: "mdi:signal-cellular-2", battery_low: "mdi:battery-alert-variant-outline", battery_soon: "mdi:battery-clock-outline", update: "mdi:chip", unidentified: "mdi:help-circle-outline", replacement: "mdi:link-variant" };
   const C_BAD = "var(--error-color, #db4437)";
   const C_WARN = "var(--warning-color, #ffa600)";
   const C_OK = "var(--success-color, #43a047)";

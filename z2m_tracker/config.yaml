@@ -31,6 +31,7 @@ options:
     - frozen
     - interview_failed
     - joined
+    - late
     - left
     - network_offline
     - offline

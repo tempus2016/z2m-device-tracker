@@ -15,7 +15,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone, tzinfo
 from typing import Any
 
-from health import device_issues, mutes_of, uptime
+from health import REPORT_EVERY_MAX, REPORT_EVERY_MIN, device_issues, late_deadline, mutes_of, uptime
 from history_import import IEEE_RE, _features, collect_history
 from metrics import Metrics
 
@@ -232,6 +232,8 @@ class Tracker:
         self._spof_cache: dict[str, tuple] = {}
         self._backups: dict[str, dict] = {}
         self._backups_at = 0.0
+        self.started = time.time()
+        self._late_checked: dict[str, float] = {}
 
     # ------------------------------------------------------------ persistence
 
@@ -1351,11 +1353,15 @@ class Tracker:
             if event.get("kind") == "left":
                 leaves[event["ieee"]] = leaves.get(event["ieee"], 0) + 1
         spof = {item["ieee"]: item for bt in self.base_topics for item in self.single_points(bt)}
+        bridges = self.data.get("bridges") or {}
+        down = {bt for bt, bridge in bridges.items() if (bridge or {}).get("state") == "offline"}
         out: dict[str, dict] = {}
         for ieee, record in self.data["devices"].items():
             extra: dict[str, Any] = {
                 "outages_24h": sum(1 for o in record.get("outages") or [] if (o.get("start") or "") >= day_ago),
                 "leaves_24h": leaves.get(ieee, 0),
+                "started": self.started,
+                "network_down": record.get("instance") in down,
             }
             parent = (record.get("routing") or {}).get("parent") or {}
             if parent.get("ieee"):
@@ -1639,6 +1645,33 @@ class Tracker:
             or bool((record.get("battery_info") or {}).get("type"))
             or record["ieee"] in self.ha_battery
         )
+
+    def set_report_every(self, ieee: str, seconds: int | None) -> bool:
+        """Per-device "should report at least every" interval in seconds; None or 0 turns it off."""
+        if seconds and not REPORT_EVERY_MIN <= seconds <= REPORT_EVERY_MAX:
+            return False
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            if record is None:
+                return False
+            if seconds:
+                record["report_every"] = int(seconds)
+            else:
+                record.pop("report_every", None)
+            self._changed(structural=True)
+        self.evaluate_health()
+        return True
+
+    def late_due(self, now: float) -> bool:
+        """True once for each device that passes its report interval, so health runs then, not up to 60 s later."""
+        due = False
+        with self.lock:
+            for ieee, record in self.data["devices"].items():
+                deadline = late_deadline(record, self.started)
+                if deadline is not None and now >= deadline and self._late_checked.get(ieee) != deadline:
+                    self._late_checked[ieee] = deadline
+                    due = True
+        return due
 
     def set_muted(self, ieee: str, kind: str, muted: bool, days: float | None = None) -> bool:
         with self.lock:

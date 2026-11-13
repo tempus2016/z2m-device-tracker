@@ -184,6 +184,7 @@
       "options": {
         "offline": "Offline",
         "silent": "Not heard from",
+        "late": "Stopped reporting",
         "frozen": "Frozen reading",
         "battery_low": "Low battery",
         "battery_soon": "Battery running down",

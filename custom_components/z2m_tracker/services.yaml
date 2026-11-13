@@ -33,6 +33,7 @@ mute_device:
           options:
             - offline
             - silent
+            - late
             - frozen
             - battery_low
             - battery_soon
