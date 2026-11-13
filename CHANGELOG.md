@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1
+
+- Links to the wiki, the GitHub page and the releases page, in the ⋮ menu and next to the version in Settings.
+- The integration now installs from a `z2m_tracker.zip` file attached to each release, so HACS installs and updates are counted. Nothing changes for you.
+
 ## 1.0.0
 
 First public release.
