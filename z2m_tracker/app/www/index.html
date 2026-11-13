@@ -434,8 +434,9 @@
   svg.map text { font-size: 11px; fill: var(--text-2); font-family: var(--font); pointer-events: none; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; }
   svg.map text.c { fill: var(--card); stroke: none; font-weight: 500; font-size: 12px; }
   svg.map text.lbl { display: none; }
-  svg.map.zoomed:not(.names-off) .mnode text.lbl, svg.map:not(.names-off) .mnode.hit text.lbl, svg.map .mnode:hover text.lbl, svg.map .mnode:focus-visible text.lbl, svg.map .mnode.sel text.lbl, svg.map .mnode.near text.lbl { display: block; }
-  svg.map.names-routers .mnode:not(.rt):not(:hover):not(:focus-visible):not(.sel):not(.near) text.lbl { display: none; }
+  svg.map.zoomed:not(.names-off) .mnode text.lbl, svg.map:not(.names-off) .mnode.hit text.lbl, svg.map .mnode:focus-visible text.lbl, svg.map .mnode.sel text.lbl, svg.map .mnode.near text.lbl { display: block; } @media (hover: hover) and (pointer: fine) { svg.map .mnode:hover text.lbl { display: block; } }
+  svg.map.names-routers .mnode:not(.rt):not(:focus-visible):not(.sel):not(.near) text.lbl { display: none; }
+  @media (hover: hover) and (pointer: fine) { svg.map.names-routers .mnode:not(.rt):hover:not(:focus-visible):not(.sel):not(.near) text.lbl { display: block; } }
   svg.map .mnode.sel text.lbl { fill: var(--text); font-weight: 500; }
   .mnode { cursor: pointer; transition: opacity 0.15s; }
   .mnode:hover circle, .mnode:focus-visible circle, .mnode.sel circle { stroke: var(--text); stroke-width: 3; }
@@ -535,9 +536,10 @@
   /* Names hidden: just the dot, with the name as a bubble on hover, focus, selection and the selected device's links. */
   .fp.names-off .fp-dev, .fp.names-routers .fp-dev.end { padding: 3px; gap: 0; }
   .fp.names-off .fp-dev span, .fp.names-routers .fp-dev.end span { display: none; position: absolute; left: 50%; bottom: calc(100% + 4px); transform: translateX(-50%); max-width: 220px; padding: 3px 8px; border: 1px solid var(--divider); border-radius: 6px; background: var(--card); color: var(--text); box-shadow: var(--shadow); pointer-events: none; }
-  .fp.names-off .fp-dev:is(:hover, :focus-visible, [aria-pressed="true"], .near), .fp.names-routers .fp-dev.end:is(:hover, :focus-visible, [aria-pressed="true"], .near) { z-index: 4; }
-  .fp.names-off .fp-dev:is(:hover, :focus-visible, [aria-pressed="true"], .near) span, .fp.names-routers .fp-dev.end:is(:hover, :focus-visible, [aria-pressed="true"], .near) span { display: block; }
-  .fp.names-off .fp-dev:is(:hover, :focus-visible) span, .fp.names-routers .fp-dev.end:is(:hover, :focus-visible) span { z-index: 1; }
+  .fp.names-off .fp-dev:is(:focus-visible, [aria-pressed="true"], .near), .fp.names-routers .fp-dev.end:is(:focus-visible, [aria-pressed="true"], .near) { z-index: 4; }
+  .fp.names-off .fp-dev:is(:focus-visible, [aria-pressed="true"], .near) span, .fp.names-routers .fp-dev.end:is(:focus-visible, [aria-pressed="true"], .near) span { display: block; }
+  .fp.names-off .fp-dev:focus-visible span, .fp.names-routers .fp-dev.end:focus-visible span { z-index: 1; }
+  @media (hover: hover) and (pointer: fine) { .fp.names-off .fp-dev:hover, .fp.names-routers .fp-dev.end:hover { z-index: 4; } .fp.names-off .fp-dev:hover span, .fp.names-routers .fp-dev.end:hover span { display: block; z-index: 1; } }
   .map-names { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
   .map-names > span { font-size: 13px; color: var(--text-2); }
   .map-zoom { display: inline-flex; }
