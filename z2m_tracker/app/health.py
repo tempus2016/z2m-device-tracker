@@ -8,7 +8,8 @@ from typing import Any
 WARNING = "warning"
 INFO = "info"
 
-# Issue kinds that notify by default (info-level kinds only show in the UI unless enabled).
+# Issue kinds that notify by default; every other kind only shows in the UI until enabled.
+# Keep in step with the notify_checks default in config.yaml.
 ALERT_KINDS = {
     "offline",
     "frozen",
@@ -17,9 +18,6 @@ ALERT_KINDS = {
     "silent",
     "unidentified",
     "network_offline",
-    "flapping",
-    "binding_lost",
-    "coordinator_backup",
 }
 
 FLAP_OUTAGES = 4
