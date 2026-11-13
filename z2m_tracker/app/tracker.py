@@ -660,6 +660,9 @@ class Tracker:
             if record.get("battery") != battery:
                 structural = True
             record["battery"] = battery
+            if self._replaced_since_reading(record):
+                structural = True
+            record["battery_reported"] = now
             replaced_from = self.metrics.add_battery(ieee, battery)
             if replaced_from is not None:
                 self._record_replacement(
@@ -670,6 +673,9 @@ class Tracker:
             if record.get("battery_low") != parsed["battery_low"]:
                 structural = True
             record["battery_low"] = parsed["battery_low"]
+            if self._replaced_since_reading(record):
+                structural = True
+            record["battery_reported"] = now
 
         update = parsed.get("update")
         if isinstance(update, dict):
@@ -1770,6 +1776,30 @@ class Tracker:
             return {"ok": True}
         return {"ok": False, "error": "Unknown action"}
 
+    def _replaced_since_reading(self, record: dict) -> bool:
+        """True when the battery was marked replaced after the device last reported its level.
+
+        Keeps a device off the shopping list from the moment it's ticked until a new reading
+        arrives. If that reading is still low, the device goes back on the list.
+        """
+        marked = []
+        for entry in (record.get("battery_info") or {}).get("replacements") or []:
+            if entry.get("source") == "Detected":
+                continue
+            day = str(entry.get("date") or "")
+            end_of_day = self._to_utc_iso(f"{day}T23:59:59") if re.fullmatch(r"\d{4}-\d{2}-\d{2}", day) else None
+            marked.append(_min_time(self._to_utc_iso(entry.get("recorded")), end_of_day))
+        marked.append(self._to_utc_iso((self.ha_battery.get(record["ieee"]) or {}).get("last_replaced")))
+        last_marked = _max_time(*marked)
+        if not last_marked:
+            return False
+        reading = record.get("battery_reported")
+        if not reading:
+            with self.metrics.lock:
+                points = (self.metrics.series.get(record["ieee"]) or {}).get("bat") or []
+                reading = self._to_utc_iso(points[-1][0]) if points else None
+        return reading is None or last_marked >= reading
+
     def battery_shopping(self, days: int = 60) -> list[dict]:
         """Batteries needed soon, grouped by type."""
         now = time.time()
@@ -1777,6 +1807,8 @@ class Tracker:
         with self.lock:
             for record in self.data["devices"].values():
                 if record["status"] != STATUS_ACTIVE or not self.is_battery_device(record):
+                    continue
+                if self._replaced_since_reading(record):
                     continue
                 level = record.get("battery")
                 est = self.metrics.summary(record["ieee"], now).get("battery_estimate_days")

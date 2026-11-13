@@ -22,7 +22,7 @@ from .websocket import async_register_websocket_commands
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.SENSOR]
+PLATFORMS = [Platform.CALENDAR, Platform.SENSOR, Platform.TODO]
 
 type Z2MTrackerConfigEntry = ConfigEntry[Z2MTracker]
 

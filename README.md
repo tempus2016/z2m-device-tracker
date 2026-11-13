@@ -32,7 +32,7 @@ It has two parts, both in this repository:
 | Part | What it does | Install from |
 | --- | --- | --- |
 | **App** (`z2m_tracker/`) | Listens to Zigbee2MQTT over MQTT, stores the history and runs the web interface in the sidebar. | Settings → Apps → App store → Repositories |
-| **Integration** (`custom_components/z2m_tracker/`) | Optional. Adds summary sensors, a dashboard card and Repairs issues. | HACS (custom repository) |
+| **Integration** (`custom_components/z2m_tracker/`) | Optional. Adds summary sensors, a battery to-do list and calendar, a dashboard card and Repairs issues. | HACS (custom repository) |
 
 ## Features
 
@@ -44,7 +44,7 @@ It has two parts, both in this repository:
 - **Radio channels**: shows your Zigbee channels against your 2.4 GHz Wi-Fi channels and warns about overlap.
 - **Network map**: interactive map with advice on which router a device should use and which routers are a single point of failure, nightly routing scans, and a before/after comparison between scans.
 - **Device actions**: pair through a chosen router, move a device to another router, reconfigure, rename, set area, OTA updates.
-- **Batteries**: battery type and count (built-in library from Battery Notes), replacement records, estimates and a shopping list.
+- **Batteries**: battery type and count (built-in library from Battery Notes), replacement records, estimates and a shopping list. With the integration, the shopping list is a Home Assistant to-do list (tick an item to mark those batteries replaced) and a calendar shows each predicted replacement date.
 - **Home Assistant entities**: MQTT discovery sensors attached to each Zigbee2MQTT device for use in automations.
 - Weekly summary, temporary ignore, backup and restore, CSV export.
 
