@@ -34,6 +34,7 @@
     --scrim: rgba(0, 0, 0, 0.32);
     --snackbar: #323232;
     --shadow: 0 2px 2px rgba(0, 0, 0, 0.14), 0 1px 5px rgba(0, 0, 0, 0.12), 0 3px 1px -2px rgba(0, 0, 0, 0.2);
+    --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1.5 1.75l4.5 4.5 4.5-4.5' fill='none' stroke='%23727272' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
@@ -41,6 +42,7 @@
       --primary-text: #4fc3f7; --bg: #111111; --card: #1c1c1c; --sec-bg: #282828; --text: #e1e1e1; --text-2: #9b9b9b; --disabled: #6f6f6f;
       --divider: rgba(225, 225, 225, 0.12); --hover: rgba(255, 255, 255, 0.05); --state-icon: #6b9ac4; --warning-text: #ffc163;
       --chip-on: rgba(3, 169, 244, 0.22); --scrim: rgba(0, 0, 0, 0.55); --snackbar: #e1e1e1; --shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+      --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1.5 1.75l4.5 4.5 4.5-4.5' fill='none' stroke='%239b9b9b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
       color-scheme: dark;
     }
   }
@@ -48,6 +50,7 @@
     --primary-text: #4fc3f7; --bg: #111111; --card: #1c1c1c; --sec-bg: #282828; --text: #e1e1e1; --text-2: #9b9b9b; --disabled: #6f6f6f;
     --divider: rgba(225, 225, 225, 0.12); --hover: rgba(255, 255, 255, 0.05); --state-icon: #6b9ac4; --warning-text: #ffc163;
     --chip-on: rgba(3, 169, 244, 0.22); --scrim: rgba(0, 0, 0, 0.55); --snackbar: #e1e1e1; --shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+    --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1.5 1.75l4.5 4.5 4.5-4.5' fill='none' stroke='%239b9b9b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     color-scheme: dark;
   }
 
@@ -248,7 +251,11 @@
   .field { height: 40px; padding: 0 12px; border: 1px solid var(--divider); border-radius: 4px; background: var(--card); color: var(--text); font-size: 14px; min-width: 0; }
   .field:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
   .field:disabled { opacity: 0.6; cursor: not-allowed; }
-  select.field { padding-right: 8px; }
+  /* Own arrow instead of the browser's, so it sits the same in every browser and theme: 12px in from the right,
+     centred, with room for the text to stop short of it. Forced-colours mode keeps the native arrow. */
+  select.field { appearance: none; -webkit-appearance: none; padding-right: 36px; background-image: var(--select-arrow); background-repeat: no-repeat; background-position: right 12px center; background-size: 12px 8px; cursor: pointer; text-overflow: ellipsis; white-space: nowrap; }
+  select.field:disabled { cursor: not-allowed; }
+  @media (forced-colors: active) { select.field { appearance: auto; -webkit-appearance: auto; background-image: none; padding-right: 8px; } }
   .field.num { width: 96px; text-align: right; }
   .unit { color: var(--text-2); font-size: 14px; }
   .info-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--divider); }
