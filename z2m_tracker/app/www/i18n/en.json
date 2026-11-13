@@ -720,6 +720,7 @@
   "report.on": "Alert if no message for {every}",
   "report.desc": "Alerts when the device sends nothing for this long, even if Zigbee2MQTT still shows it online.",
   "report.usual": "Usually one message every {gap}. Set it a little above that.",
+  "report.unit_aria": "Reporting interval unit",
   "report.unit_s": "s",
   "report.unit_min": "min",
   "report.unit_h": "h",
@@ -1303,5 +1304,10 @@
   "shop.add_placeholder": "Type, e.g. CR2450",
   "shop.add_count": "How many",
   "shop.add_count_bad": "Enter how many to add",
-  "shop.added": "Added {n} × {type}"
+  "shop.added": "Added {n} × {type}",
+  "settings.when_day": "Summary day",
+  "settings.when_hour": "Summary hour",
+  "asset.note_saved": "Note saved",
+  "activity.show_more": "Show {n} more",
+  "devices.show_all": "Show all {n} devices"
 }
