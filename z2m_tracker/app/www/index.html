@@ -309,6 +309,7 @@
   .map-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--text-2); }
   .map-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
   .map-legend b { display: inline-block; width: 16px; height: 3px; margin-right: 6px; vertical-align: 3px; }
+  .map-legend b.dashed { background: repeating-linear-gradient(90deg, var(--text-2) 0 5px, transparent 5px 9px); }
   .advice { padding: 0 8px 12px; }
   .map-hist { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: flex-end; padding: 0 16px 10px; font-size: 13px; }
   .map-hist label { display: grid; gap: 4px; font-size: 12px; color: var(--text-2); }
@@ -333,7 +334,7 @@
   .fp { position: relative; padding: 12px; display: grid; gap: 12px; flex: 1; min-width: 0; }
   @media (max-width: 800px) { .map-stage.fp-mode { flex-direction: column; align-items: stretch; } .map-stage.fp-mode .map-info { order: 0; position: static; width: auto; margin: 8px 8px 0; box-shadow: none; } }
   .fp-lines { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 1; overflow: visible; }
-  .fp-lines path { fill: none; stroke-width: 1.6; opacity: 0.6; transition: opacity 0.15s; }
+  .fp-lines path { fill: none; stroke-width: 1.6; opacity: 0.6; transition: opacity 0.15s; pointer-events: visibleStroke; }
   .fp-lines path.hot { stroke-width: 2.6; opacity: 1; }
   .fp-lines path.dim { opacity: 0.08; }
   .fp-floor { border: 1px dashed var(--divider); border-radius: 14px; padding: 8px 10px 10px; }
@@ -923,7 +924,7 @@
             <button class="btn" data-mapreset="${esc(bt)}">${ic("refresh", "s18")}Reset layout</button>
             <button class="chip toggle" data-maplinks aria-pressed="${MAP.allLinks}">${ic("link-variant", "s18")}All router links</button>`}
             <span class="spacer"></span>
-            <div class="map-legend"><span><i style="background:var(--text)"></i>Coordinator</span><span><i style="background:var(--primary)"></i>Router</span><span><i style="background:var(--state-icon)"></i>Battery device</span><span><i style="background:var(--warning)"></i>Needs attention</span><span><b style="background:var(--success)"></b>Strong</span><span><b style="background:var(--warning)"></b>Fair</span><span><b style="background:var(--error)"></b>Weak</span></div></div>
+            <div class="map-legend"><span><i style="background:var(--text)"></i>Coordinator</span><span><i style="background:var(--primary)"></i>Router</span><span><i style="background:var(--state-icon)"></i>Battery device</span><span><i style="background:var(--warning)"></i>Needs attention</span><span><b style="background:var(--success)"></b>Strong</span><span><b style="background:var(--warning)"></b>Fair</span><span><b style="background:var(--error)"></b>Weak</span>${MAP.layout === "floor" ? `<span title="Inferred from the scan: the router's strongest link towards the coordinator"><b class="dashed"></b>Likely route</span>` : ""}</div></div>
           ${MAP.layout === "floor" ? `<div class="map-stage fp-mode"><div class="map-info" id="mapinfo-${esc(bt)}" hidden></div>${FP.floors ? fpHtml(bt) : `<div class="card-content muted">Loading floors and areas…</div>`}</div>` : `<div class="map-stage"><svg class="map" id="map-${esc(bt)}" role="img" aria-label="${esc(netLabel(bt))} network map"><g class="vp"><g class="links"></g><g class="nodes"></g></g></svg>
             <div class="map-info" id="mapinfo-${esc(bt)}" hidden></div></div>`}
           ${diff ? `<div class="map-legend" style="padding:8px 16px 0"><span><b style="background:var(--info);height:4px"></b>Changed router</span><span><b style="background:var(--success);height:4px"></b>Stronger</span><span><b style="background:var(--error);height:4px"></b>Weaker</span><span><b style="background:var(--disabled)"></b>Unchanged</span></div>` : ""}
@@ -1148,7 +1149,7 @@
       const box = root.getBoundingClientRect();
       const at = (ieee) => { const r = els.get(ieee).querySelector("i").getBoundingClientRect(); return [r.left + r.width / 2 - box.left, r.top + r.height / 2 - box.top]; };
       svg.setAttribute("width", root.scrollWidth); svg.setAttribute("height", root.scrollHeight);
-      svg.innerHTML = lines.map((l, i) => { const [x1, y1] = at(l.a), [x2, y2] = at(l.b); const bend = Math.max(-60, Math.min(60, (x2 - x1) * 0.15)); return `<path data-i="${i}" d="M${x1.toFixed(1)},${y1.toFixed(1)} Q${((x1 + x2) / 2 + bend).toFixed(1)},${((y1 + y2) / 2 - Math.abs(bend)).toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}" stroke="${lqiCol(l.lqi)}" ${l.parent ? "" : 'stroke-dasharray="5 4"'}><title>LQI ${esc(l.lqi ?? "?")}</title></path>`; }).join("");
+      svg.innerHTML = lines.map((l, i) => { const [x1, y1] = at(l.a), [x2, y2] = at(l.b); const bend = Math.max(-60, Math.min(60, (x2 - x1) * 0.15)); return `<path data-i="${i}" d="M${x1.toFixed(1)},${y1.toFixed(1)} Q${((x1 + x2) / 2 + bend).toFixed(1)},${((y1 + y2) / 2 - Math.abs(bend)).toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}" stroke="${lqiCol(l.lqi)}" ${l.parent ? "" : 'stroke-dasharray="5 4"'}><title>${l.parent ? "" : "Likely route, inferred from the scan · "}LQI ${esc(l.lqi ?? "?")}</title></path>`; }).join("");
       highlight();
     };
     const highlight = () => {
