@@ -36,6 +36,19 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def _stamp_offline_since(record: dict) -> bool:
+    """Give an offline device with no start time one, counting from now.
+
+    Old data files can hold a device that is offline with no
+    availability_since, so the offline alert never fired for it. Counting from
+    when the tracker first saw it offline lets the alert threshold apply.
+    """
+    if record.get("availability") == "offline" and not record.get("availability_since"):
+        record["availability_since"] = _now()
+        return True
+    return False
+
+
 def _slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
 
@@ -246,6 +259,8 @@ class Tracker:
                     if key not in ("devices", "events", "imported", "networkmap", "alerted"):
                         self.data[key] = value
             for record in self.data["devices"].values():
+                if _stamp_offline_since(record):
+                    self.dirty = True
                 if record["status"] == STATUS_ACTIVE and record["friendly_name"] and record["instance"]:
                     self.names.setdefault(record["instance"], {})[record["friendly_name"]] = record["ieee"]
             if source == "migrated":
@@ -598,6 +613,8 @@ class Tracker:
             return
         previous = record["availability"]
         if previous == state:
+            if _stamp_offline_since(record):
+                self._changed(structural=True)
             return
         now = _now()
         record["availability"] = state
