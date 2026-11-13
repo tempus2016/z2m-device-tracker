@@ -1170,5 +1170,33 @@
   "coord.memory_chart": "Memory, last 14 days",
   "coord.memory_bar": "{date}: {n} MB",
   "coord.today": "today",
-  "coord.health_off": "No health data from Zigbee2MQTT yet. It needs version 2.5 or newer, and sends every 10 minutes by default (Settings → Settings → Health → Interval)."
+  "coord.health_off": "No health data from Zigbee2MQTT yet. It needs version 2.5 or newer, and sends every 10 minutes by default (Settings → Settings → Health → Interval).",
+  "issue.label.group_member_offline": "Group members offline",
+  "issue.group_member_offline.title": "Group members offline",
+  "issue.group_member_offline.detail": {
+    "one": "{n} of {total} members offline: {names}.",
+    "other": "{n} of {total} members offline: {names}."
+  },
+  "check.group_member_offline.label": "Group members offline",
+  "check.group_member_offline.description": "A Zigbee2MQTT group has members that have been offline for longer than the offline threshold.",
+  "groups.title": "Groups",
+  "groups.subtitle": {
+    "one": "{n} Zigbee2MQTT group, all members fine",
+    "other": "{n} Zigbee2MQTT groups, all members fine"
+  },
+  "groups.subtitle_problems": {
+    "one": "{n} Zigbee2MQTT group, {bad} with members to check",
+    "other": "{n} Zigbee2MQTT groups, {bad} with members to check"
+  },
+  "groups.online": {
+    "one": "{online} of {n} member online",
+    "other": "{online} of {n} members online"
+  },
+  "groups.left_one": "1 member left the group on {date}",
+  "groups.left_many": "{n} members left the group",
+  "groups.offline_n": "{n} offline",
+  "groups.check": "Check",
+  "groups.chip_offline": "{name} · offline {duration}",
+  "groups.chip_offline_now": "{name} · offline",
+  "groups.chip_left": "{name} · left {date}"
 }

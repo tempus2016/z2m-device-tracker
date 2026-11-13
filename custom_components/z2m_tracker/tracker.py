@@ -189,15 +189,17 @@ class Z2MTracker:
                 ir.async_delete_issue(self.hass, DOMAIN, issue_id)
         for issue_id, issue in wanted.items():
             device = str(issue.get("ieee") or "")
+            # Network and group issues have no single device to fix or mute.
+            network = device.startswith(("network:", "group:"))
             ir.async_create_issue(
                 self.hass,
                 DOMAIN,
                 issue_id,
                 data={"ieee": device, "kind": str(issue.get("kind") or "")},
-                is_fixable=not device.startswith("network:"),
+                is_fixable=not network,
                 is_persistent=False,
                 severity=ir.IssueSeverity.WARNING,
-                translation_key="network_issue" if device.startswith("network:") else "device_issue",
+                translation_key="network_issue" if network else "device_issue",
                 translation_placeholders={
                     "name": str(issue.get("name") or issue.get("ieee") or ""),
                     "title": str(issue.get("label") or issue.get("title") or ""),

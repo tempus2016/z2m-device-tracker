@@ -455,6 +455,15 @@
   .adv:hover { background: var(--hover); }
   .adv .state-ic { width: 36px; height: 36px; }
   .adv .text { padding-top: 6px; line-height: 1.5; flex: 1; min-width: 0; }
+  .members { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 14px 72px; border-bottom: 1px solid var(--divider); }
+  .members:last-child { border-bottom: 0; }
+  .members a { display: inline-flex; align-items: center; gap: 6px; min-height: 26px; padding: 0 10px; border-radius: 13px; border: 1px solid var(--divider); font-size: 12px; color: var(--text); text-decoration: none; max-width: 100%; overflow-wrap: anywhere; }
+  .members a:hover { background: var(--hover); }
+  .members a::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--c, var(--success)); }
+  .row.has-members { border-bottom: 0; }
+  .row.compact { min-height: 52px; }
+  .row.compact .state-ic { width: 32px; height: 32px; margin: 0 4px; }
+  @media (max-width: 520px) { .members { padding-left: 16px; } }
   .adv > .btn { flex: none; margin-top: 4px; }
   @media (max-width: 600px) { svg.map { height: 420px; } .map-info { position: static; width: auto; margin: 8px; } }
   .map-stage.fp-mode { overflow: visible; display: flex; align-items: flex-start; }
@@ -591,7 +600,7 @@
     removed: { get label() { return t("status.removed"); }, c: "var(--disabled)" },
   };
   const KIND_ICON = { offline: "wifi-off", silent: "wifi-off", late: "history", frozen: "thermometer", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
-    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal" };
+    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb" };
   const EVENT_ICON = (k) => {
     if (k.startsWith("interview")) return k.endsWith("successful") ? ["check", "var(--success)"] : ["alert-circle", "var(--error)"];
     return ({ joined: ["plus", "var(--success)"], added: ["plus", "var(--success)"], rejoined: ["plus", "var(--success)"], online: ["wifi", "var(--success)"], offline: ["wifi-off", "var(--error)"],
@@ -734,7 +743,9 @@
   const issueLabel = (i) => tx(`issue.label.${i.kind}`, null, i.label);
   const issueTitle = (i) => (i.msg ? tx(`issue.${i.msg}.title`, issueVars(i), i.title) : i.title);
   const issueDetail = (i) => (i.msg ? tx(`issue.${i.msg}.detail`, issueVars(i), i.detail) : i.detail);
-  const issueName = (i) => (String(i.ieee).startsWith("network:") && i.instance ? t("net.network", { name: netLabel(i.instance) }) : i.name);
+  const isNetIssue = (i) => /^(network|group):/.test(String(i.ieee));
+  const groupName = (name, bt) => (state.data.instances.length > 1 ? `${name} (${netLabel(bt)})` : name);
+  const issueName = (i) => (String(i.ieee).startsWith("network:") && i.instance ? t("net.network", { name: netLabel(i.instance) }) : String(i.ieee).startsWith("group:") && i.instance ? groupName(i.name, i.instance) : i.name);
   const findingText = (f) => {
     if (!f.msg) return f.text;
     const p = { ...(f.params || {}) };
@@ -944,7 +955,7 @@
     const item = (i) => {
       const d = state.byIeee.get(i.ieee);
       const tone = i.severity === "warning" ? "var(--warning)" : "var(--info)";
-      if (String(i.ieee).startsWith("network:")) {
+      if (isNetIssue(i)) {
         const panel = state.data.panels?.[i.instance];
         const icon = { network_offline: "lan-disconnect", coordinator_backup: "download", pairing_open: "link-variant" }[i.kind] || KIND_ICON[i.kind] || "refresh";
         const close = i.kind === "pairing_open" ? `<button class="btn danger" data-act="pair-stop" data-net="${esc(i.instance)}">${th("health.close_now")}</button>` : "";
@@ -988,6 +999,7 @@
       ${coordinatorsCard()}
       ${shoppingCard()}
       ${radioCard()}
+      ${groupsCard()}
       ${warn.length ? `<div class="section-title">${th("health.needs_attention")} <span>${warn.length}</span></div><div class="card">${warn.map(item).join("")}</div>` : ""}
       ${info.length ? `<div class="section-title">${th("health.worth_a_look")} <span>${info.length}</span></div><div class="card">${info.map(item).join("")}</div>` : ""}
       ${!own.length ? `<div class="card">${emptyState("check", th("health.all_clear"), th("health.all_clear_text"))}</div>` : ""}`;
@@ -1079,6 +1091,37 @@
         <div class="hour-axis"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span></div>
         ${issue ? `<div class="hour-dip"><div class="alert" style="--a:var(--warning)">${ic("signal")}<div class="body"><b>${esc(issueTitle(issue))}.</b> ${esc(issueDetail(issue))}</div></div></div>` : ""}`;
     }).join("");
+  };
+
+  // Zigbee2MQTT groups: members offline, and members that left the group while staying on the network.
+  const groupsCard = () => {
+    const groups = state.data.group_health || [];
+    if (!groups.length) return "";
+    const iconOf = (g) => {
+      const count = {};
+      g.members.forEach((m) => { const d = state.byIeee.get(m.ieee); if (d) { const k = kindIcon(d); count[k] = (count[k] || 0) + 1; } });
+      return Object.keys(count).sort((a, b) => count[b] - count[a])[0] || "lightbulb";
+    };
+    const chip = (ieee, color, text) => `<a href="#${esc(ieee)}" data-open="${esc(ieee)}"${color ? ` style="--c:${color}"` : ""}>${esc(text)}</a>`;
+    const row = (g) => {
+      const online = g.total - g.offline;
+      const bad = g.offline > 0, left = g.left.length > 0;
+      const facts = [t("groups.online", { online, n: g.total })];
+      if (left) facts.push(g.left.length === 1 ? t("groups.left_one", { date: fmtDate(g.left[0].at, false) }) : t("groups.left_many", { n: g.left.length }));
+      const tone = bad ? "var(--warning)" : left ? "var(--state-icon)" : "var(--success)";
+      const pill = bad ? `<span class="badge warn">${th("groups.offline_n", { n: g.offline })}</span>` : left ? `<span class="badge info">${th("groups.check")}</span>` : "";
+      const head = `<div class="row${bad || left ? " has-members" : " compact"}"><span class="state-ic" style="color:${tone}">${ic(iconOf(g), bad || left ? "" : "s18")}</span>
+        <div class="text"><div class="t1">${esc(groupName(g.name, g.instance))}</div><div class="t2">${esc(facts.join(" · "))}</div></div>${pill}</div>`;
+      if (!bad && !left) return head;
+      const chips = g.members.map((m) => m.offline
+        ? chip(m.ieee, "var(--error)", m.offline_seconds !== null && m.offline_seconds !== undefined ? t("groups.chip_offline", { name: m.name, duration: span(m.offline_seconds) }) : t("groups.chip_offline_now", { name: m.name }))
+        : chip(m.ieee, null, m.name));
+      const gone = g.left.map((m) => chip(m.ieee, "var(--disabled)", t("groups.chip_left", { name: m.name, date: fmtDate(m.at, false) })));
+      return `${head}<div class="members">${[...chips, ...gone].join("")}</div>`;
+    };
+    const problems = groups.filter((g) => g.offline || g.left.length).length;
+    return `<div class="card"><div class="card-header">${ic("lightbulb")}<div>${th("groups.title")}<small>${problems ? th("groups.subtitle_problems", { n: groups.length, bad: problems }) : th("groups.subtitle", { n: groups.length })}</small></div></div>
+      ${groups.map(row).join("")}</div>`;
   };
 
   const shoppingCard = () => {

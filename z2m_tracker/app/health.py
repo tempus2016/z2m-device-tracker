@@ -134,6 +134,12 @@ CHECKS = [
         "Link quality drops across a network at the same 1 to 4 hours on at least 4 of the last 7 days.",
         False,
     ),
+    (
+        "group_member_offline",
+        "Group members offline",
+        "A Zigbee2MQTT group has members that have been offline for longer than the offline threshold.",
+        False,
+    ),
     ("joined", "Device joined", "A device joins one of your networks.", True),
     ("left", "Device left", "A device leaves one of your networks.", True),
     ("interview_failed", "Interview failed", "A newly joined device couldn't be identified.", True),
@@ -169,6 +175,7 @@ KIND_LABELS = {
     "coordinator_backup": "Coordinator backup",
     "z2m_memory": "Memory climbing",
     "signal_dip": "Daily signal dip",
+    "group_member_offline": "Group members offline",
 }
 
 
