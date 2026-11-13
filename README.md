@@ -39,17 +39,18 @@ It has two parts, both in this repository:
 - **Device history**: names, renames, model, firmware, area, joins, leaves and removals, with notes and asset details.
 - **Health checks and alerts**: offline, silent, frozen readings, weak or dropping signal, low battery, failed interviews, unidentified devices. Alerts go to HA notifications, events or a notify service.
 - **More checks**: flapping devices, chatty devices, fast battery drain, lost bindings, single points of failure (routers), and a missing, stale or mismatched coordinator backup. They show in Health and only notify once you turn them on.
-- **Bindings and traffic**: each device's current and lost bindings with a history of changes, its message rates, and Zigbee2MQTT's own message, leave and address-change counters.
+- **Bindings and traffic**: each device's current and lost bindings with a history of changes and a Restore button for each lost one, its message rates, and Zigbee2MQTT's own message, leave and address-change counters.
 - **Coordinator health**: Zigbee2MQTT version, coordinator firmware, uptime, restarts, outages and coordinator backup, and an alert when a network goes offline.
 - **Radio channels**: shows your Zigbee channels against your 2.4 GHz Wi-Fi channels and warns about overlap.
-- **Network map**: interactive map with advice on which router a device should use and which routers are a single point of failure, nightly routing scans, a before/after comparison between scans, and a floor-plan layout that groups devices by Home Assistant floor and area.
-- **Device actions**: pair through a chosen router, move a device to another router, reconfigure, rename, set area, OTA updates.
+- **Network map**: interactive map with advice on which router a device should use and which routers are a single point of failure, nightly routing scans, a before/after comparison between scans, and a floor-plan layout that groups devices by Home Assistant floor and area. Click a group in the legend (routers, battery devices, needs attention) to show only those devices.
+- **Device actions**: pair through a chosen router, move a device to another router, reconfigure, rename, set area, OTA updates. Names and areas stay in step with Home Assistant: a change made there shows in the app within seconds.
 - **Firmware updates**: one list of every device with an update, installed and available versions, update all one device at a time, an optional overnight window that skips low batteries, and a log of past updates.
 - **Replace a device**: swap a dead device for a new one in three steps. The new device takes over its name, area, bindings, notes and, if you want, battery record, the old one is removed from Zigbee2MQTT, and both histories are linked.
 - **Batteries**: battery type and count (built-in library from Battery Notes), replacement records, estimates and a shopping list. With the integration, the shopping list is a Home Assistant to-do list (tick an item to mark those batteries replaced) and a calendar shows each predicted replacement date.
 - **Long-range trends**: each device's link quality and battery over 24 hours, 7, 30 or 90 days, with a daily min–max band, battery changes and a projection to when the battery runs low.
 - **Home Assistant entities**: MQTT discovery sensors attached to each Zigbee2MQTT device for use in automations.
 - **Actions for automations** (integration): record a battery change, mute a device, run a network scan, reconfigure, start a firmware update, add to a device's note. Pick devices by name.
+- **Your language**: the sidebar follows the language in your Home Assistant profile, or one you pick in Settings. English ships today; [CONTRIBUTING.md](CONTRIBUTING.md) explains how to add a translation.
 - Weekly summary, temporary ignore, backup and restore, CSV export.
 
 ## Screenshots
@@ -62,6 +63,14 @@ It has two parts, both in this repository:
   <tr>
     <td width="50%" valign="top"><img src="https://raw.githubusercontent.com/tempus2016/z2m-device-tracker/main/docs/images/map.png" alt="Routing, link quality and advice on better routers"><br><b>Network map</b>: routing, link quality and advice on better routers</td>
     <td width="50%" valign="top"><img src="https://raw.githubusercontent.com/tempus2016/z2m-device-tracker/main/docs/images/radio.png" alt="Zigbee channels against your Wi-Fi channels"><br><b>Radio channels</b>: Zigbee channels against your Wi-Fi channels</td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top"><img src="https://raw.githubusercontent.com/tempus2016/z2m-device-tracker/main/docs/images/floor-plan.png" alt="Devices grouped by floor and area, with weak areas flagged"><br><b>Floor plan</b>: devices by floor and area, with weak areas flagged</td>
+    <td width="50%" valign="top"><img src="https://raw.githubusercontent.com/tempus2016/z2m-device-tracker/main/docs/images/updates.png" alt="Firmware updates for every device, installed one at a time"><br><b>Firmware updates</b>: every update in one list, with an overnight window</td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top"><img src="https://raw.githubusercontent.com/tempus2016/z2m-device-tracker/main/docs/images/trends.png" alt="A device's link quality and battery over 30 days"><br><b>Trends</b>: link quality and battery over up to 90 days</td>
+    <td width="50%" valign="top"><img src="https://raw.githubusercontent.com/tempus2016/z2m-device-tracker/main/docs/images/replace-wizard.png" alt="Choosing what a new device takes over from the one it replaces"><br><b>Replace a device</b>: the new one takes over name, area and setup</td>
   </tr>
 </table>
 
