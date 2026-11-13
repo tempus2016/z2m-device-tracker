@@ -162,6 +162,148 @@ def late_deadline(record: dict, started: float) -> float | None:
     return max(seen, started) + every
 
 
+# Zigbee2MQTT's own availability defaults, in minutes: active = mains/router devices it pings,
+# passive = battery devices it only listens for.
+Z2M_ACTIVE_MINUTES = 10
+Z2M_PASSIVE_MINUTES = 1500
+SILENT_SECONDS = 2 * 86400
+
+
+def _minutes(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        return None
+    return value
+
+
+def _device_availability(value: Any) -> bool | float | None:
+    """A device's `availability` option as False, True or a timeout in minutes (None = not set)."""
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return _minutes(value.get("timeout")) or True
+    return bool(value)
+
+
+def z2m_availability(info: dict) -> dict | None:
+    """The availability bits of Zigbee2MQTT's bridge/info config, or None if it sent no config.
+
+    2.x always sends `availability: {enabled, active: {timeout}, passive: {timeout}}`.
+    1.x sends nothing (off), `{}` / an object (on), or turns it on with the deprecated
+    `advanced.availability_timeout`, and can limit it with pass/block lists.
+    Per-device options: `false`, `true` or `{timeout}`, merged over `device_options`.
+    """
+    config = info.get("config")
+    if not isinstance(config, dict):
+        return None
+    try:
+        major = int(str(info.get("version") or "").split(".")[0])
+    except ValueError:
+        major = 0
+    raw = config.get("availability")
+    if not major:
+        major = 2 if isinstance(raw, dict) and "enabled" in raw else 1
+    advanced = config.get("advanced") if isinstance(config.get("advanced"), dict) else {}
+    if major >= 2:
+        enabled = bool(raw.get("enabled")) if isinstance(raw, dict) else bool(raw)
+    else:
+        enabled = raw is True or isinstance(raw, dict) or bool(advanced.get("availability_timeout"))
+    block = raw if isinstance(raw, dict) else {}
+    out: dict[str, Any] = {
+        "major": major,
+        "enabled": enabled,
+        "active": _minutes((block.get("active") or {}).get("timeout")) or Z2M_ACTIVE_MINUTES,
+        "passive": _minutes((block.get("passive") or {}).get("timeout")) or Z2M_PASSIVE_MINUTES,
+    }
+    default = _device_availability((config.get("device_options") or {}).get("availability"))
+    if default is not None:
+        out["default"] = default
+    devices = {}
+    for ieee, opts in (config.get("devices") or {}).items():
+        if not isinstance(opts, dict):
+            continue
+        if opts.get("disabled"):
+            devices[str(ieee).lower()] = False
+        elif "availability" in opts:
+            devices[str(ieee).lower()] = _device_availability(opts["availability"])
+    if devices:
+        out["devices"] = devices
+    if major < 2:
+        for key, names in (
+            ("passlist", ("availability_passlist", "availability_whitelist")),
+            ("blocklist", ("availability_blocklist", "availability_blacklist")),
+        ):
+            items = [str(x) for name in names for x in advanced.get(name) or []]
+            if items:
+                out[key] = items
+    return out
+
+
+def _z2m_active(record: dict, major: int) -> bool:
+    """Zigbee2MQTT pings "active" devices (shorter timeout); the rest are "passive" (battery)."""
+    power = record.get("power_source")
+    if record.get("type") == "Router" and power != "Battery":
+        return True
+    if major >= 2:
+        return power not in (None, "Unknown", "Battery")
+    return power == "Mains (single phase)"
+
+
+def offline_timing(record: dict, availability: dict | None, options: dict, now: float) -> dict | None:
+    """When each alert fires for a device, counted from its last message.
+
+    Steps are in seconds after the last message. Zigbee2MQTT marks a device offline after its own
+    timeout; the Offline alert then waits offline_alert_minutes more. Without Z2M availability the
+    only check is Not heard from, after 2 days. None when Z2M hasn't sent its config yet.
+    """
+    if availability is None or record.get("type") == "Coordinator" or record.get("status") != "active":
+        return None
+    off = set(active_mutes(record, now)) | set(options.get("disabled_checks") or [])
+    major = availability.get("major") or 2
+    active = _z2m_active(record, major)
+    ieee = record["ieee"].lower()
+    devices = availability.get("devices") or {}
+    if ieee in devices:
+        setting, where = devices[ieee], "device"
+    else:
+        setting, where = availability.get("default"), "all"
+    names = {ieee, record.get("friendly_name") or ""}
+    if setting is False:
+        tracked, why = False, "device" if where == "device" else "network"
+    elif setting is not None:
+        tracked, why = True, None
+    elif not availability.get("enabled"):
+        tracked, why = False, "network"
+    elif availability.get("passlist"):
+        tracked = bool(names & set(availability["passlist"]))
+        why = None if tracked else "device"
+    else:
+        tracked = not names & set(availability.get("blocklist") or [])
+        why = None if tracked else "device"
+
+    out: dict[str, Any] = {"tracked": tracked, "why": why, "mode": "active" if active else "passive"}
+    steps = [{"kind": "last", "at": 0}]
+    if tracked:
+        if _minutes(setting):
+            minutes, source = setting, "device" if where == "device" else "custom"
+        else:
+            minutes = availability.get("active" if active else "passive")
+            default = Z2M_ACTIVE_MINUTES if active else Z2M_PASSIVE_MINUTES
+            minutes = _minutes(minutes) or default
+            source = "default" if minutes == default else "custom"
+        z2m = int(minutes * 60)
+        delay = max(0, int(options.get("offline_alert_minutes", 60))) * 60
+        out.update(z2m=z2m, source=source, delay=delay, total=z2m + delay)
+        steps.append({"kind": "z2m", "at": z2m})
+        steps.append({"kind": "offline", "at": z2m + delay, "off": "offline" in off})
+    else:
+        steps.append({"kind": "silent", "at": SILENT_SECONDS, "off": "silent" in off})
+    every = record.get("report_every")
+    if every:
+        steps.append({"kind": "late", "at": int(every), "off": "late" in off})
+    out["steps"] = sorted(steps, key=lambda s: s["at"])
+    return out
+
+
 def mutes_of(record: dict) -> dict[str, str | None]:
     """Muted kinds as {kind: until_iso or None (forever)}; older records stored a plain list."""
     muted = record.get("muted") or {}

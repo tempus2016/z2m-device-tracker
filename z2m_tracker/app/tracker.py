@@ -15,7 +15,16 @@ from collections.abc import Callable
 from datetime import datetime, timezone, tzinfo
 from typing import Any
 
-from health import REPORT_EVERY_MAX, REPORT_EVERY_MIN, device_issues, late_deadline, mutes_of, uptime
+from health import (
+    REPORT_EVERY_MAX,
+    REPORT_EVERY_MIN,
+    device_issues,
+    late_deadline,
+    mutes_of,
+    offline_timing,
+    uptime,
+    z2m_availability,
+)
 from history_import import IEEE_RE, _features, collect_history
 from metrics import Metrics
 
@@ -1420,6 +1429,10 @@ class Tracker:
                 item["issues"] = issues_by_device.get(ieee, [])
                 item["battery_record"] = self.battery_summary(record) if self.is_battery_device(record) else None
                 item["suggestions"] = suggestions.get(ieee, [])
+                bridge_info = (self.data.get("bridges") or {}).get(record.get("instance")) or {}
+                item["offline_timing"] = offline_timing(
+                    record, (bridge_info.get("info") or {}).get("availability"), self.options, now
+                )
                 devices.append(item)
             payload = {
                 "devices": devices,
@@ -1783,6 +1796,8 @@ class Tracker:
             "channel": network.get("channel"),
             "pan_id": network.get("pan_id"),
             "restart_required": bool(info.get("restart_required")),
+            # Only Z2M's availability settings, not its whole config, to keep history.json small.
+            "availability": z2m_availability(info),
         }
         bridge = self._bridge(base_topic)
         if bridge.get("info") != slim:

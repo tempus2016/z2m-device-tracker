@@ -254,6 +254,13 @@
   .kv > div:hover { background: var(--hover); }
   .kv span { color: var(--text-2); flex: none; }
   .kv b { font-weight: 400; text-align: right; overflow-wrap: anywhere; min-width: 0; }
+  .steps { margin: 4px 16px 8px; padding-left: 8px; }
+  .st2 { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: baseline; position: relative; padding: 6px 0 6px 18px; border-left: 2px solid var(--divider); }
+  .st2:last-child { border-left-color: transparent; }
+  .st2::before { content: ""; position: absolute; left: -7px; top: 10px; width: 12px; height: 12px; border-radius: 50%; background: var(--c); }
+  .st2 b, .st2 strong, .kv .sum b { font-weight: 500; }
+  .st2.off { opacity: 0.6; }
+  .tnote { font-size: 12px; color: var(--text-2); padding: 0 16px 14px; margin: 0; }
   .sub-h { padding: 16px 16px 4px; font-size: 14px; font-weight: 500; color: var(--text-2); }
   .chart { width: 100%; height: 120px; display: block; }
   .chart-wrap { padding: 4px 16px 0; }
@@ -1582,7 +1589,7 @@
     const m = d.metrics || {};
     const outages = [...(d.outages || [])].reverse().slice(0, 8);
     const readings = Object.entries(d.readings || {});
-    return `
+    return `${offlineTiming(d)}
       <div class="sub-h">${th("dhealth.signal")}</div>
       ${kv([[th("dhealth.now"), d.lqi ?? "—"], [th("dhealth.avg_24h"), m.lqi_24h ?? "—"], [th("dhealth.prev_week"), m.lqi_prev_7d ?? "—"]])}
       ${sparkline(m.lqi_spark, { min: 0, max: 255 })}
@@ -1592,6 +1599,39 @@
       <div class="sub-h">${th("dhealth.readings")}</div>
       ${readings.length ? `<div class="rep-list">${readings.map(([k, r]) => `<div><span>${esc(readingName(k))}: ${esc(r.value)}</span><span class="muted">${th("dhealth.changed", { when: esc(relTime(r.changed_at, true)), n: esc(r.reports) })}</span></div>`).join("")}</div>` : `<div class="card-content muted">${th("dhealth.no_readings")}</div>`}
       ${(d.muted || []).length ? `<div class="sub-h">${th("settings.ignored")}</div><div class="rep-list">${d.muted.map((k) => `<div><span>${esc(tx(`check.${k}.label`, null, cap(k.replace(/_/g, " "))))}</span><button class="btn" data-act="unmute" data-ieee="${esc(d.ieee)}" data-kind="${esc(k)}">${th("common.stop_ignoring")}</button></div>`).join("")}</div>` : ""}`;
+  };
+
+  // "When this device alerts": the server works out the steps (health.offline_timing), this only draws them.
+  const offlineTiming = (d) => {
+    const ot = d.offline_timing;
+    if (!ot) return "";
+    const muted = (key) => `<span class="muted">(${key})</span>`;
+    // Exact, not rounded like span(): 70 min must not read as "1 h".
+    const span = (s) => {
+      if (s % 60 || s < 60) return t("unit.seconds", { n: s });
+      if (s % 3600) return s < 86400 ? t("unit.minutes", { n: s / 60 }) : `${t("unit.hours", { n: Math.floor(s / 3600) })} ${t("unit.minutes", { n: (s % 3600) / 60 })}`;
+      return s % 86400 || s < 172800 ? t("unit.hours", { n: s / 3600 }) : t("unit.days", { n: s / 86400 });
+    };
+    const alert = (kind) => th("timing.alert", { name: `<strong>${esc(tx(`check.${kind}.label`, null, cap(kind)))}</strong>` });
+    const src = ot.source === "default" ? th(`timing.src.default_${ot.mode}`) : th(`timing.src.${ot.source}`);
+    const label = (s) => {
+      if (s.kind === "last") return th("timing.last");
+      if (s.kind === "z2m") return `${th("timing.z2m")} ${muted(src)}`;
+      const note = s.kind === "late" ? th("timing.late_note", { every: esc(span(s.at)) })
+        : s.kind === "offline" ? th("timing.offline_note", { z2m: esc(span(ot.z2m)), delay: esc(span(ot.delay)) })
+        : th(`timing.not_tracked_${ot.why}`);
+      return `${alert(s.kind)} ${muted(s.off ? `${note} · ${th("timing.off")}` : note)}`;
+    };
+    const color = (s) => (s.kind === "last" || s.kind === "z2m" ? "var(--text-2)" : s.kind === "late" ? "var(--info)" : "var(--error)");
+    const steps = `<div class="steps">${ot.steps.map((s) => `<div class="st2${s.off ? " off" : ""}" style="--c:${color(s)}"><b>${esc(s.at ? span(s.at) : t("unit.minutes", { n: 0 }))}</b><span>${label(s)}</span></div>`).join("")}</div>`;
+    const row = (k, v, sum) => `<div${sum ? ' class="sum"' : ""}><span>${k}</span><b>${v}</b></div>`;
+    const late = ot.steps.find((s) => s.kind === "late");
+    const rows = ot.tracked
+      ? [row(th("timing.z2m_timeout"), `${esc(span(ot.z2m))} ${muted(src)}`), row(th("timing.delay"), `+ ${esc(span(ot.delay))} ${muted(th("timing.delay_src"))}`),
+        row(th("timing.alert", { name: th("check.offline.label") }), th("timing.about_after", { time: esc(span(ot.total)) }), true)]
+      : [row(th("timing.z2m_timeout"), th("timing.not_tracked")), row(th("timing.alert", { name: th("check.silent.label") }), th("timing.after", { time: esc(span(ot.steps.find((s) => s.kind === "silent").at)) }), true)];
+    if (late) rows.push(row(th("timing.alert", { name: th("check.late.label") }), th("timing.after", { time: esc(span(late.at)) }), true));
+    return `<div class="sub-h">${th("timing.title")}</div>${steps}<div class="kv">${rows.join("")}</div><p class="tnote">${th(ot.tracked ? "timing.hint" : "timing.hint_off")}</p>`;
   };
 
   // Per-device "should report at least every" interval; stored in seconds, edited as a number + unit.
