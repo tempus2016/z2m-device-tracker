@@ -461,6 +461,15 @@
   .dt tbody tr[aria-selected="true"] :is(.name-2, .cell-sub, .muted) { color: color-mix(in srgb, var(--text-2) 70%, var(--text)); }
   .dt tbody tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 var(--primary); }
   @media (max-width: 1360px) { table.dt.compact th.hide-md, table.dt.compact td.hide-md { display: none; } }
+  /* Last seen joins the status cell wherever its own column is hidden (phones put it in the second line instead). */
+  .st-seen { display: none; }
+  .st-seen::before { content: "·"; margin: 0 6px; }
+  @media (max-width: 1360px) { table.dt.compact .st-seen { display: inline; } }
+  /* When the side pane leaves the list narrow, stack the time under the status so the table doesn't scroll sideways. */
+  .table-wrap { container-type: inline-size; }
+  @container (max-width: 720px) { table.dt.compact .st-seen { display: block; padding-left: 16px; font-size: 12px; } table.dt.compact .st-seen::before { content: none; } }
+  /* Tablet widths have no room beside the status, so the time goes under it, lined up with the status word. */
+  @media (min-width: 601px) and (max-width: 870px) { .dt .st-seen { display: block; padding-left: 16px; font-size: 12px; } .dt .st-seen::before { content: none; } }
   .tools-right { display: flex; gap: 8px; align-items: center; margin-left: auto; }
   .chip.toggle .mdi { display: block; }
   .dt tr.grp td { height: 40px; background: var(--sec-bg); color: var(--text-2); font-weight: 500; cursor: default; }
@@ -1079,17 +1088,18 @@
         : d.status !== "removed" && power ? `<span class="muted">${power}</span>` : `<span class="muted">—</span>`;
       const prev = former.length ? t("devices.previously", { names: former.join(", ") }) : null;
       const second = pane ? [d.area, prev || deviceLine(d)].filter(Boolean).join(" · ") : prev || d.ieee;
-      // Phones hide the battery and signal columns, so they move into the second line instead of the IEEE address.
-      const phoneLine = d.status === "removed" ? esc(second) : [typeof d.battery === "number" ? bat : power ? esc(power) : null, lqi === null ? null : sigBars(lqi), st !== "active" || ["silent", "late"].includes(w?.kind) ? esc(relTime(d.last_seen)) : null].filter(Boolean).join('<span class="sep"></span>');
+      const seen = esc(relTime(d.last_seen)), seenTitle = esc(fmtDate(d.last_seen));
+      // Phones hide the battery, signal and last seen columns, so they move into the second line instead of the IEEE address.
+      const phoneLine = d.status === "removed" ? esc(second) : [typeof d.battery === "number" ? bat : power ? esc(power) : null, lqi === null ? null : sigBars(lqi), `<span title="${seenTitle}">${seen}</span>`].filter(Boolean).join('<span class="sep"></span>');
       return `<tr class="${st === "removed" ? "removed" : ""}" data-open="${esc(d.ieee)}" tabindex="0" aria-selected="${state.open === d.ieee}">
         <td class="ic-cell">${stateIc(d)}</td>
         <td><div class="name">${esc(nameOf(d) || t("devices.unnamed"))}${d.critical && d.status !== "removed" ? ` ${critTag()}` : ""}</div><div class="name-2 lg-only">${esc(second)}</div>${phoneLine ? `<div class="name-2 sm-only phone-line">${phoneLine}</div>` : ""}</td>
         <td class="cell-sub hide-sm col-area">${esc(d.area || "—")}</td>
         <td class="cell-sub hide-md col-model">${esc(deviceLine(d) || (d.oui_vendor ? t("devices.radio_of", { vendor: d.oui_vendor }) : t("common.unknown")))}</td>
-        <td><span class="st" style="--c:${statusC}">${esc(statusTxt)}</span></td>
+        <td><span class="st" style="--c:${statusC}">${esc(statusTxt)}</span><span class="st-seen muted" title="${seenTitle}">${seen}</span></td>
         <td class="num hide-sm">${bat}</td>
         <td class="num hide-md">${lqi === null ? '<span class="muted">—</span>' : sigBars(lqi)}</td>
-        <td class="cell-sub hide-md" title="${esc(fmtDate(d.last_seen))}">${esc(relTime(d.last_seen))}</td>
+        <td class="cell-sub hide-md" title="${seenTitle}">${seen}</td>
       </tr>`;
     }
     $("#view").innerHTML = `
