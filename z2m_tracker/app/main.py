@@ -23,6 +23,7 @@ from discovery import BASE as DISCOVERY_BASE
 from ha import HomeAssistant
 from health import CHECKS, DEFAULT_NOTIFY, mutes_of
 from metrics import Metrics
+from ota import OtaManager, parse_window
 from tracker import Tracker
 from tracker import _display_name as tracker_display_name
 
@@ -68,6 +69,8 @@ DEFAULT_OPTIONS = {
     "notify_checks": list(DEFAULT_NOTIFY),
     "wifi_channels": "",
     "chatty_per_hour": 1200,
+    "ota_window": "",
+    "ota_min_battery": 30,
 }
 
 CHECK_KEYS = {key for key, _, _, _ in CHECKS}
@@ -104,6 +107,13 @@ def _wifi(value):
     return ", ".join(str(int(p)) for p in dict.fromkeys(parts))
 
 
+def _ota_window(value):
+    value = str(value or "").replace(" ", "")
+    if value and parse_window(value) is None:
+        raise ValueError("enter a time range like 02:00-05:00, or leave it empty")
+    return value
+
+
 def _kinds(value):
     if not isinstance(value, list) or any(item not in CHECK_KEYS for item in value):
         raise ValueError("unknown check")
@@ -127,6 +137,8 @@ SETTINGS = {
     "chatty_per_hour": _int(60, 36000),
     "disabled_checks": _kinds,
     "notify_checks": _kinds,
+    "ota_window": _ota_window,
+    "ota_min_battery": _int(0, 100),
 }
 
 
@@ -172,6 +184,7 @@ tracker.battery_lib = BatteryLibrary(APP_DIR / "battery_library.json")
 discovery = Discovery(tracker, VERSION, bool(options.get("ha_entities", True)))
 stop_event = threading.Event()
 scan_lock = threading.Lock()
+ota_manager = OtaManager(tracker, options, home_assistant.logbook)
 
 
 # -------------------------------------------------------------------- alerts
@@ -762,6 +775,8 @@ class Handler(BaseHTTPRequestHandler):
             self._json(200, settings_payload())
         elif path == "/api/version":
             self._json(200, {"version": tracker.version, "app": VERSION})
+        elif path == "/api/ota":
+            self._json(200, ota_manager.snapshot())
         elif path == "/api/scans":
             query = dict(
                 part.split("=", 1)
@@ -906,8 +921,28 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 self._json(200 if result["ok"] else 502, result)
             elif path == "/api/ota":
-                result = tracker.ota(ieee, str(body.get("action") or ""))
+                if body.get("action") == "update":
+                    result = ota_manager.enqueue([ieee], force=True)
+                    result["ok"] = bool(result["queued"])
+                    if not result["ok"]:
+                        result["error"] = (result["skipped"] or [{}])[0].get("reason") or "Already queued"
+                else:
+                    result = tracker.ota(ieee, str(body.get("action") or ""))
                 self._json(200 if result["ok"] else 502, result)
+            elif path == "/api/ota/check":
+                result = ota_manager.check_all()
+                self._json(200 if result["ok"] else 409, result)
+            elif path == "/api/ota/queue":
+                force = body.get("force") is True
+                if body.get("all") is True:
+                    result = ota_manager.enqueue_all(force)
+                else:
+                    ieees = [str(x) for x in body.get("ieees") or [] if isinstance(x, str)][:500]
+                    result = ota_manager.enqueue(ieees, force)
+                self._json(200, result)
+            elif path == "/api/ota/cancel":
+                result = ota_manager.cancel(ieee)
+                self._json(200 if result["ok"] else 404, result)
             elif path == "/api/summary":
                 self._json(200, {"ok": True, **send_weekly_summary()})
             elif path == "/api/import":
@@ -931,6 +966,7 @@ def main() -> None:
 
     client = start_mqtt()
     threading.Thread(target=scheduler, name="scheduler", daemon=True).start()
+    ota_manager.start(stop_event)
     if not tracker.data.get("imported"):
         threading.Thread(target=first_import, name="first-import", daemon=True).start()
 

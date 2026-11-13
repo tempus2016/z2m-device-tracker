@@ -47,6 +47,8 @@ options:
   summary_hour: 9
   wifi_channels: ""
   chatty_per_hour: 1200
+  ota_window: ""
+  ota_min_battery: 30
 schema:
   base_topics:
     - str
@@ -71,3 +73,5 @@ schema:
   summary_hour: int(0,23)
   wifi_channels: str?
   chatty_per_hour: int(60,36000)?
+  ota_window: str?
+  ota_min_battery: int(0,100)?

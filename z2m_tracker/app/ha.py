@@ -128,6 +128,22 @@ class HomeAssistant:
             domain, name = "notify", service
         self._request("POST", f"/services/{domain}/{name}", {"title": title, "message": message})
 
+    def logbook(self, device_id: str, name: str, message: str) -> None:
+        """Add a logbook entry tied to one of the device's entities, so it shows on the device page."""
+        entities = [
+            e
+            for e in self._load_storage("core.entity_registry").get("entities", [])
+            if e.get("device_id") == device_id and not e.get("disabled_by")
+        ]
+        if not entities:
+            return
+        entities.sort(key=lambda e: (not str(e.get("entity_id", "")).startswith("update."), e.get("entity_id", "")))
+        self._request(
+            "POST",
+            "/services/logbook/log",
+            {"name": name, "message": message, "entity_id": entities[0]["entity_id"], "domain": "z2m_tracker"},
+        )
+
     # ---------------------------------------------------------------- inbound
 
     def _load_storage(self, name: str) -> dict:

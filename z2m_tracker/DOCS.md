@@ -24,6 +24,8 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `summary_day` / `summary_hour` | `0` / `9` | When to send it (0 = Monday). |
 | `wifi_channels` | empty | Your 2.4 GHz Wi-Fi channels, e.g. `1, 6`, used for the radio channel check. |
 | `chatty_per_hour` | `1200` | Messages an hour (averaged over 6 hours) above which a device is flagged as chatty. |
+| `ota_window` | empty | Time window for automatic firmware updates, e.g. `02:00-05:00` (local time, may cross midnight). Empty turns automatic updates off. A failed update is retried once, the next night. |
+| `ota_min_battery` | `30` | Battery devices below this level are skipped by automatic and bulk updates. **Update anyway** overrides it for one device. |
 
 ## More checks
 
@@ -41,6 +43,15 @@ These checks show in Health but don't notify until you set them to **Show and no
 The device panel's Info tab also shows message rates, Zigbee2MQTT's own counters (messages, leaves, address changes) and the device's bindings.
 
 The integration can mirror warnings and notify-enabled checks into **Settings → Repairs**. Turn it off in the integration's options.
+
+## Firmware updates
+
+The **Updates** tab lists every device with a firmware update from Zigbee2MQTT, with the installed and available versions, power and progress. Versions are the numbers Zigbee2MQTT reports; the build name is shown when the device has one.
+
+- **Check now** asks Zigbee2MQTT to check every device that supports updates, one at a time. Sleeping battery devices often don't answer.
+- **Update now** and **Update all** add devices to a queue. The queue installs one device at a time.
+- With `ota_window` set, updates still waiting are installed inside that window each night, one at a time. A device that fails is tried once more the next night. If that fails too, it stays failed until you press **Retry**. Retry starts the count again.
+- Each update is recorded under **Recent updates** (last 200) and in the device's logbook in Home Assistant.
 
 ## Data
 
