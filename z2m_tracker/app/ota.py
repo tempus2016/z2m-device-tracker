@@ -18,6 +18,7 @@ MAX_HISTORY = 200
 CHECK_TIMEOUT = 45
 UPDATE_TIMEOUT = 3600
 GAP_SECONDS = 20
+AUTO_RETRIES = 1
 WINDOW_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)-([01]\d|2[0-3]):([0-5]\d)$")
 
 
@@ -121,6 +122,24 @@ class OtaManager:
             history = []
             self.tracker.data["ota_history"] = history
         return history
+
+    def _failures(self) -> dict[str, dict]:
+        """Failed updates in a row per device, kept in history.json: {ieee: {"count": n, "to": version}}."""
+        failures = self.tracker.data.get("ota_failures")
+        if not isinstance(failures, dict):
+            failures = {}
+            self.tracker.data["ota_failures"] = failures
+        return failures
+
+    def _fail_count(self, record: dict) -> int:
+        """Failures in a row for the version on offer now. A newer version starts again at 0."""
+        entry = self._failures().get(record["ieee"])
+        if not isinstance(entry, dict):
+            return 0
+        if entry.get("to") != _version((record.get("update") or {}).get("latest_version")):
+            return 0
+        count = entry.get("count")
+        return count if isinstance(count, int) else 0
 
     def _add_history(self, entry: dict) -> None:
         with self.tracker.lock:
@@ -253,6 +272,12 @@ class OtaManager:
                 "window_open": is_open,
                 "next_window": next_start.isoformat(timespec="minutes") if next_start else None,
                 "min_battery": self.min_battery(),
+                "auto_retries": AUTO_RETRIES,
+                "failures": {
+                    r["ieee"]: count
+                    for r in self.tracker.data["devices"].values()
+                    if (r.get("update") or {}).get("state") == "available" and (count := self._fail_count(r))
+                },
                 "battery_blocked": {
                     r["ieee"]: reason
                     for r in self.tracker.data["devices"].values()
@@ -286,6 +311,8 @@ class OtaManager:
                     seen = self.external.pop(ieee)
                     installed = _version(update.get("installed_version"))
                     ok = update.get("state") == "idle" or (installed is not None and installed != seen["from"])
+                    if ok:
+                        self._failures().pop(ieee, None)
                     finished.append(
                         {
                             "ieee": ieee,
@@ -326,6 +353,8 @@ class OtaManager:
             for record in sorted(self.tracker.data["devices"].values(), key=lambda r: r["ieee"]):
                 ieee = record["ieee"]
                 if ieee in done or (record.get("update") or {}).get("state") != "available":
+                    continue
+                if self._fail_count(record) > AUTO_RETRIES:
                     continue
                 done.add(ieee)
                 reason = self._blocked(record, False)
@@ -372,6 +401,13 @@ class OtaManager:
                     side: (data.get(side) or {}).get("software_build_id") if isinstance(data.get(side), dict) else None
                     for side in ("from", "to")
                 }
+                failures = self._failures()
+                if ok:
+                    failures.pop(ieee, None)
+                else:
+                    # A manual update or Retry starts the count again; the overnight run adds to it.
+                    count = self._fail_count(record) + 1 if item.get("scheduled") else 1
+                    failures[ieee] = {"count": count, "to": to_v}
                 if not ok:
                     self.tracker._add_event(
                         _now(), base_topic, ieee, record.get("friendly_name"), "firmware update failed", error

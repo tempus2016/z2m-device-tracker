@@ -1505,7 +1505,13 @@
     if (s?.state === "queued") return [`<span class="st" style="--c:var(--text-2)">Queued</span>`, `<button class="btn" data-act="ota-cancel" data-ieee="${esc(d.ieee)}">Cancel</button>`];
     if (s?.state === "updating") return [`<span class="st" style="--c:var(--primary)">Starting…</span>`, ""];
     if (u.state !== "available") return [`<span class="st" style="--c:var(--success)">Up to date</span>`, ""];
-    if (s?.state === "failed") return [`<span class="st" style="--c:var(--error)">Failed</span><div class="muted" style="font-size:12px">${esc(s.reason)}</div>`, `<button class="btn" data-act="ota-now" data-ieee="${esc(d.ieee)}" data-force="1">Retry</button>`];
+    const fails = O.failures?.[d.ieee] || 0;
+    if (s?.state === "failed" || (fails && !s)) {
+      const reason = s?.reason || (O.history || []).find((h) => h.ieee === d.ieee && h.result !== "ok")?.error;
+      const auto = O.window && O.window_valid;
+      const label = fails > (O.auto_retries ?? 1) ? "Failed twice: retry by hand" : auto ? "Failed: tries again tonight" : "Failed";
+      return [`<span class="st" style="--c:var(--error)">${label}</span>${reason ? `<div class="muted" style="font-size:12px">${esc(reason)}</div>` : ""}`, `<button class="btn" data-act="ota-now" data-ieee="${esc(d.ieee)}" data-force="1">Retry</button>`];
+    }
     const block = s?.state === "skipped" ? s.reason : O.battery_blocked?.[d.ieee];
     if (block) {
       const force = /battery/i.test(block);
@@ -1559,7 +1565,7 @@
       <div class="card">${hist || `<div class="card-content muted" style="padding-top:16px">No firmware updates recorded yet.</div>`}</div>
       <div class="section-title">Schedule</div>
       <div class="card">
-        <div class="set-row ota-row"><div class="text"><div class="t1">Overnight updates</div><div class="t2">Installs available updates in this window, one device at a time.</div></div>
+        <div class="set-row ota-row"><div class="text"><div class="t1">Overnight updates</div><div class="t2">Installs available updates in this window, one device at a time. A failed update is tried once more the next night.</div></div>
           <div class="ctl"><span class="ota-time"><input class="field" type="time" id="otaFrom" value="${esc(wFrom)}" ${O.window ? "" : "disabled"} aria-label="Start"><span class="muted">to</span><input class="field" type="time" id="otaTo" value="${esc(wTo)}" ${O.window ? "" : "disabled"} aria-label="End"></span>
           <label class="switch"><input type="checkbox" id="otaOn" ${O.window ? "checked" : ""} aria-label="Overnight updates"><span class="track"></span><span class="thumb"></span></label></div></div>
         <div class="set-row ota-row"><div class="text"><div class="t1">Minimum battery</div><div class="t2">Battery devices below this level are skipped. Use Update anyway to override.</div></div>
