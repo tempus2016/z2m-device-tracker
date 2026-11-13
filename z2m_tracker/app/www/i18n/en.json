@@ -379,6 +379,42 @@
   "shop.title": "Batteries to buy",
   "shop.subtitle": "{total} for devices expected to run low within 60 days",
   "shop.unknown_type": "Unknown type",
+  "leftover.title": "Leftover in Home Assistant",
+  "leftover.subtitle": {
+    "one": "{n} device left Zigbee2MQTT but is still in Home Assistant, with unavailable entities",
+    "other": "{n} devices left Zigbee2MQTT but are still in Home Assistant, with unavailable entities"
+  },
+  "leftover.review": "Review and remove",
+  "leftover.replaced_by": "Replaced by {name}",
+  "leftover.removed_on": "Removed from Z2M {date}",
+  "leftover.not_in_z2m": "Not in Zigbee2MQTT",
+  "leftover.entities": {
+    "one": "{n} entity",
+    "other": "{n} entities"
+  },
+  "leftover.automations": {
+    "one": "{n} automation",
+    "other": "{n} automations"
+  },
+  "leftover.scripts": {
+    "one": "{n} script",
+    "other": "{n} scripts"
+  },
+  "leftover.used_in": "Used in {what}. Left unticked.",
+  "leftover.dialog_title": {
+    "one": "Remove {n} leftover device from Home Assistant?",
+    "other": "Remove {n} leftover devices from Home Assistant?"
+  },
+  "leftover.text": "These were removed from Zigbee2MQTT but are still in Home Assistant. Removing one deletes the device and its entities from Home Assistant. Zigbee2MQTT is not changed.",
+  "leftover.used_text": "Automations and scripts that use a removed device will show errors until you edit them.",
+  "leftover.remove_n": "Remove {n}",
+  "leftover.removed": {
+    "one": "Removed {n} device from Home Assistant",
+    "other": "Removed {n} devices from Home Assistant"
+  },
+  "leftover.partly": "Removed {n}. {missed} could not be removed, see the app log.",
+  "leftover.none": "Nothing left over in Home Assistant",
+  "leftover.not_ready": "Still waiting for the Zigbee2MQTT device list. Try again in a minute.",
   "map.help": "Drag dots to rearrange, drag the background to pan and scroll to zoom. Click a group in the legend to show only those devices. Solid lines show which router each battery device uses, dashed lines link routers. Colour shows link quality.",
   "map.scanning_now": "Scanning now…",
   "map.scanned": "Scanned {when} · {n} devices, {links} links",

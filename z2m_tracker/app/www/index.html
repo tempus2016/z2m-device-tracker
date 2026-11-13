@@ -328,6 +328,11 @@
   .carry .ln .text, .pick .text { flex: 1; min-width: 0; } .carry .ln .t2 { font-size: 12px; color: var(--text-2); }
   .carry .ln b { font-weight: 500; }
   .pick:has(input:checked) { background: var(--chip-on); }
+  .lo-list { display: grid; gap: 2px; margin: 0 -12px 4px; padding: 0; max-height: 50vh; overflow: auto; }
+  .confirm-body .lo-list .pick { display: flex; align-items: flex-start; gap: 12px; font-size: 14px; color: var(--text); margin: 0; }
+  .lo-list .pick input { margin-top: 11px; } .lo-list .state-ic { flex: none; }
+  .lo-list .pick .t1 { white-space: normal; overflow-wrap: anywhere; }
+  .lo-list .pick .t2 { white-space: normal; } .lo-list .pick .t2.warn { color: var(--warning); }
   .pick .tag { font-size: 12px; color: var(--primary-text); white-space: nowrap; }
   .rep-foot { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid var(--divider); flex-wrap: wrap; }
   .rep-foot .opt { margin-right: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-2); cursor: pointer; }
@@ -896,6 +901,7 @@
       </div>
       ${coordinatorsCard()}
       ${shoppingCard()}
+      ${leftoverCard()}
       ${radioCard()}
       ${warn.length ? `<div class="section-title">${th("health.needs_attention")} <span>${warn.length}</span></div><div class="card">${warn.map(item).join("")}</div>` : ""}
       ${info.length ? `<div class="section-title">${th("health.worth_a_look")} <span>${info.length}</span></div><div class="card">${info.map(item).join("")}</div>` : ""}
@@ -953,6 +959,21 @@
       ${groups.map((g) => `<div class="set-row"><div class="text"><div class="t1">${g.count}× ${esc(btype(g))}</div><div class="t2">${g.devices.map((x) => `<a href="#${esc(x.ieee)}" data-open="${esc(x.ieee)}">${esc(x.name)}</a> (${esc(facts(x))})`).join(" · ")}</div></div></div>`).join("")}
     </div>`;
   };
+
+  // ------------------------------------------------------------ leftovers in Home Assistant
+  // Zigbee2MQTT devices still in HA after leaving Zigbee2MQTT. Removing them always goes through the dialog.
+  const leftoverLine = (x) => [x.successor ? t("leftover.replaced_by", { name: x.successor.name }) : x.removed_at ? t("leftover.removed_on", { date: fmtDate(x.removed_at, false) }) : t("leftover.not_in_z2m"),
+    t("leftover.entities", { n: x.entities })].join(" · ");
+  const leftoverUse = (x) => [x.automations ? t("leftover.automations", { n: x.automations }) : null, x.scripts ? t("leftover.scripts", { n: x.scripts }) : null].filter(Boolean);
+  const leftoverIc = (x) => { const d = state.byIeee.get(x.ieee); return d ? stateIc(d) : `<span class="state-ic off">${ic("zigbee")}</span>`; };
+  const leftoverCard = () => {
+    const list = state.data.ha_leftovers || [];
+    if (!list.length) return "";
+    return `<div class="card"><div class="card-header">${ic("home-assistant")}<div>${th("leftover.title")}<small>${th("leftover.subtitle", { n: list.length })}</small></div></div>
+      ${list.map((x) => `<div class="row">${leftoverIc(x)}<div class="text"><div class="t1">${esc(x.name)}</div><div class="t2">${esc(leftoverLine(x))}</div></div></div>`).join("")}
+      <div class="card-actions"><button class="btn" data-act="leftovers">${ic("delete", "s18")}${th("leftover.review")}</button></div></div>`;
+  };
+  const leftoverOk = () => { const n = document.querySelectorAll('#cText input[name="lo"]:checked').length; $("#cOk").textContent = t("leftover.remove_n", { n }); $("#cOk").disabled = !n; };
 
   // ------------------------------------------------------------ network map
   // Interactive force-directed map (drag dots, pan, zoom) plus advice from the routing scan.
@@ -1814,11 +1835,12 @@
   $("#view").addEventListener("scroll", (e) => { if (e.target.classList?.contains("more-body")) state.paneScroll = e.target.scrollTop; }, true);
 
   // ------------------------------------------------------------ confirm dialog
-  const confirmDialog = ({ title, html, ok, danger = false }) => new Promise((resolve) => {
+  const confirmDialog = ({ title, html, ok, danger = false, filled = false }) => new Promise((resolve) => {
     const dlg = $("#confirmDlg");
     if (dlg.open) { resolve(false); return; }
     $("#cTitle").textContent = title; $("#cText").innerHTML = html; $("#cOk").textContent = ok;
-    $("#cOk").className = danger ? "btn danger" : "btn";
+    $("#cOk").className = danger ? (filled ? "btn filled danger" : "btn danger") : "btn";
+    $("#cOk").disabled = false;
     dlg.returnValue = "cancel";
     const done = () => { dlg.removeEventListener("close", done); resolve(dlg.returnValue === "ok"); };
     dlg.addEventListener("close", done);
@@ -1826,6 +1848,7 @@
     (danger ? dlg.querySelector('button[value="cancel"]') : $("#cOk")).focus();
   });
   $("#confirmDlg").addEventListener("click", (e) => { if (e.target.id === "confirmDlg") e.target.close("cancel"); });
+  $("#confirmDlg").addEventListener("change", (e) => { if (e.target.name === "lo") leftoverOk(); });
 
   // ------------------------------------------------------------ render
   const render = () => {
@@ -1918,6 +1941,29 @@
         html: `<p>${th("ota.text1", { latest: esc(u.latest_version), installed: esc(u.installed_version) })}</p><p>${th("ota.text2")}</p>` });
       if (!ok) return;
       try { await api("api/ota", { ieee: d.ieee, action: "update" }); snack(t("ota.started")); load(); } catch (err) { snack(err.message, 5000); }
+    },
+    async leftovers(b) {
+      b.disabled = true; b.classList.add("busy");
+      let list;
+      try { const r = await api("api/ha/leftovers"); list = r.ready ? r.leftovers : null; if (!r.ready) snack(t("leftover.not_ready"), 5000); }
+      catch (err) { snack(err.message, 5000); }
+      b.disabled = false; b.classList.remove("busy");
+      if (!list) return;
+      if (!list.length) { snack(t("leftover.none")); load(); return; }
+      const used = list.filter((x) => leftoverUse(x).length).length;
+      const html = `<p>${th("leftover.text")}</p>${used ? `<p>${th("leftover.used_text")}</p>` : ""}
+        <div class="lo-list">${list.map((x) => { const use = leftoverUse(x); return `<label class="pick"><input type="checkbox" name="lo" value="${esc(x.device_id)}" ${use.length ? "" : "checked"}>${leftoverIc(x)}<div class="text"><div class="t1">${esc(x.name)}</div><div class="t2">${esc(leftoverLine(x))}</div>${use.length ? `<div class="t2 warn">${esc(t("leftover.used_in", { what: listOf(use) }))}</div>` : ""}</div></label>`; }).join("")}</div>`;
+      const pending = confirmDialog({ title: t("leftover.dialog_title", { n: list.length }), html, ok: "", danger: true, filled: true });
+      leftoverOk();
+      if (!(await pending)) return;
+      const ids = [...document.querySelectorAll('#cText input[name="lo"]:checked')].map((x) => x.value);
+      if (!ids.length) return;
+      try {
+        const r = await api("api/ha/remove_leftovers", { device_ids: ids });
+        const missed = r.failed.length + r.refused.length;
+        snack(missed ? t("leftover.partly", { n: r.removed.length, missed }) : t("leftover.removed", { n: r.removed.length }), missed ? 6000 : 3000);
+        load();
+      } catch (err) { snack(err.message, 5000); }
     },
     pair() { state.move = null; state.pairNet = state.pairNet || state.data.instances[0]; renderPair(); const dlg = $("#pairDlg"); if (!dlg.open) dlg.showModal(); },
     move(b) { state.move = { target: b.dataset.ieee || state.open, via: b.dataset.via || null }; renderPair(); const dlg = $("#pairDlg"); if (!dlg.open) dlg.showModal(); },

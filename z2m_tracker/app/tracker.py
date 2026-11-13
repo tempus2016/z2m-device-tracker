@@ -221,6 +221,7 @@ class Tracker:
         self.issues: list[dict] = []
         self.ha_device_ids: dict[str, str] = {}
         self.ha_battery: dict[str, dict] = {}
+        self.ha_leftovers: list[dict] = []
         self._pending: dict[str, dict] = {}
         self.battery_lib = None
         self.permit: dict[str, dict] = {}
@@ -1390,6 +1391,38 @@ class Tracker:
                 self.revision += 1
         return issues, changed
 
+    # ------------------------------------------------------ leftovers in HA
+
+    def leftover_context(self) -> tuple[bool, dict[str, dict]]:
+        """What the tracker knows about each IEEE, for ha.find_leftovers.
+
+        Not ready until every tracked network has sent its device list since the
+        app started: before that, every device would look unknown."""
+        with self.lock:
+            ready = self.lists_received >= set(self.base_topics)
+            devices = self.data["devices"]
+            known = {}
+            for ieee, record in devices.items():
+                successor = record.get("successor")
+                known[ieee] = {
+                    "active": record["status"] == STATUS_ACTIVE,
+                    "name": _display_name(record),
+                    "removed_at": record.get("removed_at"),
+                    "successor": {
+                        "ieee": successor,
+                        "name": _display_name(devices.get(successor) or {}) or successor,
+                    }
+                    if successor
+                    else None,
+                }
+            return ready, known
+
+    def set_ha_leftovers(self, leftovers: list[dict]) -> None:
+        with self.lock:
+            if leftovers != self.ha_leftovers:
+                self.ha_leftovers = leftovers
+                self.revision += 1
+
     # ----------------------------------------------------------------- public
 
     def _oui_vendor(self, ieee: str) -> str | None:
@@ -1424,6 +1457,7 @@ class Tracker:
                 "networkmap": self.data.get("networkmap") or {},
                 "permit": self.permit,
                 "battery_shopping": self.battery_shopping(60),
+                "ha_leftovers": self.ha_leftovers,
                 "bridges": self.data.get("bridges") or {},
                 "radio": self.radio(),
                 "single_points": {bt: self.single_points(bt) for bt in self.base_topics},

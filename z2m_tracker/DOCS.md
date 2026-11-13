@@ -44,6 +44,22 @@ The device panel's Info tab also shows message rates, Zigbee2MQTT's own counters
 
 The integration can mirror warnings and notify-enabled checks into **Settings → Repairs**. Turn it off in the integration's options.
 
+## Leftover devices in Home Assistant
+
+A device removed from Zigbee2MQTT can stay in Home Assistant with all its entities unavailable, for example when Zigbee2MQTT was stopped or its Home Assistant integration was off at the time. Health lists these under **Leftover in Home Assistant**.
+
+A Home Assistant device is listed when all of these are true:
+
+- It came from Zigbee2MQTT's MQTT discovery (identifier `zigbee2mqtt_<ieee>`). The Zigbee2MQTT bridge device is never listed.
+- Its IEEE address is not an active device on any network the app tracks: the app has it as removed, or has never seen it.
+- The MQTT integration owns it, and none of its MQTT entities has a live state. A device from a Zigbee2MQTT network the app doesn't track still has live entities, so it isn't listed.
+
+The list is checked once every tracked network has sent its device list, then whenever Home Assistant's device or entity registry changes.
+
+Nothing is removed until you press **Review and remove**, tick the devices and confirm. Devices used by an automation or script start unticked, with a warning. The app checks every ticked device again before removing it, and skips any that is no longer a leftover. Each device is removed from the MQTT integration only (`config/device_registry/remove_config_entry`), which deletes the device and its entities from Home Assistant. Zigbee2MQTT is not changed. If another integration such as Battery Notes is also attached to the device, Home Assistant may keep the device for that integration.
+
+Retained discovery topics: Zigbee2MQTT clears a device's discovery messages when the device is removed, so a leftover normally has none. If one is still retained, Home Assistant's MQTT integration clears it when the device is removed, so the device doesn't come back.
+
 ## Firmware updates
 
 The **Updates** tab lists every device with a firmware update from Zigbee2MQTT, with the installed and available versions, power and progress. Versions are the numbers Zigbee2MQTT reports; the build name is shown when the device has one.
