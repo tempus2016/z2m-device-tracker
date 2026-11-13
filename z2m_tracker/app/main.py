@@ -23,7 +23,7 @@ from battery_library import BatteryLibrary
 from discovery import AVAILABILITY, Discovery
 from discovery import BASE as DISCOVERY_BASE
 from ha import HomeAssistant
-from health import CHECKS, DEFAULT_NOTIFY, mutes_of
+from health import CHECKS, DEFAULT_NOTIFY, alert_plan, alert_title, mutes_of, nested
 from metrics import Metrics
 from ota import OtaManager, parse_window
 from tracker import Tracker
@@ -313,28 +313,29 @@ class Alerts:
     def check(self) -> None:
         issues, _ = tracker.evaluate_health()
         enabled = self.notify_set()
-        current = {issue["key"]: issue for issue in issues if issue["kind"] in enabled}
         with tracker.lock:
             initialised = tracker.data.get("alerts_initialised")
             sent = set(tracker.data.get("alerted") or [])
-            tracker.data["alerted"] = sorted(current)
+            to_send, alerted, dismiss = alert_plan(issues, enabled, sent)
+            if not initialised:
+                alerted = sorted(issue["key"] for issue in issues if issue["kind"] in enabled)
+            tracker.data["alerted"] = alerted
             tracker.data["alerts_initialised"] = True
             tracker.dirty = True
         if not initialised:
-            _LOGGER.info("Alerts initialised with %d existing issues (not notified)", len(current))
+            _LOGGER.info("Alerts initialised with %d existing issues (not notified)", len(alerted))
             return
-        for key in sorted(set(current) - sent):
-            issue = current[key]
+        for issue in to_send:
             self._send(
-                key,
+                issue["key"],
                 issue["kind"],
                 issue["ieee"],
                 issue["name"],
-                f"Zigbee: {issue['name']} - {issue['label']}",
+                alert_title(issue),
                 issue["detail"],
                 issue.get("instance"),
             )
-        for key in sent - set(current):
+        for key in dismiss:
             self._dismiss(key)
 
 
@@ -689,7 +690,8 @@ def weekly_summary_text() -> tuple[str, str]:
     now = time.time()
     week_ago = datetime.fromtimestamp(now - 7 * 86400, tz=timezone.utc).isoformat(timespec="seconds")
     with tracker.lock:
-        issues = [i for i in tracker.issues if i["severity"] == "warning"]
+        keys = {i["key"] for i in tracker.issues}
+        issues = [i for i in tracker.issues if i["severity"] == "warning" and not nested(i, keys)]
         events = [e for e in tracker.data["events"] if (e.get("time") or "") >= week_ago]
         active = sum(
             1 for r in tracker.data["devices"].values() if r["status"] == "active" and r.get("type") != "Coordinator"

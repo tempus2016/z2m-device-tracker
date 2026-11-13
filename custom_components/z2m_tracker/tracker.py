@@ -174,7 +174,12 @@ class Z2MTracker:
         options = self.data.get("options") or {}
         notify = set(options.get("notify_checks") or []) - set(options.get("disabled_checks") or [])
         wanted: dict[str, dict] = {}
-        for issue in self.data.get("issues") or []:
+        issues = self.data.get("issues") or []
+        keys = {str(issue.get("key", "")) for issue in issues}
+        for issue in issues:
+            # A device behind an offline router is covered by the router's repair, which lists it.
+            if issue.get("behind") and f"offline:{issue['behind']}" in keys:
+                continue
             if issue.get("severity") == "warning" or issue.get("kind") in notify:
                 wanted["issue_" + re.sub(r"[^a-z0-9_]+", "_", str(issue.get("key", "")).lower())] = issue
         self._prune_snoozed(wanted)

@@ -83,7 +83,10 @@ class Z2MTrackerCard extends HTMLElement {
     if (!this._data) { body.innerHTML = `<div class="head"><h2>${esc(cfg.title)}</h2></div><div class="empty">Loading…</div>`; return; }
     const devices = this._data.devices.filter((d) => d.type !== "Coordinator" && d.status !== "removed");
     const offline = devices.filter((d) => statusOf(d) === "offline").length;
-    const issues = devices.flatMap((d) => (d.issues || []).map((i) => ({ ...i, area: d.area }))).filter((i) => i.severity === "warning");
+    const all = devices.flatMap((d) => (d.issues || []).map((i) => ({ ...i, area: d.area })));
+    const keys = new Set(all.map((i) => i.key));
+    // Devices behind an offline router are covered by the router's issue.
+    const issues = all.filter((i) => i.severity === "warning" && !(i.behind && keys.has(`offline:${i.behind}`)));
     const due = devices.filter((d) => {
       const est = d.metrics?.battery_estimate_days;
       return d.battery_record && ((est !== null && est !== undefined && est <= 60) || d.battery_low === true || (typeof d.battery === "number" && d.battery <= 25 && (est === null || est === undefined)));

@@ -24,6 +24,8 @@ FLAP_OUTAGES = 4
 FLAP_LEAVES = 2
 BINDING_GRACE_SECONDS = 600
 DEFAULT_CHATTY_PER_HOUR = 1200
+# After a router comes back, the devices behind it get this long to rejoin before they alert on their own.
+ROUTER_BACK_GRACE = 300
 
 # Everything the Settings page can switch: (key, label, description, is_event)
 CHECKS = [
@@ -380,6 +382,105 @@ def device_issues(
         break
 
     return issues
+
+
+def _parent_of(record: dict | None) -> str | None:
+    return (((record or {}).get("routing") or {}).get("parent") or {}).get("ieee")
+
+
+def _names(names: list[str]) -> str:
+    """'A', 'A and B', 'A, B and C', 'A, B, C and 3 more'."""
+    shown = names[:3]
+    more = len(names) - len(shown)
+    if more:
+        return f"{', '.join(shown)} and {more} more"
+    return " and ".join([", ".join(shown[:-1]), shown[-1]]) if len(shown) > 1 else "".join(shown)
+
+
+def group_router_outages(issues: list[dict], devices: dict[str, dict], options: dict, now: float) -> None:
+    """Fold the offline issues of devices behind an offline router into that router's issue.
+
+    A device is behind a router when the router is its parent in the routing scan that last saw it,
+    or the parent's parent and so on while each of them is offline too. Its offline issue stays (HA
+    entities read it) but gets `behind` = the highest offline router in that chain, so alerts skip it
+    and the sidebar nests it. It counts from the moment the router drops, before the router's own
+    offline delay passes, so a device never alerts first and the router after it. The router's issue,
+    once it has one, lists the devices and gets the grouped text. Changes the issues in place.
+    """
+    if "offline" in set(options.get("disabled_checks") or []):
+        return
+
+    def down(ieee: str) -> bool:
+        record = devices.get(ieee) or {}
+        if record.get("type") != "Router" or record.get("status") != "active":
+            return False
+        if "offline" in active_mutes(record, now):
+            return False
+        if record.get("availability") == "offline":
+            return True
+        age = _age(record.get("availability_since"), now)
+        return record.get("availability") == "online" and age is not None and age < ROUTER_BACK_GRACE
+
+    def top(ieee: str) -> str | None:
+        seen = {ieee}
+        found = None
+        parent = _parent_of(devices.get(ieee))
+        while parent and parent not in seen and down(parent):
+            seen.add(parent)
+            found = parent
+            parent = _parent_of(devices.get(parent))
+        return found
+
+    groups: dict[str, list[dict]] = {}
+    for issue in issues:
+        if issue["kind"] != "offline":
+            continue
+        router = top(issue["ieee"])
+        if router:
+            issue["behind"] = router
+            groups.setdefault(router, []).append(issue)
+    by_key = {issue["key"]: issue for issue in issues}
+    for router, behind in groups.items():
+        issue = by_key.get(f"offline:{router}")
+        if issue is None or issue.get("behind"):
+            continue
+        behind.sort(key=lambda i: str(i.get("name") or i["ieee"]).lower())
+        names = [str(i.get("name") or i["ieee"]) for i in behind]
+        n = len(names)
+        issue["title"] = "Router offline"
+        issue["detail"] = (
+            f"{n} device{'s' if n != 1 else ''} that route{'' if n != 1 else 's'} through it "
+            f"{'are' if n != 1 else 'is'} offline too: {_names(names)}. Check its power first."
+        )
+        issue["msg"] = "router_offline"
+        issue["params"] = {**(issue.get("params") or {}), "n": n, "names": names[:3], "more": max(0, n - 3)}
+        issue["devices"] = [i["ieee"] for i in behind]
+
+
+def nested(issue: dict, keys: set[str]) -> bool:
+    """True when the issue is shown inside its router's grouped offline issue rather than on its own."""
+    return bool(issue.get("behind")) and f"offline:{issue['behind']}" in keys
+
+
+def alert_title(issue: dict) -> str:
+    if issue.get("devices"):
+        return f"Router offline: {issue['name']}"
+    return f"Zigbee: {issue['name']} - {issue['label']}"
+
+
+def alert_plan(issues: list[dict], enabled: set[str], sent: set[str]) -> tuple[list[dict], list[str], list[str]]:
+    """Which issues to notify now, which keys count as notified afterwards, and which to dismiss.
+
+    Devices behind an offline router never notify on their own: the router's alert covers them.
+    One that already notified before its router went down stays notified, so it doesn't repeat.
+    Once the router is back, a device still offline is a normal issue and notifies as usual.
+    """
+    current = {issue["key"]: issue for issue in issues if issue["kind"] in enabled}
+    quiet = {key for key, issue in current.items() if issue.get("behind")}
+    to_send = [current[key] for key in sorted(set(current) - quiet - sent)]
+    alerted = sorted((set(current) - quiet) | (quiet & sent))
+    dismiss = sorted(sent - set(current))
+    return to_send, alerted, dismiss
 
 
 def uptime(record: dict, now: float, days: int = 30) -> float | None:
