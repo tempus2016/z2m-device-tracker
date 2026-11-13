@@ -191,6 +191,10 @@
   .row .t1 { font-size: 16px; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
   .row .t2 { font-size: 14px; color: var(--text-2); }
   .row .acts { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+  .group-list { margin: 0 0 8px 72px; border-left: 2px solid var(--divider); }
+  .group-list .row { min-height: 48px; padding: 6px 12px; border-bottom: 0; }
+  .group-list .state-ic { width: 32px; height: 32px; }
+  .group-list .t1 { font-size: 14px; }
   .section-title { margin: 8px 4px 0; font-size: 14px; font-weight: 500; color: var(--text-2); display: flex; justify-content: space-between; }
   .logday { padding: 16px 16px 4px; font-size: 14px; font-weight: 500; color: var(--text-2); }
   .log { display: flex; gap: 16px; align-items: center; padding: 6px 16px; min-height: 56px; cursor: pointer; }
@@ -681,7 +685,11 @@
     flapping: (p) => { p.what = listOf([p.outages ? t("issue.flapping.outages", { n: p.outages }) : null, p.leaves ? t("issue.flapping.leaves", { n: p.leaves }) : null].filter(Boolean)); },
     single_point: (p) => { p.extra = p.devices ? t("issue.single_point.extra", { n: p.devices }) : ""; },
     late: (p) => { p.every = span(p.every); },
+    router_offline: (p) => { p.names = listOf([...(p.names || []), ...(p.more ? [t("issue.router_offline.more", { n: p.more })] : [])]); },
   };
+  // Offline devices behind an offline router are shown inside the router's issue, not on their own.
+  const nestedIssue = (i, keys) => Boolean(i.behind) && keys.has(`offline:${i.behind}`);
+  const ownIssues = (issues) => { const keys = new Set(issues.map((i) => i.key)); return issues.filter((i) => !nestedIssue(i, keys)); };
   const issueVars = (i) => {
     const p = { ...(i.params || {}) };
     if (p.seconds !== undefined) p.duration = span(p.seconds);
@@ -734,7 +742,7 @@
     sort: store.get("z2mt.sort") || "name", dir: Number(store.get("z2mt.dir")) || 0,
     open: null, moreTab: "info", settings: null, version: null, editing: false,
     layout: store.get("z2mt.layout") === "dialog" ? "dialog" : "pane",
-    group: store.get("z2mt.group") === "1", areas: null, pairNet: null,
+    group: store.get("z2mt.group") === "1", areas: null, pairNet: null, openGroups: new Set(),
   };
 
   const usePane = () => state.layout === "pane" && window.innerWidth >= 1100;
@@ -907,14 +915,32 @@
           <div class="text"><div class="t1">${esc(issueTitle(i))}: ${esc(issueName(i))}</div><div class="t2">${esc(issueDetail(i))}</div></div>
           <div class="acts">${panel ? `<a class="btn" href="${esc(panel)}" target="_top">${th("health.open_z2m")}</a>` : ""}</div></div>`;
       }
+      const kids = i.devices?.length ? issues.filter((x) => x.behind === i.ieee && nestedIssue(x, keys)) : [];
+      if (kids.length) return routerItem(i, d, kids);
       return `<div class="row"><span class="state-ic" style="color:${tone}">${ic(KIND_ICON[i.kind] || "alert")}</span>
         <div class="text row-open" data-open="${esc(i.ieee)}" style="cursor:pointer"><div class="t1">${esc(issueTitle(i))}: ${esc(issueName(i))}</div><div class="t2">${esc(issueDetail(i))}${d?.area ? ` · ${esc(d.area)}` : ""}</div></div>
         <div class="acts">${issueActions(i)}</div></div>`;
     };
-    const warn = issues.filter((i) => i.severity === "warning"), info = issues.filter((i) => i.severity !== "warning");
+    // A router that is offline with devices behind it: one row, and the devices listed under it on demand.
+    const routerItem = (i, d, kids) => {
+      const open = state.openGroups.has(i.ieee);
+      const line = [typeLabel(d?.type || "Router"), t("health.offline_for", { duration: issueVars(i).duration }), netLabel(i.instance), d?.area].filter(Boolean).join(" · ");
+      const kid = (x) => {
+        const k = state.byIeee.get(x.ieee);
+        return `<div class="row click" data-open="${esc(x.ieee)}"><span class="state-ic off">${ic(k ? kindIcon(k) : "zigbee", "s20")}</span>
+          <div class="text"><div class="t1">${esc(x.name)}</div><div class="t2">${esc(cap(t("health.offline_for", { duration: issueVars(x).duration })))}${k?.area ? ` · ${esc(k.area)}` : ""}</div></div></div>`;
+      };
+      return `<div class="row"><span class="state-ic bad">${ic("router-wireless")}</span>
+        <div class="text row-open" data-open="${esc(i.ieee)}" style="cursor:pointer"><div class="t1">${th("health.router_down", { n: kids.length, name: `<b style="font-weight:500">${esc(i.name)}</b>` })}</div><div class="t2">${esc(line)}</div></div>
+        <div class="acts"><button class="btn" data-act="toggle-group" data-ieee="${esc(i.ieee)}" aria-expanded="${open}">${open ? th("health.hide_devices") : th("health.show_devices", { n: kids.length })}</button>${issueActions(i)}</div></div>
+        ${open ? `<div class="group-list">${kids.map(kid).join("")}</div>` : ""}`;
+    };
+    const keys = new Set(issues.map((i) => i.key));
+    const own = ownIssues(issues);
+    const warn = own.filter((i) => i.severity === "warning"), info = own.filter((i) => i.severity !== "warning");
     $("#view").innerHTML = `
       <div class="card">
-        <div class="card-header">${ic("heart-pulse")}<div>${th("health.title")}<small>${warn.length ? th("health.summary", { warn: warn.length, n: info.length }) : issues.length ? th("health.to_review", { n: info.length }) : th("health.nothing")}</small></div></div>
+        <div class="card-header">${ic("heart-pulse")}<div>${th("health.title")}<small>${warn.length ? th("health.summary", { warn: warn.length, n: info.length }) : own.length ? th("health.to_review", { n: info.length }) : th("health.nothing")}</small></div></div>
         <div class="info-grid">
           <div><small>${th("health.alerts")}</small><b>${o.alerts_enabled === false ? th("health.alerts_off") : esc([o.persistent_notifications ? t("health.ha_notifications") : null, o.notify_service || null].filter(Boolean).join(", ")) || th("health.event_only")}</b></div>
           <div><small>${th("health.thresholds")}</small><b>${th("health.thresholds_line", { offline: esc(o.offline_alert_minutes), frozen: esc(o.frozen_alert_hours), battery: esc(o.battery_alert_percent) })}</b></div>
@@ -927,7 +953,7 @@
       ${radioCard()}
       ${warn.length ? `<div class="section-title">${th("health.needs_attention")} <span>${warn.length}</span></div><div class="card">${warn.map(item).join("")}</div>` : ""}
       ${info.length ? `<div class="section-title">${th("health.worth_a_look")} <span>${info.length}</span></div><div class="card">${info.map(item).join("")}</div>` : ""}
-      ${!issues.length ? `<div class="card">${emptyState("check", th("health.all_clear"), th("health.all_clear_text"))}</div>` : ""}`;
+      ${!own.length ? `<div class="card">${emptyState("check", th("health.all_clear"), th("health.all_clear_text"))}</div>` : ""}`;
   };
 
   const coordinatorsCard = () => {
@@ -1908,7 +1934,7 @@
   // ------------------------------------------------------------ render
   const render = () => {
     if (!state.data) return;
-    const issues = state.data.issues || [];
+    const issues = ownIssues(state.data.issues || []);
     const warn = issues.filter((i) => i.severity === "warning").length;
     const badge = $("#issueBadge"); badge.textContent = issues.length; badge.classList.toggle("warn", warn > 0);
     const otaCount = otaList().filter((d) => d.update?.state === "available" || d.update?.state === "updating").length;
@@ -1934,6 +1960,7 @@
   const flash = (sel) => { const s = $(sel); if (!s) return; s.classList.add("show"); setTimeout(() => s.classList.remove("show"), 1600); };
   const actions = {
     close: () => closeDevice(),
+    "toggle-group": (b) => { const g = state.openGroups; if (!g.delete(b.dataset.ieee)) g.add(b.dataset.ieee); renderHealth(); },
     async copy(b) { try { await navigator.clipboard.writeText(b.dataset.ieee); snack(t("snack.ieee_copied")); } catch (e) { snack(b.dataset.ieee); } },
     async reconfigure(b) {
       const ieee = b.dataset.ieee, d = state.byIeee.get(ieee);

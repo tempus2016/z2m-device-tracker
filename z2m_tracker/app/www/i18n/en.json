@@ -186,6 +186,13 @@
   "health.worth_a_look": "Worth a look",
   "health.all_clear": "All clear",
   "health.all_clear_text": "No devices need attention right now.",
+  "health.router_down": {
+    "one": "{name} offline, with 1 device behind it",
+    "other": "{name} offline, with {n} devices behind it"
+  },
+  "health.offline_for": "offline {duration}",
+  "health.show_devices": "Show {n}",
+  "health.hide_devices": "Hide",
   "issue.label.offline": "Offline",
   "issue.label.silent": "Not heard from",
   "issue.label.late": "Stopped reporting",
@@ -271,6 +278,15 @@
   "issue.replacement.detail": "Has the same name as removed device {name} ({ieee}). Link them to carry over history.",
   "issue.network_offline.title": "Zigbee2MQTT offline",
   "issue.network_offline.detail": "Not responding for {duration}. Every device on this network is unreachable. Check the coordinator's power and network connection.",
+  "issue.router_offline.title": "Router offline",
+  "issue.router_offline.detail": {
+    "one": "1 device that routes through it is offline too: {names}. Check its power first.",
+    "other": "{n} devices that route through it are offline too: {names}. Check its power first."
+  },
+  "issue.router_offline.more": {
+    "one": "1 more",
+    "other": "{n} more"
+  },
   "issue.restart_required.title": "Restart needed",
   "issue.restart_required.detail": "Zigbee2MQTT says it needs a restart to apply a settings change.",
   "issue.backup_missing.title": "Coordinator backup",

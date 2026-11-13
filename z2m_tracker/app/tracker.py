@@ -19,6 +19,7 @@ from health import (
     REPORT_EVERY_MAX,
     REPORT_EVERY_MIN,
     device_issues,
+    group_router_outages,
     late_deadline,
     mutes_of,
     offline_timing,
@@ -1396,10 +1397,15 @@ class Tracker:
                     issue["name"] = _display_name(record) or record["ieee"]
                     issue["instance"] = record["instance"]
                     issues.append(issue)
+            group_router_outages(issues, self.data["devices"], self.options, now)
             issues.extend(self._network_issues(now))
             order = {"warning": 0, "info": 1}
             issues.sort(key=lambda i: (order.get(i["severity"], 2), i["name"].lower()))
-            changed = [i["key"] for i in issues] != [i["key"] for i in self.issues]
+
+            def shape(items: list[dict]) -> list:
+                return [(i["key"], i.get("behind"), i.get("devices")) for i in items]
+
+            changed = shape(issues) != shape(self.issues)
             self.issues = issues
             if changed:
                 self.revision += 1
