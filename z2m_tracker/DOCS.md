@@ -15,7 +15,7 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `alert_on_join` | `true` | Alert when a new device joins. |
 | `disabled_checks` | empty | Health checks to turn off completely. |
 | `notify_checks` | most checks | Health checks that send alerts. |
-| `offline_alert_minutes` | `60` | How long a device must be offline before an alert. |
+| `offline_alert_minutes` | `60` | Extra wait after Zigbee2MQTT marks a device offline, before an alert. Zigbee2MQTT marks a device offline only after its own availability timeout (10 min for mains devices, 25 h for battery devices by default, or per device in its `configuration.yaml`). With the defaults, a mains device alerts about 70 min after its last message and a battery device about 26 h after. |
 | `frozen_alert_hours` | `24` | How long a sensor reading must stay the same before it counts as frozen. |
 | `battery_alert_percent` | `15` | Battery level for a low battery alert. |
 | `networkmap_hour` | `3` | Hour of the nightly routing scan, or `-1` to turn it off. |

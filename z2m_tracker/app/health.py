@@ -27,7 +27,12 @@ DEFAULT_CHATTY_PER_HOUR = 1200
 
 # Everything the Settings page can switch: (key, label, description, is_event)
 CHECKS = [
-    ("offline", "Offline", "Z2M reports the device unavailable for longer than the offline threshold.", False),
+    (
+        "offline",
+        "Offline",
+        "Zigbee2MQTT has marked the device unavailable, and it stays that way for longer than the offline alert delay.",
+        False,
+    ),
     ("silent", "Not heard from", "No messages for 2 days from a device without availability reporting.", False),
     (
         "frozen",
