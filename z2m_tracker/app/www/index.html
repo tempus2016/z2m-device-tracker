@@ -224,6 +224,10 @@
   .empty { padding: 48px 16px; text-align: center; color: var(--text-2); }
   .empty .mdi { width: 48px; height: 48px; margin: 0 auto 8px; color: var(--disabled); }
   .empty b { display: block; color: var(--text); font-size: 16px; font-weight: 500; margin-bottom: 4px; }
+  .empty p { margin: 0 auto 16px; max-width: 40ch; }
+  .empty .btn .mdi { width: 18px; height: 18px; margin: 0; color: inherit; }
+  .empty .err-detail { margin: 16px auto 0; font-size: 12px; font-family: var(--mono); overflow-wrap: anywhere; }
+  .field-err { margin-top: 4px; font-size: 13px; color: var(--error-text); }
 
   /* ------------------------------------------------------------ list rows (repairs, logbook, settings) */
   .row { display: flex; align-items: center; gap: 16px; padding: 8px 16px; min-height: 72px; border-bottom: 1px solid var(--divider); }
@@ -2049,7 +2053,11 @@
   const renderSettings = async (refetch = true) => {
     if (refetch || !state.settings) {
       if (!state.settings) $("#view").innerHTML = `<div class="card">${emptyState("cog", th("settings.loading"), "")}</div>`;
-      try { state.settings = await api("api/settings"); } catch (err) { $("#view").innerHTML = `<div class="card">${emptyState("alert-circle", th("settings.load_failed"), esc(err.message))}</div>`; return; }
+      try { state.settings = await api("api/settings"); } catch (err) {
+        if (state.view !== "settings") return;
+        $("#view").innerHTML = `<div class="card">${emptyState("alert-circle", th("settings.load_failed"), `<p>${th("settings.load_failed_text")}</p><button class="btn filled" data-act="settings-retry">${ic("refresh", "s18")}${th("ota.retry")}</button><p class="err-detail">${esc(err.message)}</p>`)}</div>`;
+        return;
+      }
     }
     if (state.view !== "settings") return;
     const S = state.settings, s = S.settings;
@@ -2134,6 +2142,16 @@
     });
     $("#view").prepend(nav);
     fadeEdges();
+  };
+  // An out-of-range number goes back to the saved value, with a note under the field saying why.
+  // The note stays until the next save re-renders the view, so it can't be missed like a snackbar.
+  const rangeError = (el, old) => {
+    el.value = old;
+    const row = el.closest(".set-row"), id = `${el.dataset.num || el.id}-err`;
+    let msg = row.querySelector(".field-err");
+    if (!msg) { msg = document.createElement("div"); msg.className = "field-err"; msg.id = id; msg.setAttribute("role", "alert"); row.querySelector(".text").append(msg); }
+    msg.textContent = t("settings.number_reverted", { min: el.min, max: el.max, old });
+    el.setAttribute("aria-describedby", id); el.setAttribute("aria-invalid", "true");
   };
   const saveSettings = async (changes) => {
     try {
@@ -2957,6 +2975,7 @@
     async "save-wifi"() { await saveSettings({ wifi_channels: $("#wifiCh").value.trim() }); },
     async "send-summary"() { try { const r = await api("api/summary", {}); snack(r.title, 4000); } catch (err) { snack(err.message); } },
     restore() { $("#restoreFile").click(); },
+    "settings-retry"(b) { b.disabled = true; renderSettings(); },
     async unmute(b) { try { await api("api/mute", { ieee: b.dataset.ieee, kind: b.dataset.kind, muted: false }); snack(t("snack.unmuted")); if (state.view === "settings") await renderSettings(); load(); } catch (err) { snack(err.message); } },
     async "unmute-all"() { for (const m of state.settings?.muted || []) { try { await api("api/mute", { ieee: m.ieee, kind: m.kind, muted: false }); } catch (e) { /* keep going */ } } snack(t("snack.unmuted_all")); await renderSettings(); load(); },
     async "bindings-ack"(b) { try { await api("api/bindings/ack", { ieee: b.dataset.ieee }); snack(t("snack.bindings_dismissed")); load(); } catch (err) { snack(err.message); } },
@@ -3150,7 +3169,7 @@
       otaSave({ ota_window: on ? `${from}-${to}` : "" });
     } else if (id === "otaBat") {
       const v = Number(e.target.value);
-      if (!Number.isFinite(v) || v < 0 || v > 100) { snack(t("settings.number_range", { min: 0, max: 100 })); return; }
+      if (!Number.isFinite(v) || v < 0 || v > 100) { rangeError(e.target, state.ota?.min_battery ?? 30); return; }
       otaSave({ ota_min_battery: Math.round(v) });
     }
   });
@@ -3161,9 +3180,15 @@
       loadOta();
     },
     async "ota-update-all"() {
-      const n = otaList().filter((d) => d.update?.state === "available" && !state.ota?.status?.[d.ieee] && !state.ota?.battery_blocked?.[d.ieee]).length;
+      const avail = otaList().filter((d) => d.update?.state === "available" && !state.ota?.status?.[d.ieee]);
+      const go = avail.filter((d) => !state.ota?.battery_blocked?.[d.ieee]), low = avail.filter((d) => state.ota?.battery_blocked?.[d.ieee]);
+      const n = go.length, name = (d) => esc(nameOf(d) || d.ieee);
+      // Each update takes 10 to 60 minutes and they run one at a time, so the total is n times that.
+      const total = n === 1 ? t("ota.total_one") : n < 6 ? t("ota.total_mixed", { from: n * 10, to: n }) : t("ota.total_hours", { from: Math.round(n / 6), to: n });
       const ok = await confirmDialog({ title: t("ota.update_n_title", { n }), ok: t("ota.update_all"),
-        html: `<p>${th("ota.update_all_text")}</p><p>${th("ota.update_all_battery", { pct: esc(state.ota?.min_battery ?? 30) })}</p>` });
+        html: `<div class="facts">${go.slice(0, 8).map(name).join("<br>")}${n > 8 ? `<br><span class="muted">${th("ota.and_more", { n: n - 8 })}</span>` : ""}</div>
+          <p>${th("ota.update_all_total", { total: esc(total) })} ${th("ota.update_all_text")}</p>
+          <p>${low.length ? th("ota.update_all_skipped", { n: low.length, pct: esc(state.ota?.min_battery ?? 30), names: esc(listFmt.format(low.map((d) => nameOf(d) || d.ieee))) }) : th("ota.update_all_battery", { pct: esc(state.ota?.min_battery ?? 30) })}</p>` });
       if (!ok) return;
       try { const r = await api("api/ota/queue", { all: true }); snack(r.skipped.length ? t("ota.queued_skipped", { queued: r.queued.length, skipped: r.skipped.length }) : t("ota.queued_n", { queued: r.queued.length })); } catch (err) { snack(err.message, 5000); }
       load();
@@ -3549,7 +3574,7 @@
     if (el.dataset.set) saveSettings({ [el.dataset.set]: el.checked });
     else if (el.dataset.num) {
       const v = Number(el.value);
-      if (!Number.isFinite(v) || v < Number(el.min) || v > Number(el.max)) { snack(t("settings.number_range", { min: el.min, max: el.max })); el.value = state.settings.settings[el.dataset.num]; return; }
+      if (!Number.isFinite(v) || v < Number(el.min) || v > Number(el.max)) { rangeError(el, state.settings.settings[el.dataset.num]); return; }
       saveSettings({ [el.dataset.num]: Math.round(v) });
     } else if (el.id === "scanHour") saveSettings({ networkmap_hour: Number(el.value) });
     else if (el.id === "themeSel") { theme = el.value; store.set("z2mt.theme", theme); applyTheme(); }
@@ -3560,7 +3585,7 @@
     else if (el.id === "restoreFile" && el.files?.[0]) {
       const file = el.files[0];
       el.value = "";
-      confirmDialog({ title: t("restore.title"), ok: t("common.restore"), danger: true, html: `<p>${th("restore.text", { file: `<b>${esc(file.name)}</b>` })}</p>` }).then(async (ok) => {
+      confirmDialog({ title: t("restore.title"), ok: t("common.restore"), danger: true, html: `<p>${th("restore.text", { file: `<b>${esc(file.name)}</b>` })}</p><p>${th("restore.save_first")}</p><a class="btn outlined" href="api/backup" download>${ic("download", "s18")}${th("restore.download_current")}</a>` }).then(async (ok) => {
         if (!ok) return;
         try { const body = JSON.parse(await file.text()); const r = await api("api/restore", body); snack(t("restore.done", { devices: r.devices, events: r.events }), 4000); load(); }
         catch (err) { snack(err instanceof SyntaxError ? t("restore.bad_json") : err.message, 5000); }
