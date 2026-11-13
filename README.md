@@ -30,15 +30,17 @@ It has two parts, both in this repository:
 | Part | What it does | Install from |
 | --- | --- | --- |
 | **App** (`z2m_tracker/`) | Listens to Zigbee2MQTT over MQTT, stores the history and runs the web interface in the sidebar. | Settings → Apps → App store → Repositories |
-| **Integration** (`custom_components/z2m_tracker/`) | Optional. Adds summary sensors and a dashboard card. | HACS (custom repository) |
+| **Integration** (`custom_components/z2m_tracker/`) | Optional. Adds summary sensors, a dashboard card and Repairs issues. | HACS (custom repository) |
 
 ## Features
 
 - **Device history**: names, renames, model, firmware, area, joins, leaves and removals, with notes and asset details.
 - **Health checks and alerts**: offline, silent, frozen readings, weak or dropping signal, low battery, failed interviews, unidentified devices. Alerts go to HA notifications, events or a notify service.
-- **Coordinator health**: Zigbee2MQTT version, coordinator firmware, uptime, restarts and outages, and an alert when a network goes offline.
+- **More checks**: flapping devices, chatty devices, fast battery drain, lost bindings, single points of failure (routers), and a missing, stale or mismatched coordinator backup. They show in Health and only notify once you turn them on.
+- **Bindings and traffic**: each device's current and lost bindings with a history of changes, its message rates, and Zigbee2MQTT's own message, leave and address-change counters.
+- **Coordinator health**: Zigbee2MQTT version, coordinator firmware, uptime, restarts, outages and coordinator backup, and an alert when a network goes offline.
 - **Radio channels**: shows your Zigbee channels against your 2.4 GHz Wi-Fi channels and warns about overlap.
-- **Network map**: interactive map with advice on which router a device should use, nightly routing scans, and a before/after comparison between scans.
+- **Network map**: interactive map with advice on which router a device should use and which routers are a single point of failure, nightly routing scans, and a before/after comparison between scans.
 - **Device actions**: pair through a chosen router, move a device to another router, reconfigure, rename, set area, OTA updates.
 - **Batteries**: battery type and count (built-in library from Battery Notes), replacement records, estimates and a shopping list.
 - **Home Assistant entities**: MQTT discovery sensors attached to each Zigbee2MQTT device for use in automations.
@@ -61,6 +63,8 @@ If your Zigbee2MQTT uses a different base topic, or you run more than one instan
 1. HACS → ⋮ → Custom repositories, add `https://github.com/tempus2016/z2m-device-tracker` as **Integration**.
 2. Download **Z2M Device Tracker** and restart Home Assistant.
 3. Settings → Devices & services → Add integration → **Z2M Device Tracker**. The app's address is filled in for you.
+
+The integration also lists the app's problems in **Settings → Repairs**, and clears each one when it's fixed. Turn this off in the integration's options.
 
 Add the card to a dashboard:
 
