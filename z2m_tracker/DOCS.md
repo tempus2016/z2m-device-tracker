@@ -44,6 +44,18 @@ The device panel's Info tab also shows message rates, Zigbee2MQTT's own counters
 
 The integration can mirror warnings and notify-enabled checks into **Settings → Repairs**. Turn it off in the integration's options.
 
+## Pause alerts
+
+Use **⋮ → Pause alerts** before planned work, such as a Zigbee2MQTT upgrade, re-pairing or a power cut. Pick 30 min, 1 hour, 4 hours, until 08:00 tomorrow (the app's time zone), or until you resume. While alerts are paused:
+
+- Health keeps checking and lists issues as normal. A banner on every tab shows when the pause ends and how many new issues are waiting.
+- No issue alerts are sent. When the pause ends, or you press **Resume now**, issues that are still there are sent once. Issues that came and went during the pause are never sent.
+- Joined, left and interview failed alerts are not sent, and not sent later either. They still show in Activity.
+- Notifications already in Home Assistant stay until their issue clears after the pause.
+- The weekly summary and **Send test notification** still go out.
+
+The pause survives an app restart. The integration has the actions `z2m_tracker.pause_alerts` (optional `minutes`, empty pauses until resumed) and `z2m_tracker.resume_alerts`. Changing an alert setting during a pause marks the issues already found as sent, the same as it does outside a pause.
+
 ## Firmware updates
 
 The **Updates** tab lists every device with a firmware update from Zigbee2MQTT, with the installed and available versions, power and progress. Versions are the numbers Zigbee2MQTT reports; the build name is shown when the device has one.

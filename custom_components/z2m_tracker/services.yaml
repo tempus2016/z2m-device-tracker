@@ -68,6 +68,20 @@ ota_update:
     device_id: *zigbee_device
     ieee: *ieee
 
+pause_alerts:
+  fields:
+    minutes:
+      example: 60
+      selector:
+        number:
+          min: 1
+          max: 43200
+          mode: box
+          unit_of_measurement: min
+
+resume_alerts:
+  fields: {}
+
 add_note:
   fields:
     device_id: *zigbee_device

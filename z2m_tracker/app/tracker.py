@@ -12,10 +12,11 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
-from datetime import datetime, timezone, tzinfo
+from datetime import datetime, timedelta, timezone, tzinfo
+from datetime import time as dtime
 from typing import Any
 
-from health import device_issues, mutes_of, uptime
+from health import device_issues, mutes_of, notify_kinds, uptime
 from history_import import IEEE_RE, _features, collect_history
 from metrics import Metrics
 
@@ -25,6 +26,9 @@ MAX_EVENTS = 3000
 MAX_OUTAGES = 200
 STATUS_ACTIVE = "active"
 STATUS_REMOVED = "removed"
+
+# Longest pause for alerts given in minutes (30 days).
+MAX_PAUSE_MINUTES = 43200
 
 # Measurements that should drift on their own; used for frozen-reading detection.
 MEASURE_KEYS = ("temperature", "local_temperature", "humidity", "pressure", "co2", "voc", "pm25", "soil_moisture")
@@ -1433,6 +1437,7 @@ class Tracker:
                 "pairing": {bt: {**s, "joined": list(s["joined"])} for bt, s in self.pairing_sessions.items()},
                 "panels": self.options.get("_panels", {}),
                 "options": {k: v for k, v in self.options.items() if not k.startswith("_")},
+                "alerts_paused": self.alert_pause_state(),
                 "version": self.version,
             }
             return json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -1659,6 +1664,94 @@ class Tracker:
             self._changed(structural=True)
         self.evaluate_health()
         return True
+
+    # ------------------------------------------------------------ alert pause
+
+    def pause_alerts(self, minutes: Any = None, until: Any = None, at: Any = None) -> dict:
+        """Hold every alert for `minutes`, until an ISO time, or until the next HH:MM local time.
+
+        With none of them the pause lasts until resume_alerts(). Raises ValueError for bad input.
+        """
+        now = time.time()
+        if minutes is not None:
+            if isinstance(minutes, bool) or not isinstance(minutes, (int, float)):
+                raise ValueError("minutes must be a number")
+            if not 1 <= minutes <= MAX_PAUSE_MINUTES:
+                raise ValueError(f"minutes must be from 1 to {MAX_PAUSE_MINUTES}")
+            end: float | None = now + float(minutes) * 60
+        elif until not in (None, ""):
+            iso = self._to_utc_iso(str(until))
+            if iso is None:
+                raise ValueError("until must be a date and time like 2026-11-14T08:00")
+            end = datetime.fromisoformat(iso).timestamp()
+            if end <= now:
+                raise ValueError("until must be in the future")
+        elif at not in (None, ""):
+            match = re.fullmatch(r"([01]?\d|2[0-3]):([0-5]\d)", str(at).strip())
+            if not match:
+                raise ValueError("at must be a time like 08:00")
+            day = datetime.fromtimestamp(now, tz=self.local_tz).date()
+            wall = dtime(int(match[1]), int(match[2]))
+            end = datetime.combine(day, wall, tzinfo=self.local_tz).timestamp()
+            if end <= now:
+                end = datetime.combine(day + timedelta(days=1), wall, tzinfo=self.local_tz).timestamp()
+        else:
+            end = None
+        with self.lock:
+            since = (self.data.get("alerts_paused") or {}).get("since") if self.alerts_paused() else None
+            self.data["alerts_paused"] = {
+                "since": since or datetime.fromtimestamp(now, tz=timezone.utc).isoformat(timespec="seconds"),
+                "until": datetime.fromtimestamp(end, tz=timezone.utc).isoformat(timespec="seconds") if end else None,
+            }
+            self._changed(structural=True)
+            state = self.alert_pause_state()
+        if end is None:
+            _LOGGER.info("Alerts paused until resumed")
+        else:
+            _LOGGER.info(
+                "Alerts paused until %s", datetime.fromtimestamp(end, tz=self.local_tz).strftime("%Y-%m-%d %H:%M")
+            )
+        return state
+
+    def resume_alerts(self) -> bool:
+        """End a pause now. Returns False when alerts weren't paused."""
+        with self.lock:
+            if not self.alerts_paused():
+                return False
+            self.data["alerts_paused"] = None
+            self._changed(structural=True)
+        _LOGGER.info("Alerts resumed")
+        return True
+
+    def alerts_paused(self) -> bool:
+        """True while a pause is running. A pause whose time has passed is cleared here."""
+        with self.lock:
+            pause = self.data.get("alerts_paused")
+            if not pause:
+                return False
+            until = pause.get("until")
+            try:
+                if until is None or datetime.fromisoformat(until).timestamp() > time.time():
+                    return True
+            except (TypeError, ValueError):
+                pass
+            self.data["alerts_paused"] = None
+            self._changed(structural=True)
+        _LOGGER.info("Alert pause ended")
+        return False
+
+    def alert_pause_state(self) -> dict | None:
+        """The running pause for the UI, with how many issues will be sent when it ends."""
+        with self.lock:
+            if not self.alerts_paused():
+                return None
+            pause = self.data["alerts_paused"]
+            pending = 0
+            if self.data.get("alerts_initialised"):
+                enabled = notify_kinds(self.options)
+                sent = set(self.data.get("alerted") or [])
+                pending = sum(1 for i in self.issues if i["kind"] in enabled and i["key"] not in sent)
+            return {"since": pause.get("since"), "until": pause.get("until"), "pending": pending}
 
     # ------------------------------------------------------------ Z2M actions
 
@@ -1964,6 +2057,8 @@ class Tracker:
         if not isinstance(history.get("devices"), dict):
             return {"ok": False, "error": "The backup has no device list"}
         with self.lock:
+            # A pause is about now, not about when the backup was made.
+            paused = self.data.get("alerts_paused")
             self.data = {
                 "devices": {},
                 "events": list(history.get("events") or []),
@@ -1974,6 +2069,9 @@ class Tracker:
             for key, value in history.items():
                 if key not in ("devices", "events", "imported", "networkmap", "alerted"):
                     self.data[key] = value
+            self.data.pop("alerts_paused", None)
+            if paused:
+                self.data["alerts_paused"] = paused
             for ieee, record in history["devices"].items():
                 self.data["devices"][ieee] = {**_new_record(ieee, record.get("instance")), **record}
             self.names = {}

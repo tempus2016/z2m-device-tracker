@@ -23,6 +23,9 @@ ATTR_IEEE = "ieee"
 IDENT_RE = re.compile(r"zigbee2mqtt_(0x[0-9a-f]{16})$")
 IEEE_RE = re.compile(r"0x[0-9a-f]{16}")
 
+# Longest pause the app accepts, in minutes (30 days).
+PAUSE_LIMIT = 43200
+
 # Checks that belong to one device and can be muted for it (network-wide checks can't).
 DEVICE_CHECKS = [
     "offline",
@@ -66,6 +69,8 @@ SCHEMAS: dict[str, vol.Schema] = {
     "reconfigure": vol.Schema(DEVICE_FIELDS),
     "ota_update": vol.Schema(DEVICE_FIELDS),
     "add_note": vol.Schema({**DEVICE_FIELDS, vol.Required("text"): vol.All(cv.string, vol.Length(min=1))}),
+    "pause_alerts": vol.Schema({vol.Optional("minutes"): vol.All(vol.Coerce(int), vol.Range(min=1, max=PAUSE_LIMIT))}),
+    "resume_alerts": vol.Schema({}),
 }
 
 NOTE_LIMIT = 2000
@@ -232,6 +237,22 @@ async def _add_note(hass: HomeAssistant, call: ServiceCall) -> None:
         raise _app_error(err) from err
 
 
+async def _pause_alerts(hass: HomeAssistant, call: ServiceCall) -> None:
+    tracker = _tracker(hass)
+    try:
+        await tracker.async_pause_alerts(call.data.get("minutes"))
+    except TrackerAppError as err:
+        raise _app_error(err) from err
+
+
+async def _resume_alerts(hass: HomeAssistant, call: ServiceCall) -> None:
+    tracker = _tracker(hass)
+    try:
+        await tracker.async_resume_alerts()
+    except TrackerAppError as err:
+        raise _app_error(err) from err
+
+
 HANDLERS: dict[str, Any] = {
     "battery_replaced": (_battery_replaced, SupportsResponse.NONE),
     "mute_device": (_mute_device, SupportsResponse.NONE),
@@ -239,6 +260,8 @@ HANDLERS: dict[str, Any] = {
     "reconfigure": (_reconfigure, SupportsResponse.NONE),
     "ota_update": (_ota_update, SupportsResponse.OPTIONAL),
     "add_note": (_add_note, SupportsResponse.NONE),
+    "pause_alerts": (_pause_alerts, SupportsResponse.NONE),
+    "resume_alerts": (_resume_alerts, SupportsResponse.NONE),
 }
 
 
