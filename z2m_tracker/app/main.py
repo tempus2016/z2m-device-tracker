@@ -679,7 +679,7 @@ class Handler(BaseHTTPRequestHandler):
             )
         elif path == "/api/areas":
             try:
-                self._json(200, {"areas": home_assistant.list_areas()})
+                self._json(200, {"areas": home_assistant.list_areas(), "floors": home_assistant.list_floors()})
             except Exception as err:  # noqa: BLE001 - report HA errors to the caller
                 self._json(502, {"error": str(err)})
         elif path == "/api/export.csv":
