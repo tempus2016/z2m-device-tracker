@@ -582,7 +582,7 @@
     const want = I18N.pref === "auto" ? I18N.auto : I18N.pref;
     const codes = I18N.langs.map((l) => l.code);
     const low = String(want).toLowerCase(), base = low.split("-")[0];
-    const code = codes.find((c) => c.toLowerCase() === low) || codes.find((c) => c.toLowerCase() === base) || "en";
+    const code = codes.find((c) => c.toLowerCase() === low) || codes.find((c) => c.toLowerCase() === base) || codes.find((c) => c.split("-")[0].toLowerCase() === base) || "en";
     I18N.en = (await get("i18n/en.json")) || {};
     I18N.cur = code === "en" ? I18N.en : (await get(`i18n/${code}.json`)) || {};
     I18N.code = code;

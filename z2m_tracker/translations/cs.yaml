@@ -1,0 +1,64 @@
+configuration:
+  base_topics:
+    name: Základní témata Zigbee2MQTT
+    description: Základní téma MQTT každé instance Zigbee2MQTT, kterou chcete sledovat.
+  z2m_panels:
+    name: Odkazy na aplikace Zigbee2MQTT
+    description: "Odkazy na jednotlivé aplikace Zigbee2MQTT ve tvaru base_topic=app_slug, např. zigbee2mqtt=45df7312_zigbee2mqtt. Slug najdete v URL aplikace."
+  alerts_enabled:
+    name: Upozornění
+    description: Hlavní vypínač upozornění.
+  persistent_notifications:
+    name: Oznámení Home Assistant
+    description: Zobrazovat upozornění jako oznámení v Home Assistant.
+  fire_events:
+    name: Vyvolávat události
+    description: Vyvolávat události z2m_tracker_alert pro automatizace.
+  notify_service:
+    name: Služba oznámení
+    description: Posílat upozornění také do služby oznámení, např. notify.mobile_app_phone.
+  alert_on_join:
+    name: Upozornit na připojení
+    description: Upozornit, když se připojí nové zařízení.
+  disabled_checks:
+    name: Vypnuté kontroly
+    description: Kontroly stavu, které se mají úplně vypnout.
+  notify_checks:
+    name: Kontroly s upozorněním
+    description: Kontroly stavu, které posílají upozornění.
+  offline_alert_minutes:
+    name: Prodleva upozornění offline (minuty)
+    description: Jak dlouho musí být zařízení offline, než přijde upozornění.
+  frozen_alert_hours:
+    name: Prodleva zamrzlé hodnoty (hodiny)
+    description: Jak dlouho musí hodnota senzoru zůstat stejná, než se považuje za zamrzlou.
+  battery_alert_percent:
+    name: Nízká úroveň baterie (%)
+    description: Úroveň baterie pro upozornění na vybitou baterii.
+  networkmap_hour:
+    name: Hodina skenování směrování
+    description: Hodina nočního skenování směrování, nebo -1 pro vypnutí.
+  ha_entities:
+    name: Senzory trackeru
+    description: Přidat senzory trackeru ke každému zařízení Zigbee2MQTT přes MQTT discovery.
+  weekly_summary:
+    name: Týdenní souhrn
+    description: Posílat oznámení s týdenním souhrnem.
+  summary_day:
+    name: Den souhrnu
+    description: Den odeslání týdenního souhrnu (0 = pondělí).
+  summary_hour:
+    name: Hodina souhrnu
+    description: Hodina odeslání týdenního souhrnu.
+  wifi_channels:
+    name: Kanály Wi-Fi
+    description: Vaše kanály Wi-Fi 2,4 GHz, např. 1, 6, pro kontrolu rádiového kanálu.
+  chatty_per_hour:
+    name: Práh upovídanosti (zpráv za hodinu)
+    description: Počet zpráv za hodinu (průměr za 6 hodin), nad kterým se zařízení označí jako upovídané.
+  ota_window:
+    name: Okno automatických aktualizací
+    description: Časové okno pro automatické aktualizace firmwaru, např. 02:00-05:00 (místní čas, může přesahovat půlnoc). Prázdné vypne automatické aktualizace. Neúspěšná aktualizace se zopakuje jednou, další noc.
+  ota_min_battery:
+    name: Minimální baterie pro aktualizace (%)
+    description: Bateriová zařízení pod touto úrovní se při automatických a hromadných aktualizacích přeskočí. Volba Přesto aktualizovat to pro jedno zařízení obejde.

@@ -1,0 +1,64 @@
+configuration:
+  base_topics:
+    name: Tópicos base do Zigbee2MQTT
+    description: Tópico base MQTT de cada instância do Zigbee2MQTT a acompanhar.
+  z2m_panels:
+    name: Links dos apps Zigbee2MQTT
+    description: Links para cada app Zigbee2MQTT, no formato base_topic=app_slug, ex. zigbee2mqtt=45df7312_zigbee2mqtt. O slug está na URL do app.
+  alerts_enabled:
+    name: Alertas
+    description: Chave geral dos alertas.
+  persistent_notifications:
+    name: Notificações do Home Assistant
+    description: Mostrar alertas como notificações do Home Assistant.
+  fire_events:
+    name: Disparar eventos
+    description: Disparar eventos z2m_tracker_alert para automações.
+  notify_service:
+    name: Serviço de notificação
+    description: Também enviar alertas para um serviço de notificação, ex. notify.mobile_app_phone.
+  alert_on_join:
+    name: Alertar ao entrar
+    description: Alertar quando um novo dispositivo entrar.
+  disabled_checks:
+    name: Verificações desativadas
+    description: Verificações de saúde a desligar por completo.
+  notify_checks:
+    name: Verificações que alertam
+    description: Verificações de saúde que enviam alertas.
+  offline_alert_minutes:
+    name: Atraso do alerta de offline (minutos)
+    description: Quanto tempo um dispositivo precisa ficar offline antes de um alerta.
+  frozen_alert_hours:
+    name: Atraso de leitura congelada (horas)
+    description: Quanto tempo a leitura de um sensor precisa ficar igual para contar como congelada.
+  battery_alert_percent:
+    name: Nível de bateria baixa (%)
+    description: Nível de bateria para um alerta de bateria baixa.
+  networkmap_hour:
+    name: Hora da varredura de rotas
+    description: Hora da varredura de rotas noturna, ou -1 para desativá-la.
+  ha_entities:
+    name: Sensores do tracker
+    description: Adicionar sensores do tracker a cada dispositivo do Zigbee2MQTT via MQTT discovery.
+  weekly_summary:
+    name: Resumo semanal
+    description: Enviar uma notificação de resumo semanal.
+  summary_day:
+    name: Dia do resumo
+    description: Dia de envio do resumo semanal (0 = segunda-feira).
+  summary_hour:
+    name: Hora do resumo
+    description: Hora de envio do resumo semanal.
+  wifi_channels:
+    name: Canais Wi-Fi
+    description: Seus canais Wi-Fi de 2,4 GHz, ex. 1, 6, usados na verificação de canais de rádio.
+  chatty_per_hour:
+    name: Limite de tagarelice (mensagens por hora)
+    description: Mensagens por hora (média de 6 horas) acima das quais um dispositivo é sinalizado como tagarela.
+  ota_window:
+    name: Janela de atualização automática
+    description: Janela de tempo para atualizações automáticas de firmware, ex. 02:00-05:00 (hora local, pode passar da meia-noite). Vazio desativa as atualizações automáticas. Uma atualização que falhar é tentada mais uma vez, na noite seguinte.
+  ota_min_battery:
+    name: Bateria mínima para atualizações (%)
+    description: Dispositivos a bateria abaixo deste nível são pulados pelas atualizações automáticas e em massa. Atualizar mesmo assim ignora o limite para um dispositivo.

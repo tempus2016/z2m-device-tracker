@@ -11,7 +11,7 @@ There are two things in here, and they install separately:
   attention, and `app/www/index.html` is the whole sidebar page. Its Python packages are
   pinned in `z2m_tracker/Dockerfile`, and its base image in `z2m_tracker/build.yaml`.
 - **The integration** in `custom_components/z2m_tracker/`, which reads the app and turns it
-  into sensors, plus the dashboard card in `www/z2m-tracker-card.js`. Plain JavaScript, no
+  into sensors, plus the dashboard cards in `www/`. Plain JavaScript, no
   build step.
 
 ## Checks
@@ -68,30 +68,44 @@ be, so it can be tested without MQTT.
 - Stored history has to keep loading. A change to what is saved in `/data` must still read
   what the previous version wrote.
 
-## Translating the sidebar
+## Translations
 
-The sidebar's text lives in `z2m_tracker/app/www/i18n/en.json`: flat keys grouped by area
-(`tabs.devices`, `health.title`, `issue.offline.detail`, ...). To add a language:
+The app and the integration ship in English, German, Dutch, French, Spanish, Italian, Polish,
+Brazilian Portuguese, Swedish, Czech, Russian and Simplified Chinese. A language is three files,
+each copied from the English one next to it:
 
-1. Copy `en.json` to `xx.json`, where `xx` is the language code Home Assistant uses (`de`,
-   `fr`, `pt-BR`, `zh-Hans`). The file name must match `^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$`.
-2. Set `language.name` to the language's own name (`Deutsch`), then translate the values.
+| What | English source |
+|---|---|
+| The sidebar and the dashboard cards | `z2m_tracker/app/www/i18n/en.json` |
+| The app's options in Home Assistant | `z2m_tracker/translations/en.yaml` |
+| The integration: setup, options, actions, entities | `custom_components/z2m_tracker/translations/en.json` |
+
+Name each copy with the language code Home Assistant uses (`de`, `fr`, `pt-BR`, `zh-Hans`).
+The code must match `^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$`. In the sidebar file:
+
+1. Set `language.name` to the language's own name (`Deutsch`), then translate the values.
    Keep every `{placeholder}` as it is. You can move it within the sentence.
-3. A value can be an object of plural forms, picked with `Intl.PluralRules` from `{n}`:
+2. A value can be an object of plural forms, picked with `Intl.PluralRules` from `{n}`:
    `{"one": "{n} device", "other": "{n} devices"}`. Use the categories your language needs
    (`zero`, `one`, `two`, `few`, `many`, `other`). `other` is required.
-4. Leave out any key you don't want to translate. Missing keys fall back to English.
+3. Leave out any key you don't want to translate. Missing keys fall back to English.
 
 The app lists every file in `www/i18n/` automatically. Settings, Language picks it, and
-Automatic follows the Home Assistant user's profile language. Dates, times and "2 days ago"
-come from the browser's `Intl` support, so they need no strings.
+Automatic follows the Home Assistant user's profile language. The dashboard cards ask the
+integration for the `card.*`, `issue.*`, `unit.*`, `reading.*` and `net.*` keys in the user's
+language, which reads them from the app, so the cards and the sidebar share one file. Dates,
+times and "2 days ago" come from the browser's `Intl` support, so they need no strings.
+
+`tests/test_translations.py` checks every file against English: no unknown keys, the same
+placeholders, and valid plural forms. A missing key is fine.
 
 Home Assistant notifications, the weekly summary and alert events stay in English. So do names
-and data that come from Zigbee2MQTT, such as models, binding clusters and history sources.
+and data that come from Zigbee2MQTT, such as models, binding clusters and history sources, and
+the names of the sensors the app adds to each device through MQTT discovery.
 
 ### Adding new UI text
 
-Don't write English straight into `index.html`. Add a key to `en.json` and use one of these:
+Don't write English straight into `index.html` or the cards. Add a key to `en.json` and use one of these:
 
 - `t("key", { name })` returns plain text. Use it for `textContent`, snackbars and confirm
   titles. Wrap it in `esc()` for attributes: `aria-label="${esc(t("common.close"))}"`.
@@ -99,6 +113,11 @@ Don't write English straight into `index.html`. Add a key to `en.json` and use o
   `{vars}` as they are. That lets you pass links or `<b>`, so escape user data yourself.
 - `tx("key", vars, fallback)` uses the server's English text when the key doesn't exist.
 - Static markup uses `data-t="key"` for text and `data-ta="aria-label=key;title=key"` for attributes.
+- In the cards, `T("card.key", vars)` returns plain text; wrap it in `esc()`. A new card key also
+  goes in the built-in English list in `custom_components/z2m_tracker/www/z2m-tracker-i18n.js`.
+
+New keys only need adding to `en.json`. The other languages show English for them until
+someone translates them.
 
 Text built in Python and shown in the sidebar (health checks, radio advice) also sends
 `msg` and `params`. The sidebar looks up `issue.<msg>.title`, `issue.<msg>.detail` or

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import voluptuous as vol
@@ -10,6 +11,8 @@ from homeassistant.core import HomeAssistant, callback
 
 from .const import DOMAIN
 from .tracker import TrackerAppError
+
+LANGUAGE_RE = re.compile(r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
 
 
 def _tracker(hass: HomeAssistant):
@@ -22,6 +25,7 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_subscribe)
     websocket_api.async_register_command(hass, ws_set_note)
     websocket_api.async_register_command(hass, ws_forget)
+    websocket_api.async_register_command(hass, ws_strings)
 
 
 @websocket_api.websocket_command({vol.Required("type"): "z2m_tracker/devices"})
@@ -100,3 +104,21 @@ async def ws_forget(hass: HomeAssistant, connection: websocket_api.ActiveConnect
         connection.send_error(msg["id"], "app_error", str(err))
         return
     connection.send_result(msg["id"], {"ok": True})
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "z2m_tracker/strings", vol.Required("language"): vol.All(str, vol.Match(LANGUAGE_RE))}
+)
+@websocket_api.async_response
+async def ws_strings(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """Card translations from the app, so the cards and the sidebar share one set of files."""
+    tracker = _tracker(hass)
+    if tracker is None:
+        connection.send_error(msg["id"], "not_loaded", "Z2M Device Tracker is not loaded")
+        return
+    try:
+        result = await tracker.async_card_strings(msg["language"])
+    except TrackerAppError as err:
+        connection.send_error(msg["id"], "app_error", str(err))
+        return
+    connection.send_result(msg["id"], result)

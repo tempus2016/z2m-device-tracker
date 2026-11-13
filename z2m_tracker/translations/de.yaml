@@ -1,0 +1,64 @@
+configuration:
+  base_topics:
+    name: Zigbee2MQTT-Basis-Topics
+    description: MQTT-Basis-Topic jeder Zigbee2MQTT-Instanz, die verfolgt werden soll.
+  z2m_panels:
+    name: Zigbee2MQTT-App-Links
+    description: "Links zu jeder Zigbee2MQTT-App, als base_topic=app_slug, z. B. zigbee2mqtt=45df7312_zigbee2mqtt. Der Slug steht in der URL der App."
+  alerts_enabled:
+    name: Warnungen
+    description: Hauptschalter für Warnungen.
+  persistent_notifications:
+    name: Home-Assistant-Benachrichtigungen
+    description: Warnungen als Home-Assistant-Benachrichtigungen anzeigen.
+  fire_events:
+    name: Ereignisse auslösen
+    description: z2m_tracker_alert-Ereignisse für Automatisierungen auslösen.
+  notify_service:
+    name: Benachrichtigungsdienst
+    description: Warnungen zusätzlich an einen Benachrichtigungsdienst senden, z. B. notify.mobile_app_phone.
+  alert_on_join:
+    name: Warnung bei Beitritt
+    description: Warnen, wenn ein neues Gerät beitritt.
+  disabled_checks:
+    name: Deaktivierte Prüfungen
+    description: Zustandsprüfungen, die komplett ausgeschaltet werden.
+  notify_checks:
+    name: Prüfungen mit Warnung
+    description: Zustandsprüfungen, die Warnungen senden.
+  offline_alert_minutes:
+    name: Verzögerung Offline-Warnung (Minuten)
+    description: Wie lange ein Gerät offline sein muss, bevor gewarnt wird.
+  frozen_alert_hours:
+    name: Verzögerung eingefrorener Messwert (Stunden)
+    description: Wie lange ein Sensorwert gleich bleiben muss, bevor er als eingefroren gilt.
+  battery_alert_percent:
+    name: Schwacher Batteriestand (%)
+    description: Batteriestand für eine Warnung wegen schwacher Batterie.
+  networkmap_hour:
+    name: Stunde des Routing-Scans
+    description: Stunde des nächtlichen Routing-Scans, oder -1 zum Ausschalten.
+  ha_entities:
+    name: Tracker-Sensoren
+    description: Tracker-Sensoren per MQTT Discovery zu jedem Zigbee2MQTT-Gerät hinzufügen.
+  weekly_summary:
+    name: Wochenübersicht
+    description: Eine wöchentliche Übersicht als Benachrichtigung senden.
+  summary_day:
+    name: Tag der Übersicht
+    description: Tag, an dem die Wochenübersicht gesendet wird (0 = Montag).
+  summary_hour:
+    name: Stunde der Übersicht
+    description: Stunde, zu der die Wochenübersicht gesendet wird.
+  wifi_channels:
+    name: WLAN-Kanäle
+    description: Deine 2,4-GHz-WLAN-Kanäle, z. B. 1, 6, für die Prüfung der Funkkanäle.
+  chatty_per_hour:
+    name: Schwellenwert gesprächig (Nachrichten pro Stunde)
+    description: Nachrichten pro Stunde (gemittelt über 6 Stunden), ab denen ein Gerät als gesprächig markiert wird.
+  ota_window:
+    name: Zeitfenster für automatische Updates
+    description: Zeitfenster für automatische Firmware-Updates, z. B. 02:00-05:00 (Ortszeit, darf über Mitternacht gehen). Leer schaltet automatische Updates aus. Ein fehlgeschlagenes Update wird einmal wiederholt, in der nächsten Nacht.
+  ota_min_battery:
+    name: Mindestladung für Updates (%)
+    description: Batteriegeräte unter diesem Stand werden bei automatischen und Sammel-Updates übersprungen. „Trotzdem aktualisieren“ übergeht das für ein einzelnes Gerät.

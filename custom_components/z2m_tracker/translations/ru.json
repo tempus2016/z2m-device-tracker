@@ -1,0 +1,241 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Z2M Device Tracker",
+        "description": "Подключается к приложению Z2M Device Tracker, которое записывает историю каждого устройства Zigbee2MQTT. Добавляет сводные датчики и карточку z2m-tracker-card. URL приложения заполняется автоматически, если приложение установлено.",
+        "data": {
+          "app_url": "URL приложения"
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Z2M Device Tracker уже настроен."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Z2M Device Tracker",
+        "data": {
+          "app_url": "URL приложения",
+          "repairs": "Показывать проблемы в разделе «Настройки > Ремонт»"
+        },
+        "data_description": {
+          "repairs": "Повторяет предупреждения приложения и проверки с оповещением. Каждая проблема исчезает сама, когда её устранят."
+        }
+      }
+    }
+  },
+  "services": {
+    "import_history": {
+      "name": "Импортировать историю",
+      "description": "Попросить приложение заново просканировать базы данных Z2M, резервные копии конфигурации, журналы и реестры Home Assistant в поисках устройств и имён и объединить их с историей."
+    },
+    "battery_replaced": {
+      "name": "Батарея заменена",
+      "description": "Записать замену батареи для устройства Zigbee. Также обновляет Battery Notes, если оно отслеживает это устройство.",
+      "fields": {
+        "device_id": {
+          "name": "Устройство",
+          "description": "Устройство Zigbee2MQTT. Выберите его по имени."
+        },
+        "ieee": {
+          "name": "Адрес IEEE",
+          "description": "Используйте вместо устройства, например 0x00158d0001a2b3c4."
+        },
+        "date": {
+          "name": "Дата",
+          "description": "Когда была заменена батарея. Оставьте пустым для сегодняшней даты."
+        },
+        "battery_type": {
+          "name": "Тип батареи",
+          "description": "Сохраняет тип батареи для этого устройства, например CR2032. Оставьте пустым, чтобы сохранить текущий."
+        }
+      }
+    },
+    "mute_device": {
+      "name": "Заглушить устройство",
+      "description": "Запретить трекеру сообщать о проблемах с устройством Zigbee.",
+      "fields": {
+        "device_id": {
+          "name": "Устройство",
+          "description": "Устройство Zigbee2MQTT. Выберите его по имени."
+        },
+        "ieee": {
+          "name": "Адрес IEEE",
+          "description": "Используйте вместо устройства, например 0x00158d0001a2b3c4."
+        },
+        "checks": {
+          "name": "Проверки",
+          "description": "Какие проверки заглушить. Оставьте пустым, чтобы заглушить все."
+        },
+        "duration": {
+          "name": "Длительность",
+          "description": "На сколько заглушить. Оставьте пустым, чтобы заглушить, пока вы не включите его снова в приложении."
+        }
+      }
+    },
+    "run_network_scan": {
+      "name": "Запустить сканирование сети",
+      "description": "Запустить сканирование маршрутов (карту сети) в Zigbee2MQTT. Оно выполняется в фоне и может занять несколько минут.",
+      "fields": {
+        "base_topic": {
+          "name": "Базовый топик",
+          "description": "Сеть Zigbee2MQTT для сканирования, например zigbee2mqtt. Оставьте пустым, чтобы просканировать все сети."
+        }
+      }
+    },
+    "reconfigure": {
+      "name": "Перенастроить",
+      "description": "Попросить Zigbee2MQTT перенастроить устройство. Это заново создаёт его привязки для отчётов. Сначала разбудите устройства на батарейках.",
+      "fields": {
+        "device_id": {
+          "name": "Устройство",
+          "description": "Устройство Zigbee2MQTT. Выберите его по имени."
+        },
+        "ieee": {
+          "name": "Адрес IEEE",
+          "description": "Используйте вместо устройства, например 0x00158d0001a2b3c4."
+        }
+      }
+    },
+    "ota_update": {
+      "name": "Обновление прошивки",
+      "description": "Запустить обновление прошивки (OTA). Оставьте устройство пустым, чтобы обновить все устройства, для которых есть обновление.",
+      "fields": {
+        "device_id": {
+          "name": "Устройство",
+          "description": "Устройство Zigbee2MQTT. Оставьте пустым, чтобы обновить все устройства с доступным обновлением."
+        },
+        "ieee": {
+          "name": "Адрес IEEE",
+          "description": "Используйте вместо устройства, например 0x00158d0001a2b3c4."
+        }
+      }
+    },
+    "add_note": {
+      "name": "Добавить заметку",
+      "description": "Добавить строку в заметку устройства Zigbee в трекере.",
+      "fields": {
+        "device_id": {
+          "name": "Устройство",
+          "description": "Устройство Zigbee2MQTT. Выберите его по имени."
+        },
+        "ieee": {
+          "name": "Адрес IEEE",
+          "description": "Используйте вместо устройства, например 0x00158d0001a2b3c4."
+        },
+        "text": {
+          "name": "Текст",
+          "description": "Текст для добавления. Он добавляется новой строкой после существующей заметки."
+        }
+      }
+    }
+  },
+  "issues": {
+    "device_issue": {
+      "title": "Zigbee: {name} — {title}",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "{name}: {title}",
+            "description": "{detail}\n\nВыберите исправление. Заглушение отключает эту проверку только для этого устройства.\n\n[Открыть в Zigbee Tracker]({panel})",
+            "menu_options": {
+              "restore_binding": "Восстановить привязку",
+              "bindings_removed": "Привязка удалена намеренно",
+              "battery_replaced": "Батарея заменена сегодня",
+              "reconfigure": "Перенастроить устройство",
+              "install_update": "Установить обновление прошивки",
+              "mute_day": "Заглушить эту проверку на 24 часа",
+              "mute_forever": "Заглушить эту проверку, пока я не включу её"
+            }
+          },
+          "restore_binding": {
+            "title": "Восстановить привязку",
+            "description": "Просит Zigbee2MQTT заново создать эти привязки на {name}:\n\n{bindings}\n\nЕсли устройство работает от батареи, сначала разбудите его, например нажав его кнопку, затем нажмите «Отправить». Это может занять до минуты на каждую привязку."
+          }
+        },
+        "abort": {
+          "not_loaded": "Z2M Device Tracker не загружен.",
+          "app_error": "Исправление не сработало: {error}"
+        }
+      }
+    },
+    "network_issue": {
+      "title": "Zigbee: {name} — {title}",
+      "description": "{detail}\n\n[Открыть Zigbee Tracker]({panel})"
+    }
+  },
+  "entity": {
+    "calendar": {
+      "batteries": {
+        "name": "Батареи Zigbee"
+      }
+    },
+    "todo": {
+      "batteries": {
+        "name": "Батареи Zigbee"
+      }
+    }
+  },
+  "selector": {
+    "check": {
+      "options": {
+        "offline": "Не в сети",
+        "silent": "Нет сообщений",
+        "frozen": "Застывшие показания",
+        "battery_low": "Низкий заряд",
+        "battery_soon": "Батарея садится",
+        "battery_drain": "Быстрый разряд батареи",
+        "weak_signal": "Слабый сигнал",
+        "signal_drop": "Сигнал ухудшается",
+        "unidentified": "Не опознано",
+        "update": "Обновление прошивки",
+        "replacement": "Возможная замена",
+        "flapping": "Нестабильность",
+        "chatty": "Болтливое устройство",
+        "binding_lost": "Привязка потеряна",
+        "single_point": "Единая точка отказа"
+      }
+    }
+  },
+  "exceptions": {
+    "not_loaded": {
+      "message": "Z2M Device Tracker не загружен."
+    },
+    "app_unreachable": {
+      "message": "Приложение Z2M Device Tracker недоступно."
+    },
+    "app_error": {
+      "message": "Приложение Z2M Device Tracker вернуло ошибку: {error}"
+    },
+    "no_device": {
+      "message": "Выберите устройство или введите адрес IEEE."
+    },
+    "unknown_device_id": {
+      "message": "В Home Assistant нет устройства с ID {device}."
+    },
+    "not_zigbee": {
+      "message": "{device} не является устройством Zigbee2MQTT."
+    },
+    "bad_ieee": {
+      "message": "{ieee} не является адресом IEEE. Он должен выглядеть как 0x00158d0001a2b3c4."
+    },
+    "unknown_ieee": {
+      "message": "У трекера нет устройства {ieee}."
+    },
+    "not_active": {
+      "message": "{name} больше нет в Zigbee2MQTT."
+    },
+    "no_update": {
+      "message": "Для {name} нет доступного обновления прошивки."
+    },
+    "unknown_base_topic": {
+      "message": "Нет сети Zigbee2MQTT с базовым топиком {base_topic}. Известные: {known}."
+    },
+    "note_too_long": {
+      "message": "Заметка будет длиннее {limit} символов. Сначала сократите её в приложении."
+    }
+  }
+}

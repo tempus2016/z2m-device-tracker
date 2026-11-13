@@ -1,0 +1,64 @@
+configuration:
+  base_topics:
+    name: Zigbee2MQTT-bastopics
+    description: MQTT-bastopic för varje Zigbee2MQTT-instans som ska följas.
+  z2m_panels:
+    name: Länkar till Zigbee2MQTT-appar
+    description: Länkar till varje Zigbee2MQTT-app, som base_topic=app_slug, t.ex. zigbee2mqtt=45df7312_zigbee2mqtt. Slugen finns i appens URL.
+  alerts_enabled:
+    name: Larm
+    description: Huvudbrytare för larm.
+  persistent_notifications:
+    name: Home Assistant-aviseringar
+    description: Visa larm som aviseringar i Home Assistant.
+  fire_events:
+    name: Utlös händelser
+    description: Utlös z2m_tracker_alert-händelser för automationer.
+  notify_service:
+    name: Aviseringstjänst
+    description: Skicka även larm till en aviseringstjänst, t.ex. notify.mobile_app_phone.
+  alert_on_join:
+    name: Larma vid anslutning
+    description: Larma när en ny enhet ansluter.
+  disabled_checks:
+    name: Avstängda kontroller
+    description: Hälsokontroller som ska stängas av helt.
+  notify_checks:
+    name: Kontroller som larmar
+    description: Hälsokontroller som skickar larm.
+  offline_alert_minutes:
+    name: Fördröjning för offlinelarm (minuter)
+    description: Hur länge en enhet måste vara offline innan ett larm skickas.
+  frozen_alert_hours:
+    name: Fördröjning för fryst värde (timmar)
+    description: Hur länge ett sensorvärde måste vara oförändrat innan det räknas som fryst.
+  battery_alert_percent:
+    name: Låg batterinivå (%)
+    description: Batterinivå för larm om låg batterinivå.
+  networkmap_hour:
+    name: Timme för routingskanning
+    description: Timme för den nattliga routingskanningen, eller -1 för att stänga av den.
+  ha_entities:
+    name: Trackersensorer
+    description: Lägg till trackersensorer på varje Zigbee2MQTT-enhet via MQTT discovery.
+  weekly_summary:
+    name: Veckosammanfattning
+    description: Skicka en avisering med veckosammanfattning.
+  summary_day:
+    name: Dag för sammanfattning
+    description: Dag då veckosammanfattningen skickas (0 = måndag).
+  summary_hour:
+    name: Timme för sammanfattning
+    description: Timme då veckosammanfattningen skickas.
+  wifi_channels:
+    name: Wi-Fi-kanaler
+    description: Dina Wi-Fi-kanaler på 2,4 GHz, t.ex. 1, 6, används för kontrollen av radiokanaler.
+  chatty_per_hour:
+    name: Pratsamhetsgräns (meddelanden i timmen)
+    description: Meddelanden i timmen (i genomsnitt över 6 timmar) över vilket en enhet flaggas som pratsam.
+  ota_window:
+    name: Fönster för automatiska uppdateringar
+    description: Tidsfönster för automatiska firmwareuppdateringar, t.ex. 02:00-05:00 (lokal tid, får passera midnatt). Tomt stänger av automatiska uppdateringar. En misslyckad uppdatering provas en gång till nästa natt.
+  ota_min_battery:
+    name: Lägsta batterinivå för uppdateringar (%)
+    description: Batterienheter under den här nivån hoppas över vid automatiska uppdateringar och massuppdateringar. Uppdatera ändå åsidosätter det för en enhet.

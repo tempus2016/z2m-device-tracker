@@ -1,0 +1,64 @@
+configuration:
+  base_topics:
+    name: Tematy bazowe Zigbee2MQTT
+    description: Temat bazowy MQTT każdej instancji Zigbee2MQTT do śledzenia.
+  z2m_panels:
+    name: Linki do aplikacji Zigbee2MQTT
+    description: Linki do każdej aplikacji Zigbee2MQTT w postaci base_topic=app_slug, np. zigbee2mqtt=45df7312_zigbee2mqtt. Slug znajdziesz w adresie URL aplikacji.
+  alerts_enabled:
+    name: Alerty
+    description: Główny przełącznik alertów.
+  persistent_notifications:
+    name: Powiadomienia Home Assistant
+    description: Pokazuj alerty jako powiadomienia Home Assistant.
+  fire_events:
+    name: Wywołuj zdarzenia
+    description: Wywołuj zdarzenia z2m_tracker_alert dla automatyzacji.
+  notify_service:
+    name: Usługa powiadomień
+    description: Wysyłaj alerty także do usługi powiadomień, np. notify.mobile_app_phone.
+  alert_on_join:
+    name: Alert przy dołączeniu
+    description: Alert, gdy dołącza nowe urządzenie.
+  disabled_checks:
+    name: Wyłączone kontrole
+    description: Kontrole kondycji do całkowitego wyłączenia.
+  notify_checks:
+    name: Kontrole z alertami
+    description: Kontrole kondycji, które wysyłają alerty.
+  offline_alert_minutes:
+    name: Opóźnienie alertu offline (minuty)
+    description: Jak długo urządzenie musi być offline przed alertem.
+  frozen_alert_hours:
+    name: Opóźnienie zamrożonego odczytu (godziny)
+    description: Jak długo odczyt czujnika musi pozostać taki sam, aby uznać go za zamrożony.
+  battery_alert_percent:
+    name: Poziom słabej baterii (%)
+    description: Poziom baterii dla alertu o słabej baterii.
+  networkmap_hour:
+    name: Godzina skanu tras
+    description: Godzina nocnego skanu tras lub -1, aby go wyłączyć.
+  ha_entities:
+    name: Sensory trackera
+    description: Dodaj sensory trackera do każdego urządzenia Zigbee2MQTT przez MQTT discovery.
+  weekly_summary:
+    name: Podsumowanie tygodniowe
+    description: Wysyłaj powiadomienie z podsumowaniem tygodniowym.
+  summary_day:
+    name: Dzień podsumowania
+    description: Dzień wysyłki podsumowania tygodniowego (0 = poniedziałek).
+  summary_hour:
+    name: Godzina podsumowania
+    description: Godzina wysyłki podsumowania tygodniowego.
+  wifi_channels:
+    name: Kanały Wi-Fi
+    description: Twoje kanały Wi-Fi 2,4 GHz, np. 1, 6, używane do sprawdzania kanałów radiowych.
+  chatty_per_hour:
+    name: Próg gadatliwości (wiadomości na godzinę)
+    description: Liczba wiadomości na godzinę (uśredniona z 6 godzin), powyżej której urządzenie zostaje oznaczone jako gadatliwe.
+  ota_window:
+    name: Okno automatycznych aktualizacji
+    description: Przedział czasu dla automatycznych aktualizacji oprogramowania, np. 02:00-05:00 (czas lokalny, może przechodzić przez północ). Puste wyłącza automatyczne aktualizacje. Nieudana aktualizacja jest ponawiana raz, następnej nocy.
+  ota_min_battery:
+    name: Minimalna bateria do aktualizacji (%)
+    description: Urządzenia bateryjne poniżej tego poziomu są pomijane przez aktualizacje automatyczne i zbiorcze. „Aktualizuj mimo to” pomija ten limit dla jednego urządzenia.

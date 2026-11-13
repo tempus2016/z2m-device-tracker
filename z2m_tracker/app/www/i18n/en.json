@@ -981,5 +981,91 @@
   "replace.ready": "Ready to replace {old} with {new}.",
   "replace.battery_warn": "{name} runs on battery and may be asleep. Press its button just before you apply, or the bindings may fail.",
   "replace.the_new_device": "The new device",
-  "replace.apply": "Apply"
+  "replace.apply": "Apply",
+  "card.unreachable": "The Zigbee Tracker app isn't reachable",
+  "card.loading": "Loading…",
+  "card.more": "and {n} more",
+  "card.nothing": "Nothing needs attention.",
+  "card.summary.title": "Zigbee devices",
+  "card.summary.active": "Active",
+  "card.summary.offline": "Offline",
+  "card.summary.attention": "Need attention",
+  "card.summary.batteries_due": "Batteries due",
+  "card.summary.needs_attention": "Needs attention",
+  "card.summary.to_buy": "Batteries to buy",
+  "card.summary.to_buy_for": {
+    "one": "For {n} device running low within 60 days",
+    "other": "For {n} devices running low within 60 days"
+  },
+  "card.summary.unknown_type": "Unknown type",
+  "card.summary.open": "Open Zigbee Tracker",
+  "card.battery.title": "Batteries",
+  "card.battery.days_left": {
+    "one": "about {n} day left",
+    "other": "about {n} days left"
+  },
+  "card.battery.low": "Low",
+  "card.battery.low_count": {
+    "one": "{n} low",
+    "other": "{n} low"
+  },
+  "card.battery.no_reading": "No reading yet",
+  "card.battery.none": "No battery devices found.",
+  "card.health.title": "Zigbee health",
+  "card.health.attention": "Need attention",
+  "card.health.look": "Worth a look",
+  "card.health.fine": "Fine",
+  "card.health.line": "{title}. {detail}",
+  "card.network.title": "Zigbee network",
+  "card.network.online": "Online",
+  "card.network.offline": "Offline",
+  "card.network.offline_count": "{n} offline",
+  "card.network.devices": "Devices",
+  "card.network.routers": "Routers",
+  "card.network.weak_spots": {
+    "one": "Weak spot",
+    "other": "Weak spots"
+  },
+  "card.network.section": "{name} network",
+  "card.network.section_offline": "{name} network · offline",
+  "card.network.channel": "Channel",
+  "card.network.backup": "Coordinator backup",
+  "card.network.last_scan": "Last scan",
+  "card.network.not_known": "Not known yet",
+  "card.network.wifi_overlap": "{channel} · overlaps Wi-Fi",
+  "card.network.wifi_near": "{channel} · close to Wi-Fi",
+  "card.network.wifi_clear": "{channel} · clear of Wi-Fi",
+  "card.network.wifi_unset": "{channel} · Wi-Fi not set",
+  "card.network.backup_no_folder": "Folder not found",
+  "card.network.backup_missing": "Missing",
+  "card.network.backup_unreadable": "Unreadable",
+  "card.network.backup_no_key": "No network key",
+  "card.network.unknown_date": "Unknown date",
+  "card.network.scanning": "Scanning now",
+  "card.network.never": "Never",
+  "card.network.today": "Today {time}",
+  "card.network.yesterday": "Yesterday {time}",
+  "card.network.days_ago": {
+    "one": "{n} day ago",
+    "other": "{n} days ago"
+  },
+  "card.network.single_points": "Single points of failure",
+  "card.network.only_route": "Only route for {what}",
+  "card.network.only_route_part": "Only route for part of the mesh",
+  "card.network.routers_n": {
+    "one": "{n} router",
+    "other": "{n} routers"
+  },
+  "card.network.devices_n": {
+    "one": "{n} device",
+    "other": "{n} devices"
+  },
+  "card.network.none": "No Zigbee2MQTT network seen yet.",
+  "card.editor.title": "Title",
+  "card.editor.max_items": "Rows to show",
+  "card.editor.show_all": "Show every battery device",
+  "card.editor.show_all_help": "Ignores the row limit.",
+  "card.editor.show_info": "Include \"worth a look\" items",
+  "card.editor.show_info_help": "Off shows only devices that need attention.",
+  "card.editor.show_weak_spots": "List single-point-of-failure routers"
 }
