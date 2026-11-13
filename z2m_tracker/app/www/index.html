@@ -300,6 +300,16 @@
   .mnode { cursor: pointer; transition: opacity 0.15s; }
   .mnode:hover circle, .mnode:focus-visible circle, .mnode.sel circle { stroke: var(--text); stroke-width: 3; }
   .mnode.dim, svg.map line.dim { opacity: 0.12; }
+  .mnode.ctx { opacity: 0.4; }
+  .mnode.off { opacity: 0.07; pointer-events: none; }
+  svg.map line.off { opacity: 0.05; }
+  svg.map .mnode.hit text.lbl { display: block; }
+  .map-legend .lg { appearance: none; border: 1px solid transparent; background: none; border-radius: 8px; height: 28px; padding: 0 8px; display: inline-flex; align-items: center; gap: 0; cursor: pointer; font: inherit; color: var(--text-2); white-space: nowrap; }
+  .map-legend .lg:hover { background: var(--hover); color: var(--text); }
+  .map-legend .lg[aria-pressed="true"] { background: var(--chip-on); color: var(--primary-text); font-weight: 500; }
+  .map-legend .lg .n { margin-left: 4px; opacity: 0.75; font-weight: 400; }
+  .map-legend.lines { align-items: center; }
+  .map-legend.lines span { display: inline-flex; align-items: center; height: 28px; }
   svg.map line { transition: opacity 0.15s; }
   .map-info { position: absolute; top: 12px; right: 12px; width: min(320px, calc(100% - 24px)); background: var(--card); border: 1px solid var(--divider); border-radius: 12px; box-shadow: var(--shadow); }
   .mi-head { display: flex; align-items: center; gap: 12px; padding: 12px 8px 4px 12px; }
@@ -736,7 +746,16 @@
 
   // ------------------------------------------------------------ network map
   // Interactive force-directed map (drag dots, pan, zoom) plus advice from the routing scan.
-  const MAP = { sims: {}, sel: {}, allLinks: store.get("z2mt.mapAll") === "1", rendered: null, hist: {}, scanSel: {}, cmpSel: {} };
+  const MAP = { sims: {}, sel: {}, allLinks: store.get("z2mt.mapAll") === "1", rendered: null, hist: {}, scanSel: {}, cmpSel: {},
+    filter: new Set((store.get("z2mt.mapFilter") || "").split(",").filter((x) => ["coord", "router", "end", "attention"].includes(x))) };
+  // Legend groups double as filters. Each device falls in exactly one group, matching its dot colour.
+  const MAP_GROUPS = [["coord", "Coordinator", "var(--text)"], ["router", "Router", "var(--primary)"], ["end", "Battery device", "var(--state-icon)"], ["attention", "Needs attention", "var(--warning)"]];
+  const mapGroup = (d) => (d.type === "Coordinator" ? "coord" : statusOf(d) !== "active" || warnings(d).length ? "attention" : d.type === "Router" ? "router" : "end");
+  const mapLegend = (bt, devs) => {
+    const n = {}; devs.forEach((d) => { const g = mapGroup(d); n[g] = (n[g] || 0) + 1; });
+    const on = MAP.filter.size > 0;
+    return `<div class="map-legend" role="group" aria-label="Show on the map">${MAP_GROUPS.map(([k, label, col]) => `<button class="lg" data-mapfilter="${k}" aria-pressed="${MAP.filter.has(k)}" title="${MAP.filter.has(k) ? "Stop showing" : on ? "Also show" : "Show only"} ${esc(label.toLowerCase())}s"><i style="background:${col}"></i>${esc(label)}<span class="n">${n[k] || 0}</span></button>`).join("")}${on ? `<button class="btn" data-mapfilter="">${ic("close", "s18")}Show all</button>` : ""}</div>`;
+  };
   const loadScanHistory = async (bt) => { if (MAP.hist[bt]) return; try { MAP.hist[bt] = (await api(`api/scans?net=${encodeURIComponent(bt)}`)).scans || []; } catch (e) { MAP.hist[bt] = []; } };
   const mapDiff = (bt) => {
     if (!MAP.cmpSel[bt]) return null;
@@ -866,7 +885,7 @@
     MAP.sims = {};
     const running = Object.values(nm).some((x) => x.running_since);
     $("#view").innerHTML = `
-      <div class="alert" style="--a:var(--info)">${ic("information-outline")}<div class="body">Drag dots to rearrange, drag the background to pan and scroll to zoom. Solid lines show which router each battery device uses, dashed lines link routers. Colour shows link quality.</div>
+      <div class="alert" style="--a:var(--info)">${ic("information-outline")}<div class="body">Drag dots to rearrange, drag the background to pan and scroll to zoom. Click a group in the legend to show only those devices. Solid lines show which router each battery device uses, dashed lines link routers. Colour shows link quality.</div>
         <button class="btn ${running ? "busy" : ""}" data-act="scan" ${running ? "disabled" : ""}>${ic(running ? "refresh" : "sitemap", "s18")}${running ? "Scanning…" : "Run routing scan"}</button></div>
       ${state.data.instances.map((bt) => {
         const info = nm[bt] || {};
@@ -892,7 +911,7 @@
             <button class="btn" data-mapreset="${esc(bt)}">${ic("refresh", "s18")}Reset layout</button>
             <button class="chip toggle" data-maplinks aria-pressed="${MAP.allLinks}">${ic("link-variant", "s18")}All router links</button>
             <span class="spacer"></span>
-            <div class="map-legend"><span><i style="background:var(--text)"></i>Coordinator</span><span><i style="background:var(--primary)"></i>Router</span><span><i style="background:var(--state-icon)"></i>Battery device</span><span><i style="background:var(--warning)"></i>Needs attention</span><span><b style="background:var(--success)"></b>Strong</span><span><b style="background:var(--warning)"></b>Fair</span><span><b style="background:var(--error)"></b>Weak</span></div></div>
+            ${mapLegend(bt, g.devs)}<div class="map-legend lines"><span><b style="background:var(--success)"></b>Strong</span><span><b style="background:var(--warning)"></b>Fair</span><span><b style="background:var(--error)"></b>Weak</span></div></div>
           <div class="map-stage"><svg class="map" id="map-${esc(bt)}" role="img" aria-label="${esc(netLabel(bt))} network map"><g class="vp"><g class="links"></g><g class="nodes"></g></g></svg>
             <div class="map-info" id="mapinfo-${esc(bt)}" hidden></div></div>
           ${diff ? `<div class="map-legend" style="padding:8px 16px 0"><span><b style="background:var(--info);height:4px"></b>Changed router</span><span><b style="background:var(--success);height:4px"></b>Stronger</span><span><b style="background:var(--error);height:4px"></b>Weaker</span><span><b style="background:var(--disabled)"></b>Unchanged</span></div>` : ""}
@@ -935,8 +954,8 @@
     const nodes = devs.map((d, i) => {
       const p = saved[d.ieee];
       const a = (i / devs.length) * Math.PI * 2;
-      const r0 = d.type === "Coordinator" ? 0 : d.type === "Router" ? 140 : 240;
-      return { id: d.ieee, d, x: p ? p.x : W / 2 + Math.cos(a) * r0 + (Math.random() - 0.5) * 20, y: p ? p.y : H / 2 + Math.sin(a) * r0 * 0.75 + (Math.random() - 0.5) * 20, vx: 0, vy: 0, fixed: d.type === "Coordinator" && !p, r: d.type === "Coordinator" ? 14 : d.type === "Router" ? 8 : 5.5 };
+      const r0 = d.type === "Coordinator" ? 0 : d.type === "Router" ? 0.3 : 0.55;
+      return { id: d.ieee, d, x: p ? p.x : W / 2 + Math.cos(a) * r0 * W * 0.5 + (Math.random() - 0.5) * 20, y: p ? p.y : H / 2 + Math.sin(a) * r0 * H * 0.5 + (Math.random() - 0.5) * 20, vx: 0, vy: 0, fixed: d.type === "Coordinator" && !p, r: d.type === "Coordinator" ? 14 : d.type === "Router" ? 8 : 5.5 };
     });
     const byId = new Map(nodes.map((n) => [n.id, n]));
     if (!saved[devs.find((d) => d.type === "Coordinator")?.ieee]) { const c = nodes.find((n) => n.d.type === "Coordinator"); if (c) { c.x = W / 2; c.y = H / 2; } }
@@ -947,6 +966,7 @@
     gl.innerHTML = L.map((l, i) => { const changed = diff && diff.status[[l.a, l.b].sort().join("|")]; return `<line data-i="${i}" stroke="${diff ? diffCol(l) : lqiCol(l.lqi)}" stroke-width="${changed ? 3 : l.parent ? 1.6 : 1.1}" ${l.parent ? "" : 'stroke-dasharray="5 4"'} opacity="${diff && !changed ? 0.35 : l.parent ? 0.85 : 0.6}"><title>LQI ${esc(l.lqi ?? "?")}</title></line>`; }).join("");
     gn.innerHTML = nodes.map((n, i) => `<g class="mnode" data-n="${i}" tabindex="0"><circle r="${n.r}" fill="${mapNodeCol(n.d)}" stroke="var(--card)" stroke-width="2"/>${n.d.type === "Coordinator" ? `<text class="c" text-anchor="middle" dy="4">C</text>` : `<text class="lbl" text-anchor="middle" dy="${-n.r - 5}">${esc((nameOf(n.d) || "").slice(0, 28))}</text>`}<title>${esc(nameOf(n.d) || (n.d.type === "Coordinator" ? "Coordinator" : n.id))}${n.d.area ? " · " + esc(n.d.area) : ""}</title></g>`).join("");
     const lineEls = [...gl.children], nodeEls = [...gn.children];
+    const hadView = !!MAP.view?.[bt];
     let view = MAP.view?.[bt] || { k: 1, x: 0, y: 0 };
     const applyView = () => { vp.setAttribute("transform", `translate(${view.x} ${view.y}) scale(${view.k})`); svg.classList.toggle("zoomed", view.k >= 1.4); (MAP.view ||= {})[bt] = view; };
     applyView();
@@ -958,37 +978,68 @@
     const highlight = () => {
       const sel = MAP.sel[bt];
       const near = new Set(sel ? L.filter((l) => l.a === sel || l.b === sel).flatMap((l) => [l.a, l.b]) : []);
-      L.forEach((l, i) => lineEls[i].classList.toggle("dim", !!sel && l.a !== sel && l.b !== sel));
-      nodes.forEach((n, i) => { nodeEls[i].classList.toggle("dim", !!sel && !near.has(n.id) && n.id !== sel); nodeEls[i].classList.toggle("sel", n.id === sel); nodeEls[i].classList.toggle("near", near.has(n.id)); });
+      // Filter: matching devices in full, the devices they connect to faded for context, the rest nearly hidden.
+      const f = MAP.filter, on = f.size > 0;
+      const hit = new Set(on ? nodes.filter((n) => f.has(mapGroup(n.d))).map((n) => n.id) : []);
+      const ctx = new Set(on ? L.filter((l) => hit.has(l.a) || hit.has(l.b)).flatMap((l) => [l.a, l.b]) : []);
+      const labels = on && hit.size <= 30;
+      L.forEach((l, i) => { lineEls[i].classList.toggle("dim", !!sel && l.a !== sel && l.b !== sel); lineEls[i].classList.toggle("off", on && !hit.has(l.a) && !hit.has(l.b)); });
+      nodes.forEach((n, i) => {
+        const e = nodeEls[i], shown = !on || hit.has(n.id) || n.id === sel;
+        e.classList.toggle("dim", !!sel && !near.has(n.id) && n.id !== sel);
+        e.classList.toggle("sel", n.id === sel); e.classList.toggle("near", near.has(n.id));
+        e.classList.toggle("off", !shown && !ctx.has(n.id)); e.classList.toggle("ctx", !shown && ctx.has(n.id));
+        e.classList.toggle("hit", labels && hit.has(n.id));
+      });
     };
     let alpha = Object.keys(saved).length ? 0.15 : 1, raf = null, stopped = false;
-    const tick = () => {
+    // Spacing scales with the stage and the device count, so big networks spread out instead of clumping.
+    const spread = Math.max(1, Math.min(2.2, Math.sqrt((W * H) / Math.max(1, nodes.length) / 9000)));
+    // Forces run in a space stretched vertically by ay, so the network settles into a wide ellipse that matches the stage.
+    const ay = Math.max(0.5, Math.min(2.2, W / H));
+    const step = () => {
       const cx = W / 2, cy = H / 2;
       for (let i = 0; i < nodes.length; i++) {
         const a = nodes[i];
         for (let j = i + 1; j < nodes.length; j++) {
           const b = nodes[j];
-          let dx = b.x - a.x, dy = b.y - a.y, d2 = dx * dx + dy * dy || 0.01;
-          if (d2 > 160000) continue;
-          const f = (900 * alpha) / d2, d = Math.sqrt(d2);
-          dx /= d; dy /= d;
+          let dx = b.x - a.x, dy = (b.y - a.y) * ay, d2 = dx * dx + dy * dy || 0.01;
+          if (d2 > 360000) continue;
+          const d = Math.sqrt(d2);
+          let f = (2400 * spread * alpha) / d2;
+          const min = a.r + b.r + 16;
+          if (d < min) f += ((min - d) / d) * 0.5;
+          dx /= d; dy /= d * ay;
           a.vx -= dx * f; a.vy -= dy * f; b.vx += dx * f; b.vy += dy * f;
         }
       }
       L.forEach((l) => {
-        const target = l.parent ? (l.t.d.type === "Coordinator" || l.s.d.type === "Coordinator" ? 90 : 55) : 130;
-        const dx = l.t.x - l.s.x, dy = l.t.y - l.s.y, d = Math.sqrt(dx * dx + dy * dy) || 0.01;
+        const target = (l.parent ? (l.t.d.type === "Coordinator" || l.s.d.type === "Coordinator" ? 150 : 75) : 190) * spread;
+        const dx = l.t.x - l.s.x, dy = (l.t.y - l.s.y) * ay, d = Math.sqrt(dx * dx + dy * dy) || 0.01;
         const k = ((d - target) / d) * 0.06 * alpha * (l.parent ? 1 : 0.5);
-        l.s.vx += dx * k; l.s.vy += dy * k; l.t.vx -= dx * k; l.t.vy -= dy * k;
+        l.s.vx += dx * k; l.s.vy += (dy / ay) * k; l.t.vx -= dx * k; l.t.vy -= (dy / ay) * k;
       });
       nodes.forEach((n) => {
-        n.vx += (cx - n.x) * 0.004 * alpha; n.vy += (cy - n.y) * 0.004 * alpha;
+        n.vx += (cx - n.x) * 0.0012 * alpha; n.vy += (cy - n.y) * 0.0012 * alpha;
         if (n.fixed) { n.vx = 0; n.vy = 0; return; }
         n.vx *= 0.6; n.vy *= 0.6; n.x += n.vx; n.y += n.vy;
       });
       alpha *= 0.985;
+    };
+    const tick = () => {
+      step();
       draw();
-      if (alpha > 0.01 && !stopped) raf = requestAnimationFrame(tick); else { raf = null; savePos(); }
+      if (alpha > 0.01 && !stopped) raf = requestAnimationFrame(tick); else { raf = null; savePos(); if (fitPending) { fitPending = false; fit(); } }
+    };
+    // Zoom so the whole network fills the stage, once, after the first layout (not after the user has moved the view).
+    let fitPending = !hadView;
+    const fit = () => {
+      if (!nodes.length) return;
+      const xs = nodes.map((n) => n.x), ys = nodes.map((n) => n.y), pad = 40;
+      const x0 = Math.min(...xs) - pad, x1 = Math.max(...xs) + pad, y0 = Math.min(...ys) - pad, y1 = Math.max(...ys) + pad;
+      const k = Math.max(0.3, Math.min(1.5, W / (x1 - x0), H / (y1 - y0)));
+      view = { k, x: (W - (x0 + x1) * k) / 2, y: (H - (y0 + y1) * k) / 2 };
+      applyView();
     };
     const savePos = () => { (MAP.pos ||= {})[bt] = Object.fromEntries(nodes.map((n) => [n.id, { x: n.x, y: n.y }])); };
     const reheat = (a = 0.3) => { alpha = Math.max(alpha, a); if (!raf && !stopped) raf = requestAnimationFrame(tick); };
@@ -1003,7 +1054,7 @@
     svg.addEventListener("pointermove", (ev) => {
       if (!drag) return;
       if (Math.abs(ev.clientX - drag.start[0]) + Math.abs(ev.clientY - drag.start[1]) > 3) drag.moved = true;
-      if (drag.pan) { view = { ...view, x: drag.vx + ev.clientX - drag.start[0], y: drag.vy + ev.clientY - drag.start[1] }; applyView(); }
+      if (drag.pan) { fitPending = false; view = { ...view, x: drag.vx + ev.clientX - drag.start[0], y: drag.vy + ev.clientY - drag.start[1] }; applyView(); }
       else if (drag.moved) { const p = toSvg(ev); drag.n.x = p.x; drag.n.y = p.y; drag.n.vx = drag.n.vy = 0; reheat(0.15); draw(); }
     });
     svg.addEventListener("pointerup", () => {
@@ -1013,14 +1064,19 @@
     });
     svg.addEventListener("wheel", (ev) => { ev.preventDefault(); const r = svg.getBoundingClientRect(); zoomAt(ev.deltaY < 0 ? 1.12 : 1 / 1.12, ev.clientX - r.left, ev.clientY - r.top); }, { passive: false });
     svg.addEventListener("keydown", (ev) => { const g = ev.target.closest(".mnode"); if (g && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); const n = nodes[+g.dataset.n]; MAP.sel[bt] = n.id; highlight(); showMapInfo(bt); } });
-    const zoomAt = (f, px, py) => { const k = Math.max(0.3, Math.min(4, view.k * f)); view = { k, x: px - ((px - view.x) * k) / view.k, y: py - ((py - view.y) * k) / view.k }; applyView(); };
+    const zoomAt = (f, px, py) => { fitPending = false; const k = Math.max(0.3, Math.min(4, view.k * f)); view = { k, x: px - ((px - view.x) * k) / view.k, y: py - ((py - view.y) * k) / view.k }; applyView(); };
+    // A fresh layout is worked out before the first paint, so the map opens settled and fitted instead of exploding outwards.
+    if (!Object.keys(saved).length) { for (let i = 0; i < 400 && alpha > 0.02; i++) step(); }
+    if (fitPending && !Object.keys(saved).length) { fitPending = false; fit(); }
+    draw();
     raf = requestAnimationFrame(tick);
     showMapInfo(bt);
     return {
       stop() { stopped = true; if (raf) cancelAnimationFrame(raf); savePos(); },
       zoom(f) { zoomAt(f, W / 2, H / 2); },
-      reset() { delete MAP.pos[bt]; MAP.view[bt] = { k: 1, x: 0, y: 0 }; renderMap(true); },
+      reset() { delete MAP.pos[bt]; delete MAP.view[bt]; renderMap(true); },
       select(id) { MAP.sel[bt] = id; highlight(); showMapInfo(bt); },
+      filter() { highlight(); },
     };
   };
 
@@ -1550,6 +1606,17 @@
     if (!menu.hidden && !e.target.closest("#menu")) closeMenu();
     const mz = e.target.closest("[data-mapzoom]"); if (mz) { MAP.sims[mz.dataset.net]?.zoom(Number(mz.dataset.mapzoom)); return; }
     const mr = e.target.closest("[data-mapreset]"); if (mr) { MAP.sims[mr.dataset.mapreset]?.reset(); return; }
+    const mf = e.target.closest("[data-mapfilter]");
+    if (mf) {
+      const k = mf.dataset.mapfilter;
+      if (!k) MAP.filter.clear(); else if (MAP.filter.has(k)) MAP.filter.delete(k); else MAP.filter.add(k);
+      store.set("z2mt.mapFilter", [...MAP.filter].join(","));
+      const card0 = mf.closest(".map-card");
+      document.querySelectorAll(".map-card[data-net]").forEach((card) => { const lg = card.querySelector(".map-legend"); const bt = card.dataset.net; if (lg) lg.outerHTML = mapLegend(bt, mapGraph(bt).devs); });
+      Object.values(MAP.sims).forEach((s) => s.filter());
+      (card0?.querySelector(`[data-mapfilter="${k}"]`) || card0?.querySelector("[data-mapfilter]"))?.focus();
+      return;
+    }
     if (e.target.closest("[data-maplinks]")) { MAP.allLinks = !MAP.allLinks; store.set("z2mt.mapAll", MAP.allLinks ? "1" : "0"); renderMap(true); return; }
     const mc = e.target.closest("[data-mapclose]"); if (mc) { MAP.sims[mc.dataset.mapclose]?.select(null); return; }
     const ms = e.target.closest("[data-mapsel]"); if (ms) { e.preventDefault(); MAP.sims[ms.dataset.net]?.select(ms.dataset.mapsel); document.getElementById(`map-${ms.dataset.net}`)?.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
