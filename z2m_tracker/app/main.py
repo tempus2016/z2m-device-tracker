@@ -772,6 +772,14 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/area":
                 device_id = tracker.ha_device_ids.get(ieee)
                 if not device_id:
+                    # The device list is only re-read every few hours, so a newly
+                    # paired device may be in HA already. Ask HA directly before giving up.
+                    device_id = home_assistant.find_device(ieee)
+                    if device_id:
+                        with tracker.lock:
+                            tracker.ha_device_ids[ieee] = device_id
+                            home_assistant.device_ids[ieee] = device_id
+                if not device_id:
                     self._json(400, {"ok": False, "error": "This device isn't in Home Assistant's device list"})
                 else:
                     area_id = body.get("area_id") or None

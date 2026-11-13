@@ -1378,13 +1378,13 @@
       await loadAreas();
       const areaOpts = state.areas ? `<option value="">No area</option>${state.areas.map((a) => `<option value="${esc(a.id)}" ${a.name === d.area ? "selected" : ""}>${esc(a.name)}</option>`).join("")}` : "";
       const ok = await confirmDialog({ title: "Rename or set area", ok: "Save",
-        html: `<p>Changes the name in Zigbee2MQTT and Home Assistant together, including entity IDs.</p><label>Name<input class="field" id="cName" value="${esc(nameOf(d) || "")}" maxlength="120" autocomplete="off"></label>${state.areas ? `<label>Area<select class="field" id="cArea" ${d.ha_device_id ? "" : "disabled"}>${areaOpts}</select></label>${d.ha_device_id ? "" : `<p>Area can't be set because this device isn't in Home Assistant yet.</p>`}` : `<p>Areas couldn't be loaded from Home Assistant.</p>`}` });
+        html: `<p>Changes the name in Zigbee2MQTT and Home Assistant together, including entity IDs.</p><label>Name<input class="field" id="cName" value="${esc(nameOf(d) || "")}" maxlength="120" autocomplete="off"></label>${state.areas ? `<label>Area<select class="field" id="cArea">${areaOpts}</select></label>` : `<p>Areas couldn't be loaded from Home Assistant.</p>`}` });
       if (!ok) return;
       const name = $("#cName").value.trim(), area = $("#cArea")?.value ?? null;
       const currentArea = state.areas?.find((a) => a.name === d.area)?.id || "";
       try {
         if (name && name !== nameOf(d)) { await api("api/rename", { ieee, name }); }
-        if (state.areas && d.ha_device_id && area !== null && area !== currentArea) { await api("api/area", { ieee, area_id: area || null }); }
+        if (state.areas && area !== null && area !== currentArea) { await api("api/area", { ieee, area_id: area || null }); }
         snack("Saved"); load();
       } catch (err) { snack(err.message, 5000); }
     },
@@ -1424,7 +1424,7 @@
       b.disabled = true;
       try {
         if (name && name !== nameOf(d)) await api("api/rename", { ieee, name });
-        if (area && d?.ha_device_id) await api("api/area", { ieee, area_id: area });
+        if (area) await api("api/area", { ieee, area_id: area });
         if (btype) await api("api/battery", { ieee, info: { type: btype.replace(/^\d+\s*[x×]\s*/i, ""), quantity: (btype.match(/^(\d+)\s*[x×]/i) || [])[1] || 1, installed: todayIso() } });
         snack("Saved"); await load();
       } catch (err) { snack(err.message, 5000); }

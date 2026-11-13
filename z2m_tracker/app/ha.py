@@ -100,6 +100,17 @@ class HomeAssistant:
         areas = self._ws_call([{"type": "config/area_registry/list"}])[0] or []
         return sorted(({"id": a["area_id"], "name": a["name"]} for a in areas), key=lambda a: a["name"].lower())
 
+    def find_device(self, ieee: str) -> str | None:
+        """Look one device up live; the registry file on disk can lag behind HA."""
+        devices = self._ws_call([{"type": "config/device_registry/list"}])[0] or []
+        for device in devices:
+            for identifier in device.get("identifiers") or []:
+                if len(identifier) > 1:
+                    match = IDENT_RE.search(str(identifier[1]))
+                    if match and match.group(1) == ieee:
+                        return device["id"]
+        return None
+
     def set_device_area(self, device_id: str, area_id: str | None) -> None:
         self._ws_call([{"type": "config/device_registry/update", "device_id": device_id, "area_id": area_id}])
 
