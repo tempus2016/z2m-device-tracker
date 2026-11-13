@@ -238,6 +238,7 @@
   "issue.label.single_point": "Single point of failure",
   "issue.label.router_hopping": "Changes router often",
   "issue.label.coordinator_backup": "Coordinator backup",
+  "issue.label.signal_dip": "Daily signal dip",
   "issue.label.network_offline": "Network offline",
   "issue.label.restart_required": "Restart needed",
   "issue.label.pairing_open": "Pairing open",
@@ -343,6 +344,15 @@
     "one": "The last coordinator backup is {n} day old. Zigbee2MQTT normally refreshes it at least daily, so writing it may be failing.",
     "other": "The last coordinator backup is {n} days old. Zigbee2MQTT normally refreshes it at least daily, so writing it may be failing."
   },
+  "issue.signal_dip.title": "Daily signal dip",
+  "issue.signal_dip.detail": {
+    "one": "Signal drops across {n} device most {period}, {start}–{end}. Something switches on then: Wi-Fi traffic on an overlapping channel, a microwave, or a USB 3 device near the coordinator.",
+    "other": "Signal drops across {n} devices most {period}, {start}–{end}. Something switches on then: Wi-Fi traffic on an overlapping channel, a microwave, or a USB 3 device near the coordinator."
+  },
+  "issue.signal_dip.mornings": "mornings",
+  "issue.signal_dip.afternoons": "afternoons",
+  "issue.signal_dip.evenings": "evenings",
+  "issue.signal_dip.nights": "nights",
   "check.offline.label": "Offline",
   "check.offline.description": "Zigbee2MQTT has marked the device unavailable, and it stays that way for longer than the offline alert delay.",
   "check.silent.label": "Not heard from",
@@ -385,6 +395,8 @@
   "check.router_hopping.description": "An end device whose parent router changed 3 or more times in the routing scans of the last 7 days. Usually a weak link or a router that keeps dropping.",
   "check.coordinator_backup.label": "Coordinator backup",
   "check.coordinator_backup.description": "Zigbee2MQTT's coordinator_backup.json is missing, more than 3 days old, or doesn't match the running network.",
+  "check.signal_dip.label": "Daily signal dip",
+  "check.signal_dip.description": "Link quality drops across a network at the same 1 to 4 hours on at least 4 of the last 7 days.",
   "check.joined.label": "Device joined",
   "check.joined.description": "A device joins one of your networks.",
   "check.left.label": "Device left",
@@ -435,6 +447,13 @@
   "radio.not_set": "not set",
   "radio.chart": "2.4 GHz channel overlap",
   "radio.edit_wifi": "Edit Wi-Fi channels",
+  "radio.hours_title": {
+    "one": "Average link quality by hour, last 7 days · {n} device",
+    "other": "Average link quality by hour, last 7 days · {n} devices"
+  },
+  "radio.hours_net": "{net} network",
+  "radio.hours_bar": "{hour}: link quality {lqi}",
+  "radio.hours_bar_drop": "{hour}: link quality {lqi}, {drop}% below usual",
   "shop.low": "low",
   "shop.about_days": {
     "one": "about {n} day",

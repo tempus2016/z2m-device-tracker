@@ -128,6 +128,12 @@ CHECKS = [
         "Zigbee2MQTT's own memory use grew more than 50% over the last 7 days. Needs Zigbee2MQTT 2.5 or newer.",
         False,
     ),
+    (
+        "signal_dip",
+        "Daily signal dip",
+        "Link quality drops across a network at the same 1 to 4 hours on at least 4 of the last 7 days.",
+        False,
+    ),
     ("joined", "Device joined", "A device joins one of your networks.", True),
     ("left", "Device left", "A device leaves one of your networks.", True),
     ("interview_failed", "Interview failed", "A newly joined device couldn't be identified.", True),
@@ -162,6 +168,7 @@ KIND_LABELS = {
     "router_hopping": "Changes router often",
     "coordinator_backup": "Coordinator backup",
     "z2m_memory": "Memory climbing",
+    "signal_dip": "Daily signal dip",
 }
 
 

@@ -6,6 +6,9 @@ import json
 import os
 import threading
 import time
+from datetime import datetime, timedelta, tzinfo
+from datetime import time as clock_time
+from statistics import median
 from typing import Any
 
 LQI_KEEP_HOURS = 24 * 14
@@ -14,6 +17,16 @@ MSG_KEEP_HOURS = 24 * 14
 BATTERY_KEEP_DAYS = 400
 DRAIN_RECENT_DAYS = 14
 HISTORY_RANGES = {"24h": 1, "7d": 7, "30d": 30, "90d": 90}
+
+# Network-wide daily signal dips (see Metrics.network_hours).
+DIP_DAYS = 7  # complete local days looked at
+DIP_MIN_COVERAGE = 0.6  # a device counts if it has readings in this share of those hours
+DIP_MIN_DEVICES = 3  # fewer counted devices than this and there's no chart or check
+DIP_DROP = 0.25  # an hour dips when the network is this far below that day's median
+DIP_MIN_DAYS = 4  # ...on at least this many of the days
+DIP_MAX_HOURS = 4  # longer low stretches aren't a dip (something else is going on)
+DIP_MIN_SHARE = 0.3  # share of counted devices that must dip too
+DIP_DEVICE_DROP = 0.15  # a device dips when its usual level in those hours is this far below its own median
 
 
 class Metrics:
@@ -280,6 +293,121 @@ class Metrics:
             return 0.0
         return round((current - 10) / -slope, 0)
 
+    # --------------------------------------------------------- network hours
+
+    def network_hours(self, ieees: list[str], local_tz: tzinfo, now: float | None = None) -> dict[str, Any] | None:
+        """Average link quality by local hour of day over the last 7 complete days, plus daily dips.
+
+        Each device is divided by its own 7-day mean first, so a network average isn't pulled around by
+        which devices happen to report in a given hour. The per-hour value shown is that relative level
+        times the devices' average mean, so it reads as LQI. None when there isn't enough data.
+        """
+        now = now or time.time()
+        today = datetime.fromtimestamp(now, local_tz).date()
+        first = today - timedelta(days=DIP_DAYS)
+        start = datetime.combine(first, clock_time(), tzinfo=local_tz).timestamp()
+        end = datetime.combine(today, clock_time(), tzinfo=local_tz).timestamp()
+        slot_of: dict[int, tuple[int, int]] = {}
+        for hour in range(int(start // 3600 * 3600), int(end), 3600):
+            if hour >= start:
+                local = datetime.fromtimestamp(hour, local_tz)
+                slot_of[hour] = ((local.date() - first).days, local.hour)
+        slots = len(set(slot_of.values()))
+        with self.lock:
+            raw = {ieee: [p for p in (self.series.get(ieee) or {}).get("lqi", []) if p[0] in slot_of] for ieee in ieees}
+
+        devices: list[dict[tuple[int, int], float]] = []
+        means: list[float] = []
+        for points in raw.values():
+            cells: dict[tuple[int, int], list[float]] = {}
+            for hour, value_sum, n in points:
+                if n:
+                    cell = cells.setdefault(slot_of[hour], [0.0, 0])
+                    cell[0] += value_sum
+                    cell[1] += n
+            if not slots or len(cells) < DIP_MIN_COVERAGE * slots:
+                continue
+            avgs = {slot: total / n for slot, (total, n) in cells.items()}
+            mean = sum(avgs.values()) / len(avgs)
+            if mean < 5:
+                continue
+            means.append(mean)
+            devices.append({slot: value / mean for slot, value in avgs.items()})
+        if len(devices) < DIP_MIN_DEVICES:
+            return None
+
+        # Network level per (day, hour): mean of the relative levels of devices heard in that hour.
+        enough = max(2, len(devices) * 0.3)
+        net: dict[tuple[int, int], float] = {}
+        for slot in set(slot_of.values()):
+            values = [d[slot] for d in devices if slot in d]
+            if len(values) >= enough:
+                net[slot] = sum(values) / len(values)
+
+        dipped = [0] * 24
+        days = 0
+        for day in range(DIP_DAYS):
+            row = {h: net[(day, h)] for h in range(24) if (day, h) in net}
+            if len(row) < 12:
+                continue
+            days += 1
+            mid = median(row.values())
+            for h, value in row.items():
+                if value <= (1 - DIP_DROP) * mid:
+                    dipped[h] += 1
+
+        profile: list[float | None] = []
+        for h in range(24):
+            values = [net[(day, h)] for day in range(DIP_DAYS) if (day, h) in net]
+            profile.append(sum(values) / len(values) if values else None)
+        known = [v for v in profile if v is not None]
+        if days < DIP_MIN_DAYS or len(known) < 12:
+            return None
+        usual = median(known)
+        baseline = sum(means) / len(means)
+
+        # Each device's own level by hour of day, for counting how many devices share a dip.
+        device_hours = []
+        for cells in devices:
+            by_hour: dict[int, list[float]] = {}
+            for (_, h), value in cells.items():
+                by_hour.setdefault(h, []).append(value)
+            levels = {h: sum(v) / len(v) for h, v in by_hour.items()}
+            device_hours.append((levels, median(levels.values())))
+
+        dips = []
+        for run in _runs([count >= DIP_MIN_DAYS for count in dipped]):
+            if len(run) > DIP_MAX_HOURS:
+                continue
+            affected = 0
+            for levels, own in device_hours:
+                inside = [levels[h] for h in run if h in levels]
+                if inside and sum(inside) / len(inside) <= (1 - DIP_DEVICE_DROP) * own:
+                    affected += 1
+            if affected < DIP_MIN_SHARE * len(devices):
+                continue
+            inside = [profile[h] for h in run if profile[h] is not None]
+            drop = 1 - (sum(inside) / len(inside)) / usual if inside else 0
+            dips.append(
+                {
+                    "start": run[0],
+                    "hours": len(run),
+                    "devices": affected,
+                    "days": min(dipped[h] for h in run),
+                    "drop": round(drop * 100),
+                }
+            )
+        dips.sort(key=lambda d: (-d["drop"], d["start"]))
+        return {
+            "devices": len(devices),
+            "days": days,
+            "hours": [
+                None if v is None else {"lqi": round(v * baseline, 1), "drop": round((1 - v / usual) * 100)}
+                for v in profile
+            ],
+            "dips": dips,
+        }
+
     # ---------------------------------------------------------------- history
 
     def history(self, ieee: str, range_key: str, now: float | None = None) -> dict[str, Any] | None:
@@ -335,3 +463,22 @@ class Metrics:
             # The estimate counts from the latest reading, which is where the projection starts.
             battery["empty_at"] = int(bat[-1][0] + estimate * 86400)
         return {"range": range_key, "start": int(start), "end": int(now), "lqi": lqi, "battery": battery}
+
+
+def _runs(flags: list[bool]) -> list[list[int]]:
+    """Contiguous runs of True hours on a 24-hour clock, so a run can wrap past midnight."""
+    if all(flags) or not any(flags):
+        return []
+    begin = flags.index(False)
+    runs: list[list[int]] = []
+    current: list[int] = []
+    for step in range(1, len(flags) + 1):
+        h = (begin + step) % len(flags)
+        if flags[h]:
+            current.append(h)
+        elif current:
+            runs.append(current)
+            current = []
+    if current:
+        runs.append(current)
+    return runs

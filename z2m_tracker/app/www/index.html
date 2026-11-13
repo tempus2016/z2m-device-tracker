@@ -444,6 +444,13 @@
   svg.spectrum text { font-size: 11px; fill: var(--text-2); font-family: var(--font); }
   svg.spectrum text.on { fill: var(--primary-text); font-weight: 500; }
   svg.spectrum text.axis { font-size: 10px; }
+  .hour-bars { display: flex; align-items: flex-end; gap: 3px; height: 90px; padding: 8px 16px 0; }
+  .hour-bars i { flex: 1; min-width: 0; background: var(--primary); opacity: 0.75; border-radius: 2px 2px 0 0; }
+  .hour-bars i.lo { background: var(--warning); opacity: 1; }
+  .hour-bars i.bad { background: var(--error); opacity: 0.85; }
+  .hour-bars i.none { height: 2px; background: var(--divider); }
+  .hour-dip { padding: 4px 16px 8px; }
+  .hour-axis { display: flex; justify-content: space-between; padding: 4px 16px 8px; font-size: 11px; color: var(--text-2); }
   .adv { display: flex; gap: 14px; align-items: flex-start; padding: 8px; border-radius: 12px; }
   .adv:hover { background: var(--hover); }
   .adv .state-ic { width: 36px; height: 36px; }
@@ -584,7 +591,7 @@
     removed: { get label() { return t("status.removed"); }, c: "var(--disabled)" },
   };
   const KIND_ICON = { offline: "wifi-off", silent: "wifi-off", late: "history", frozen: "thermometer", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
-    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip" };
+    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal" };
   const EVENT_ICON = (k) => {
     if (k.startsWith("interview")) return k.endsWith("successful") ? ["check", "var(--success)"] : ["alert-circle", "var(--error)"];
     return ({ joined: ["plus", "var(--success)"], added: ["plus", "var(--success)"], rejoined: ["plus", "var(--success)"], online: ["wifi", "var(--success)"], offline: ["wifi-off", "var(--error)"],
@@ -711,6 +718,7 @@
       const parts = [p.origin === "frontend" || p.origin === "mqtt" ? t(`issue.pairing_open.${p.origin}`) : null, p.device ? t("issue.pairing_open.device", { device: p.device }) : null, p.left != null ? t("issue.pairing_open.left", { duration: span(p.left) }) : null];
       p.extra = parts.filter(Boolean).map((x) => ` · ${x}`).join("");
     },
+    signal_dip: (p) => { p.period = tx(`issue.signal_dip.${p.period}`, null, p.period); },
   };
   // Offline devices behind an offline router are shown inside the router's issue, not on their own.
   const nestedIssue = (i, keys) => Boolean(i.behind) && keys.has(`offline:${i.behind}`);
@@ -1045,8 +1053,32 @@
     const ticks = [...Array(16).keys()].map((i) => { const c = 11 + i, used = r.networks.filter((n) => n.channel === c); return `<line x1="${x(zf(c)).toFixed(1)}" x2="${x(zf(c)).toFixed(1)}" y1="${used.length ? 24 : 62}" y2="72" stroke="${used.length ? "var(--primary)" : "var(--divider)"}" stroke-width="${used.length ? 4 : 2}" stroke-linecap="round"/><text x="${x(zf(c)).toFixed(1)}" y="88" text-anchor="middle" ${used.length ? 'class="on"' : ""}>${c}</text>${used.length ? `<text x="${x(zf(c)).toFixed(1)}" y="104" text-anchor="middle" class="on">${esc(used.map((n) => netLabel(n.topic)).join(" + "))}</text>` : ""}`; }).join("");
     return `<div class="card"><div class="card-header">${ic("signal")}<div>${th("radio.title")}<small>${th("radio.subtitle", { zigbee: esc([...new Set(r.networks.map((n) => n.channel))].join(", ")), wifi: r.wifi.length ? esc(r.wifi.join(", ")) : th("radio.not_set") })}</small></div></div>
       <div class="chart-wrap"><svg class="spectrum" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t("radio.chart"))}">${wifiBands}${ticks}<text x="10" y="118" class="axis">2400 MHz</text><text x="${W - 10}" y="118" text-anchor="end" class="axis">2485 MHz</text></svg></div>
+      ${hoursChart()}
       <div class="advice">${r.findings.map((f) => `<div class="adv"><span class="state-ic" style="color:${f.sev >= 2 ? "var(--warning)" : f.sev === 1 ? "var(--info)" : "var(--success)"}">${ic(f.sev ? "alert" : "check")}</span><div class="text">${esc(findingText(f))}</div></div>`).join("")}</div>
       <div class="card-actions"><button class="btn" data-view="settings">${th("radio.edit_wifi")}</button></div></div>`;
+  };
+
+  // Average link quality by hour of day (last 7 days), one chart per network, with daily dips marked.
+  const hoursChart = () => {
+    const all = state.data.network_hours || {};
+    const nets = state.data.instances.filter((bt) => all[bt]);
+    return nets.map((bt) => {
+      const h = all[bt], hours = h.hours;
+      const issue = (state.data.issues || []).find((i) => i.key === `signal_dip:${bt}`);
+      const max = Math.max(...hours.map((x) => x?.lqi || 0)) || 1;
+      const inDip = new Set(h.dips.flatMap((d) => [...Array(d.hours).keys()].map((k) => (d.start + k) % 24)));
+      const hh = (n) => `${String(n).padStart(2, "0")}:00`;
+      const bars = hours.map((x, i) => {
+        if (!x) return `<i class="none" title="${esc(hh(i))}"></i>`;
+        const cls = inDip.has(i) ? "bad" : h.dips.length && x.drop >= 12 ? "lo" : "";
+        const tip = x.drop >= 5 ? t("radio.hours_bar_drop", { hour: hh(i), lqi: Math.round(x.lqi), drop: x.drop }) : t("radio.hours_bar", { hour: hh(i), lqi: Math.round(x.lqi) });
+        return `<i class="${cls}" style="height:${Math.max(3, (x.lqi / max) * 100).toFixed(1)}%" title="${esc(tip)}"></i>`;
+      }).join("");
+      return `<div class="sub-h">${th("radio.hours_title", { n: h.devices })}${state.data.instances.length > 1 ? ` · ${th("radio.hours_net", { net: esc(netLabel(bt)) })}` : ""}</div>
+        <div class="hour-bars" role="img" aria-label="${esc(t("radio.hours_title", { n: h.devices }))}">${bars}</div>
+        <div class="hour-axis"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span></div>
+        ${issue ? `<div class="hour-dip"><div class="alert" style="--a:var(--warning)">${ic("signal")}<div class="body"><b>${esc(issueTitle(issue))}.</b> ${esc(issueDetail(issue))}</div></div></div>` : ""}`;
+    }).join("");
   };
 
   const shoppingCard = () => {

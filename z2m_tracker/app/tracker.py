@@ -365,6 +365,8 @@ class Tracker:
         self._backups_at = 0.0
         self.started = time.time()
         self._late_checked: dict[str, float] = {}
+        self._hours: dict[str, dict] = {}
+        self._hours_at: int | None = None
 
     # ------------------------------------------------------------ persistence
 
@@ -1362,9 +1364,50 @@ class Tracker:
             bridge.get("memory_days") or [], self._today(), (bridge.get("health") or {}).get("memory_mb")
         )
 
+    def network_hours(self, now: float) -> dict[str, dict]:
+        """Link quality by hour of day per network (Metrics.network_hours), recomputed once an hour."""
+        hour = int(now // 3600)
+        if self._hours_at == hour:
+            return self._hours
+        with self.lock:
+            members: dict[str, list[str]] = {}
+            for ieee, record in self.data["devices"].items():
+                if record.get("status") == STATUS_ACTIVE and record.get("type") != "Coordinator":
+                    members.setdefault(record.get("instance") or "", []).append(ieee)
+        out = {}
+        for bt in self.base_topics:
+            result = self.metrics.network_hours(members.get(bt, []), self.local_tz, now)
+            if result:
+                out[bt] = result
+        self._hours, self._hours_at = out, hour
+        return out
+
+    @staticmethod
+    def _dip_text(dip: dict) -> tuple[str, dict]:
+        """English detail and params for a signal_dip issue."""
+        start, end = dip["start"], (dip["start"] + dip["hours"]) % 24
+        middle = (start + dip["hours"] / 2) % 24
+        period = (
+            "mornings"
+            if 5 <= middle < 12
+            else "afternoons"
+            if 12 <= middle < 17
+            else "evenings"
+            if 17 <= middle < 22
+            else "nights"
+        )
+        params = {"n": dip["devices"], "period": period, "start": f"{start:02d}:00", "end": f"{end:02d}:00"}
+        text = (
+            f"Signal drops across {params['n']} device{'' if params['n'] == 1 else 's'} most {period}, {params['start']}–{params['end']}. "
+            "Something switches on then: Wi-Fi traffic on an overlapping channel, a microwave, "
+            "or a USB 3 device near the coordinator."
+        )
+        return text, params
+
     def _network_issues(self, now: float) -> list[dict]:
         out = []
         disabled = set(self.options.get("disabled_checks") or [])
+        hours = self.network_hours(now) if "signal_dip" not in disabled else {}
         for bt in self.base_topics:
             bridge = (self.data.get("bridges") or {}).get(bt) or {}
             label = "Main" if bt == "zigbee2mqtt" else bt.replace("zigbee2mqtt_", "").replace("_", " ").capitalize()
@@ -1445,6 +1488,24 @@ class Tracker:
                             "instance": bt,
                         }
                     )
+            dips = (hours.get(bt) or {}).get("dips") or []
+            if dips:
+                text, params = self._dip_text(dips[0])
+                out.append(
+                    {
+                        "key": f"signal_dip:{bt}",
+                        "kind": "signal_dip",
+                        "label": "Daily signal dip",
+                        "severity": "info",
+                        "ieee": f"network:{bt}",
+                        "title": "Daily signal dip",
+                        "detail": text,
+                        "msg": "signal_dip",
+                        "params": params,
+                        "name": f"{label} network",
+                        "instance": bt,
+                    }
+                )
         return out
 
     def radio(self) -> dict:
@@ -1639,6 +1700,7 @@ class Tracker:
                 "battery_shopping": self.battery_shopping(60),
                 "bridges": self.data.get("bridges") or {},
                 "radio": self.radio(),
+                "network_hours": self.network_hours(now),
                 "single_points": {bt: self.single_points(bt) for bt in self.base_topics},
                 "backups": self._backups,
                 "groups": self.groups,
