@@ -530,6 +530,69 @@ class Tracker:
         self.evaluate_health()
         return True
 
+    def restore_bindings(self, ieee: str) -> dict:
+        """Re-create lost bindings: a bind request for device/group targets, reconfigure for the coordinator."""
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            if record is None or record["status"] != STATUS_ACTIVE:
+                return {"ok": False, "error": "Device is not active in Zigbee2MQTT"}
+            base_topic = record["instance"]
+            lost = [dict(b) for b in record.get("lost_bindings") or []]
+        if not lost:
+            return {"ok": True, "restored": 0, "failed": []}
+        failed: list[str] = []
+        errors: list[str] = []
+        restored = 0
+        if any(b.get("coordinator") for b in lost):
+            result = self.reconfigure(ieee)
+            if result["ok"]:
+                restored += sum(1 for b in lost if b.get("coordinator"))
+            else:
+                failed += [b.get("label") or b["key"] for b in lost if b.get("coordinator")]
+                errors.append(str(result.get("error")))
+        for binding in lost:
+            if binding.get("coordinator"):
+                continue
+            target = binding.get("target") or ""
+            payload: dict[str, Any] = {"from": ieee, "clusters": [binding.get("cluster")]}
+            ep = str(binding.get("ep") or "")
+            if ep.isdigit():
+                payload["from_endpoint"] = int(ep)
+            if target.startswith("group:"):
+                # Zigbee2MQTT only accepts a group's friendly name as a bind target, not its ID.
+                gid = target.split(":", 1)[1]
+                group_name = self.groups.get(base_topic, {}).get(gid)
+                if not group_name:
+                    failed.append(binding.get("label") or binding["key"])
+                    errors.append(f"Group {gid} no longer exists in Zigbee2MQTT")
+                    continue
+                payload["to"] = group_name
+            else:
+                to_ieee, _, to_ep = target.partition("/")
+                payload["to"] = to_ieee
+                if to_ep.isdigit():
+                    payload["to_endpoint"] = int(to_ep)
+            result = self.request(base_topic, "device/bind", payload, timeout=30)
+            if result and result.get("status") == "ok" and not (result.get("data") or {}).get("failed"):
+                restored += 1
+            else:
+                failed.append(binding.get("label") or binding["key"])
+                errors.append(friendly_z2m_error((result or {}).get("error") or "No response from Zigbee2MQTT"))
+        with self.lock:
+            rec = self.data["devices"].get(ieee)
+            if rec is not None:
+                self._add_event(
+                    _now(),
+                    base_topic,
+                    ieee,
+                    rec.get("friendly_name"),
+                    "binding restore requested" if not failed else "binding restore failed",
+                    f"{restored} of {len(lost)} re-created" + (f": {errors[0]}" if errors else ""),
+                )
+                self._changed(structural=True)
+        ok = not failed
+        return {"ok": ok, "restored": restored, "failed": failed, "error": None if ok else errors[0]}
+
     def _handle_event(self, base_topic: str, payload: dict) -> None:
         event_type = payload.get("type")
         data = payload.get("data") or {}

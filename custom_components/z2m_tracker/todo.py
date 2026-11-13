@@ -107,7 +107,7 @@ class BatteryTodoList(TodoListEntity):
         self._ticked_data = self._tracker.data
         self._ticked.update(ieees)
         try:
-            await self._tracker.async_battery_replaced(ieees, DONE_NOTE)
+            await self._tracker.async_battery_replaced(ieees, note=DONE_NOTE)
         except TrackerAppError as err:
             self._ticked.difference_update(ieees)
             raise HomeAssistantError(f"Z2M Device Tracker app error: {err}") from err

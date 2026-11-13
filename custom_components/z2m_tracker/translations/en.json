@@ -136,6 +136,34 @@
   "issues": {
     "device_issue": {
       "title": "Zigbee: {name} - {title}",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "{name}: {title}",
+            "description": "{detail}\n\nPick a fix. Muting stops the tracker flagging this check for this device only.\n\n[Open in the Zigbee Tracker]({panel})",
+            "menu_options": {
+              "restore_binding": "Restore the binding",
+              "bindings_removed": "The binding was removed on purpose",
+              "battery_replaced": "Battery replaced today",
+              "reconfigure": "Reconfigure the device",
+              "install_update": "Install the firmware update",
+              "mute_day": "Mute this check for 24 hours",
+              "mute_forever": "Mute this check until I unmute it"
+            }
+          },
+          "restore_binding": {
+            "title": "Restore the binding",
+            "description": "Asks Zigbee2MQTT to re-create these bindings on {name}:\n\n{bindings}\n\nIf it runs on battery, wake it first, for example by pressing its button, then select Submit. This can take up to a minute per binding."
+          }
+        },
+        "abort": {
+          "not_loaded": "Z2M Device Tracker is not loaded.",
+          "app_error": "The fix didn't work: {error}"
+        }
+      }
+    },
+    "network_issue": {
+      "title": "Zigbee: {name} - {title}",
       "description": "{detail}\n\n[Open the Zigbee Tracker]({panel})"
     }
   },
