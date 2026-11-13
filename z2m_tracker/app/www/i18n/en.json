@@ -1117,10 +1117,17 @@
   "replace.apply": "Apply",
   "devices.chip.critical": "Critical",
   "more.critical": "Critical device",
-  "more.critical_desc": "Offline alert after {minutes} min instead of {normal}. Alerts go to phones as high priority.",
+  "more.critical_desc": "Offline alert after {minutes} min instead of {normal}. High-priority phone alerts that ignore quiet hours.",
   "critical.tag": "Critical",
   "snack.critical_on": "Marked as critical",
   "snack.critical_off": "No longer critical",
   "settings.critical_offline_for": "Critical device offline for",
-  "settings.critical_offline_for_desc": "The same for devices marked critical on their Info tab"
+  "settings.critical_offline_for_desc": "The same for devices marked critical on their Info tab",
+  "settings.quiet": "Quiet hours",
+  "settings.quiet_desc": "Hold alerts and send one summary when quiet hours end",
+  "settings.quiet_from": "From",
+  "settings.quiet_to": "to",
+  "settings.quiet_critical": "Critical devices",
+  "settings.quiet_critical_desc": "Always alert straight away",
+  "settings.quiet_not_held": "Not held"
 }

@@ -1527,6 +1527,11 @@
         ${sw("fire_events", s.fire_events, t("settings.automation_event"), th("settings.automation_event_desc", { event: "<span class='mono'>z2m_tracker_alert</span>" }), off)}
         <div class="set-row ${off ? "disabled" : ""}"><div class="text"><div class="t1">${th("settings.mobile")}</div><div class="t2">${th("settings.mobile_desc", { example: '<span class="mono">notify.mobile_app_your_phone</span>' })}</div></div>
           <div class="ctl"><input class="field" id="notifySvc" style="width:240px" value="${esc(s.notify_service || "")}" placeholder="notify.mobile_app_…" spellcheck="false" ${off ? "disabled" : ""}><button class="btn" data-act="save-notify" ${off ? "disabled" : ""}>${th("common.save")}</button></div></div>
+        ${sw("quiet_hours", s.quiet_hours, t("settings.quiet"), th("settings.quiet_desc"), off)}
+        <div class="set-row ${off || !s.quiet_hours ? "disabled" : ""}"><div class="text"><div class="t1">${th("settings.quiet_from")}</div></div><div class="ctl">
+          <input class="field" type="time" id="quietStart" style="width:120px" value="${esc(s.quiet_start || "23:00")}" aria-label="${esc(t("settings.quiet_from"))}" ${off || !s.quiet_hours ? "disabled" : ""}><span class="muted">${th("settings.quiet_to")}</span>
+          <input class="field" type="time" id="quietEnd" style="width:120px" value="${esc(s.quiet_end || "07:00")}" aria-label="${esc(t("settings.quiet_to"))}" ${off || !s.quiet_hours ? "disabled" : ""}></div></div>
+        <div class="set-row ${off || !s.quiet_hours ? "disabled" : ""}"><div class="text"><div class="t1">${th("settings.quiet_critical")}</div><div class="t2">${th("settings.quiet_critical_desc")}</div></div><span class="pill">${th("settings.quiet_not_held")}</span></div>
         <div class="card-actions"><button class="btn" data-act="test-notify" ${off ? "disabled" : ""}>${ic("bell", "s18")}${th("settings.test_notification")}</button></div>
       </div>
       <div class="card"><div class="card-header"><div>${th("settings.weekly")}<small>${th("settings.weekly_desc")}</small></div></div>
@@ -2651,6 +2656,7 @@
     else if (el.id === "langSel") { store.set("z2mt.lang", el.value); location.reload(); }
     else if (el.id === "sumDay") saveSettings({ summary_day: Number(el.value) });
     else if (el.id === "sumHour") saveSettings({ summary_hour: Number(el.value) });
+    else if (el.id === "quietStart" || el.id === "quietEnd") { if (/^\d\d:\d\d$/.test(el.value)) saveSettings({ [el.id === "quietStart" ? "quiet_start" : "quiet_end"]: el.value }); }
     else if (el.id === "restoreFile" && el.files?.[0]) {
       const file = el.files[0];
       el.value = "";

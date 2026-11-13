@@ -23,7 +23,7 @@ from battery_library import BatteryLibrary
 from discovery import AVAILABILITY, Discovery
 from discovery import BASE as DISCOVERY_BASE
 from ha import HomeAssistant
-from health import CHECKS, DEFAULT_NOTIFY, alert_plan, alert_title, mutes_of, nested, notify_kinds
+from health import CHECKS, DEFAULT_NOTIFY, alert_title, mutes_of, nested, notify_kinds
 from metrics import Metrics
 from ota import OtaManager, parse_window
 from tracker import Tracker
@@ -81,6 +81,9 @@ DEFAULT_OPTIONS = {
     "chatty_per_hour": 1200,
     "ota_window": "",
     "ota_min_battery": 30,
+    "quiet_hours": False,
+    "quiet_start": "23:00",
+    "quiet_end": "07:00",
 }
 
 CHECK_KEYS = {key for key, _, _, _ in CHECKS}
@@ -130,6 +133,13 @@ def _ota_window(value):
     return value
 
 
+def _clock(value):
+    value = str(value or "").strip()
+    if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", value):
+        raise ValueError("enter a time like 23:00")
+    return value
+
+
 def _kinds(value):
     if not isinstance(value, list) or any(item not in CHECK_KEYS for item in value):
         raise ValueError("unknown check")
@@ -156,6 +166,9 @@ SETTINGS = {
     "notify_checks": _kinds,
     "ota_window": _ota_window,
     "ota_min_battery": _int(0, 100),
+    "quiet_hours": _bool,
+    "quiet_start": _clock,
+    "quiet_end": _clock,
 }
 
 
@@ -343,13 +356,17 @@ class Alerts:
             _LOGGER.info("Alerts paused, not sent: %s - %s", title, messages.get(kind, ""))
             return
         critical = tracker.is_critical(event["ieee"])
+        message = messages.get(kind, event.get("detail") or "")
+        if not critical and tracker.hold_event(title, message):
+            _LOGGER.info("Quiet hours, held for the digest: %s - %s", title, message)
+            return
         self._send(
             f"event:{kind}:{event['ieee']}:{event['time']}",
             kind,
             event["ieee"],
             name,
             f"Critical: {title}" if critical else title,
-            messages.get(kind, event.get("detail") or ""),
+            message,
             event.get("instance"),
             critical,
         )
@@ -360,20 +377,11 @@ class Alerts:
             # Leave "alerted" alone, so issues found during the pause still count as new when it ends.
             # Issues that clear before then are never sent; notifications already shown stay up.
             return
-        enabled = self.notify_set()
-        with tracker.lock:
-            initialised = tracker.data.get("alerts_initialised")
-            sent = set(tracker.data.get("alerted") or [])
-            to_send, alerted, dismiss = alert_plan(issues, enabled, sent)
-            if not initialised:
-                alerted = sorted(issue["key"] for issue in issues if issue["kind"] in enabled)
-            tracker.data["alerted"] = alerted
-            tracker.data["alerts_initialised"] = True
-            tracker.dirty = True
-        if not initialised:
-            _LOGGER.info("Alerts initialised with %d existing issues (not notified)", len(alerted))
+        plan = tracker.plan_alerts(issues, self.notify_set())
+        if plan["first"]:
+            _LOGGER.info("Alerts initialised with existing issues (not notified)")
             return
-        for issue in to_send:
+        for issue in plan["send"]:
             critical = bool(issue.get("critical"))
             self._send(
                 issue["key"],
@@ -385,8 +393,11 @@ class Alerts:
                 issue.get("instance"),
                 critical,
             )
-        for key in dismiss:
+        for key in plan["dismiss"]:
             self._dismiss(key)
+        if plan["digest"]:
+            title, message = plan["digest"]
+            self._send("digest", "digest", "", "Zigbee Tracker", title, message, None)
 
 
 alerts = Alerts()

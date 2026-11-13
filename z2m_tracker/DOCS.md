@@ -27,6 +27,8 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `chatty_per_hour` | `1200` | Messages an hour (averaged over 6 hours) above which a device is flagged as chatty. |
 | `ota_window` | empty | Time window for automatic firmware updates, e.g. `02:00-05:00` (local time, may cross midnight). Empty turns automatic updates off. A failed update is retried once, the next night. |
 | `ota_min_battery` | `30` | Battery devices below this level are skipped by automatic and bulk updates. **Update anyway** overrides it for one device. |
+| `quiet_hours` | `false` | Hold alerts during quiet hours and send one summary when they end. |
+| `quiet_start` / `quiet_end` | `23:00` / `07:00` | Quiet hours in the app's time zone, as `HH:MM`. The window can cross midnight. |
 
 ## Expected reporting
 
@@ -85,9 +87,16 @@ Turn on **Critical device** on a device's Info tab for devices that must never f
 
 - gets an Offline alert after `critical_offline_minutes` (default 5) instead of `offline_alert_minutes`;
 - shows a red **Critical** tag in its panel and on the Health tab, and has its own filter in the device list;
-- sends its alerts with the title starting **Critical:**, and with `critical: true` in the `z2m_tracker_alert` event.
+- sends its alerts with the title starting **Critical:**, and with `critical: true` in the `z2m_tracker_alert` event;
+- alerts straight away during quiet hours.
 
 Alerts to `notify_service` for a critical device also carry the Companion app's high-priority data: `priority: high` and `ttl: 0` (Android, delivered straight away), and `push: interruption-level: time-sensitive` (iOS, shown through Focus modes).
+
+## Quiet hours
+
+With `quiet_hours` on, new issue alerts and Device joined, Device left and Interview failed alerts are held between `quiet_start` and `quiet_end` instead of being sent. Alerts for critical devices still go out straight away.
+
+When quiet hours end, one notification sums up the night, titled "Zigbee overnight: N issues, M resolved". It lists the issues that are still open, the ones that appeared and cleared during the night (with their times), and the held join, leave and interview alerts. Issues listed as still open count as alerted, so they aren't sent again one by one. If nothing happened, no summary is sent. Held alerts are kept in the app's data, so they survive a restart.
 
 ## Firmware updates
 
