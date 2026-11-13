@@ -237,6 +237,7 @@ def ha_registry_changed() -> None:
 
 
 scan_lock = threading.Lock()
+ping_lock = threading.Lock()
 ota_manager = OtaManager(tracker, options, home_assistant.logbook)
 
 
@@ -487,6 +488,28 @@ def run_networkmap(instance: str | None = None) -> bool:
     return True
 
 
+def run_router_pings() -> bool:
+    if not ping_lock.acquire(blocking=False):
+        return False
+
+    def job() -> None:
+        try:
+            # Don't overlap a routing scan that's still running.
+            if scan_lock.acquire(timeout=900):
+                scan_lock.release()
+            _LOGGER.info("Nightly router ping started")
+            result = tracker.ping_routers(stop_event.wait)
+            metrics.save()
+            _LOGGER.info("Nightly router ping finished: %s", result)
+        except Exception:  # noqa: BLE001 - pings are best effort
+            _LOGGER.exception("Nightly router ping failed")
+        finally:
+            ping_lock.release()
+
+    threading.Thread(target=job, name="router-ping", daemon=True).start()
+    return True
+
+
 def record_battery_replaced(ieee: str, date: str, source: str, note: str) -> dict | None:
     entry = tracker.add_battery_replacement(ieee, date, source, note)
     if entry is None:
@@ -718,7 +741,7 @@ def scheduler() -> None:
     global ha_changed_at
     last_save = last_metrics = last_ha = last_health = 0.0
     leftovers_due = False
-    last_scan_day = None
+    last_scan_day = last_ping_day = None
     while not stop_event.wait(5):
         now = time.time()
         try:
@@ -750,6 +773,11 @@ def scheduler() -> None:
             if hour >= 0 and local.hour == hour and last_scan_day != local.date():
                 last_scan_day = local.date()
                 run_networkmap()
+            # Nightly router pings run the hour after the routing scan (04:00 when scans are off).
+            ping_hour = (hour if hour >= 0 else 3) + 1
+            if local.hour == ping_hour % 24 and last_ping_day != local.date():
+                last_ping_day = local.date()
+                run_router_pings()
             if (
                 options.get("weekly_summary")
                 and local.weekday() == int(options.get("summary_day", 0))
@@ -1046,6 +1074,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(
                     200 if started else 409, {"ok": started, "error": None if started else "A scan is already running"}
                 )
+            elif path == "/api/ping":
+                result = tracker.ping(ieee)
+                self._json(200 if result["ok"] or result.get("timeout") else 400, result)
             elif path == "/api/forget":
                 ok = tracker.forget(ieee)
                 self._json(200 if ok else 404, {"ok": ok})

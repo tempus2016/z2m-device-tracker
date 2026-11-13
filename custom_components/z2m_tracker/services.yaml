@@ -48,6 +48,7 @@ mute_device:
             - binding_lost
             - single_point
             - router_hopping
+            - slow_router
     duration:
       selector:
         duration:

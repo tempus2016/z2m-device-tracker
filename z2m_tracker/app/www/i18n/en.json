@@ -1239,5 +1239,17 @@
   "dhealth.limit_battery": "Low battery at",
   "dhealth.limit_frozen": "Reading unchanged for",
   "dhealth.limit_settings": "Settings: {value}",
-  "dhealth.use_settings": "Use Settings values"
+  "dhealth.use_settings": "Use Settings values",
+  "issue.label.slow_router": "Router getting slower",
+  "issue.slow_router.title": "Router getting slower",
+  "issue.slow_router.detail": "Getting slower: {from_ms} ms to {to_ms} ms in 2 weeks. Often a failing plug or too many devices on one router.",
+  "check.slow_router.label": "Router getting slower",
+  "check.slow_router.description": "A router's nightly reply time over the last 3 days is more than 3 times its usual and above 150 ms.",
+  "ping.button": "Ping",
+  "ping.running": "Pinging…",
+  "ping.replied": "Replied in {ms} ms",
+  "ping.no_reply": "No reply in {s} s",
+  "ping.chart_title": "Nightly reply time, last 14 days",
+  "ping.chart_empty": "The first nightly ping runs the hour after the routing scan.",
+  "ping.bar_none": "no reply"
 }

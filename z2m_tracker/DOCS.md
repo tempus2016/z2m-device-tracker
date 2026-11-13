@@ -63,6 +63,7 @@ These checks show in Health but don't notify until you set them to **Show and no
 | Binding lost | A binding (to a device, a group, or the coordinator for reporting) that disappeared and didn't come back within 10 minutes. Bindings removed with Zigbee2MQTT's Unbind are logged but not flagged. |
 | Single point of failure | A router that, in the latest routing scan, is the only path to the coordinator for other routers. Also listed in the Map tab's advice. |
 | Changes router often | An end device whose parent router changed 3+ times across the routing scans of the last 7 days (scans it's missing from don't count). The device's History tab lists its parent per scan and the one with the best link. Routers aren't checked: their parent in the scan is only the router they joined through. |
+| Router getting slower | A router whose nightly reply time (see Ping below) over the last 3 days is more than 3 times its median over the 14 days before, and above 150 ms. Often a failing plug or too many devices on one router. |
 | Coordinator backup | `coordinator_backup.json` missing, without a network key, not matching the running channel/PAN ID, or more than 3 days old. Only checked when the Zigbee2MQTT data folder is inside the HA config folder. |
 | Zigbee2MQTT memory | Zigbee2MQTT's own memory use grew more than 50% over the last 7 days (at least 5 days of readings). Usually a leak that ends in a crash; a restart clears it. Uses the `bridge/health` messages Zigbee2MQTT 2.5+ sends every 10 minutes by default (its `health.interval` setting). Health → Coordinators also shows its memory over the last 14 days, MQTT traffic and leaves this week. |
 | Group members offline | A Zigbee2MQTT group with members that have been offline for longer than `offline_alert_minutes`. One issue per group, listing the offline members. |
@@ -75,6 +76,14 @@ The Health tab's **Groups** card lists every Zigbee2MQTT group with how many of 
 When a router goes offline, the devices that route through it often follow. The Offline check groups them: a device whose parent router in the last routing scan that saw it is offline (or that router's parent, and so on) shows under that router in Health, and the router gets one issue and one notification, e.g. "Router offline: Landing plug - 6 devices that route through it are offline too". The devices don't notify on their own while the router is down. When the router comes back, devices still offline 5 minutes later become normal issues and notify as usual. Devices that were never in a routing scan, and routers whose Offline check is ignored, aren't grouped. Repairs in Home Assistant follow the same grouping; each device's own entities still show it offline.
 
 The device panel's Info tab also shows message rates, Zigbee2MQTT's own counters (messages, leaves, address changes) and the device's bindings.
+
+## Ping
+
+Mains devices have a **Ping** button on the device panel's Info tab. It reads one attribute (the Basic cluster's ZCL version, the same read Zigbee2MQTT's availability check uses) and shows how long the reply took, or "No reply in 10 s". Nothing is written to the device. Battery devices sleep, so they have no Ping button.
+
+Every night, the hour after the routing scan (04:00 when `networkmap_hour` is `-1`), the app pings each online router once, one at a time, 2 seconds apart. The Trends tab shows the last 14 nights as a bar chart, and the **Router getting slower** check uses them. 30 nights are kept.
+
+Ping uses Zigbee2MQTT's `bridge/request/action` API, so it needs Zigbee2MQTT 2.7 or newer. The time includes the trip through MQTT and Zigbee2MQTT, a few milliseconds.
 
 The integration can mirror warnings and notify-enabled checks into **Settings → Repairs**. Turn it off in the integration's options.
 

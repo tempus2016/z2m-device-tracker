@@ -14,6 +14,7 @@ import uuid
 from collections.abc import Callable
 from datetime import date, datetime, timedelta, timezone, tzinfo
 from datetime import time as dtime
+from time import monotonic as _monotonic
 from typing import Any
 
 from health import (
@@ -237,6 +238,39 @@ def _permit_opening(payload: Any) -> bool:
         return False
 
 
+# Ping: the same read Z2M's availability check uses (genBasic zclVersion), sent through the
+# bridge/request/action "raw" API (Zigbee2MQTT 2.7+) so the reply comes back with our transaction id.
+PING_TIMEOUT = 10
+PING_MIN_Z2M = (2, 7)
+PING_SPACING = 2.0
+PING_GRACE = 5
+
+
+def _ping_address(device: dict) -> dict | None:
+    """Network address and the endpoint to read genBasic from (first endpoint listing it, as herdsman does)."""
+    nwk = device.get("network_address")
+    if not isinstance(nwk, int) or isinstance(nwk, bool):
+        return None
+    endpoints = device.get("endpoints")
+    ids: list[int] = []
+    if isinstance(endpoints, dict):
+        for key, info in endpoints.items():
+            try:
+                ep = int(key)
+            except (TypeError, ValueError):
+                continue
+            inputs = ((info or {}).get("clusters") or {}).get("input") or []
+            ids.append(ep)
+            if "genBasic" in inputs:
+                return {"nwk": nwk, "ep": ep}
+    return {"nwk": nwk, "ep": ids[0] if ids else 1}
+
+
+def _z2m_version(text: Any) -> tuple[int, int] | None:
+    match = re.match(r"\s*(\d+)\.(\d+)", str(text or ""))
+    return (int(match.group(1)), int(match.group(2))) if match else None
+
+
 def friendly_z2m_error(raw: str | None) -> str:
     text = str(raw or "")
     low = text.lower()
@@ -375,6 +409,7 @@ class Tracker:
         self._late_checked: dict[str, float] = {}
         self._hours: dict[str, dict] = {}
         self._hours_at: int | None = None
+        self.addresses: dict[str, dict] = {}
 
     # ------------------------------------------------------------ persistence
 
@@ -556,6 +591,9 @@ class Tracker:
                         self._add_event(now, base_topic, ieee, name, "model changed", f"{record[key]} → {value}")
                     record[key] = value
                     changed = True
+            address = _ping_address(device)
+            if address:
+                self.addresses[ieee] = address
             if self._update_bindings(base_topic, record, device, name, now, tracking_already):
                 changed = True
             record["last_listed"] = now
@@ -1277,6 +1315,90 @@ class Tracker:
             results[topic] = (result or {}).get("status", "timeout")
         return results
 
+    # ------------------------------------------------------------------- ping
+
+    def can_ping(self, record: dict) -> str | None:
+        """Why this device can't be pinged, or None if it can. Caller holds the lock."""
+        if record["status"] != STATUS_ACTIVE or not record.get("instance"):
+            return "Device is not active in Zigbee2MQTT"
+        if record.get("type") == "Coordinator":
+            return "The coordinator can't be pinged"
+        if self.is_battery_device(record):
+            return "Battery devices sleep, so they can't be pinged"
+        if record["ieee"] not in self.addresses:
+            return "Zigbee2MQTT hasn't listed this device's network address yet"
+        version = _z2m_version(
+            ((self.data.get("bridges") or {}).get(record["instance"]) or {}).get("info", {}).get("version")
+        )
+        if version is not None and version < PING_MIN_Z2M:
+            return "Ping needs Zigbee2MQTT 2.7 or newer"
+        return None
+
+    def ping(self, ieee: str) -> dict:
+        """Read genBasic zclVersion from a mains device and time the reply.
+
+        Returns {"ok": True, "ms": n}, {"ok": False, "timeout": True, ...} when the device didn't answer
+        within PING_TIMEOUT seconds, or {"ok": False, "error": ...} when it couldn't be asked at all.
+        Read-only: nothing is written to the device and Z2M's stored state isn't touched.
+        """
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            if record is None:
+                return {"ok": False, "error": "Unknown device"}
+            problem = self.can_ping(record)
+            if problem:
+                return {"ok": False, "error": problem}
+            base_topic = record["instance"]
+            address = dict(self.addresses[ieee])
+        params = {
+            "ieee_address": ieee,
+            "network_address": address["nwk"],
+            "dst_endpoint": address["ep"],
+            "cluster_key": "genBasic",
+            "zcl": {"frame_type": 0, "direction": 0, "command_key": "read", "payload": [{"attrId": 0}]},
+            "timeout": PING_TIMEOUT * 1000,
+        }
+        started = _monotonic()
+        # Z2M answers with an error once its own 10 s timeout runs out; the extra seconds cover the round trip.
+        result = self.request(
+            base_topic, "action", {"action": "raw", "params": params}, timeout=PING_TIMEOUT + PING_GRACE
+        )
+        ms = round((_monotonic() - started) * 1000)
+        if result is None:
+            return {"ok": False, "timeout": True, "seconds": PING_TIMEOUT, "detail": "No response from Zigbee2MQTT"}
+        if result.get("status") == "ok":
+            return {"ok": True, "ms": ms}
+        raw = str(result.get("error") or "")
+        if raw.startswith("Invalid") or "assert" in raw.lower():
+            return {"ok": False, "error": f"Zigbee2MQTT refused the ping: {raw[:200]}"}
+        return {"ok": False, "timeout": True, "seconds": PING_TIMEOUT, "detail": raw[:300]}
+
+    def ping_routers(self, wait: Callable[[float], Any]) -> dict[str, int]:
+        """Nightly: ping every active, online, mains router once, one at a time, and store the reply time.
+
+        `wait(seconds)` sleeps between pings and returns True to stop early (main.py passes stop_event.wait).
+        """
+        with self.lock:
+            targets = [
+                r["ieee"]
+                for r in self.data["devices"].values()
+                if r.get("type") == "Router" and r.get("availability") != "offline" and self.can_ping(r) is None
+            ]
+        counts = {"replied": 0, "no_reply": 0, "skipped": 0}
+        for index, ieee in enumerate(targets):
+            if index and wait(PING_SPACING):
+                break
+            result = self.ping(ieee)
+            if result.get("ok"):
+                self.metrics.add_ping(ieee, result["ms"])
+                counts["replied"] += 1
+            elif result.get("timeout"):
+                self.metrics.add_ping(ieee, None)
+                counts["no_reply"] += 1
+            else:
+                counts["skipped"] += 1
+        return counts
+
     # ----------------------------------------------------------------- health
 
     def _suggestions(self) -> dict[str, list[dict]]:
@@ -1854,6 +1976,7 @@ class Tracker:
                 item["offline_timing"] = offline_timing(
                     record, (bridge_info.get("info") or {}).get("availability"), self.options, now
                 )
+                item["can_ping"] = self.can_ping(record) is None
                 devices.append(item)
             payload = {
                 "devices": devices,
