@@ -38,6 +38,8 @@ CONFIG_DIR = "/homeassistant"
 MIGRATE_FROM = f"{CONFIG_DIR}/.storage/z2m_tracker"
 APP_DIR = Path(__file__).parent
 WWW = APP_DIR / "www"
+# Fonts are served from this fixed list, so a request path never becomes a file path.
+FONTS = {font.name: font for font in (WWW / "fonts").glob("*.woff2")}
 SAVE_INTERVAL = 30
 METRICS_SAVE_INTERVAL = 300
 HEALTH_INTERVAL = 60
@@ -640,9 +642,9 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?", 1)[0]
         if path in ("/", "/index.html"):
             self._send(200, (WWW / "index.html").read_bytes(), "text/html; charset=utf-8")
-        elif path.startswith("/fonts/") and path.endswith(".woff2"):
-            font = (WWW / "fonts" / Path(path).name).resolve()
-            if font.parent == (WWW / "fonts").resolve() and font.is_file():
+        elif path.startswith("/fonts/"):
+            font = FONTS.get(path.removeprefix("/fonts/"))
+            if font is not None:
                 body = font.read_bytes()
                 self.send_response(200)
                 self.send_header("Content-Type", "font/woff2")
