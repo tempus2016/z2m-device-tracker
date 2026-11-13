@@ -1,0 +1,76 @@
+configuration:
+  base_topics:
+    name: Zigbee2MQTT base topics
+    description: MQTT base topic of each Zigbee2MQTT instance to track.
+  z2m_panels:
+    name: Zigbee2MQTT app links
+    description: Links to each Zigbee2MQTT app, as base_topic=app_slug, e.g. zigbee2mqtt=45df7312_zigbee2mqtt. The slug is in the app's URL.
+  alerts_enabled:
+    name: Alerts
+    description: Master switch for alerts.
+  persistent_notifications:
+    name: Home Assistant notifications
+    description: Show alerts as Home Assistant notifications.
+  fire_events:
+    name: Fire events
+    description: Fire z2m_tracker_alert events for automations.
+  notify_service:
+    name: Notify service
+    description: Also send alerts to a notify service, e.g. notify.mobile_app_phone.
+  alert_on_join:
+    name: Alert on join
+    description: Alert when a new device joins.
+  disabled_checks:
+    name: Disabled checks
+    description: Health checks to turn off completely.
+  notify_checks:
+    name: Checks that alert
+    description: Health checks that send alerts.
+  offline_alert_minutes:
+    name: Offline alert delay (minutes)
+    description: How long a device must be offline before an alert.
+  critical_offline_minutes:
+    name: Critical device offline delay (minutes)
+    description: The same for devices marked Critical device on their Info tab.
+  frozen_alert_hours:
+    name: Frozen reading delay (hours)
+    description: How long a sensor reading must stay the same before it counts as frozen.
+  battery_alert_percent:
+    name: Low battery level (%)
+    description: Battery level for a low battery alert.
+  networkmap_hour:
+    name: Routing scan hour
+    description: Hour of the nightly routing scan, or -1 to turn it off.
+  ha_entities:
+    name: Tracker sensors
+    description: Add tracker sensors to each Zigbee2MQTT device via MQTT discovery.
+  weekly_summary:
+    name: Weekly summary
+    description: Send a weekly summary notification.
+  summary_day:
+    name: Summary day
+    description: Day to send the weekly summary (0 = Monday).
+  summary_hour:
+    name: Summary hour
+    description: Hour to send the weekly summary.
+  wifi_channels:
+    name: Wi-Fi channels
+    description: Your 2.4 GHz Wi-Fi channels, e.g. 1, 6, used for the radio channel check.
+  chatty_per_hour:
+    name: Chatty threshold (messages an hour)
+    description: Messages an hour (averaged over 6 hours) above which a device is flagged as chatty.
+  ota_window:
+    name: Automatic update window
+    description: Time window for automatic firmware updates, e.g. 02:00-05:00 (local time, may cross midnight). Empty turns automatic updates off. A failed update is retried once, the next night.
+  ota_min_battery:
+    name: Minimum battery for updates (%)
+    description: Battery devices below this level are skipped by automatic and bulk updates. Update anyway overrides it for one device.
+  quiet_hours:
+    name: Quiet hours
+    description: Hold alerts during quiet hours and send one summary when they end.
+  quiet_start:
+    name: Quiet hours start
+    description: Start of quiet hours in the app's time zone, as HH:MM.
+  quiet_end:
+    name: Quiet hours end
+    description: End of quiet hours, as HH:MM. The window can cross midnight.

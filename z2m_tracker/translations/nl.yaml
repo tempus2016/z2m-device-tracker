@@ -1,0 +1,64 @@
+configuration:
+  base_topics:
+    name: Zigbee2MQTT-basistopics
+    description: MQTT-basistopic van elke Zigbee2MQTT-instantie die gevolgd moet worden.
+  z2m_panels:
+    name: Links naar Zigbee2MQTT-apps
+    description: Links naar elke Zigbee2MQTT-app, als base_topic=app_slug, bijv. zigbee2mqtt=45df7312_zigbee2mqtt. De slug staat in de URL van de app.
+  alerts_enabled:
+    name: Waarschuwingen
+    description: Hoofdschakelaar voor waarschuwingen.
+  persistent_notifications:
+    name: Home Assistant-meldingen
+    description: Waarschuwingen tonen als Home Assistant-meldingen.
+  fire_events:
+    name: Events afvuren
+    description: z2m_tracker_alert-events afvuren voor automatiseringen.
+  notify_service:
+    name: Notify-dienst
+    description: Waarschuwingen ook naar een notify-dienst sturen, bijv. notify.mobile_app_phone.
+  alert_on_join:
+    name: Waarschuwen bij toevoegen
+    description: Waarschuwen wanneer een nieuw apparaat wordt toegevoegd.
+  disabled_checks:
+    name: Uitgeschakelde controles
+    description: Gezondheidscontroles die helemaal uit moeten.
+  notify_checks:
+    name: Controles die waarschuwen
+    description: Gezondheidscontroles die waarschuwingen sturen.
+  offline_alert_minutes:
+    name: Vertraging offline-waarschuwing (minuten)
+    description: Hoe lang een apparaat offline moet zijn voordat er een waarschuwing komt.
+  frozen_alert_hours:
+    name: Vertraging bevroren meting (uren)
+    description: Hoe lang een sensormeting gelijk moet blijven voordat die als bevroren geldt.
+  battery_alert_percent:
+    name: Niveau batterij bijna leeg (%)
+    description: Batterijniveau voor een waarschuwing over een bijna lege batterij.
+  networkmap_hour:
+    name: Uur routeringsscan
+    description: Uur van de nachtelijke routeringsscan, of -1 om die uit te zetten.
+  ha_entities:
+    name: Trackersensoren
+    description: Trackersensoren toevoegen aan elk Zigbee2MQTT-apparaat via MQTT discovery.
+  weekly_summary:
+    name: Wekelijks overzicht
+    description: Een wekelijkse overzichtsmelding versturen.
+  summary_day:
+    name: Dag van overzicht
+    description: Dag waarop het wekelijks overzicht wordt verstuurd (0 = maandag).
+  summary_hour:
+    name: Uur van overzicht
+    description: Uur waarop het wekelijks overzicht wordt verstuurd.
+  wifi_channels:
+    name: Wi-Fi-kanalen
+    description: Je 2,4 GHz Wi-Fi-kanalen, bijv. 1, 6, gebruikt voor de controle van radiokanalen.
+  chatty_per_hour:
+    name: Praatgraag-drempel (berichten per uur)
+    description: Aantal berichten per uur (gemiddeld over 6 uur) waarboven een apparaat als praatgraag wordt gemarkeerd.
+  ota_window:
+    name: Tijdvenster automatische updates
+    description: Tijdvenster voor automatische firmware-updates, bijv. 02:00-05:00 (lokale tijd, mag over middernacht gaan). Leeg zet automatische updates uit. Een mislukte update wordt de volgende nacht nog één keer geprobeerd.
+  ota_min_battery:
+    name: Minimale batterij voor updates (%)
+    description: Batterijapparaten onder dit niveau worden overgeslagen bij automatische en bulkupdates. Toch updaten negeert dit voor één apparaat.

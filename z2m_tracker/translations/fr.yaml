@@ -1,0 +1,64 @@
+configuration:
+  base_topics:
+    name: Topics de base Zigbee2MQTT
+    description: Topic de base MQTT de chaque instance Zigbee2MQTT à suivre.
+  z2m_panels:
+    name: Liens vers les applications Zigbee2MQTT
+    description: Liens vers chaque application Zigbee2MQTT, au format base_topic=app_slug, par ex. zigbee2mqtt=45df7312_zigbee2mqtt. Le slug figure dans l'URL de l'application.
+  alerts_enabled:
+    name: Alertes
+    description: Interrupteur général des alertes.
+  persistent_notifications:
+    name: Notifications Home Assistant
+    description: Afficher les alertes sous forme de notifications Home Assistant.
+  fire_events:
+    name: Déclencher des événements
+    description: Déclencher des événements z2m_tracker_alert pour les automatisations.
+  notify_service:
+    name: Service de notification
+    description: Envoyer aussi les alertes à un service de notification, par ex. notify.mobile_app_phone.
+  alert_on_join:
+    name: Alerte à l'appairage
+    description: Alerter quand un nouvel appareil rejoint le réseau.
+  disabled_checks:
+    name: Vérifications désactivées
+    description: Vérifications de santé à désactiver complètement.
+  notify_checks:
+    name: Vérifications qui alertent
+    description: Vérifications de santé qui envoient des alertes.
+  offline_alert_minutes:
+    name: Délai d'alerte hors ligne (minutes)
+    description: Durée pendant laquelle un appareil doit être hors ligne avant une alerte.
+  frozen_alert_hours:
+    name: Délai de valeur figée (heures)
+    description: Durée pendant laquelle la valeur d'un capteur doit rester identique pour être considérée comme figée.
+  battery_alert_percent:
+    name: Niveau de batterie faible (%)
+    description: Niveau de batterie déclenchant une alerte de batterie faible.
+  networkmap_hour:
+    name: Heure de l'analyse du routage
+    description: Heure de l'analyse nocturne du routage, ou -1 pour la désactiver.
+  ha_entities:
+    name: Capteurs du tracker
+    description: Ajouter les capteurs du tracker à chaque appareil Zigbee2MQTT via la découverte MQTT.
+  weekly_summary:
+    name: Résumé hebdomadaire
+    description: Envoyer une notification de résumé hebdomadaire.
+  summary_day:
+    name: Jour du résumé
+    description: Jour d'envoi du résumé hebdomadaire (0 = lundi).
+  summary_hour:
+    name: Heure du résumé
+    description: Heure d'envoi du résumé hebdomadaire.
+  wifi_channels:
+    name: Canaux Wi-Fi
+    description: Vos canaux Wi-Fi 2,4 GHz, par ex. 1, 6, utilisés pour la vérification du canal radio.
+  chatty_per_hour:
+    name: Seuil de bavardage (messages par heure)
+    description: Nombre de messages par heure (moyenne sur 6 heures) au-delà duquel un appareil est signalé comme bavard.
+  ota_window:
+    name: Plage de mise à jour automatique
+    description: Plage horaire des mises à jour automatiques du firmware, par ex. 02:00-05:00 (heure locale, peut passer minuit). Vide désactive les mises à jour automatiques. Une mise à jour échouée est retentée une fois, la nuit suivante.
+  ota_min_battery:
+    name: Batterie minimale pour les mises à jour (%)
+    description: Les appareils sur batterie sous ce niveau sont ignorés par les mises à jour automatiques et groupées. « Mettre à jour quand même » outrepasse ce seuil pour un appareil.

@@ -10,23 +10,28 @@ const nameOf = (d) => {
   return named.length ? named[named.length - 1].name : d.ha_name || d.ieee;
 };
 const statusOf = (d) => (d.status === "removed" ? "removed" : d.interview_state && d.interview_state !== "SUCCESSFUL" && d.type !== "Coordinator" ? "ghost" : d.availability === "offline" ? "offline" : "active");
+const I18N = () => window.Z2MTrackerI18n;
+const T = (key, vars, fallback) => I18N()?.t(key, vars, fallback) ?? fallback ?? key;
 const KIND_ICON = { offline: "mdi:wifi-off", silent: "mdi:wifi-off", late: "mdi:timer-sand", frozen: "mdi:thermometer-alert", weak_signal: "mdi:signal-cellular-1", signal_drop: "mdi:signal-cellular-2", battery_low: "mdi:battery-alert-variant-outline", battery_soon: "mdi:battery-clock-outline", update: "mdi:chip", unidentified: "mdi:help-circle-outline", replacement: "mdi:link-variant", router_hopping: "mdi:swap-horizontal", slow_router: "mdi:router-wireless" };
 
 class Z2MTrackerCard extends HTMLElement {
   setConfig(config) {
-    this._config = { title: "Zigbee devices", max_items: 5, ...config };
+    this._config = { max_items: 5, ...config };
     if (this._root) this._render();
   }
 
   set hass(hass) {
     const first = !this._hass;
     this._hass = hass;
+    this._lang = this._lang || (() => this._render());
+    I18N()?.use(hass, this._lang);
     if (first) this._start();
   }
 
   connectedCallback() { if (this._hass && !this._timer) this._start(); }
 
   disconnectedCallback() {
+    if (this._lang) I18N()?.forget(this._lang);
     clearInterval(this._timer); this._timer = null;
     if (this._unsub) { this._unsub.then((fn) => fn && fn()).catch(() => {}); this._unsub = null; }
   }
@@ -70,17 +75,17 @@ class Z2MTrackerCard extends HTMLElement {
   }
 
   async _load() {
-    try { this._data = await this._hass.callWS({ type: "z2m_tracker/devices" }); this._error = null; }
-    catch (err) { this._error = err?.message || "The Zigbee Tracker app isn't reachable"; }
+    try { this._data = await this._hass.callWS({ type: "z2m_tracker/devices" }); this._error = null; this._failed = false; }
+    catch (err) { this._error = err?.message || null; this._failed = true; }
     this._render();
   }
 
   _render() {
     const body = this._root?.getElementById("body");
     if (!body) return;
-    const cfg = { ...this._config, panel: this._config.panel || this._data?.panel || "/app/local_z2m_tracker" };
-    if (this._error) { body.innerHTML = `<div class="head"><h2>${esc(cfg.title)}</h2></div><div class="err">${esc(this._error)}</div>`; return; }
-    if (!this._data) { body.innerHTML = `<div class="head"><h2>${esc(cfg.title)}</h2></div><div class="empty">Loading…</div>`; return; }
+    const cfg = { ...this._config, title: this._config.title || T("card.summary.title"), panel: this._config.panel || this._data?.panel || "/app/local_z2m_tracker" };
+    if (this._failed) { body.innerHTML = `<div class="head"><h2>${esc(cfg.title)}</h2></div><div class="err">${esc(this._error || T("card.unreachable"))}</div>`; return; }
+    if (!this._data) { body.innerHTML = `<div class="head"><h2>${esc(cfg.title)}</h2></div><div class="empty">${esc(T("card.loading"))}</div>`; return; }
     const devices = this._data.devices.filter((d) => d.type !== "Coordinator" && d.status !== "removed");
     const offline = devices.filter((d) => statusOf(d) === "offline").length;
     const all = devices.flatMap((d) => (d.issues || []).map((i) => ({ ...i, area: d.area })));
@@ -93,22 +98,22 @@ class Z2MTrackerCard extends HTMLElement {
       return d.battery_record && ((est !== null && est !== undefined && est <= 60) || d.battery_low === true || (typeof d.battery === "number" && (d.battery <= low || (d.battery <= 25 && (est === null || est === undefined)))));
     });
     const shopping = {};
-    due.forEach((d) => { const r = d.battery_record || {}; const k = r.type || "Unknown type"; shopping[k] = (shopping[k] || 0) + (r.quantity || 1); });
+    due.forEach((d) => { const r = d.battery_record || {}; const k = r.type || T("card.summary.unknown_type"); shopping[k] = (shopping[k] || 0) + (r.quantity || 1); });
     const buy = Object.entries(shopping).map(([t, n]) => `${n}× ${t}`).join(", ");
     body.innerHTML = `
       <div class="head"><h2>${esc(cfg.title)}</h2></div>
       <div class="stats">
-        <div class="stat" data-go><div class="n">${devices.length}</div><div class="l">Active</div></div>
-        <div class="stat ${offline ? "bad" : ""}" data-go><div class="n">${offline}</div><div class="l">Offline</div></div>
-        <div class="stat ${issues.length ? "warn" : ""}" data-go><div class="n">${issues.length}</div><div class="l">Need attention</div></div>
-        <div class="stat ${due.length ? "warn" : ""}" data-go><div class="n">${due.length}</div><div class="l">Batteries due</div></div>
+        <div class="stat" data-go><div class="n">${devices.length}</div><div class="l">${esc(T("card.summary.active"))}</div></div>
+        <div class="stat ${offline ? "bad" : ""}" data-go><div class="n">${offline}</div><div class="l">${esc(T("card.summary.offline"))}</div></div>
+        <div class="stat ${issues.length ? "warn" : ""}" data-go><div class="n">${issues.length}</div><div class="l">${esc(T("card.summary.attention"))}</div></div>
+        <div class="stat ${due.length ? "warn" : ""}" data-go><div class="n">${due.length}</div><div class="l">${esc(T("card.summary.batteries_due"))}</div></div>
       </div>
-      <div class="section">Needs attention</div>
-      ${issues.length ? issues.slice(0, cfg.max_items).map((i) => `<div class="row" style="--c:var(--warning-color, #ffa600)"><ha-icon icon="${KIND_ICON[i.kind] || "mdi:alert"}"></ha-icon><div class="t"><div class="t1">${esc(i.name)}</div><div class="t2">${esc(i.label)}${i.area ? ` · ${esc(i.area)}` : ""}</div></div></div>`).join("")
-        + (issues.length > cfg.max_items ? `<div class="empty">and ${issues.length - cfg.max_items} more</div>` : "")
-        : `<div class="empty">Nothing needs attention.</div>`}
-      ${buy ? `<div class="section">Batteries to buy</div><div class="row" style="--c:var(--state-icon-color)"><ha-icon icon="mdi:battery-plus-outline"></ha-icon><div class="t"><div class="t1">${esc(buy)}</div><div class="t2">For ${due.length} device${due.length === 1 ? "" : "s"} running low within 60 days</div></div></div>` : ""}
-      <div class="actions"><a href="${esc(cfg.panel)}">Open Zigbee Tracker</a></div>`;
+      <div class="section">${esc(T("card.summary.needs_attention"))}</div>
+      ${issues.length ? issues.slice(0, cfg.max_items).map((i) => `<div class="row" style="--c:var(--warning-color, #ffa600)"><ha-icon icon="${KIND_ICON[i.kind] || "mdi:alert"}"></ha-icon><div class="t"><div class="t1">${esc(i.name)}</div><div class="t2">${esc(I18N()?.issueLabel(i) ?? i.label)}${i.area ? ` · ${esc(i.area)}` : ""}</div></div></div>`).join("")
+        + (issues.length > cfg.max_items ? `<div class="empty">${esc(T("card.more", { n: issues.length - cfg.max_items }))}</div>` : "")
+        : `<div class="empty">${esc(T("card.nothing"))}</div>`}
+      ${buy ? `<div class="section">${esc(T("card.summary.to_buy"))}</div><div class="row" style="--c:var(--state-icon-color)"><ha-icon icon="mdi:battery-plus-outline"></ha-icon><div class="t"><div class="t1">${esc(buy)}</div><div class="t2">${esc(T("card.summary.to_buy_for", { n: due.length }))}</div></div></div>` : ""}
+      <div class="actions"><a href="${esc(cfg.panel)}">${esc(T("card.summary.open"))}</a></div>`;
     body.querySelectorAll("[data-go]").forEach((el) => el.addEventListener("click", () => { history.pushState(null, "", cfg.panel); window.dispatchEvent(new CustomEvent("location-changed")); }));
     body.querySelector(".actions a").addEventListener("click", (e) => { e.preventDefault(); history.pushState(null, "", cfg.panel); window.dispatchEvent(new CustomEvent("location-changed")); });
   }

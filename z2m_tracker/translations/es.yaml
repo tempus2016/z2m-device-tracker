@@ -1,0 +1,64 @@
+configuration:
+  base_topics:
+    name: Topics base de Zigbee2MQTT
+    description: Topic base MQTT de cada instancia de Zigbee2MQTT que se va a seguir.
+  z2m_panels:
+    name: Enlaces a la aplicación Zigbee2MQTT
+    description: "Enlaces a cada aplicación Zigbee2MQTT, como base_topic=app_slug, p. ej., zigbee2mqtt=45df7312_zigbee2mqtt. El slug está en la URL de la aplicación."
+  alerts_enabled:
+    name: Alertas
+    description: Interruptor general de las alertas.
+  persistent_notifications:
+    name: Notificaciones de Home Assistant
+    description: Muestra las alertas como notificaciones de Home Assistant.
+  fire_events:
+    name: Lanzar eventos
+    description: Lanza eventos z2m_tracker_alert para las automatizaciones.
+  notify_service:
+    name: Servicio de notificación
+    description: También envía las alertas a un servicio de notificación, p. ej., notify.mobile_app_phone.
+  alert_on_join:
+    name: Alertar al unirse
+    description: Avisa cuando se une un dispositivo nuevo.
+  disabled_checks:
+    name: Comprobaciones desactivadas
+    description: Comprobaciones de estado que se desactivan por completo.
+  notify_checks:
+    name: Comprobaciones que alertan
+    description: Comprobaciones de estado que envían alertas.
+  offline_alert_minutes:
+    name: Retardo de alerta sin conexión (minutos)
+    description: Cuánto tiempo debe estar un dispositivo sin conexión antes de una alerta.
+  frozen_alert_hours:
+    name: Retardo de lectura congelada (horas)
+    description: Cuánto tiempo debe mantenerse igual la lectura de un sensor para considerarse congelada.
+  battery_alert_percent:
+    name: Nivel de batería baja (%)
+    description: Nivel de batería para la alerta de batería baja.
+  networkmap_hour:
+    name: Hora del escaneo de rutas
+    description: Hora del escaneo de rutas nocturno, o -1 para desactivarlo.
+  ha_entities:
+    name: Sensores del tracker
+    description: Añade sensores del tracker a cada dispositivo de Zigbee2MQTT mediante MQTT discovery.
+  weekly_summary:
+    name: Resumen semanal
+    description: Envía una notificación con un resumen semanal.
+  summary_day:
+    name: Día del resumen
+    description: Día de envío del resumen semanal (0 = lunes).
+  summary_hour:
+    name: Hora del resumen
+    description: Hora de envío del resumen semanal.
+  wifi_channels:
+    name: Canales Wi-Fi
+    description: Tus canales Wi-Fi de 2,4 GHz, p. ej., 1, 6, que se usan para comprobar los canales de radio.
+  chatty_per_hour:
+    name: Umbral de dispositivo hablador (mensajes por hora)
+    description: Mensajes por hora (de media en 6 horas) a partir de los cuales un dispositivo se señala como hablador.
+  ota_window:
+    name: Franja de actualización automática
+    description: Franja horaria para las actualizaciones automáticas de firmware, p. ej., 02:00-05:00 (hora local, puede pasar de medianoche). Si se deja vacía, se desactivan las actualizaciones automáticas. Una actualización fallida se reintenta una vez, la noche siguiente.
+  ota_min_battery:
+    name: Batería mínima para actualizar (%)
+    description: Las actualizaciones automáticas y masivas omiten los dispositivos a pilas por debajo de este nivel. Actualizar de todos modos lo ignora para un dispositivo.

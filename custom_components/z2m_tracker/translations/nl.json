@@ -1,0 +1,241 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Z2M Device Tracker",
+        "description": "Maakt verbinding met de Z2M Device Tracker-app, die de geschiedenis van elk Zigbee2MQTT-apparaat vastlegt. Voegt overzichtssensoren en de z2m-tracker-card toe. De app-URL wordt automatisch ingevuld als de app geïnstalleerd is.",
+        "data": {
+          "app_url": "App-URL"
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Z2M Device Tracker is al ingesteld."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Z2M Device Tracker",
+        "data": {
+          "app_url": "App-URL",
+          "repairs": "Problemen tonen bij Instellingen > Reparaties"
+        },
+        "data_description": {
+          "repairs": "Neemt de waarschuwingen van de app over, en de controles die op melden staan. Elk ervan verdwijnt vanzelf zodra het probleem is opgelost."
+        }
+      }
+    }
+  },
+  "services": {
+    "import_history": {
+      "name": "Geschiedenis importeren",
+      "description": "Laat de app Z2M-databases, configuratieback-ups, logs en Home Assistant-registers opnieuw doorzoeken op apparaten en namen en die samenvoegen met de geschiedenis."
+    },
+    "battery_replaced": {
+      "name": "Batterij vervangen",
+      "description": "Een batterijwissel vastleggen voor een Zigbee-apparaat. Werkt ook Battery Notes bij als dat het apparaat volgt.",
+      "fields": {
+        "device_id": {
+          "name": "Apparaat",
+          "description": "Het Zigbee2MQTT-apparaat. Kies het op naam."
+        },
+        "ieee": {
+          "name": "IEEE-adres",
+          "description": "Te gebruiken in plaats van een apparaat, bijvoorbeeld 0x00158d0001a2b3c4."
+        },
+        "date": {
+          "name": "Datum",
+          "description": "Wanneer de batterij is vervangen. Laat leeg voor vandaag."
+        },
+        "battery_type": {
+          "name": "Batterijtype",
+          "description": "Slaat het batterijtype voor dit apparaat op, bijvoorbeeld CR2032. Laat leeg om het huidige te houden."
+        }
+      }
+    },
+    "mute_device": {
+      "name": "Apparaat dempen",
+      "description": "Laat de tracker stoppen met het melden van problemen met een Zigbee-apparaat.",
+      "fields": {
+        "device_id": {
+          "name": "Apparaat",
+          "description": "Het Zigbee2MQTT-apparaat. Kies het op naam."
+        },
+        "ieee": {
+          "name": "IEEE-adres",
+          "description": "Te gebruiken in plaats van een apparaat, bijvoorbeeld 0x00158d0001a2b3c4."
+        },
+        "checks": {
+          "name": "Controles",
+          "description": "Welke controles gedempt worden. Laat leeg om ze allemaal te dempen."
+        },
+        "duration": {
+          "name": "Duur",
+          "description": "Hoe lang er gedempt wordt. Laat leeg om te dempen tot je het in de app weer aanzet."
+        }
+      }
+    },
+    "run_network_scan": {
+      "name": "Netwerkscan starten",
+      "description": "Start een routeringsscan (netwerkkaart) in Zigbee2MQTT. Die draait op de achtergrond en kan een paar minuten duren.",
+      "fields": {
+        "base_topic": {
+          "name": "Basistopic",
+          "description": "Het Zigbee2MQTT-netwerk om te scannen, bijvoorbeeld zigbee2mqtt. Laat leeg om elk netwerk te scannen."
+        }
+      }
+    },
+    "reconfigure": {
+      "name": "Herconfigureren",
+      "description": "Vraag Zigbee2MQTT om een apparaat te herconfigureren. Dit maakt de rapportagebindingen opnieuw aan. Wek batterijapparaten eerst.",
+      "fields": {
+        "device_id": {
+          "name": "Apparaat",
+          "description": "Het Zigbee2MQTT-apparaat. Kies het op naam."
+        },
+        "ieee": {
+          "name": "IEEE-adres",
+          "description": "Te gebruiken in plaats van een apparaat, bijvoorbeeld 0x00158d0001a2b3c4."
+        }
+      }
+    },
+    "ota_update": {
+      "name": "Firmware-update",
+      "description": "Start een firmware-update (OTA). Laat het apparaat leeg om elk apparaat met een beschikbare update bij te werken.",
+      "fields": {
+        "device_id": {
+          "name": "Apparaat",
+          "description": "Het Zigbee2MQTT-apparaat. Laat leeg om alle apparaten met een update bij te werken."
+        },
+        "ieee": {
+          "name": "IEEE-adres",
+          "description": "Te gebruiken in plaats van een apparaat, bijvoorbeeld 0x00158d0001a2b3c4."
+        }
+      }
+    },
+    "add_note": {
+      "name": "Notitie toevoegen",
+      "description": "Een regel toevoegen aan de notitie van een Zigbee-apparaat in de tracker.",
+      "fields": {
+        "device_id": {
+          "name": "Apparaat",
+          "description": "Het Zigbee2MQTT-apparaat. Kies het op naam."
+        },
+        "ieee": {
+          "name": "IEEE-adres",
+          "description": "Te gebruiken in plaats van een apparaat, bijvoorbeeld 0x00158d0001a2b3c4."
+        },
+        "text": {
+          "name": "Tekst",
+          "description": "De tekst om toe te voegen. Die komt op een nieuwe regel na de bestaande notitie."
+        }
+      }
+    }
+  },
+  "issues": {
+    "device_issue": {
+      "title": "Zigbee: {name} - {title}",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "{name}: {title}",
+            "description": "{detail}\n\nKies een oplossing. Dempen stopt de tracker alleen voor dit apparaat met het melden van deze controle.\n\n[Openen in de Zigbee Tracker]({panel})",
+            "menu_options": {
+              "restore_binding": "De binding herstellen",
+              "bindings_removed": "De binding is bewust verwijderd",
+              "battery_replaced": "Batterij vandaag vervangen",
+              "reconfigure": "Het apparaat herconfigureren",
+              "install_update": "De firmware-update installeren",
+              "mute_day": "Deze controle 24 uur dempen",
+              "mute_forever": "Deze controle dempen tot ik het weer aanzet"
+            }
+          },
+          "restore_binding": {
+            "title": "De binding herstellen",
+            "description": "Vraagt Zigbee2MQTT om deze bindingen opnieuw aan te maken op {name}:\n\n{bindings}\n\nWerkt het op batterij, wek het dan eerst, bijvoorbeeld door op de knop te drukken, en kies daarna Verzenden. Dit kan tot een minuut per binding duren."
+          }
+        },
+        "abort": {
+          "not_loaded": "Z2M Device Tracker is niet geladen.",
+          "app_error": "De oplossing werkte niet: {error}"
+        }
+      }
+    },
+    "network_issue": {
+      "title": "Zigbee: {name} - {title}",
+      "description": "{detail}\n\n[De Zigbee Tracker openen]({panel})"
+    }
+  },
+  "entity": {
+    "calendar": {
+      "batteries": {
+        "name": "Zigbee-batterijen"
+      }
+    },
+    "todo": {
+      "batteries": {
+        "name": "Zigbee-batterijen"
+      }
+    }
+  },
+  "selector": {
+    "check": {
+      "options": {
+        "offline": "Offline",
+        "silent": "Niets van gehoord",
+        "frozen": "Bevroren meting",
+        "battery_low": "Batterij bijna leeg",
+        "battery_soon": "Batterij raakt op",
+        "battery_drain": "Batterij loopt snel leeg",
+        "weak_signal": "Zwak signaal",
+        "signal_drop": "Signaal neemt af",
+        "unidentified": "Niet geïdentificeerd",
+        "update": "Firmware-update",
+        "replacement": "Mogelijke vervanging",
+        "flapping": "Instabiel",
+        "chatty": "Praatgraag apparaat",
+        "binding_lost": "Binding verloren",
+        "single_point": "Enkel storingspunt"
+      }
+    }
+  },
+  "exceptions": {
+    "not_loaded": {
+      "message": "Z2M Device Tracker is niet geladen."
+    },
+    "app_unreachable": {
+      "message": "De Z2M Device Tracker-app is niet bereikbaar."
+    },
+    "app_error": {
+      "message": "De Z2M Device Tracker-app gaf een fout: {error}"
+    },
+    "no_device": {
+      "message": "Kies een apparaat of voer een IEEE-adres in."
+    },
+    "unknown_device_id": {
+      "message": "Geen apparaat met ID {device} in Home Assistant."
+    },
+    "not_zigbee": {
+      "message": "{device} is geen Zigbee2MQTT-apparaat."
+    },
+    "bad_ieee": {
+      "message": "{ieee} is geen IEEE-adres. Het moet eruitzien als 0x00158d0001a2b3c4."
+    },
+    "unknown_ieee": {
+      "message": "De tracker kent geen apparaat {ieee}."
+    },
+    "not_active": {
+      "message": "{name} staat niet meer in Zigbee2MQTT."
+    },
+    "no_update": {
+      "message": "Voor {name} is geen firmware-update beschikbaar."
+    },
+    "unknown_base_topic": {
+      "message": "Geen Zigbee2MQTT-netwerk met basistopic {base_topic}. Bekend: {known}."
+    },
+    "note_too_long": {
+      "message": "De notitie zou langer worden dan {limit} tekens. Maak hem eerst korter in de app."
+    }
+  }
+}

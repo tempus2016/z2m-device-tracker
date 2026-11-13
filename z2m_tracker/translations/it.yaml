@@ -1,0 +1,64 @@
+configuration:
+  base_topics:
+    name: Topic di base di Zigbee2MQTT
+    description: Topic MQTT di base di ogni istanza Zigbee2MQTT da monitorare.
+  z2m_panels:
+    name: Link alle app Zigbee2MQTT
+    description: "Link a ogni app Zigbee2MQTT, nel formato base_topic=app_slug, es. zigbee2mqtt=45df7312_zigbee2mqtt. Lo slug si trova nell'URL dell'app."
+  alerts_enabled:
+    name: Avvisi
+    description: Interruttore generale degli avvisi.
+  persistent_notifications:
+    name: Notifiche di Home Assistant
+    description: Mostra gli avvisi come notifiche di Home Assistant.
+  fire_events:
+    name: Genera eventi
+    description: Genera eventi z2m_tracker_alert per le automazioni.
+  notify_service:
+    name: Servizio di notifica
+    description: Invia gli avvisi anche a un servizio di notifica, es. notify.mobile_app_phone.
+  alert_on_join:
+    name: Avviso all'unione
+    description: Avvisa quando un nuovo dispositivo si unisce.
+  disabled_checks:
+    name: Controlli disattivati
+    description: Controlli di salute da disattivare completamente.
+  notify_checks:
+    name: Controlli che avvisano
+    description: Controlli di salute che inviano avvisi.
+  offline_alert_minutes:
+    name: Ritardo avviso offline (minuti)
+    description: Per quanto tempo un dispositivo deve essere offline prima di un avviso.
+  frozen_alert_hours:
+    name: Ritardo lettura bloccata (ore)
+    description: Per quanto tempo la lettura di un sensore deve restare uguale prima di essere considerata bloccata.
+  battery_alert_percent:
+    name: Livello batteria scarica (%)
+    description: Livello di batteria per l'avviso di batteria scarica.
+  networkmap_hour:
+    name: Ora della scansione routing
+    description: Ora della scansione notturna del routing, oppure -1 per disattivarla.
+  ha_entities:
+    name: Sensori del tracker
+    description: Aggiunge i sensori del tracker a ogni dispositivo Zigbee2MQTT tramite MQTT discovery.
+  weekly_summary:
+    name: Riepilogo settimanale
+    description: Invia una notifica di riepilogo settimanale.
+  summary_day:
+    name: Giorno del riepilogo
+    description: Giorno di invio del riepilogo settimanale (0 = lunedì).
+  summary_hour:
+    name: Ora del riepilogo
+    description: Ora di invio del riepilogo settimanale.
+  wifi_channels:
+    name: Canali Wi-Fi
+    description: I tuoi canali Wi-Fi a 2,4 GHz, es. 1, 6, usati per il controllo dei canali radio.
+  chatty_per_hour:
+    name: Soglia di loquacità (messaggi all'ora)
+    description: Messaggi all'ora (in media su 6 ore) oltre i quali un dispositivo viene segnalato come loquace.
+  ota_window:
+    name: Fascia oraria aggiornamenti automatici
+    description: Fascia oraria per gli aggiornamenti firmware automatici, es. 02:00-05:00 (ora locale, può superare la mezzanotte). Se vuota, gli aggiornamenti automatici sono disattivati. Un aggiornamento non riuscito viene ritentato una volta, la notte successiva.
+  ota_min_battery:
+    name: Batteria minima per gli aggiornamenti (%)
+    description: I dispositivi a batteria sotto questo livello vengono saltati dagli aggiornamenti automatici e di massa. Aggiorna comunque lo ignora per un singolo dispositivo.

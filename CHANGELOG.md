@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Translations into German, Dutch, French, Spanish, Italian, Polish, Brazilian Portuguese, Swedish, Czech, Russian and Simplified Chinese. They cover the sidebar, the app's options, and the integration's setup, actions and dashboard cards. Each follows your Home Assistant profile language; the sidebar's Settings can pick another. The translations are machine-made, so corrections from native speakers are welcome.
+- The dashboard cards are translated too. They read the app's translation files through the integration, so they need this version of the app as well. With an older app they stay in English. Cards added before this version saved an English title in their settings: clear the Title field to get the translated one.
+
+### Fixed
+- A regional language such as Portuguese (Portugal) now picks the closest translation (Brazilian Portuguese) instead of falling back to English.
+
 ## 1.1.0
 
 ### Added
