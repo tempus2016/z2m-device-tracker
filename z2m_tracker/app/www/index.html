@@ -373,6 +373,7 @@
   .map-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--text-2); }
   .map-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
   .map-legend b { display: inline-block; width: 16px; height: 3px; margin-right: 6px; vertical-align: 3px; }
+  .map-legend b.dashed { background: repeating-linear-gradient(90deg, var(--text-2) 0 5px, transparent 5px 9px); }
   .advice { padding: 0 8px 12px; }
   .map-hist { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: flex-end; padding: 0 16px 10px; font-size: 13px; }
   .map-hist label { display: grid; gap: 4px; font-size: 12px; color: var(--text-2); }
@@ -392,6 +393,36 @@
   .adv .text { padding-top: 6px; line-height: 1.5; flex: 1; min-width: 0; }
   .adv > .btn { flex: none; margin-top: 4px; }
   @media (max-width: 600px) { svg.map { height: 420px; } .map-info { position: static; width: auto; margin: 8px; } }
+  .map-stage.fp-mode { overflow: visible; display: flex; align-items: flex-start; }
+  .map-stage.fp-mode .map-info { order: 2; position: sticky; top: 8px; flex: none; width: 300px; margin: 12px 12px 12px 0; }
+  .fp { position: relative; padding: 12px; display: grid; gap: 12px; flex: 1; min-width: 0; }
+  @media (max-width: 800px) { .map-stage.fp-mode { flex-direction: column; align-items: stretch; } .map-stage.fp-mode .map-info { order: 0; position: static; width: auto; margin: 8px 8px 0; box-shadow: none; } }
+  .fp-lines { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 1; overflow: visible; }
+  .fp-lines path { fill: none; stroke-width: 1.6; opacity: 0.6; transition: opacity 0.15s; pointer-events: visibleStroke; }
+  .fp-lines path.hot { stroke-width: 2.6; opacity: 1; }
+  .fp-lines path.dim { opacity: 0.08; }
+  .fp-floor { border: 1px dashed var(--divider); border-radius: 14px; padding: 8px 10px 10px; }
+  .fp-floor-h { font-size: 14px; font-weight: 500; padding: 2px 4px 8px; }
+  .fp-areas { display: flex; flex-wrap: wrap; gap: 10px; }
+  .fp-area { flex: 1 1 200px; max-width: 100%; background: var(--card); border: 1px solid var(--divider); border-radius: 10px; padding: 6px 8px 8px; min-width: 0; }
+  .fp-area.none { border-style: dashed; }
+  .fp-area.coord-box { flex: 0 1 auto; }
+  .fp-area.weak { border: 2px solid var(--warning); background: color-mix(in srgb, var(--warning) 7%, var(--card)); }
+  .fp-area-h { display: flex; gap: 6px; align-items: baseline; font-size: 13px; color: var(--text-2); padding: 0 2px 4px; }
+  .fp-area-h .n { font-size: 12px; opacity: 0.8; }
+  .fp-flag { display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; color: var(--warning-text); padding: 0 2px 6px; }
+  .fp-devs { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+  .fp-dev { appearance: none; border: 1px solid transparent; background: none; color: var(--text); font: inherit; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 8px 3px 4px; border-radius: 14px; cursor: pointer; position: relative; z-index: 2; transition: opacity 0.15s; }
+  .fp-dev span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fp-dev i { flex: none; width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 2px var(--card); }
+  .fp-dev.router i { width: 13px; height: 13px; }
+  .fp-dev.coord i { width: 16px; height: 16px; }
+  .fp-dev.coord { font-weight: 500; }
+  .fp-dev.noscan { color: var(--text-2); }
+  .fp-dev.noscan i { opacity: 0.5; }
+  .fp-dev:hover { background: var(--hover); }
+  .fp-dev[aria-pressed="true"] { border-color: var(--primary); background: var(--chip-on); }
+  .fp-dev.dim { opacity: 0.35; }
   .pair-dev { border-top: 1px solid var(--divider); }
   .sig { display: inline-flex; align-items: flex-end; gap: 2px; height: 16px; vertical-align: middle; }
   .sig i { width: 4px; border-radius: 1px; background: var(--divider); }
@@ -928,14 +959,15 @@
 
   const renderMap = (force = false) => {
     const nm = state.data.networkmap || {};
-    const sig = JSON.stringify(state.data.instances.map((bt) => [bt, nm[bt]?.scanned_at, nm[bt]?.running_since, MAP.scanSel[bt], MAP.cmpSel[bt], (MAP.hist[bt] || []).length])) + MAP.allLinks;
+    const sig = JSON.stringify(state.data.instances.map((bt) => [bt, nm[bt]?.scanned_at, nm[bt]?.running_since, MAP.scanSel[bt], MAP.cmpSel[bt], (MAP.hist[bt] || []).length])) + MAP.allLinks + MAP.layout + !!FP.floors;
     if (!force && MAP.rendered === sig && $("#view .map-card")) { refreshMapInfo(); return; }
     MAP.rendered = sig;
     Object.values(MAP.sims).forEach((s) => s.stop());
     MAP.sims = {};
+    if (MAP.layout === "floor") loadFloors();
     const running = Object.values(nm).some((x) => x.running_since);
     $("#view").innerHTML = `
-      <div class="alert" style="--a:var(--info)">${ic("information-outline")}<div class="body">Drag dots to rearrange, drag the background to pan and scroll to zoom. Solid lines show which router each battery device uses, dashed lines link routers. Colour shows link quality.</div>
+      <div class="alert" style="--a:var(--info)">${ic("information-outline")}<div class="body">${MAP.layout === "floor" ? "Devices are grouped by Home Assistant floor and area. Solid lines show which router each battery device uses, dashed lines show each router's strongest link towards the coordinator. Colour shows link quality. Select a device to highlight its links." : "Drag dots to rearrange, drag the background to pan and scroll to zoom. Solid lines show which router each battery device uses, dashed lines link routers. Colour shows link quality."}</div>
         <button class="btn ${running ? "busy" : ""}" data-act="scan" ${running ? "disabled" : ""}>${ic(running ? "refresh" : "sitemap", "s18")}${running ? "Scanning…" : "Run routing scan"}</button></div>
       ${state.data.instances.map((bt) => {
         const info = nm[bt] || {};
@@ -957,13 +989,13 @@
             ${diff.worse.map((m) => `<div class="adv"><span class="state-ic" style="color:var(--error)">${ic("arrow-down")}</span><div class="text"><b>${nm2(m.dev)}</b> link to ${nm2(m.p)} got weaker: LQI ${esc(m.oldQ)} → ${esc(m.newQ)}</div></div>`).join("")}
             ${!diff.moved.length && !diff.better.length && !diff.worse.length ? `<div class="adv"><span class="state-ic">${ic("check")}</span><div class="text">No devices changed router and no link changed by 25 or more.</div></div>` : ""}</div>` : "";
         return `<div class="card map-card" data-net="${esc(bt)}">${head}${history}
-          <div class="map-tools"><button class="icon-btn" data-mapzoom="1.25" data-net="${esc(bt)}" aria-label="Zoom in">${ic("plus")}</button><button class="icon-btn" data-mapzoom="0.8" data-net="${esc(bt)}" aria-label="Zoom out">${ic("minus")}</button>
+          <div class="map-tools">${layoutToggle()}${MAP.layout === "floor" ? "" : `<button class="icon-btn" data-mapzoom="1.25" data-net="${esc(bt)}" aria-label="Zoom in">${ic("plus")}</button><button class="icon-btn" data-mapzoom="0.8" data-net="${esc(bt)}" aria-label="Zoom out">${ic("minus")}</button>
             <button class="btn" data-mapreset="${esc(bt)}">${ic("refresh", "s18")}Reset layout</button>
-            <button class="chip toggle" data-maplinks aria-pressed="${MAP.allLinks}">${ic("link-variant", "s18")}All router links</button>
+            <button class="chip toggle" data-maplinks aria-pressed="${MAP.allLinks}">${ic("link-variant", "s18")}All router links</button>`}
             <span class="spacer"></span>
-            <div class="map-legend"><span><i style="background:var(--text)"></i>Coordinator</span><span><i style="background:var(--primary)"></i>Router</span><span><i style="background:var(--state-icon)"></i>Battery device</span><span><i style="background:var(--warning)"></i>Needs attention</span><span><b style="background:var(--success)"></b>Strong</span><span><b style="background:var(--warning)"></b>Fair</span><span><b style="background:var(--error)"></b>Weak</span></div></div>
-          <div class="map-stage"><svg class="map" id="map-${esc(bt)}" role="img" aria-label="${esc(netLabel(bt))} network map"><g class="vp"><g class="links"></g><g class="nodes"></g></g></svg>
-            <div class="map-info" id="mapinfo-${esc(bt)}" hidden></div></div>
+            <div class="map-legend"><span><i style="background:var(--text)"></i>Coordinator</span><span><i style="background:var(--primary)"></i>Router</span><span><i style="background:var(--state-icon)"></i>Battery device</span><span><i style="background:var(--warning)"></i>Needs attention</span><span><b style="background:var(--success)"></b>Strong</span><span><b style="background:var(--warning)"></b>Fair</span><span><b style="background:var(--error)"></b>Weak</span>${MAP.layout === "floor" ? `<span title="Inferred from the scan: the router's strongest link towards the coordinator"><b class="dashed"></b>Likely route</span>` : ""}</div></div>
+          ${MAP.layout === "floor" ? `<div class="map-stage fp-mode"><div class="map-info" id="mapinfo-${esc(bt)}" hidden></div>${FP.floors ? fpHtml(bt) : `<div class="card-content muted">Loading floors and areas…</div>`}</div>` : `<div class="map-stage"><svg class="map" id="map-${esc(bt)}" role="img" aria-label="${esc(netLabel(bt))} network map"><g class="vp"><g class="links"></g><g class="nodes"></g></g></svg>
+            <div class="map-info" id="mapinfo-${esc(bt)}" hidden></div></div>`}
           ${diff ? `<div class="map-legend" style="padding:8px 16px 0"><span><b style="background:var(--info);height:4px"></b>Changed router</span><span><b style="background:var(--success);height:4px"></b>Stronger</span><span><b style="background:var(--error);height:4px"></b>Weaker</span><span><b style="background:var(--disabled)"></b>Unchanged</span></div>` : ""}
           ${changes}
           <div class="sub-h">Advice</div>
@@ -971,6 +1003,7 @@
         </div>`;
       }).join("")}`;
     state.data.instances.forEach((bt) => { const svg = document.getElementById(`map-${bt}`); if (svg) MAP.sims[bt] = startSim(bt, svg); });
+    state.data.instances.forEach((bt) => { const fp = document.getElementById(`fp-${bt}`); if (fp) MAP.sims[bt] = startFloorPlan(bt, fp); });
   };
 
   const refreshMapInfo = () => Object.keys(MAP.sims).forEach((bt) => showMapInfo(bt));
@@ -1090,6 +1123,124 @@
       zoom(f) { zoomAt(f, W / 2, H / 2); },
       reset() { delete MAP.pos[bt]; MAP.view[bt] = { k: 1, x: 0, y: 0 }; renderMap(true); },
       select(id) { MAP.sel[bt] = id; highlight(); showMapInfo(bt); },
+    };
+  };
+
+  // ------------------------------------------------------------ floor-plan layout of the map
+  MAP.layout = store.get("z2mt.mapLayout") === "floor" ? "floor" : "graph";
+  const FP = { floors: null, areas: null, loading: false };
+  const loadFloors = async () => {
+    if (FP.loading || FP.floors) return;
+    FP.loading = true;
+    try { const r = await api("api/areas"); FP.areas = r.areas || []; FP.floors = r.floors || []; if (!state.areas) state.areas = FP.areas; }
+    catch (e) { FP.areas = []; FP.floors = []; }
+    FP.loading = false;
+    if (state.view === "map" && MAP.layout === "floor") renderMap(true);
+  };
+  const layoutToggle = () => `<div class="chips" role="group" aria-label="Map layout">${[["graph", "Graph"], ["floor", "Floor plan"]].map(([k, l]) => `<button class="chip" data-maplayout="${k}" aria-pressed="${MAP.layout === k}">${ic("check", "s18")}${l}</button>`).join("")}</div>`;
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-maplayout]");
+    if (!b || b.dataset.maplayout === MAP.layout) return;
+    MAP.layout = b.dataset.maplayout;
+    store.set("z2mt.mapLayout", MAP.layout);
+    renderMap(true);
+  });
+
+  // Each device's uplink: its parent from the scan, or for routers the strongest link towards the coordinator.
+  const fpUplinks = (bt, g) => {
+    const depth = (ieee) => { const d = state.byIeee.get(ieee); return d?.type === "Coordinator" ? 0 : d?.routing?.depth ?? null; };
+    const up = new Map();
+    g.links.filter((l) => l.parent).forEach((l) => up.set(l.a, { to: l.b, lqi: l.lqi, parent: true }));
+    g.devs.filter((d) => d.type === "Router" && !up.has(d.ieee)).forEach((d) => {
+      const own = depth(d.ieee);
+      const cands = g.links.filter((l) => !l.parent && (l.a === d.ieee || l.b === d.ieee)).map((l) => ({ to: l.a === d.ieee ? l.b : l.a, lqi: l.lqi, parent: false }))
+        .filter((c) => { const o = depth(c.to); return own === null || o === null || o < own; })
+        .sort((p, q) => (q.lqi || 0) - (p.lqi || 0));
+      if (cands[0]) up.set(d.ieee, cands[0]);
+    });
+    return up;
+  };
+
+  const fpHtml = (bt) => {
+    const g = mapGraph(bt);
+    const devs = g.historic ? g.devs : state.data.devices.filter((d) => d.instance === bt && d.status !== "removed");
+    const up = fpUplinks(bt, g);
+    const areaByName = new Map((FP.areas || []).map((a) => [a.name, a]));
+    const floorById = new Map((FP.floors || []).map((f) => [f.id, f]));
+    const coord = devs.find((d) => d.type === "Coordinator");
+    // floor key -> area name -> devices
+    const groups = new Map();
+    devs.forEach((d) => {
+      if (d === coord && !d.area) return;
+      const a = d.area ? areaByName.get(d.area) : null;
+      const fk = !d.area ? "~none" : a?.floor_id && floorById.has(a.floor_id) ? a.floor_id : "~other";
+      const areas = groups.get(fk) || groups.set(fk, new Map()).get(fk);
+      const key = d.area || "No area";
+      (areas.get(key) || areas.set(key, []).get(key)).push(d);
+    });
+    const floorOrder = [...groups.keys()].sort((x, y) => {
+      const rank = (k) => (k === "~none" ? 3 : k === "~other" ? 2 : 1);
+      if (rank(x) !== rank(y)) return rank(x) - rank(y);
+      const fx = floorById.get(x), fy = floorById.get(y);
+      return (fy?.level ?? -999) - (fx?.level ?? -999) || collator.compare(fx?.name || "", fy?.name || "");
+    });
+    const kindOrder = { Coordinator: 0, Router: 1, EndDevice: 2 };
+    const devBtn = (d) => {
+      const u = up.get(d.ieee);
+      const name = d.type === "Coordinator" ? "Coordinator" : nameOf(d) || d.ieee;
+      const tip = [name, d.type === "EndDevice" ? "Battery device" : d.type, u ? `via ${nameOf(state.byIeee.get(u.to)) || (state.byIeee.get(u.to)?.type === "Coordinator" ? "Coordinator" : u.to)} (LQI ${u.lqi ?? "?"})` : d.type !== "Coordinator" ? "not in the scan" : ""].filter(Boolean).join(" · ");
+      return `<button class="fp-dev ${d.type === "Coordinator" ? "coord" : d.type === "Router" ? "router" : ""} ${!u && d.type !== "Coordinator" ? "noscan" : ""}" data-fpdev="${esc(d.ieee)}" title="${esc(tip)}"><i style="background:${mapNodeCol(d)}"></i><span>${esc(name)}</span></button>`;
+    };
+    const areaBox = (area, list) => {
+      const linked = list.map((d) => up.get(d.ieee)).filter((u) => u && u.lqi !== null && u.lqi !== undefined);
+      const weak = linked.length && linked.every((u) => u.lqi < 50);
+      const via = weak && new Set(linked.map((u) => u.to)).size === 1 ? state.byIeee.get(linked[0].to) : null;
+      const viaName = via ? (via.type === "Coordinator" ? "the coordinator" : nameOf(via) || via.ieee) : "";
+      list.sort((a, b) => (kindOrder[a.type] ?? 3) - (kindOrder[b.type] ?? 3) || collator.compare(nameOf(a) || "~", nameOf(b) || "~"));
+      return `<div class="fp-area ${weak ? "weak" : ""} ${area === "No area" ? "none" : ""}"><div class="fp-area-h">${esc(area)}<span class="n">${list.length}</span></div>
+        ${weak ? `<div class="fp-flag">${ic("alert", "s18")}${linked.length === 1 ? "Its only link is weak" : `All ${linked.length} links are weak`}${via ? `, via ${esc(viaName)}` : ""}</div>` : ""}
+        <div class="fp-devs">${list.map(devBtn).join("")}</div></div>`;
+    };
+    const floorLabel = (k) => (k === "~none" ? "Devices without an area" : k === "~other" ? (FP.floors?.length ? "Other areas" : "Areas") : floorById.get(k).name);
+    return `<div class="fp" id="fp-${esc(bt)}"><svg class="fp-lines" aria-hidden="true"></svg>
+      ${coord && !coord.area ? `<section class="fp-floor"><div class="fp-areas"><div class="fp-area coord-box"><div class="fp-devs">${devBtn(coord)}</div></div></div></section>` : ""}
+      ${floorOrder.map((fk) => `<section class="fp-floor"><div class="fp-floor-h">${esc(floorLabel(fk))}</div><div class="fp-areas">${[...groups.get(fk).entries()].sort((a, b) => collator.compare(a[0], b[0])).map(([a, list]) => areaBox(a, list)).join("")}</div></section>`).join("")}
+    </div>`;
+  };
+
+  const startFloorPlan = (bt, root) => {
+    const g = mapGraph(bt);
+    const up = fpUplinks(bt, g);
+    const svg = root.querySelector(".fp-lines");
+    const els = new Map([...root.querySelectorAll("[data-fpdev]")].map((el) => [el.dataset.fpdev, el]));
+    const lines = [...up.entries()].filter(([a, u]) => els.has(a) && els.has(u.to)).map(([a, u]) => ({ a, b: u.to, lqi: u.lqi, parent: u.parent }));
+    const draw = () => {
+      const box = root.getBoundingClientRect();
+      const at = (ieee) => { const r = els.get(ieee).querySelector("i").getBoundingClientRect(); return [r.left + r.width / 2 - box.left, r.top + r.height / 2 - box.top]; };
+      svg.setAttribute("width", root.scrollWidth); svg.setAttribute("height", root.scrollHeight);
+      svg.innerHTML = lines.map((l, i) => { const [x1, y1] = at(l.a), [x2, y2] = at(l.b); const bend = Math.max(-60, Math.min(60, (x2 - x1) * 0.15)); return `<path data-i="${i}" d="M${x1.toFixed(1)},${y1.toFixed(1)} Q${((x1 + x2) / 2 + bend).toFixed(1)},${((y1 + y2) / 2 - Math.abs(bend)).toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}" stroke="${lqiCol(l.lqi)}" ${l.parent ? "" : 'stroke-dasharray="5 4"'}><title>${l.parent ? "" : "Likely route, inferred from the scan · "}LQI ${esc(l.lqi ?? "?")}</title></path>`; }).join("");
+      highlight();
+    };
+    const highlight = () => {
+      const sel = MAP.sel[bt];
+      const near = new Set(sel ? lines.filter((l) => l.a === sel || l.b === sel).flatMap((l) => [l.a, l.b]) : []);
+      [...svg.children].forEach((p) => { const l = lines[+p.dataset.i]; p.classList.toggle("dim", !!sel && l.a !== sel && l.b !== sel); p.classList.toggle("hot", !!sel && (l.a === sel || l.b === sel)); });
+      els.forEach((el, id) => { el.classList.toggle("dim", !!sel && !near.has(id) && id !== sel); el.setAttribute("aria-pressed", String(id === sel)); });
+    };
+    const onClick = (ev) => {
+      const b = ev.target.closest("[data-fpdev]");
+      MAP.sel[bt] = b && MAP.sel[bt] !== b.dataset.fpdev ? b.dataset.fpdev : null;
+      highlight(); showMapInfo(bt);
+    };
+    root.addEventListener("click", onClick);
+    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(() => draw()) : null;
+    if (ro) ro.observe(root); else window.addEventListener("resize", draw);
+    draw();
+    showMapInfo(bt);
+    return {
+      stop() { if (ro) ro.disconnect(); else window.removeEventListener("resize", draw); },
+      zoom() {}, reset() {},
+      select(id) { MAP.sel[bt] = id; highlight(); showMapInfo(bt); els.get(id)?.scrollIntoView({ block: "nearest" }); },
     };
   };
 
