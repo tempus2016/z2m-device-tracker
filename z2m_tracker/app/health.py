@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -337,6 +338,112 @@ def z2m_availability(info: dict) -> dict | None:
             if items:
                 out[key] = items
     return out
+
+
+# Coordinator type from zigbee-herdsman -> adapter driver, for setups that leave serial.adapter to auto-detect.
+_ADAPTER_BY_TYPE = (
+    ("zstack", "zstack"),
+    ("emberznet", "ember"),
+    ("ezsp", "ezsp"),
+    ("conbee", "deconz"),
+    ("raspbee", "deconz"),
+    ("zigate", "zigate"),
+    ("zboss", "zboss"),
+    ("zigbee on host", "zoh"),
+)
+
+
+def strip_credentials(url: Any) -> str | None:
+    """A URL without any user:password@ part, or None if there's no URL."""
+    if not isinstance(url, str) or not url.strip():
+        return None
+    scheme, sep, rest = url.strip().partition("://")
+    if not sep:
+        scheme, rest = "", scheme
+    # Everything up to the last "@" is credentials: a raw password can itself hold "/", ":" or "@".
+    return f"{scheme}{sep}{rest.rpartition('@')[2]}"
+
+
+def z2m_connection(port: Any) -> dict | None:
+    """How Zigbee2MQTT reaches its coordinator, from serial.port.
+
+    `{mode, target, name}`: mode is tcp, mdns, usb or serial. `name` is the /dev/serial/by-id name
+    shortened to the adapter's model (USB serial number and interface suffix dropped).
+    """
+    if not isinstance(port, str) or not port.strip():
+        return None
+    port = port.strip()
+    scheme, sep, rest = port.partition("://")
+    if sep and scheme.lower() == "tcp":
+        return {"mode": "tcp", "target": strip_credentials(rest) or rest, "name": None}
+    if sep and scheme.lower() == "mdns":
+        return {"mode": "mdns", "target": rest, "name": None}
+    name = None
+    if "/serial/by-id/" in port:
+        raw = port.rsplit("/", 1)[-1]
+        raw = re.sub(r"^usb-", "", raw)
+        raw = re.sub(r"-if\d+(-port\d+)?$", "", raw)
+        parts = raw.split("_")
+        # Drop the trailing USB serial number (long, has a digit, no spaces).
+        if len(parts) > 1 and len(parts[-1]) >= 6 and re.search(r"\d", parts[-1]) and parts[-1].isalnum():
+            parts = parts[:-1]
+        name = " ".join(p for p in parts if p) or None
+    usb = name is not None or re.search(r"tty(USB|ACM)\d*$", port) is not None
+    return {"mode": "usb" if usb else "serial", "target": port, "name": name}
+
+
+def z2m_setup(info: dict) -> dict:
+    """The setup details the Coordinators card shows, from bridge/info. Never secrets.
+
+    Zigbee2MQTT already drops the network key, MQTT password and frontend token from bridge/info;
+    this keeps only a few display fields so history.json stays small, and strips credentials from URLs.
+    Missing fields come back as None (1.x sends less).
+    """
+    config = info.get("config") if isinstance(info.get("config"), dict) else {}
+    serial = config.get("serial") if isinstance(config.get("serial"), dict) else {}
+    advanced = config.get("advanced") if isinstance(config.get("advanced"), dict) else {}
+    mqtt = config.get("mqtt") if isinstance(config.get("mqtt"), dict) else {}
+    coordinator = info.get("coordinator") if isinstance(info.get("coordinator"), dict) else {}
+    network = info.get("network") if isinstance(info.get("network"), dict) else {}
+
+    adapter = serial.get("adapter") if isinstance(serial.get("adapter"), str) else None
+    if not adapter:
+        ctype = str(coordinator.get("type") or "").lower()
+        adapter = next((a for key, a in _ADAPTER_BY_TYPE if key in ctype), None)
+
+    raw_frontend = config.get("frontend")
+    frontend = None
+    if raw_frontend is True:
+        frontend = {"url": None, "port": 8080}
+    elif isinstance(raw_frontend, dict) and raw_frontend.get("enabled", True):
+        port = raw_frontend.get("port")
+        frontend = {
+            "url": strip_credentials(raw_frontend.get("url")),
+            "port": port if isinstance(port, int) and not isinstance(port, bool) else 8080,
+        }
+
+    rtscts = serial.get("rtscts")
+    baudrate = serial.get("baudrate")
+
+    def version(key: str) -> str | None:
+        value = info.get(key)
+        value = value.get("version") if isinstance(value, dict) else value
+        return str(value) if value else None
+
+    top_mqtt = info.get("mqtt") if isinstance(info.get("mqtt"), dict) else {}
+    log_level = info.get("log_level") or advanced.get("log_level")
+    return {
+        "connection": z2m_connection(serial.get("port")),
+        "adapter": adapter,
+        "baudrate": baudrate if isinstance(baudrate, int) and not isinstance(baudrate, bool) else None,
+        "rtscts": rtscts if isinstance(rtscts, bool) else None,
+        "extended_pan_id": str(network["extended_pan_id"]) if network.get("extended_pan_id") else None,
+        "herdsman": version("zigbee_herdsman"),
+        "converters": version("zigbee_herdsman_converters"),
+        "log_level": str(log_level) if isinstance(log_level, str) and log_level else None,
+        "mqtt_server": strip_credentials(mqtt.get("server")) or strip_credentials(top_mqtt.get("server")),
+        "frontend": frontend,
+    }
 
 
 def _z2m_active(record: dict, major: int) -> bool:
