@@ -367,25 +367,25 @@
 <header class="toolbar">
   <div class="toolbar-top">
     <span class="logo" id="logo"></span>
-    <h1>Zigbee Tracker</h1>
-    <span class="live" id="live" title="Connection to the tracker"><i></i><span id="liveText">Connecting</span></span>
-    <button class="icon-btn" id="menuBtn" aria-label="More options" aria-haspopup="true" aria-expanded="false"></button>
+    <h1 data-t="app.title">Zigbee Tracker</h1>
+    <span class="live" id="live" title="Connection to the tracker" data-ta="title=app.connection"><i></i><span id="liveText" data-t="app.connecting">Connecting</span></span>
+    <button class="icon-btn" id="menuBtn" aria-label="More options" data-ta="aria-label=menu.more" aria-haspopup="true" aria-expanded="false"></button>
   </div>
-  <nav class="tabs" role="tablist" aria-label="Sections">
-    <button class="tab" role="tab" data-view="devices" aria-selected="true"><span data-i="zigbee"></span>Devices</button>
-    <button class="tab" role="tab" data-view="health" aria-selected="false"><span data-i="heart-pulse"></span>Health <span class="badge" id="issueBadge">0</span></button>
-    <button class="tab" role="tab" data-view="activity" aria-selected="false"><span data-i="history"></span>Activity</button>
-    <button class="tab" role="tab" data-view="map" aria-selected="false"><span data-i="sitemap"></span>Map</button>
-    <button class="tab" role="tab" data-view="settings" aria-selected="false"><span data-i="cog"></span>Settings</button>
+  <nav class="tabs" role="tablist" aria-label="Sections" data-ta="aria-label=tabs.sections">
+    <button class="tab" role="tab" data-view="devices" aria-selected="true"><span data-i="zigbee"></span><span data-t="tabs.devices">Devices</span></button>
+    <button class="tab" role="tab" data-view="health" aria-selected="false"><span data-i="heart-pulse"></span><span data-t="tabs.health">Health</span> <span class="badge" id="issueBadge">0</span></button>
+    <button class="tab" role="tab" data-view="activity" aria-selected="false"><span data-i="history"></span><span data-t="tabs.activity">Activity</span></button>
+    <button class="tab" role="tab" data-view="map" aria-selected="false"><span data-i="sitemap"></span><span data-t="tabs.map">Map</span></button>
+    <button class="tab" role="tab" data-view="settings" aria-selected="false"><span data-i="cog"></span><span data-t="tabs.settings">Settings</span></button>
   </nav>
   <div class="menu" id="menu" hidden role="menu">
-    <a href="api/export.csv" download role="menuitem"><span data-i="download"></span>Export CSV</a>
-    <button data-act="scan" role="menuitem"><span data-i="sitemap"></span>Run routing scan</button>
-    <button data-act="import" role="menuitem"><span data-i="refresh"></span>Import history</button>
+    <a href="api/export.csv" download role="menuitem"><span data-i="download"></span><span data-t="menu.export_csv">Export CSV</span></a>
+    <button data-act="scan" role="menuitem"><span data-i="sitemap"></span><span data-t="menu.run_scan">Run routing scan</span></button>
+    <button data-act="import" role="menuitem"><span data-i="refresh"></span><span data-t="menu.import_history">Import history</span></button>
     <button data-act="theme" role="menuitem"><span data-i="information-outline"></span><span id="themeLabel">Theme: Auto</span></button>
-    <a href="https://github.com/tempus2016/z2m-device-tracker/wiki" target="_blank" rel="noopener" role="menuitem"><span data-i="help-circle-outline"></span>Wiki</a>
+    <a href="https://github.com/tempus2016/z2m-device-tracker/wiki" target="_blank" rel="noopener" role="menuitem"><span data-i="help-circle-outline"></span><span data-t="links.wiki">Wiki</span></a>
     <a href="https://github.com/tempus2016/z2m-device-tracker" target="_blank" rel="noopener" role="menuitem"><span data-i="open-in-new"></span>GitHub</a>
-    <a href="https://github.com/tempus2016/z2m-device-tracker/releases" target="_blank" rel="noopener" role="menuitem"><span data-i="note-text-outline"></span>Releases</a>
+    <a href="https://github.com/tempus2016/z2m-device-tracker/releases" target="_blank" rel="noopener" role="menuitem"><span data-i="note-text-outline"></span><span data-t="links.releases">Releases</span></a>
   </div>
 </header>
 
@@ -399,7 +399,7 @@
 <dialog class="confirm" id="confirmDlg" aria-labelledby="cTitle">
   <form method="dialog">
     <div class="confirm-body"><h2 id="cTitle"></h2><div id="cText"></div></div>
-    <div class="confirm-actions"><button class="btn" value="cancel" type="submit">Cancel</button><button class="btn" value="ok" type="submit" id="cOk"></button></div>
+    <div class="confirm-actions"><button class="btn" value="cancel" type="submit" data-t="common.cancel">Cancel</button><button class="btn" value="ok" type="submit" id="cOk"></button></div>
   </form>
 </dialog>
 <div class="snack" id="snack" role="status"></div>
@@ -408,7 +408,7 @@
 (() => {
   "use strict";
   const REPO = "https://github.com/tempus2016/z2m-device-tracker";
-  const LINKS = [[`${REPO}/wiki`, "Wiki"], [REPO, "GitHub"], [`${REPO}/releases`, "Releases"]];
+  const LINKS = [[`${REPO}/wiki`, "links.wiki"], [REPO, "links.github"], [`${REPO}/releases`, "links.releases"]];
   const MDI = {"alert-circle":"M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z","alert":"M13 14H11V9H13M13 18H11V16H13M1 21H23L12 2L1 21Z","arrow-down":"M11,4H13V16L18.5,10.5L19.92,11.92L12,19.84L4.08,11.92L5.5,10.5L11,16V4Z","arrow-up":"M13,20H11V8L5.5,13.5L4.08,12.08L12,4.16L19.92,12.08L18.5,13.5L13,8V20Z","battery-alert-variant-outline":"M14 20H6V6H14M14.67 4H13V2H7V4H5.33C4.6 4 4 4.6 4 5.33V20.67C4 21.4 4.6 22 5.33 22H14.67C15.4 22 16 21.4 16 20.67V5.33C16 4.6 15.4 4 14.67 4M21 7H19V13H21V8M21 15H19V17H21V15Z","battery-sync":"M13.54 22H7.33C6.6 22 6 21.4 6 20.67V5.33C6 4.6 6.6 4 7.33 4H9V2H15V4H16.67C17.4 4 18 4.6 18 5.33V12C14.69 12 12 14.69 12 18C12 19.54 12.58 20.94 13.54 22M18 13L20.25 15.25L18 17.5V16C16.15 16 14.94 17.96 15.76 19.62L14.67 20.71C12.91 18.05 14.81 14.5 18 14.5V13M18 24L15.75 21.75L18 19.5V21C19.85 21 21.06 19.04 20.24 17.38L21.33 16.29C23.09 18.95 21.19 22.5 18 22.5V24","battery":"M16.67,4H15V2H9V4H7.33A1.33,1.33 0 0,0 6,5.33V20.67C6,21.4 6.6,22 7.33,22H16.67A1.33,1.33 0 0,0 18,20.67V5.33C18,4.6 17.4,4 16.67,4Z","bell-off":"M20.84,22.73L18.11,20H3V19L5,17V11C5,9.86 5.29,8.73 5.83,7.72L1.11,3L2.39,1.73L22.11,21.46L20.84,22.73M19,15.8V11C19,7.9 16.97,5.17 14,4.29C14,4.19 14,4.1 14,4A2,2 0 0,0 12,2A2,2 0 0,0 10,4C10,4.1 10,4.19 10,4.29C9.39,4.47 8.8,4.74 8.26,5.09L19,15.8M12,23A2,2 0 0,0 14,21H10A2,2 0 0,0 12,23Z","bell":"M21,19V20H3V19L5,17V11C5,7.9 7.03,5.17 10,4.29C10,4.19 10,4.1 10,4A2,2 0 0,1 12,2A2,2 0 0,1 14,4C14,4.1 14,4.19 14,4.29C16.97,5.17 19,7.9 19,11V17L21,19M14,21A2,2 0 0,1 12,23A2,2 0 0,1 10,21","calendar-clock":"M15,13H16.5V15.82L18.94,17.23L18.19,18.53L15,16.69V13M19,8H5V19H9.67C9.24,18.09 9,17.07 9,16A7,7 0 0,1 16,9C17.07,9 18.09,9.24 19,9.67V8M5,21C3.89,21 3,20.1 3,19V5C3,3.89 3.89,3 5,3H6V1H8V3H16V1H18V3H19A2,2 0 0,1 21,5V11.1C22.24,12.36 23,14.09 23,16A7,7 0 0,1 16,23C14.09,23 12.36,22.24 11.1,21H5M16,11.15A4.85,4.85 0 0,0 11.15,16C11.15,18.68 13.32,20.85 16,20.85A4.85,4.85 0 0,0 20.85,16C20.85,13.32 18.68,11.15 16,11.15Z","cellphone-wireless":"M20.07,4.93C21.88,6.74 23,9.24 23,12C23,14.76 21.88,17.26 20.07,19.07L18.66,17.66C20.11,16.22 21,14.22 21,12C21,9.79 20.11,7.78 18.66,6.34L20.07,4.93M17.24,7.76C18.33,8.85 19,10.35 19,12C19,13.65 18.33,15.15 17.24,16.24L15.83,14.83C16.55,14.11 17,13.11 17,12C17,10.89 16.55,9.89 15.83,9.17L17.24,7.76M13,10A2,2 0 0,1 15,12A2,2 0 0,1 13,14A2,2 0 0,1 11,12A2,2 0 0,1 13,10M11.5,1A2.5,2.5 0 0,1 14,3.5V8H12V4H3V19H12V16H14V20.5A2.5,2.5 0 0,1 11.5,23H3.5A2.5,2.5 0 0,1 1,20.5V3.5A2.5,2.5 0 0,1 3.5,1H11.5Z","check":"M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z","chevron-right":"M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z","chip":"M6,4H18V5H21V7H18V9H21V11H18V13H21V15H18V17H21V19H18V20H6V19H3V17H6V15H3V13H6V11H3V9H6V7H3V5H6V4M11,15V18H12V15H11M13,15V18H14V15H13M15,15V18H16V15H15Z","close":"M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z","cog":"M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z","content-copy":"M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z","delete":"M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z","door":"M8,3C6.89,3 6,3.89 6,5V21H18V5C18,3.89 17.11,3 16,3H8M8,5H16V19H8V5M13,11V13H15V11H13Z","dots-vertical":"M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z","download":"M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z","filter-variant":"M6,13H18V11H6M3,6V8H21V6M10,18H14V16H10V18Z","gesture-tap-button":"M13 5C15.21 5 17 6.79 17 9C17 10.5 16.2 11.77 15 12.46V11.24C15.61 10.69 16 9.89 16 9C16 7.34 14.66 6 13 6S10 7.34 10 9C10 9.89 10.39 10.69 11 11.24V12.46C9.8 11.77 9 10.5 9 9C9 6.79 10.79 5 13 5M20 20.5C19.97 21.32 19.32 21.97 18.5 22H13C12.62 22 12.26 21.85 12 21.57L8 17.37L8.74 16.6C8.93 16.39 9.2 16.28 9.5 16.28H9.7L12 18V9C12 8.45 12.45 8 13 8S14 8.45 14 9V13.47L15.21 13.6L19.15 15.79C19.68 16.03 20 16.56 20 17.14V20.5M20 2H4C2.9 2 2 2.9 2 4V12C2 13.11 2.9 14 4 14H8V12L4 12L4 4H20L20 12H18V14H20V13.96L20.04 14C21.13 14 22 13.09 22 12V4C22 2.9 21.11 2 20 2Z","heart-pulse":"M7.5,4A5.5,5.5 0 0,0 2,9.5C2,10 2.09,10.5 2.22,11H6.3L7.57,7.63C7.87,6.83 9.05,6.75 9.43,7.63L11.5,13L12.09,11.58C12.22,11.25 12.57,11 13,11H21.78C21.91,10.5 22,10 22,9.5A5.5,5.5 0 0,0 16.5,4C14.64,4 13,4.93 12,6.34C11,4.93 9.36,4 7.5,4V4M3,12.5A1,1 0 0,0 2,13.5A1,1 0 0,0 3,14.5H5.44L11,20C12,20.9 12,20.9 13,20L18.56,14.5H21A1,1 0 0,0 22,13.5A1,1 0 0,0 21,12.5H13.4L12.47,14.8C12.07,15.81 10.92,15.67 10.55,14.83L8.5,9.5L7.54,11.83C7.39,12.21 7.05,12.5 6.6,12.5H3Z","help-circle-outline":"M11,18H13V16H11V18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,6A4,4 0 0,0 8,10H10A2,2 0 0,1 12,8A2,2 0 0,1 14,10C14,12 11,11.75 11,15H13C13,12.75 16,12.5 16,10A4,4 0 0,0 12,6Z","history":"M13.5,8H12V13L16.28,15.54L17,14.33L13.5,12.25V8M13,3A9,9 0 0,0 4,12H1L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3","home-assistant":"M21.8,13H20V21H13V17.67L15.79,14.88L16.5,15C17.66,15 18.6,14.06 18.6,12.9C18.6,11.74 17.66,10.8 16.5,10.8A2.1,2.1 0 0,0 14.4,12.9L14.5,13.61L13,15.13V9.65C13.66,9.29 14.1,8.6 14.1,7.8A2.1,2.1 0 0,0 12,5.7A2.1,2.1 0 0,0 9.9,7.8C9.9,8.6 10.34,9.29 11,9.65V15.13L9.5,13.61L9.6,12.9A2.1,2.1 0 0,0 7.5,10.8A2.1,2.1 0 0,0 5.4,12.9A2.1,2.1 0 0,0 7.5,15L8.21,14.88L11,17.67V21H4V13H2.25C1.83,13 1.42,13 1.42,12.79C1.43,12.57 1.85,12.15 2.28,11.72L11,3C11.33,2.67 11.67,2.33 12,2.33C12.33,2.33 12.67,2.67 13,3L17,7V6H19V9L21.78,11.78C22.18,12.18 22.59,12.59 22.6,12.8C22.6,13 22.2,13 21.8,13M7.5,12A0.9,0.9 0 0,1 8.4,12.9A0.9,0.9 0 0,1 7.5,13.8A0.9,0.9 0 0,1 6.6,12.9A0.9,0.9 0 0,1 7.5,12M16.5,12C17,12 17.4,12.4 17.4,12.9C17.4,13.4 17,13.8 16.5,13.8A0.9,0.9 0 0,1 15.6,12.9A0.9,0.9 0 0,1 16.5,12M12,6.9C12.5,6.9 12.9,7.3 12.9,7.8C12.9,8.3 12.5,8.7 12,8.7C11.5,8.7 11.1,8.3 11.1,7.8C11.1,7.3 11.5,6.9 12,6.9Z","information-outline":"M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,17H13V11H11V17Z","lan-disconnect":"M4,1C2.89,1 2,1.89 2,3V7C2,8.11 2.89,9 4,9H1V11H13V9H10C11.11,9 12,8.11 12,7V3C12,1.89 11.11,1 10,1H4M4,3H10V7H4V3M14,13C12.89,13 12,13.89 12,15V19C12,20.11 12.89,21 14,21H11V23H23V21H20C21.11,21 22,20.11 22,19V15C22,13.89 21.11,13 20,13H14M3.88,13.46L2.46,14.88L4.59,17L2.46,19.12L3.88,20.54L6,18.41L8.12,20.54L9.54,19.12L7.41,17L9.54,14.88L8.12,13.46L6,15.59L3.88,13.46M14,15H20V19H14V15Z","light-switch":"M8 6V18H16V6H8M14 10H10V8H14V10M19.4 1.6C19 1.2 18.5 1 18 1H6C5.5 1 5 1.2 4.6 1.6C4.2 2 4 2.5 4 3V21C4 21.5 4.2 22 4.6 22.4C5 22.8 5.5 23 6 23H18C18.5 23 19 22.8 19.4 22.4C19.8 22 20 21.5 20 21V3C20 2.5 19.8 2 19.4 1.6M18 21H6V3H18V21Z","lightbulb":"M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9A7,7 0 0,0 12,2M9,21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9V21Z","link-variant":"M10.59,13.41C11,13.8 11,14.44 10.59,14.83C10.2,15.22 9.56,15.22 9.17,14.83C7.22,12.88 7.22,9.71 9.17,7.76V7.76L12.71,4.22C14.66,2.27 17.83,2.27 19.78,4.22C21.73,6.17 21.73,9.34 19.78,11.29L18.29,12.78C18.3,11.96 18.17,11.14 17.89,10.36L18.36,9.88C19.54,8.71 19.54,6.81 18.36,5.64C17.19,4.46 15.29,4.46 14.12,5.64L10.59,9.17C9.41,10.34 9.41,12.24 10.59,13.41M13.41,9.17C13.8,8.78 14.44,8.78 14.83,9.17C16.78,11.12 16.78,14.29 14.83,16.24V16.24L11.29,19.78C9.34,21.73 6.17,21.73 4.22,19.78C2.27,17.83 2.27,14.66 4.22,12.71L5.71,11.22C5.7,12.04 5.83,12.86 6.11,13.65L5.64,14.12C4.46,15.29 4.46,17.19 5.64,18.36C6.81,19.54 8.71,19.54 9.88,18.36L13.41,14.83C14.59,13.66 14.59,11.76 13.41,10.59C13,10.2 13,9.56 13.41,9.17Z","magnify":"M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z","map-marker-outline":"M12,6.5A2.5,2.5 0 0,1 14.5,9A2.5,2.5 0 0,1 12,11.5A2.5,2.5 0 0,1 9.5,9A2.5,2.5 0 0,1 12,6.5M12,2A7,7 0 0,1 19,9C19,14.25 12,22 12,22C12,22 5,14.25 5,9A7,7 0 0,1 12,2M12,4A5,5 0 0,0 7,9C7,10 7,12 12,18.71C17,12 17,10 17,9A5,5 0 0,0 12,4Z","meter-electric":"M12 2C7.04 2 3 6.04 3 11C3 14.91 5.5 18.24 9 19.47V22H11V19.94C11.33 20 11.66 20 12 20S12.67 20 13 19.94V22H15V19.47C18.5 18.23 21 14.9 21 11C21 6.04 16.96 2 12 2M14.25 14L11.25 17L9.75 15.5L11 14.25L9.75 13L12.75 10L14.25 11.5L13 12.75L14.25 14M16 9H8V7H16V9Z","minus":"M19,13H5V11H19V13Z","motion-sensor":"M10,0.2C9,0.2 8.2,1 8.2,2C8.2,3 9,3.8 10,3.8C11,3.8 11.8,3 11.8,2C11.8,1 11,0.2 10,0.2M15.67,1A7.33,7.33 0 0,0 23,8.33V7A6,6 0 0,1 17,1H15.67M18.33,1C18.33,3.58 20.42,5.67 23,5.67V4.33C21.16,4.33 19.67,2.84 19.67,1H18.33M21,1A2,2 0 0,0 23,3V1H21M7.92,4.03C7.75,4.03 7.58,4.06 7.42,4.11L2,5.8V11H3.8V7.33L5.91,6.67L2,22H3.8L6.67,13.89L9,17V22H10.8V15.59L8.31,11.05L9.04,8.18L10.12,10H15V8.2H11.38L9.38,4.87C9.08,4.37 8.54,4.03 7.92,4.03Z","note-text-outline":"M15 3H5A2 2 0 0 0 3 5V19A2 2 0 0 0 5 21H19A2 2 0 0 0 21 19V9L15 3M19 19H5V5H14V10H19M17 14H7V12H17M14 17H7V15H14","open-in-new":"M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z","pencil":"M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z","plus":"M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z","power-plug-outline":"M16 7V3H14V7H10V3H8V7C7 7 6 8 6 9V14.5L9.5 18V21H14.5V18L18 14.5V9C18 8 17 7 16 7M16 13.67L13.09 16.59L12.67 17H11.33L10.92 16.59L8 13.67V9.09C8 9.06 8.06 9 8.09 9H15.92C15.95 9 16 9.06 16 9.09V13.67Z","power-plug":"M16,7V3H14V7H10V3H8V7H8C7,7 6,8 6,9V14.5L9.5,18V21H14.5V18L18,14.5V9C18,8 17,7 16,7Z","radiator":"M7.95,3L6.53,5.19L7.95,7.4H7.94L5.95,10.5L4.22,9.6L5.64,7.39L4.22,5.19L6.22,2.09L7.95,3M13.95,2.89L12.53,5.1L13.95,7.3L13.94,7.31L11.95,10.4L10.22,9.5L11.64,7.3L10.22,5.1L12.22,2L13.95,2.89M20,2.89L18.56,5.1L20,7.3V7.31L18,10.4L16.25,9.5L17.67,7.3L16.25,5.1L18.25,2L20,2.89M2,22V14A2,2 0 0,1 4,12H20A2,2 0 0,1 22,14V22H20V20H4V22H2M6,14A1,1 0 0,0 5,15V17A1,1 0 0,0 6,18A1,1 0 0,0 7,17V15A1,1 0 0,0 6,14M10,14A1,1 0 0,0 9,15V17A1,1 0 0,0 10,18A1,1 0 0,0 11,17V15A1,1 0 0,0 10,14M14,14A1,1 0 0,0 13,15V17A1,1 0 0,0 14,18A1,1 0 0,0 15,17V15A1,1 0 0,0 14,14M18,14A1,1 0 0,0 17,15V17A1,1 0 0,0 18,18A1,1 0 0,0 19,17V15A1,1 0 0,0 18,14Z","refresh":"M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z","router-wireless":"M20.2,5.9L21,5.1C19.6,3.7 17.8,3 16,3C14.2,3 12.4,3.7 11,5.1L11.8,5.9C13,4.8 14.5,4.2 16,4.2C17.5,4.2 19,4.8 20.2,5.9M19.3,6.7C18.4,5.8 17.2,5.3 16,5.3C14.8,5.3 13.6,5.8 12.7,6.7L13.5,7.5C14.2,6.8 15.1,6.5 16,6.5C16.9,6.5 17.8,6.8 18.5,7.5L19.3,6.7M19,13H17V9H15V13H5A2,2 0 0,0 3,15V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V15A2,2 0 0,0 19,13M8,18H6V16H8V18M11.5,18H9.5V16H11.5V18M15,18H13V16H15V18Z","signal":"M3,21H6V18H3M8,21H11V14H8M13,21H16V9H13M18,21H21V3H18V21Z","sitemap":"M9,2V8H11V11H5C3.89,11 3,11.89 3,13V16H1V22H7V16H5V13H11V16H9V22H15V16H13V13H19V16H17V22H23V16H21V13C21,11.89 20.11,11 19,11H13V8H15V2H9Z","smoke-detector":"M12,18A6,6 0 0,0 18,12C18,8.68 15.31,6 12,6C8.68,6 6,8.68 6,12A6,6 0 0,0 12,18M19,3A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5C3.89,21 3,20.1 3,19V5C3,3.89 3.89,3 5,3H19M8,12A4,4 0 0,1 12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12Z","sort-alphabetical-ascending":"M19 17H22L18 21L14 17H17V3H19M11 13V15L7.67 19H11V21H5V19L8.33 15H5V13M9 3H7C5.9 3 5 3.9 5 5V11H7V9H9V11H11V5C11 3.9 10.11 3 9 3M9 7H7V5H9Z","swap-horizontal":"M21,9L17,5V8H10V10H17V13M7,11L3,15L7,19V16H14V14H7V11Z","thermometer":"M15 13V5A3 3 0 0 0 9 5V13A5 5 0 1 0 15 13M12 4A1 1 0 0 1 13 5V8H11V5A1 1 0 0 1 12 4Z","thermostat":"M16.95,16.95L14.83,14.83C15.55,14.1 16,13.1 16,12C16,11.26 15.79,10.57 15.43,10L17.6,7.81C18.5,9 19,10.43 19,12C19,13.93 18.22,15.68 16.95,16.95M12,5C13.57,5 15,5.5 16.19,6.4L14,8.56C13.43,8.21 12.74,8 12,8A4,4 0 0,0 8,12C8,13.1 8.45,14.1 9.17,14.83L7.05,16.95C5.78,15.68 5,13.93 5,12A7,7 0 0,1 12,5M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12C22,6.47 17.5,2 12,2Z","wifi-off":"M2.28,3L1,4.27L2.47,5.74C2.04,6 1.61,6.29 1.2,6.6L3,9C3.53,8.6 4.08,8.25 4.66,7.93L6.89,10.16C6.15,10.5 5.44,10.91 4.8,11.4L6.6,13.8C7.38,13.22 8.26,12.77 9.2,12.47L11.75,15C10.5,15.07 9.34,15.5 8.4,16.2L12,21L14.46,17.73L17.74,21L19,19.72M12,3C9.85,3 7.8,3.38 5.9,4.07L8.29,6.47C9.5,6.16 10.72,6 12,6C15.38,6 18.5,7.11 21,9L22.8,6.6C19.79,4.34 16.06,3 12,3M12,9C11.62,9 11.25,9 10.88,9.05L14.07,12.25C15.29,12.53 16.43,13.07 17.4,13.8L19.2,11.4C17.2,9.89 14.7,9 12,9Z","wifi":"M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z","window-closed-variant":"M21 20V2H3V20H1V23H23V20M19 4V11H13V4M5 4H11V11H5M5 20V13H11V20M13 20V13H19V20Z","zigbee":"M4.06,6.15C3.97,6.17 3.88,6.22 3.8,6.28C2.66,7.9 2,9.87 2,12A10,10 0 0,0 12,22C15,22 17.68,20.68 19.5,18.6L17,18.85C14.25,19.15 11.45,19.19 8.66,18.96C7.95,18.94 7.24,18.76 6.59,18.45C5.73,18.06 5.15,17.23 5.07,16.29C5.06,16.13 5.12,16 5.23,15.87L7.42,13.6L15.03,5.7V5.6H10.84C8.57,5.64 6.31,5.82 4.06,6.15M20.17,17.5C20.26,17.47 20.35,17.44 20.43,17.39C21.42,15.83 22,14 22,12A10,10 0 0,0 12,2C9.22,2 6.7,3.13 4.89,4.97H5.17C8.28,4.57 11.43,4.47 14.56,4.65C15.5,4.64 16.45,4.82 17.33,5.17C18.25,5.53 18.89,6.38 19,7.37C19,7.53 18.93,7.7 18.82,7.82L9.71,17.19L9,17.95V18.06H13.14C15.5,18 17.84,17.81 20.17,17.5Z"};
   const ic = (name, cls = "") => `<svg class="mdi ${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${MDI[name] || MDI["help-circle-outline"]}"/></svg>`;
   document.querySelectorAll("[data-i]").forEach((el) => { el.outerHTML = ic(el.dataset.i, el.closest(".chip") ? "s18" : ""); });
@@ -417,10 +417,10 @@
 
   const IEEE_RE = /^0x[0-9a-f]{16}$/i;
   const STATUS = {
-    active: { label: "Active", c: "var(--success)" },
-    offline: { label: "Offline", c: "var(--error)" },
-    ghost: { label: "Unidentified", c: "var(--error)" },
-    removed: { label: "Removed", c: "var(--disabled)" },
+    active: { get label() { return t("status.active"); }, c: "var(--success)" },
+    offline: { get label() { return t("status.offline"); }, c: "var(--error)" },
+    ghost: { get label() { return t("status.ghost"); }, c: "var(--error)" },
+    removed: { get label() { return t("status.removed"); }, c: "var(--disabled)" },
   };
   const KIND_ICON = { offline: "wifi-off", silent: "wifi-off", frozen: "thermometer", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
     flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", coordinator_backup: "download" };
@@ -438,14 +438,66 @@
   const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage unavailable */ } } };
   const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
   const cap = (s) => (s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : s);
-  const fmtDate = (iso, time = true) => { if (!iso) return ""; const d = new Date(typeof iso === "number" ? iso * 1000 : iso); return isNaN(d) ? "" : d.toLocaleString(undefined, time ? { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" } : { day: "numeric", month: "short", year: "numeric" }); };
-  const fmtTime = (iso) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  // ------------------------------------------------------------ i18n
+  // Strings live in www/i18n/<lang>.json (flat keys). t() returns plain text: use it for textContent,
+  // snackbars and (wrapped in esc()) attributes. th() returns HTML: it escapes the translation and inserts
+  // {vars} as given, so escape user data yourself, e.g. th("key", { name: esc(name) }).
+  // A value can be {"one": "...", "other": "..."}: the form is picked with Intl.PluralRules from vars.n.
+  // Missing keys fall back to English, then to the key itself (logged once).
+  const I18N = { code: "en", locale: "en", pref: store.get("z2mt.lang") || "auto", auto: "en", en: {}, cur: {}, langs: [], missing: new Set() };
+  const LANG_RE = /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$/;
+  const intl = (make) => { try { return make(I18N.locale); } catch (e) { return make("en"); } };
+  let plurals = new Intl.PluralRules("en"), relFmt = new Intl.RelativeTimeFormat("en", { numeric: "always" }), listFmt = new Intl.ListFormat("en", { type: "conjunction" });
+  const lookup = (key) => (Object.hasOwn(I18N.cur, key) ? I18N.cur[key] : Object.hasOwn(I18N.en, key) ? I18N.en[key] : undefined);
+  const hasT = (key) => lookup(key) !== undefined;
+  const pick = (v, vars) => (v && typeof v === "object" ? v[plurals.select(Number(vars?.n ?? 0))] ?? v.other ?? "" : String(v));
+  const fill = (s, vars) => (vars ? s.replace(/\{(\w+)\}/g, (m, k) => (Object.hasOwn(vars, k) ? String(vars[k] ?? "") : m)) : s);
+  const missingKey = (key) => { if (!I18N.missing.has(key)) { I18N.missing.add(key); console.warn(`[z2m-tracker] missing translation: ${key}`); } return key; };
+  const t = (key, vars) => { const v = lookup(key); return v === undefined ? missingKey(key) : fill(pick(v, vars), vars); };
+  const th = (key, vars) => { const v = lookup(key); return v === undefined ? esc(missingKey(key)) : fill(esc(pick(v, vars)), vars); };
+  // tx(): translate when the key exists, else use the server's English text (newer checks, older data).
+  const tx = (key, vars, fallback) => (hasT(key) ? t(key, vars) : fallback ?? "");
+  const listOf = (items) => intl(() => listFmt.format(items.map(String)));
+  const haLanguage = () => {
+    // The ingress iframe is same-origin with the HA frontend, so the profile language is readable from the parent.
+    try { const ha = window.parent !== window ? window.parent.document.querySelector("home-assistant") : null; const l = ha?.hass?.locale?.language || ha?.hass?.language; if (l) return l; } catch (e) { /* not inside HA */ }
+    try { const l = JSON.parse(localStorage.getItem("selectedLanguage") || "null"); if (l) return l; } catch (e) { /* not set */ }
+    return navigator.language || "en";
+  };
+  const loadI18n = async () => {
+    const get = async (path) => { try { const r = await fetch(path, { cache: "no-store" }); return r.ok ? await r.json() : null; } catch (e) { return null; } };
+    I18N.langs = ((await get("i18n/index.json")) || {}).languages || [{ code: "en", name: "English" }];
+    I18N.auto = haLanguage();
+    const want = I18N.pref === "auto" ? I18N.auto : I18N.pref;
+    const codes = I18N.langs.map((l) => l.code);
+    const low = String(want).toLowerCase(), base = low.split("-")[0];
+    const code = codes.find((c) => c.toLowerCase() === low) || codes.find((c) => c.toLowerCase() === base) || "en";
+    I18N.en = (await get("i18n/en.json")) || {};
+    I18N.cur = code === "en" ? I18N.en : (await get(`i18n/${code}.json`)) || {};
+    I18N.code = code;
+    I18N.locale = base === code.split("-")[0].toLowerCase() && LANG_RE.test(want) ? want : code;
+    try { Intl.getCanonicalLocales(I18N.locale); } catch (e) { I18N.locale = code; }
+    plurals = intl((l) => new Intl.PluralRules(l));
+    relFmt = intl((l) => new Intl.RelativeTimeFormat(l, { numeric: "always" }));
+    listFmt = intl((l) => new Intl.ListFormat(l, { type: "conjunction" }));
+    document.documentElement.lang = code;
+  };
+  // Static markup: data-t="key" sets the text, data-ta="attr=key;attr=key" sets attributes.
+  const translateStatic = (root = document) => {
+    root.querySelectorAll("[data-t]").forEach((el) => { el.textContent = t(el.dataset.t); });
+    root.querySelectorAll("[data-ta]").forEach((el) => el.dataset.ta.split(";").forEach((pair) => { const [a, k] = pair.split("="); if (a && k) el.setAttribute(a.trim(), t(k.trim())); }));
+    document.title = t("app.title");
+  };
+
+  const fmtDate = (iso, time = true) => { if (!iso) return ""; const d = new Date(typeof iso === "number" ? iso * 1000 : iso); return isNaN(d) ? "" : intl((l) => d.toLocaleString(l, time ? { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" } : { day: "numeric", month: "short", year: "numeric" })); };
+  const fmtTime = (iso) => intl((l) => new Date(iso).toLocaleTimeString(l, { hour: "2-digit", minute: "2-digit" }));
   const ago = (iso) => { if (!iso) return null; const t = new Date(iso).getTime(); return isNaN(t) ? null : (Date.now() - t) / 1000; };
-  const span = (s) => (s < 3600 ? `${Math.max(1, Math.round(s / 60))} min` : s < 172800 ? `${Math.round(s / 3600)} h` : `${Math.round(s / 86400)} days`);
-  const unit = (n, word) => `${n} ${word}${n === 1 ? "" : "s"} ago`;
-  const relTime = (iso) => { const s = ago(iso); if (s === null) return "Never"; if (s < 60) return "Just now"; if (s < 3600) return unit(Math.round(s / 60), "minute"); if (s < 172800) return unit(Math.round(s / 3600), "hour"); if (s < 5184000) return unit(Math.round(s / 86400), "day"); if (s < 63072000) return unit(Math.round(s / 2592000), "month"); return unit(Math.round(s / 31536000), "year"); };
+  const span = (s) => (s < 3600 ? t("unit.minutes", { n: Math.max(1, Math.round(s / 60)) }) : s < 172800 ? t("unit.hours", { n: Math.round(s / 3600) }) : t("unit.days", { n: Math.round(s / 86400) }));
+  const unit = (n, word) => relFmt.format(-n, word);
+  // inline: for use mid-sentence ("Last seen just now"); Intl output is already lower case where the language wants it.
+  const relTime = (iso, inline = false) => { const s = ago(iso); if (s === null) return t(inline ? "time.never_inline" : "time.never"); if (s < 60) return t(inline ? "time.just_now_inline" : "time.just_now"); if (s < 3600) return unit(Math.round(s / 60), "minute"); if (s < 172800) return unit(Math.round(s / 3600), "hour"); if (s < 5184000) return unit(Math.round(s / 86400), "day"); if (s < 63072000) return unit(Math.round(s / 2592000), "month"); return unit(Math.round(s / 31536000), "year"); };
   const todayIso = () => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`; };
-  const netLabel = (bt) => (!bt || bt === "unknown" ? "Unknown" : bt === "zigbee2mqtt" ? "Main" : cap(bt.replace(/^zigbee2mqtt[_-]?/, "").replace(/[_-]/g, " ").trim()) || bt);
+  const netLabel = (bt) => (!bt || bt === "unknown" ? t("common.unknown") : bt === "zigbee2mqtt" ? t("net.main") : cap(bt.replace(/^zigbee2mqtt[_-]?/, "").replace(/[_-]/g, " ").trim()) || bt);
   const nameOf = (d) => {
     if (!d) return null;
     if (d.friendly_name && !IEEE_RE.test(d.friendly_name)) return d.friendly_name;
@@ -458,13 +510,14 @@
   const warnings = (d) => (d.issues || []).filter((i) => i.severity === "warning");
   const vendorOf = (d) => d.vendor || (/^_T[ZY]/.test(d.manufacturer || "") ? "Tuya" : d.manufacturer);
   const deviceLine = (d) => [vendorOf(d), d.model || d.model_id].filter(Boolean).join(" ");
-  const powerOf = (d) => { const p = (d.power_source || "").toLowerCase(); if (p.includes("mains")) return "Mains"; if (p.includes("dc")) return "DC"; if (!p.includes("battery") && d.type === "Router") return "Mains"; return null; };
+  const powerOf = (d) => { const p = (d.power_source || "").toLowerCase(); if (p.includes("mains")) return t("power.mains"); if (p.includes("dc")) return t("power.dc"); if (!p.includes("battery") && d.type === "Router") return t("power.mains"); return null; };
+  const typeLabel = (type) => (type ? tx(`type.${type}`, null, type) : null);
   const lqiOf = (d) => (d.status === "removed" ? null : d.metrics?.lqi_24h ?? d.lqi ?? null);
   const sigBars = (q) => {
     const n = q >= 150 ? 4 : q >= 100 ? 3 : q >= 50 ? 2 : q > 0 ? 1 : 0;
     const c = n >= 3 ? "var(--success)" : n === 2 ? "var(--warning)" : "var(--error)";
-    const label = n >= 3 ? "Strong" : n === 2 ? "Fair" : "Weak";
-    return `<span class="sig" style="--c:${c}" title="${label} signal · link quality ${Math.round(q)} of 255" aria-label="${label} signal, link quality ${Math.round(q)}">${[1, 2, 3, 4].map((i) => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}</span>`;
+    const label = t(n >= 3 ? "signal.strong" : n === 2 ? "signal.fair" : "signal.weak");
+    return `<span class="sig" style="--c:${c}" title="${esc(t("signal.title", { label, lqi: Math.round(q) }))}" aria-label="${esc(t("signal.aria", { label, lqi: Math.round(q) }))}">${[1, 2, 3, 4].map((i) => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}</span>`;
   };
   const batColor = (v) => (v === null || v === undefined ? "var(--text-2)" : v <= 15 ? "var(--error)" : v <= 35 ? "var(--warning)" : "var(--success)");
   const kindIcon = (d) => {
@@ -481,6 +534,53 @@
     return `<span class="state-ic ${tone} ${cls}">${ic(kindIcon(d))}</span>`;
   };
   const haystack = (d) => [d.ieee, d.friendly_name, ...(d.names || []).map((n) => n.name), d.model, d.vendor, d.description, d.model_id, d.manufacturer, d.oui_vendor, d.z2m_description, d.ha_name, d.area, d.note, d.instance, netLabel(d.instance), d.type, ...Object.values(d.asset || {})].filter(Boolean).join(" ").toLowerCase();
+
+  // ------------------------------------------------------------ server-made text
+  // The app sends English text (also used for HA notifications) plus msg + params. These translate it
+  // when the language has the key, and fall back to the English text for anything newer or older.
+  const readingName = (k) => tx(`reading.${k}`, null, cap(String(k).replace(/_/g, " ")));
+  const ISSUE_VARS = {
+    flapping: (p) => { p.what = listOf([p.outages ? t("issue.flapping.outages", { n: p.outages }) : null, p.leaves ? t("issue.flapping.leaves", { n: p.leaves }) : null].filter(Boolean)); },
+    single_point: (p) => { p.extra = p.devices ? t("issue.single_point.extra", { n: p.devices }) : ""; },
+  };
+  const issueVars = (i) => {
+    const p = { ...(i.params || {}) };
+    if (p.seconds !== undefined) p.duration = span(p.seconds);
+    if (p.since) p.since = fmtDate(p.since);
+    if (p.reading) p.reading = readingName(p.reading);
+    ISSUE_VARS[i.msg]?.(p);
+    return p;
+  };
+  const issueLabel = (i) => tx(`issue.label.${i.kind}`, null, i.label);
+  const issueTitle = (i) => (i.msg ? tx(`issue.${i.msg}.title`, issueVars(i), i.title) : i.title);
+  const issueDetail = (i) => (i.msg ? tx(`issue.${i.msg}.detail`, issueVars(i), i.detail) : i.detail);
+  const issueName = (i) => (String(i.ieee).startsWith("network:") && i.instance ? t("net.network", { name: netLabel(i.instance) }) : i.name);
+  const findingText = (f) => {
+    if (!f.msg) return f.text;
+    const p = { ...(f.params || {}) };
+    if (p.net) p.net = netLabel(p.net);
+    if (p.nets) p.nets = listOf(p.nets.map(netLabel));
+    return tx(`radio.finding.${f.msg}`, p, f.text);
+  };
+  const checkLabel = (c) => tx(`check.${c.key}.label`, null, c.label);
+  const checkDesc = (c) => tx(`check.${c.key}.description`, null, c.description);
+  // Event kinds and the fixed English details the app writes (stored in history, so matched by text).
+  const eventKind = (k) => tx(`event.kind.${String(k).replace(/[^a-z0-9]+/gi, "_").toLowerCase()}`, null, k);
+  const EVENT_DETAILS = [
+    [/^Appeared in the Z2M device list$/, "appeared"], [/^Back in the Z2M device list$/, "back"], [/^Gone from the Z2M device list$/, "gone"],
+    [/^Device left the network$/, "left"], [/^Zigbee2MQTT stopped \(coordinator or service offline\)$/, "z2m_stopped"], [/^Zigbee2MQTT is running again$/, "z2m_running"],
+    [/^From (.+)$/, "moved_from", ["from"]], [/^Now on (.+)$/, "now_on", ["version"]], [/^Was up (\d+) h$/, "was_up", ["n"]],
+    [/^(\d+) nodes, (\d+) links$/, "scan", ["nodes", "links"]], [/^(\d+) lost binding\(s\) dismissed$/, "bindings_dismissed", ["n"]],
+    [/^Rejoined while pairing was open only through (.+)$/, "repaired", ["via"]], [/^Replaces (.+)$/, "replaces", ["name"]], [/^Replaced by (.+)$/, "replaced_by", ["name"]],
+  ];
+  const eventDetail = (e) => {
+    const d = e.detail || "";
+    for (const [re, key, names = []] of EVENT_DETAILS) {
+      const m = d.match(re);
+      if (m) return tx(`event.detail.${key}`, Object.fromEntries(names.map((n, i) => [n, n === "n" ? Number(m[i + 1]) : m[i + 1]])), d);
+    }
+    return d;
+  };
 
   const api = async (path, body) => {
     const opts = body === undefined ? { cache: "no-store" } : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
@@ -510,9 +610,8 @@
   let theme = THEMES.includes(store.get("z2mt.theme")) ? store.get("z2mt.theme") : "auto";
   const applyTheme = () => {
     if (theme === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme", theme);
-    $("#themeLabel").textContent = `Theme: ${cap(theme)}`;
+    $("#themeLabel").textContent = t("menu.theme", { theme: t(`theme.${theme}`) });
   };
-  applyTheme();
   let snackT;
   const snack = (msg, ms = 2600) => { const s = $("#snack"); s.textContent = msg; s.classList.add("show"); clearTimeout(snackT); snackT = setTimeout(() => s.classList.remove("show"), ms); };
 
@@ -520,9 +619,9 @@
   const visible = () => (state.data ? state.data.devices.filter((d) => d.type !== "Coordinator") : []);
   const setLive = (ok, err) => {
     $("#live").classList.toggle("down", !ok);
-    $("#liveText").textContent = ok ? `Live · ${(state.data?.instances || []).map(netLabel).join(", ")}` : "Disconnected";
+    $("#liveText").textContent = ok ? t("app.live", { networks: (state.data?.instances || []).map(netLabel).join(", ") }) : t("app.disconnected");
     $("#conn").classList.toggle("show", !ok);
-    if (!ok) $("#connText").innerHTML = `<b>Can't reach the tracker.</b> ${esc(err || "")} Retrying automatically.`;
+    if (!ok) $("#connText").innerHTML = `<b>${th("app.unreachable")}</b> ${th("app.retrying", { error: esc(err || "") })}`;
   };
   const load = async () => {
     try {
@@ -539,12 +638,12 @@
   const DEFAULT_DIR = { last_seen: -1, signal: -1 };
   const sortDir = () => state.dir || DEFAULT_DIR[state.sort] || 1;
   const CHIPS = [
-    ["all", "All", (d) => d.status !== "removed"],
-    ["attention", "Needs attention", (d) => d.status !== "removed" && (statusOf(d) !== "active" || warnings(d).length > 0)],
-    ["offline", "Offline", (d) => statusOf(d) === "offline"],
-    ["ghost", "Unidentified", (d) => statusOf(d) === "ghost"],
-    ["battery", "Battery", (d) => d.status !== "removed" && typeof d.battery === "number"],
-    ["removed", "Removed", (d) => d.status === "removed"],
+    ["all", "devices.chip.all", (d) => d.status !== "removed"],
+    ["attention", "devices.chip.attention", (d) => d.status !== "removed" && (statusOf(d) !== "active" || warnings(d).length > 0)],
+    ["offline", "devices.chip.offline", (d) => statusOf(d) === "offline"],
+    ["ghost", "devices.chip.ghost", (d) => statusOf(d) === "ghost"],
+    ["battery", "devices.chip.battery", (d) => d.status !== "removed" && typeof d.battery === "number"],
+    ["removed", "devices.chip.removed", (d) => d.status === "removed"],
   ];
   const filtered = () => {
     const pred = (CHIPS.find((c) => c[0] === state.chip) || CHIPS[0])[2];
@@ -570,13 +669,15 @@
   };
 
   // ------------------------------------------------------------ views
+  // title and text are HTML: pass th(...) or escaped text.
   const emptyState = (icon, title, text) => `<div class="empty">${ic(icon)}<b>${title}</b>${text}</div>`;
 
   const renderDevices = () => {
     const all = visible();
     const list = filtered();
     const warnCount = all.filter(CHIPS[1][2]).length;
-    const th = (k, label, cls = "") => {
+    const col = (k, key, cls = "") => {
+      const label = th(key);
       const on = state.sort === k, up = on ? sortDir() > 0 : (DEFAULT_DIR[k] || 1) > 0;
       return `<th class="sortable ${on ? "on" : ""} ${cls}" data-sort="${k}" aria-sort="${on ? (sortDir() > 0 ? "ascending" : "descending") : "none"}"><span class="h">${label}${ic(up ? "arrow-up" : "arrow-down")}</span></th>`;
     };
@@ -584,14 +685,15 @@
     if (state.group) list.sort((a, b) => (a.area ? 0 : 1) - (b.area ? 0 : 1) || collator.compare(a.area || "", b.area || ""));
     let lastArea;
     const rows = list.map((d) => {
-      const head = state.group && (d.area || "No area") !== lastArea ? `<tr class="grp"><td colspan="8">${esc(d.area || "No area")} <span>${list.filter((x) => (x.area || "No area") === (d.area || "No area")).length}</span></td></tr>` : "";
-      lastArea = d.area || "No area";
+      const noArea = t("devices.no_area");
+      const head = state.group && (d.area || noArea) !== lastArea ? `<tr class="grp"><td colspan="8">${esc(d.area || noArea)} <span>${list.filter((x) => (x.area || noArea) === (d.area || noArea)).length}</span></td></tr>` : "";
+      lastArea = d.area || noArea;
       return head + rowHtml(d);
     }).join("");
     function rowHtml(d) {
       const st = statusOf(d);
       const w = warnings(d)[0];
-      const statusTxt = st !== "active" ? STATUS[st].label : w ? w.label : "Active";
+      const statusTxt = st !== "active" ? STATUS[st].label : w ? issueLabel(w) : STATUS.active.label;
       const statusC = st !== "active" ? STATUS[st].c : w ? "var(--warning)" : STATUS.active.c;
       const former = formerOf(d);
       const lqi = lqiOf(d);
@@ -599,12 +701,13 @@
       const bat = d.status !== "removed" && typeof d.battery === "number"
         ? `<span class="bat" style="--c:${batColor(d.battery)}">${Math.round(d.battery)} %</span>`
         : d.status !== "removed" && power ? `<span class="muted">${power}</span>` : `<span class="muted">—</span>`;
-      const second = pane ? [d.area, former.length ? `Previously ${former.join(", ")}` : deviceLine(d)].filter(Boolean).join(" · ") : former.length ? `Previously ${former.join(", ")}` : d.ieee;
+      const prev = former.length ? t("devices.previously", { names: former.join(", ") }) : null;
+      const second = pane ? [d.area, prev || deviceLine(d)].filter(Boolean).join(" · ") : prev || d.ieee;
       return `<tr class="${st === "removed" ? "removed" : ""}" data-open="${esc(d.ieee)}" tabindex="0" aria-selected="${state.open === d.ieee}">
         <td class="ic-cell">${stateIc(d)}</td>
-        <td><div class="name">${esc(nameOf(d) || "Unnamed device")}</div><div class="name-2">${esc(second)}</div></td>
+        <td><div class="name">${esc(nameOf(d) || t("devices.unnamed"))}</div><div class="name-2">${esc(second)}</div></td>
         <td class="cell-sub hide-sm col-area">${esc(d.area || "—")}</td>
-        <td class="cell-sub hide-md col-model">${esc(deviceLine(d) || (d.oui_vendor ? `${d.oui_vendor} radio` : "Unknown"))}</td>
+        <td class="cell-sub hide-md col-model">${esc(deviceLine(d) || (d.oui_vendor ? t("devices.radio_of", { vendor: d.oui_vendor }) : t("common.unknown")))}</td>
         <td><span class="st" style="--c:${statusC}">${esc(statusTxt)}</span></td>
         <td class="num hide-sm">${bat}</td>
         <td class="num hide-md">${lqi === null ? '<span class="muted">—</span>' : sigBars(lqi)}</td>
@@ -612,19 +715,19 @@
       </tr>`;
     }
     $("#view").innerHTML = `
-      ${warnCount && state.chip !== "attention" ? `<div class="alert" style="--a: var(--warning)">${ic("alert")}<div class="body"><b>${warnCount} device${warnCount === 1 ? " needs" : "s need"} attention.</b> Offline, unidentified, weak signal, low battery or frozen readings.</div><button class="btn" data-chip="attention">Show</button></div>` : ""}
+      ${warnCount && state.chip !== "attention" ? `<div class="alert" style="--a: var(--warning)">${ic("alert")}<div class="body"><b>${th("devices.attention", { n: warnCount })}</b> ${th("devices.attention_text")}</div><button class="btn" data-chip="attention">${th("devices.show")}</button></div>` : ""}
       <div class="tools">
-        <label class="search">${ic("magnify")}<input id="q" type="search" placeholder="Search devices" value="${esc(state.query)}" autocomplete="off" spellcheck="false" aria-label="Search devices"></label>
-        <div class="chips">${CHIPS.map(([k, l, p]) => `<button class="chip" data-chip="${k}" aria-pressed="${state.chip === k}">${ic("check", "s18")}${l} <span class="n">${all.filter(p).length}</span></button>`).join("")}</div>
-        <div class="tools-right"><button class="chip toggle" data-act="group" aria-pressed="${state.group}">${ic("map-marker-outline", "s18")}Group by area</button><button class="btn filled" data-act="pair">${ic("plus", "s18")}Pair device</button></div>
+        <label class="search">${ic("magnify")}<input id="q" type="search" placeholder="${esc(t("devices.search"))}" value="${esc(state.query)}" autocomplete="off" spellcheck="false" aria-label="${esc(t("devices.search"))}"></label>
+        <div class="chips">${CHIPS.map(([k, l, p]) => `<button class="chip" data-chip="${k}" aria-pressed="${state.chip === k}">${ic("check", "s18")}${th(l)} <span class="n">${all.filter(p).length}</span></button>`).join("")}</div>
+        <div class="tools-right"><button class="chip toggle" data-act="group" aria-pressed="${state.group}">${ic("map-marker-outline", "s18")}${th("devices.group_by_area")}</button><button class="btn filled" data-act="pair">${ic("plus", "s18")}${th("devices.pair")}</button></div>
       </div>
       <div class="${pane ? "split" : ""}"><div class="split-list">
       <div class="card">
-        <div class="table-wrap">${list.length ? `<table class="dt ${pane ? "compact" : ""}"><thead><tr><th class="ic-cell"></th>${th("name", "Name")}${th("area", "Area", "hide-sm col-area")}${th("model", "Model", "hide-md col-model")}${th("status", "Status")}${th("battery", "Battery", "num hide-sm")}${th("signal", "Signal", "num hide-md")}${th("last_seen", "Last seen", "hide-md")}</tr></thead><tbody>${rows}</tbody></table>`
-          : emptyState("magnify", "No devices found", state.query ? `Nothing matches “${esc(state.query)}”.` : "Nothing in this filter.")}</div>
+        <div class="table-wrap">${list.length ? `<table class="dt ${pane ? "compact" : ""}"><thead><tr><th class="ic-cell"></th>${col("name", "devices.col.name")}${col("area", "devices.col.area", "hide-sm col-area")}${col("model", "devices.col.model", "hide-md col-model")}${col("status", "devices.col.status")}${col("battery", "devices.col.battery", "num hide-sm")}${col("signal", "devices.col.signal", "num hide-md")}${col("last_seen", "devices.col.last_seen", "hide-md")}</tr></thead><tbody>${rows}</tbody></table>`
+          : emptyState("magnify", th("devices.none_found"), state.query ? th("devices.no_match", { query: esc(state.query) }) : th("devices.empty_filter"))}</div>
       </div>
-      <div class="count-line" style="margin:8px 4px 0;text-align:right">${list.length} of ${all.length} devices</div>
-      </div>${pane ? `<aside class="card pane" id="pane" aria-label="Device details"></aside>` : ""}</div>`;
+      <div class="count-line" style="margin:8px 4px 0;text-align:right">${th("devices.count", { shown: list.length, n: all.length })}</div>
+      </div>${pane ? `<aside class="card pane" id="pane" aria-label="${esc(t("more.details"))}"></aside>` : ""}</div>`;
     $("#page").classList.toggle("wide", pane);
     if (pane) renderMore(true, true);
     const q = $("#q");
@@ -634,54 +737,55 @@
   const issueActions = (i) => {
     const d = state.byIeee.get(i.ieee);
     const out = [];
-    if (i.kind === "frozen" || i.kind === "silent") out.push(`<button class="btn" data-act="reconfigure" data-ieee="${esc(i.ieee)}">Reconfigure</button>`);
+    if (i.kind === "frozen" || i.kind === "silent") out.push(`<button class="btn" data-act="reconfigure" data-ieee="${esc(i.ieee)}">${th("common.reconfigure")}</button>`);
     if (i.kind === "binding_lost") {
-      if ((d?.lost_bindings || []).some((b) => b.coordinator)) out.push(`<button class="btn" data-act="reconfigure" data-ieee="${esc(i.ieee)}">Reconfigure</button>`);
-      out.push(`<button class="btn" data-act="bindings-ack" data-ieee="${esc(i.ieee)}">It was intended</button>`);
+      if ((d?.lost_bindings || []).some((b) => b.coordinator)) out.push(`<button class="btn" data-act="reconfigure" data-ieee="${esc(i.ieee)}">${th("common.reconfigure")}</button>`);
+      out.push(`<button class="btn" data-act="bindings-ack" data-ieee="${esc(i.ieee)}">${th("health.intended")}</button>`);
       return out.join("");
     }
-    if (i.kind === "single_point") out.push(`<button class="btn" data-view="map">Map</button>`);
-    if (i.kind === "replacement" && d?.suggestions?.[0]) out.push(`<button class="btn" data-act="link" data-old="${esc(d.suggestions[0].ieee)}" data-new="${esc(i.ieee)}">Link</button>`);
-    out.push(`<button class="btn" data-act="mute" data-ieee="${esc(i.ieee)}" data-kind="${esc(i.kind)}">Ignore</button>`);
+    if (i.kind === "single_point") out.push(`<button class="btn" data-view="map">${th("common.map")}</button>`);
+    if (i.kind === "replacement" && d?.suggestions?.[0]) out.push(`<button class="btn" data-act="link" data-old="${esc(d.suggestions[0].ieee)}" data-new="${esc(i.ieee)}">${th("common.link")}</button>`);
+    out.push(`<button class="btn" data-act="mute" data-ieee="${esc(i.ieee)}" data-kind="${esc(i.kind)}">${th("common.ignore")}</button>`);
     return out.join("");
   };
 
+  const scanLine = (topics, nm) => topics.map((bt) => { const x = nm[bt] || {}; return `${netLabel(bt)}: ${x.running_since ? t("common.scanning_lower") : x.scanned_at ? relTime(x.scanned_at) : t("time.never_inline")}`; }).join(" · ");
   const renderHealth = () => {
     const issues = state.data.issues || [];
     const o = state.data.options || {};
     const nm = state.data.networkmap || {};
     const running = Object.values(nm).some((x) => x.running_since);
-    const scans = state.data.instances.map((bt) => { const x = nm[bt] || {}; return `${netLabel(bt)}: ${x.running_since ? "scanning…" : x.scanned_at ? relTime(x.scanned_at) : "never"}`; }).join(" · ");
+    const scans = scanLine(state.data.instances, nm);
     const item = (i) => {
       const d = state.byIeee.get(i.ieee);
       const tone = i.severity === "warning" ? "var(--warning)" : "var(--info)";
       if (String(i.ieee).startsWith("network:")) {
         const panel = state.data.panels?.[i.instance];
         return `<div class="row"><span class="state-ic" style="color:${tone}">${ic(i.kind === "network_offline" ? "lan-disconnect" : i.kind === "coordinator_backup" ? "download" : "refresh")}</span>
-          <div class="text"><div class="t1">${esc(i.title)}: ${esc(i.name)}</div><div class="t2">${esc(i.detail)}</div></div>
-          <div class="acts">${panel ? `<a class="btn" href="${esc(panel)}" target="_top">Open Zigbee2MQTT</a>` : ""}</div></div>`;
+          <div class="text"><div class="t1">${esc(issueTitle(i))}: ${esc(issueName(i))}</div><div class="t2">${esc(issueDetail(i))}</div></div>
+          <div class="acts">${panel ? `<a class="btn" href="${esc(panel)}" target="_top">${th("health.open_z2m")}</a>` : ""}</div></div>`;
       }
       return `<div class="row"><span class="state-ic" style="color:${tone}">${ic(KIND_ICON[i.kind] || "alert")}</span>
-        <div class="text row-open" data-open="${esc(i.ieee)}" style="cursor:pointer"><div class="t1">${esc(i.title)}: ${esc(i.name)}</div><div class="t2">${esc(i.detail)}${d?.area ? ` · ${esc(d.area)}` : ""}</div></div>
+        <div class="text row-open" data-open="${esc(i.ieee)}" style="cursor:pointer"><div class="t1">${esc(issueTitle(i))}: ${esc(issueName(i))}</div><div class="t2">${esc(issueDetail(i))}${d?.area ? ` · ${esc(d.area)}` : ""}</div></div>
         <div class="acts">${issueActions(i)}</div></div>`;
     };
     const warn = issues.filter((i) => i.severity === "warning"), info = issues.filter((i) => i.severity !== "warning");
     $("#view").innerHTML = `
       <div class="card">
-        <div class="card-header">${ic("heart-pulse")}<div>Network health<small>${warn.length ? `${warn.length} need attention, ${info.length} to review` : issues.length ? `${info.length} to review` : "Nothing needs attention"}</small></div></div>
+        <div class="card-header">${ic("heart-pulse")}<div>${th("health.title")}<small>${warn.length ? th("health.summary", { warn: warn.length, n: info.length }) : issues.length ? th("health.to_review", { n: info.length }) : th("health.nothing")}</small></div></div>
         <div class="info-grid">
-          <div><small>Alerts</small><b>${o.alerts_enabled === false ? "Off" : [o.persistent_notifications ? "HA notifications" : null, o.notify_service || null].filter(Boolean).join(", ") || "Event only"}</b></div>
-          <div><small>Thresholds</small><b>Offline ${esc(o.offline_alert_minutes)} min · Frozen ${esc(o.frozen_alert_hours)} h · Battery ${esc(o.battery_alert_percent)} %</b></div>
-          <div><small>Routing scan</small><b>${esc(scans)}</b></div>
+          <div><small>${th("health.alerts")}</small><b>${o.alerts_enabled === false ? th("health.alerts_off") : esc([o.persistent_notifications ? t("health.ha_notifications") : null, o.notify_service || null].filter(Boolean).join(", ")) || th("health.event_only")}</b></div>
+          <div><small>${th("health.thresholds")}</small><b>${th("health.thresholds_line", { offline: esc(o.offline_alert_minutes), frozen: esc(o.frozen_alert_hours), battery: esc(o.battery_alert_percent) })}</b></div>
+          <div><small>${th("health.routing_scan")}</small><b>${esc(scans)}</b></div>
         </div>
-        <div class="card-actions"><button class="btn" data-view="settings">Alert settings</button><button class="btn ${running ? "busy" : ""}" data-act="scan" ${running ? "disabled" : ""}>${ic(running ? "refresh" : "sitemap", "s18")}${running ? "Scanning…" : "Run routing scan"}</button></div>
+        <div class="card-actions"><button class="btn" data-view="settings">${th("health.alert_settings")}</button><button class="btn ${running ? "busy" : ""}" data-act="scan" ${running ? "disabled" : ""}>${ic(running ? "refresh" : "sitemap", "s18")}${running ? th("common.scanning") : th("menu.run_scan")}</button></div>
       </div>
       ${coordinatorsCard()}
       ${shoppingCard()}
       ${radioCard()}
-      ${warn.length ? `<div class="section-title">Needs attention <span>${warn.length}</span></div><div class="card">${warn.map(item).join("")}</div>` : ""}
-      ${info.length ? `<div class="section-title">Worth a look <span>${info.length}</span></div><div class="card">${info.map(item).join("")}</div>` : ""}
-      ${!issues.length ? `<div class="card">${emptyState("check", "All clear", "No devices need attention right now.")}</div>` : ""}`;
+      ${warn.length ? `<div class="section-title">${th("health.needs_attention")} <span>${warn.length}</span></div><div class="card">${warn.map(item).join("")}</div>` : ""}
+      ${info.length ? `<div class="section-title">${th("health.worth_a_look")} <span>${info.length}</span></div><div class="card">${info.map(item).join("")}</div>` : ""}
+      ${!issues.length ? `<div class="card">${emptyState("check", th("health.all_clear"), th("health.all_clear_text"))}</div>` : ""}`;
   };
 
   const coordinatorsCard = () => {
@@ -696,20 +800,20 @@
       const last = [...(b.outages || [])].reverse()[0];
       const panel = state.data.panels?.[bt];
       const bk = (state.data.backups || {})[bt];
-      const backup = !bk ? null : !bk.found ? "Data folder not inside /config, can't check" : !bk.exists ? "Missing" : bk.error ? bk.error
-        : `${relTime(bk.date)} · ${bk.devices} devices${bk.has_key ? "" : " · no network key"}`;
+      const backup = !bk ? null : !bk.found ? t("coord.backup_not_found") : !bk.exists ? t("coord.backup_missing") : bk.error ? bk.error
+        : [relTime(bk.date), t("coord.backup_devices", { n: bk.devices }), bk.has_key ? null : t("coord.backup_no_key")].filter(Boolean).join(" · ");
       return `<div class="coord">
         <div class="row" style="border:0;min-height:56px"><span class="state-ic" style="color:${b.state ? (online ? "var(--success)" : "var(--error)") : "var(--text-2)"}">${ic(online ? "zigbee" : "lan-disconnect")}</span>
-          <div class="text"><div class="t1">${esc(netLabel(bt))} network</div><div class="t2">${b.state ? `${online ? "Online" : "Offline"} since ${esc(fmtDate(b.since))}` : "Waiting for status from Zigbee2MQTT"}</div></div>
-          ${panel ? `<a class="btn" href="${esc(panel)}" target="_top">Open${ic("open-in-new", "s18")}</a>` : ""}</div>
-        ${kv([["Zigbee2MQTT", info.version], ["Coordinator", [info.coordinator_type, info.firmware ? `firmware ${info.firmware}` : null].filter(Boolean).join(" · ")], ["Channel / PAN ID", info.channel ? `${info.channel} / ${info.pan_id ?? "?"}` : null],
-          ["Running for", h.uptime_sec ? span(h.uptime_sec) : null], ["Memory", h.memory_mb ? `${Math.round(h.memory_mb)} MB` : null],
-          ["Last 7 days", `${outages.length} outage${outages.length === 1 ? "" : "s"}${outages.length ? ` (${downMin} min down)` : ""} · ${restarts} restart${restarts === 1 ? "" : "s"}`],
-          ["Last outage", last ? `${fmtDate(last.start)}${last.end ? ` for ${span((new Date(last.end) - new Date(last.start)) / 1000)}` : " (ongoing)"}` : "None recorded"],
-          ["Coordinator backup", backup]])}
+          <div class="text"><div class="t1">${th("net.network", { name: esc(netLabel(bt)) })}</div><div class="t2">${b.state ? th(online ? "coord.online_since" : "coord.offline_since", { date: esc(fmtDate(b.since)) }) : th("coord.waiting")}</div></div>
+          ${panel ? `<a class="btn" href="${esc(panel)}" target="_top">${th("common.open")}${ic("open-in-new", "s18")}</a>` : ""}</div>
+        ${kv([["Zigbee2MQTT", info.version], [th("coord.coordinator"), [info.coordinator_type, info.firmware ? t("coord.firmware", { version: info.firmware }) : null].filter(Boolean).join(" · ")], [th("coord.channel_pan"), info.channel ? `${info.channel} / ${info.pan_id ?? "?"}` : null],
+          [th("coord.running_for"), h.uptime_sec ? span(h.uptime_sec) : null], [th("coord.memory"), h.memory_mb ? t("coord.memory_mb", { n: Math.round(h.memory_mb) }) : null],
+          [th("coord.last_7_days"), [t("coord.outages", { n: outages.length }) + (outages.length ? ` ${t("coord.down_for", { n: downMin })}` : ""), t("coord.restarts", { n: restarts })].join(" · ")],
+          [th("coord.last_outage"), last ? (last.end ? t("coord.outage_for", { date: fmtDate(last.start), duration: span((new Date(last.end) - new Date(last.start)) / 1000) }) : t("coord.outage_ongoing", { date: fmtDate(last.start) })) : t("coord.none_recorded")],
+          [th("coord.backup"), backup]])}
       </div>`;
     }).join("");
-    return `<div class="card"><div class="card-header">${ic("router-wireless")}<div>Coordinators<small>Zigbee2MQTT and coordinator status for each network</small></div></div>${nets}</div>`;
+    return `<div class="card"><div class="card-header">${ic("router-wireless")}<div>${th("coord.title")}<small>${th("coord.subtitle")}</small></div></div>${nets}</div>`;
   };
 
   const radioCard = () => {
@@ -717,20 +821,22 @@
     if (!r || !r.networks.length) return "";
     const W = 640, H = 120, x = (mhz) => ((mhz - 2400) / 85) * (W - 20) + 10;
     const wf = (n) => (n === 14 ? 2484 : 2407 + 5 * n), zf = (c) => 2405 + 5 * (c - 11);
-    const wifiBands = r.wifi.map((n) => `<rect x="${x(wf(n) - 11).toFixed(1)}" y="18" width="${(x(wf(n) + 11) - x(wf(n) - 11)).toFixed(1)}" height="54" rx="6" fill="var(--warning)" fill-opacity="0.18" stroke="var(--warning)" stroke-opacity="0.5"/><text x="${x(wf(n)).toFixed(1)}" y="14" text-anchor="middle">Wi-Fi ${n}</text>`).join("");
+    const wifiBands = r.wifi.map((n) => `<rect x="${x(wf(n) - 11).toFixed(1)}" y="18" width="${(x(wf(n) + 11) - x(wf(n) - 11)).toFixed(1)}" height="54" rx="6" fill="var(--warning)" fill-opacity="0.18" stroke="var(--warning)" stroke-opacity="0.5"/><text x="${x(wf(n)).toFixed(1)}" y="14" text-anchor="middle">${th("radio.wifi_n", { n })}</text>`).join("");
     const ticks = [...Array(16).keys()].map((i) => { const c = 11 + i, used = r.networks.filter((n) => n.channel === c); return `<line x1="${x(zf(c)).toFixed(1)}" x2="${x(zf(c)).toFixed(1)}" y1="${used.length ? 24 : 62}" y2="72" stroke="${used.length ? "var(--primary)" : "var(--divider)"}" stroke-width="${used.length ? 4 : 2}" stroke-linecap="round"/><text x="${x(zf(c)).toFixed(1)}" y="88" text-anchor="middle" ${used.length ? 'class="on"' : ""}>${c}</text>${used.length ? `<text x="${x(zf(c)).toFixed(1)}" y="104" text-anchor="middle" class="on">${esc(used.map((n) => netLabel(n.topic)).join(" + "))}</text>` : ""}`; }).join("");
-    return `<div class="card"><div class="card-header">${ic("signal")}<div>Radio channels<small>Zigbee channels ${esc([...new Set(r.networks.map((n) => n.channel))].join(", "))} · Wi-Fi ${r.wifi.length ? esc(r.wifi.join(", ")) : "not set"}</small></div></div>
-      <div class="chart-wrap"><svg class="spectrum" viewBox="0 0 ${W} ${H}" role="img" aria-label="2.4 GHz channel overlap">${wifiBands}${ticks}<text x="10" y="118" class="axis">2400 MHz</text><text x="${W - 10}" y="118" text-anchor="end" class="axis">2485 MHz</text></svg></div>
-      <div class="advice">${r.findings.map((f) => `<div class="adv"><span class="state-ic" style="color:${f.sev >= 2 ? "var(--warning)" : f.sev === 1 ? "var(--info)" : "var(--success)"}">${ic(f.sev ? "alert" : "check")}</span><div class="text">${esc(f.text)}</div></div>`).join("")}</div>
-      <div class="card-actions"><button class="btn" data-view="settings">Edit Wi-Fi channels</button></div></div>`;
+    return `<div class="card"><div class="card-header">${ic("signal")}<div>${th("radio.title")}<small>${th("radio.subtitle", { zigbee: esc([...new Set(r.networks.map((n) => n.channel))].join(", ")), wifi: r.wifi.length ? esc(r.wifi.join(", ")) : th("radio.not_set") })}</small></div></div>
+      <div class="chart-wrap"><svg class="spectrum" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t("radio.chart"))}">${wifiBands}${ticks}<text x="10" y="118" class="axis">2400 MHz</text><text x="${W - 10}" y="118" text-anchor="end" class="axis">2485 MHz</text></svg></div>
+      <div class="advice">${r.findings.map((f) => `<div class="adv"><span class="state-ic" style="color:${f.sev >= 2 ? "var(--warning)" : f.sev === 1 ? "var(--info)" : "var(--success)"}">${ic(f.sev ? "alert" : "check")}</span><div class="text">${esc(findingText(f))}</div></div>`).join("")}</div>
+      <div class="card-actions"><button class="btn" data-view="settings">${th("radio.edit_wifi")}</button></div></div>`;
   };
 
   const shoppingCard = () => {
     const groups = state.data.battery_shopping || [];
     if (!groups.length) return "";
-    const total = groups.map((g) => `${g.count}× ${g.type}`).join(", ");
-    return `<div class="card"><div class="card-header">${ic("battery-alert-variant-outline")}<div>Batteries to buy<small>${esc(total)} for devices expected to run low within 60 days</small></div></div>
-      ${groups.map((g) => `<div class="set-row"><div class="text"><div class="t1">${g.count}× ${esc(g.type)}</div><div class="t2">${g.devices.map((x) => `<a href="#${esc(x.ieee)}" data-open="${esc(x.ieee)}">${esc(x.name)}</a> (${x.battery !== null && x.battery !== undefined ? Math.round(x.battery) + " %" : "low"}${x.days !== null && x.days !== undefined ? `, about ${Math.max(0, Math.round(x.days))} days` : ""}${x.quantity > 1 ? `, takes ${x.quantity}` : ""})`).join(" · ")}</div></div></div>`).join("")}
+    const btype = (g) => (g.type === "Unknown type" ? t("shop.unknown_type") : g.type);
+    const total = groups.map((g) => `${g.count}× ${btype(g)}`).join(", ");
+    const facts = (x) => [x.battery !== null && x.battery !== undefined ? `${Math.round(x.battery)} %` : t("shop.low"), x.days !== null && x.days !== undefined ? t("shop.about_days", { n: Math.max(0, Math.round(x.days)) }) : null, x.quantity > 1 ? t("shop.takes", { n: x.quantity }) : null].filter(Boolean).join(", ");
+    return `<div class="card"><div class="card-header">${ic("battery-alert-variant-outline")}<div>${th("shop.title")}<small>${th("shop.subtitle", { total: esc(total) })}</small></div></div>
+      ${groups.map((g) => `<div class="set-row"><div class="text"><div class="t1">${g.count}× ${esc(btype(g))}</div><div class="t2">${g.devices.map((x) => `<a href="#${esc(x.ieee)}" data-open="${esc(x.ieee)}">${esc(x.name)}</a> (${esc(facts(x))})`).join(" · ")}</div></div></div>`).join("")}
     </div>`;
   };
 
@@ -810,21 +916,23 @@
       if (!p || p.lqi === null || p.lqi === undefined || p.lqi >= 60) return;
       const better = (d.routing.neighbours || []).filter((n) => n.ieee !== p.ieee && state.byIeee.get(n.ieee)?.type === "Router" && (n.lqi || 0) >= Math.max(80, p.lqi + 40)).sort((a, b) => b.lqi - a.lqi)[0];
       if (better) {
-        out.push({ sev: 2, icon: "swap-horizontal", text: `${link(d.ieee)} connects through ${link(p.ieee)} with a weak link (LQI ${p.lqi}), but ${link(better.ieee)} hears it much better (LQI ${better.lqi}). Power-cycle ${esc(name(d.ieee))} or press its button a few times near ${esc(name(better.ieee))} so it picks the stronger router.` });
+        out.push({ sev: 2, icon: "swap-horizontal", text: th("advice.better_router", { device: link(d.ieee), parent: link(p.ieee), lqi: p.lqi, better: link(better.ieee), better_lqi: better.lqi, name: esc(name(d.ieee)), better_name: esc(name(better.ieee)) }) });
       } else {
         const alt = suggestRouter(d);
         const where = state.byIeee.get(p.ieee)?.area;
+        const inArea = (ieee, area) => (area ? th("advice.in_area", { name: link(ieee), area: esc(area) }) : link(ieee));
+        const weak = th("advice.weak_link", { device: inArea(d.ieee, d.area), parent: inArea(p.ieee, where), lqi: p.lqi });
         out.push(alt
-          ? { sev: 2, icon: "swap-horizontal", text: `${link(d.ieee)}${d.area ? ` in ${esc(d.area)}` : ""} connects through ${link(p.ieee)}${where ? ` in ${esc(where)}` : ""} with a weak link (LQI ${p.lqi}). ${link(alt.ieee)} is a router in the same room, so re-pairing through it should give a much stronger connection.`,
-              action: `<button class="btn" data-act="move" data-ieee="${esc(d.ieee)}" data-via="${esc(alt.ieee)}">Move</button>` }
-          : { sev: 2, icon: "router-wireless", text: `${link(d.ieee)}${d.area ? ` in ${esc(d.area)}` : ""} connects through ${link(p.ieee)}${where ? ` in ${esc(where)}` : ""} with a weak link (LQI ${p.lqi}), and there's no router in ${d.area ? esc(d.area) : "its room"}. Add a mains-powered Zigbee plug or switch nearby, then move it to that router.` });
+          ? { sev: 2, icon: "swap-horizontal", text: `${weak} ${th("advice.same_room_router", { router: link(alt.ieee) })}`,
+              action: `<button class="btn" data-act="move" data-ieee="${esc(d.ieee)}" data-via="${esc(alt.ieee)}">${th("advice.move")}</button>` }
+          : { sev: 2, icon: "router-wireless", text: `${weak} ${d.area ? th("advice.no_router_in", { area: esc(d.area) }) : th("advice.no_router_room")}` });
       }
     });
 
     // 2. routers whose best link is weak
     routers.forEach((d) => {
       const best = Math.max(0, ...(d.routing?.neighbours || []).filter((n) => state.byIeee.get(n.ieee)?.type !== "EndDevice").map((n) => n.lqi || 0));
-      if (d.routing && best < 50) out.push({ sev: 2, icon: "lan-disconnect", text: `Router ${link(d.ieee)}${d.area ? ` in ${esc(d.area)}` : ""} only has weak links to the rest of the mesh (best LQI ${best}). Devices that route through it suffer too. Move it closer, or add another router between it and the rest of the network.` });
+      if (d.routing && best < 50) out.push({ sev: 2, icon: "lan-disconnect", text: th("advice.weak_router", { router: d.area ? th("advice.in_area", { name: link(d.ieee), area: esc(d.area) }) : link(d.ieee), lqi: best }) });
     });
 
     // 3. overloaded parents
@@ -832,28 +940,28 @@
     ends.forEach((d) => { const p = d.routing?.parent?.ieee; if (p) kids[p] = (kids[p] || 0) + 1; });
     Object.entries(kids).forEach(([p, n]) => {
       const isCoord = coord && p === coord.ieee;
-      if ((isCoord && n > 12) || (!isCoord && n > 10)) out.push({ sev: 1, icon: "sitemap", text: `${isCoord ? "The coordinator" : link(p)} is carrying ${n} battery devices directly. Adding a router or two nearby spreads the load and makes the network more resilient.` });
+      if ((isCoord && n > 12) || (!isCoord && n > 10)) out.push({ sev: 1, icon: "sitemap", text: th("advice.overloaded", { router: isCoord ? th("advice.the_coordinator") : link(p), n }) });
     });
 
     // 4. rooms with battery devices but no router
     const areas = {};
     devs.forEach((d) => { if (!d.area) return; const a = (areas[d.area] ||= { routers: 0, ends: [], weak: 0 }); if (d.type === "Router" && statusOf(d) === "active") a.routers++; if (d.type === "EndDevice") { a.ends.push(d); if ((d.routing?.parent?.lqi ?? 255) < 80) a.weak++; } });
     Object.entries(areas).forEach(([area, a]) => {
-      if (!a.routers && a.ends.length >= 2) out.push({ sev: a.weak ? 2 : 1, icon: "power-plug", text: `${esc(area)} has ${a.ends.length} battery devices but no router${a.weak ? `, and ${a.weak} of them have below-average links` : ""}. A mains-powered Zigbee smart plug in ${esc(area)} would give them a closer, stronger connection.` });
+      if (!a.routers && a.ends.length >= 2) out.push({ sev: a.weak ? 2 : 1, icon: "power-plug", text: th(a.weak ? "advice.room_no_router_weak" : "advice.room_no_router", { area: esc(area), n: a.ends.length, weak: a.weak }) });
     });
 
     // 5. single points of failure (computed by the app from the latest scan)
     (state.data.single_points?.[bt] || []).forEach((p) => {
       const names = p.routers.slice(0, 5).map((r) => link(r.ieee)).join(", ") + (p.routers.length > 5 ? "…" : "");
       out.push({ sev: p.routers.length + p.devices >= 3 ? 2 : 1, icon: "router-wireless",
-        text: `${link(p.ieee)} is the only path to the coordinator for ${p.routers.length} router${p.routers.length === 1 ? "" : "s"} (${names})${p.devices ? ` and ${p.devices} battery device${p.devices === 1 ? "" : "s"} behind them` : ""}${p.children ? `. It also carries ${p.children} battery device${p.children === 1 ? "" : "s"} directly` : ""}. If it loses power, all of them have to find another way in. A router placed between them and the rest of the mesh gives a second path.` });
+        text: [th("advice.spof", { router: link(p.ieee), n: p.routers.length, names }) + (p.devices ? th("advice.spof_devices", { n: p.devices }) : "") + ".", p.children ? th("advice.spof_children", { n: p.children }) : "", th("advice.spof_fix")].filter(Boolean).join(" ") });
     });
 
     // 6. devices missing from the scan
     const missing = devs.filter((d) => !d.routing && d.type !== "Coordinator" && statusOf(d) === "active");
-    if (missing.length) out.push({ sev: 1, icon: "help-circle-outline", text: `${missing.length} active device${missing.length === 1 ? " wasn't" : "s weren't"} in the scan: ${missing.slice(0, 6).map((d) => link(d.ieee)).join(", ")}${missing.length > 6 ? "…" : ""}. Sleepy battery devices often miss scans. If one keeps missing, check its signal.` });
+    if (missing.length) out.push({ sev: 1, icon: "help-circle-outline", text: th("advice.missing", { n: missing.length, names: missing.slice(0, 6).map((d) => link(d.ieee)).join(", ") + (missing.length > 6 ? "…" : "") }) });
 
-    if (!out.length) out.push({ sev: 0, icon: "check", text: "No problems found. Every device has a reasonable link and no router is overloaded." });
+    if (!out.length) out.push({ sev: 0, icon: "check", text: th("advice.none") });
     return out.sort((a, b) => b.sev - a.sev);
   };
 
@@ -866,38 +974,38 @@
     MAP.sims = {};
     const running = Object.values(nm).some((x) => x.running_since);
     $("#view").innerHTML = `
-      <div class="alert" style="--a:var(--info)">${ic("information-outline")}<div class="body">Drag dots to rearrange, drag the background to pan and scroll to zoom. Solid lines show which router each battery device uses, dashed lines link routers. Colour shows link quality.</div>
-        <button class="btn ${running ? "busy" : ""}" data-act="scan" ${running ? "disabled" : ""}>${ic(running ? "refresh" : "sitemap", "s18")}${running ? "Scanning…" : "Run routing scan"}</button></div>
+      <div class="alert" style="--a:var(--info)">${ic("information-outline")}<div class="body">${th("map.help")}</div>
+        <button class="btn ${running ? "busy" : ""}" data-act="scan" ${running ? "disabled" : ""}>${ic(running ? "refresh" : "sitemap", "s18")}${running ? th("common.scanning") : th("menu.run_scan")}</button></div>
       ${state.data.instances.map((bt) => {
         const info = nm[bt] || {};
         const g = mapGraph(bt);
-        const head = `<div class="card-header">${ic("sitemap")}<div>${esc(netLabel(bt))} network<small>${info.running_since ? "Scanning now…" : info.scanned_at ? `Scanned ${esc(relTime(info.scanned_at).toLowerCase())} · ${info.nodes ?? g.devs.length} devices, ${info.links ?? "?"} links` : "Not scanned yet"}</small></div></div>`;
-        if (g.devs.filter((d) => d.routing).length === 0) return `<div class="card map-card">${head}${emptyState("sitemap", "No routing data yet", "Run a routing scan to see which router each device connects through. It also runs nightly.")}</div>`;
+        const head = `<div class="card-header">${ic("sitemap")}<div>${th("net.network", { name: esc(netLabel(bt)) })}<small>${info.running_since ? th("map.scanning_now") : info.scanned_at ? th("map.scanned", { when: esc(relTime(info.scanned_at, true)), n: info.nodes ?? g.devs.length, links: info.links ?? "?" }) : th("map.not_scanned")}</small></div></div>`;
+        if (g.devs.filter((d) => d.routing).length === 0) return `<div class="card map-card">${head}${emptyState("sitemap", th("map.no_data"), th("map.no_data_text"))}</div>`;
         const advice = mapAdvice(bt);
         const times = (state.data.scan_times?.[bt] || []).slice().reverse();
         const diff = mapDiff(bt);
         const nm2 = (ieee) => esc(nameOf(state.byIeee.get(ieee)) || ieee);
         const history = times.length > 1 ? `<div class="map-hist">
-            <label>Showing<select class="field" data-mapscan="${esc(bt)}"><option value="">Latest scan (${esc(fmtDate(times[0]))})</option>${times.slice(1).map((t) => `<option value="${esc(t)}" ${MAP.scanSel[bt] === t ? "selected" : ""}>${esc(fmtDate(t))}</option>`).join("")}</select></label>
-            <label>Compare with<select class="field" data-mapcmp="${esc(bt)}"><option value="">Nothing</option>${times.filter((t) => t !== (MAP.scanSel[bt] || times[0]) && t < (MAP.scanSel[bt] || times[0])).map((t) => `<option value="${esc(t)}" ${MAP.cmpSel[bt] === t ? "selected" : ""}>${esc(fmtDate(t))}</option>`).join("")}</select></label>
-            ${MAP.scanSel[bt] ? `<span class="muted">Older scan. Advice below is for the latest scan.</span>` : ""}</div>`
-          : `<div class="map-hist muted">Scan history builds up from here, one scan a night, so you can compare before and after a change.</div>`;
-        const changes = diff ? `<div class="sub-h">Changes since ${esc(fmtDate(diff.oldAt))}</div><div class="advice">
-            ${diff.moved.map((m) => `<div class="adv"><span class="state-ic" style="color:var(--info)">${ic("swap-horizontal")}</span><div class="text"><b>${nm2(m.dev)}</b> moved from ${nm2(m.from)} (LQI ${esc(m.oldQ ?? "?")}) to ${nm2(m.to)} (LQI ${esc(m.newQ ?? "?")})</div></div>`).join("")}
-            ${diff.better.map((m) => `<div class="adv"><span class="state-ic" style="color:var(--success)">${ic("arrow-up")}</span><div class="text"><b>${nm2(m.dev)}</b> link to ${nm2(m.p)} improved: LQI ${esc(m.oldQ)} → ${esc(m.newQ)}</div></div>`).join("")}
-            ${diff.worse.map((m) => `<div class="adv"><span class="state-ic" style="color:var(--error)">${ic("arrow-down")}</span><div class="text"><b>${nm2(m.dev)}</b> link to ${nm2(m.p)} got weaker: LQI ${esc(m.oldQ)} → ${esc(m.newQ)}</div></div>`).join("")}
-            ${!diff.moved.length && !diff.better.length && !diff.worse.length ? `<div class="adv"><span class="state-ic">${ic("check")}</span><div class="text">No devices changed router and no link changed by 25 or more.</div></div>` : ""}</div>` : "";
+            <label>${th("map.showing")}<select class="field" data-mapscan="${esc(bt)}"><option value="">${th("map.latest_scan", { date: esc(fmtDate(times[0])) })}</option>${times.slice(1).map((t) => `<option value="${esc(t)}" ${MAP.scanSel[bt] === t ? "selected" : ""}>${esc(fmtDate(t))}</option>`).join("")}</select></label>
+            <label>${th("map.compare_with")}<select class="field" data-mapcmp="${esc(bt)}"><option value="">${th("map.nothing")}</option>${times.filter((t) => t !== (MAP.scanSel[bt] || times[0]) && t < (MAP.scanSel[bt] || times[0])).map((t) => `<option value="${esc(t)}" ${MAP.cmpSel[bt] === t ? "selected" : ""}>${esc(fmtDate(t))}</option>`).join("")}</select></label>
+            ${MAP.scanSel[bt] ? `<span class="muted">${th("map.older_scan")}</span>` : ""}</div>`
+          : `<div class="map-hist muted">${th("map.history_builds")}</div>`;
+        const changes = diff ? `<div class="sub-h">${th("map.changes_since", { date: esc(fmtDate(diff.oldAt)) })}</div><div class="advice">
+            ${diff.moved.map((m) => `<div class="adv"><span class="state-ic" style="color:var(--info)">${ic("swap-horizontal")}</span><div class="text">${th("map.diff_moved", { device: `<b>${nm2(m.dev)}</b>`, from: nm2(m.from), old: esc(m.oldQ ?? "?"), to: nm2(m.to), new: esc(m.newQ ?? "?") })}</div></div>`).join("")}
+            ${diff.better.map((m) => `<div class="adv"><span class="state-ic" style="color:var(--success)">${ic("arrow-up")}</span><div class="text">${th("map.diff_better", { device: `<b>${nm2(m.dev)}</b>`, parent: nm2(m.p), old: esc(m.oldQ), new: esc(m.newQ) })}</div></div>`).join("")}
+            ${diff.worse.map((m) => `<div class="adv"><span class="state-ic" style="color:var(--error)">${ic("arrow-down")}</span><div class="text">${th("map.diff_worse", { device: `<b>${nm2(m.dev)}</b>`, parent: nm2(m.p), old: esc(m.oldQ), new: esc(m.newQ) })}</div></div>`).join("")}
+            ${!diff.moved.length && !diff.better.length && !diff.worse.length ? `<div class="adv"><span class="state-ic">${ic("check")}</span><div class="text">${th("map.diff_none")}</div></div>` : ""}</div>` : "";
         return `<div class="card map-card" data-net="${esc(bt)}">${head}${history}
-          <div class="map-tools"><button class="icon-btn" data-mapzoom="1.25" data-net="${esc(bt)}" aria-label="Zoom in">${ic("plus")}</button><button class="icon-btn" data-mapzoom="0.8" data-net="${esc(bt)}" aria-label="Zoom out">${ic("minus")}</button>
-            <button class="btn" data-mapreset="${esc(bt)}">${ic("refresh", "s18")}Reset layout</button>
-            <button class="chip toggle" data-maplinks aria-pressed="${MAP.allLinks}">${ic("link-variant", "s18")}All router links</button>
+          <div class="map-tools"><button class="icon-btn" data-mapzoom="1.25" data-net="${esc(bt)}" aria-label="${esc(t("map.zoom_in"))}">${ic("plus")}</button><button class="icon-btn" data-mapzoom="0.8" data-net="${esc(bt)}" aria-label="${esc(t("map.zoom_out"))}">${ic("minus")}</button>
+            <button class="btn" data-mapreset="${esc(bt)}">${ic("refresh", "s18")}${th("map.reset")}</button>
+            <button class="chip toggle" data-maplinks aria-pressed="${MAP.allLinks}">${ic("link-variant", "s18")}${th("map.all_links")}</button>
             <span class="spacer"></span>
-            <div class="map-legend"><span><i style="background:var(--text)"></i>Coordinator</span><span><i style="background:var(--primary)"></i>Router</span><span><i style="background:var(--state-icon)"></i>Battery device</span><span><i style="background:var(--warning)"></i>Needs attention</span><span><b style="background:var(--success)"></b>Strong</span><span><b style="background:var(--warning)"></b>Fair</span><span><b style="background:var(--error)"></b>Weak</span></div></div>
-          <div class="map-stage"><svg class="map" id="map-${esc(bt)}" role="img" aria-label="${esc(netLabel(bt))} network map"><g class="vp"><g class="links"></g><g class="nodes"></g></g></svg>
+            <div class="map-legend"><span><i style="background:var(--text)"></i>${th("map.coordinator")}</span><span><i style="background:var(--primary)"></i>${th("map.router")}</span><span><i style="background:var(--state-icon)"></i>${th("map.battery_device")}</span><span><i style="background:var(--warning)"></i>${th("map.needs_attention")}</span><span><b style="background:var(--success)"></b>${th("signal.strong")}</span><span><b style="background:var(--warning)"></b>${th("signal.fair")}</span><span><b style="background:var(--error)"></b>${th("signal.weak")}</span></div></div>
+          <div class="map-stage"><svg class="map" id="map-${esc(bt)}" role="img" aria-label="${esc(t("map.aria", { name: netLabel(bt) }))}"><g class="vp"><g class="links"></g><g class="nodes"></g></g></svg>
             <div class="map-info" id="mapinfo-${esc(bt)}" hidden></div></div>
-          ${diff ? `<div class="map-legend" style="padding:8px 16px 0"><span><b style="background:var(--info);height:4px"></b>Changed router</span><span><b style="background:var(--success);height:4px"></b>Stronger</span><span><b style="background:var(--error);height:4px"></b>Weaker</span><span><b style="background:var(--disabled)"></b>Unchanged</span></div>` : ""}
+          ${diff ? `<div class="map-legend" style="padding:8px 16px 0"><span><b style="background:var(--info);height:4px"></b>${th("map.changed_router")}</span><span><b style="background:var(--success);height:4px"></b>${th("map.stronger")}</span><span><b style="background:var(--error);height:4px"></b>${th("map.weaker")}</span><span><b style="background:var(--disabled)"></b>${th("map.unchanged")}</span></div>` : ""}
           ${changes}
-          <div class="sub-h">Advice</div>
+          <div class="sub-h">${th("map.advice")}</div>
           <div class="advice">${advice.map((a) => `<div class="adv"><span class="state-ic" style="color:${a.sev >= 2 ? "var(--warning)" : a.sev === 1 ? "var(--info)" : "var(--success)"}">${ic(a.icon)}</span><div class="text">${a.text}</div>${a.action || ""}</div>`).join("")}</div>
         </div>`;
       }).join("")}`;
@@ -916,10 +1024,10 @@
     const parent = r.parent ? state.byIeee.get(r.parent.ieee) : null;
     const kids = state.data.devices.filter((x) => x.routing?.parent?.ieee === d.ieee).length;
     box.hidden = false;
-    box.innerHTML = `<div class="mi-head">${stateIc(d)}<div class="text"><b>${esc(nameOf(d) || (d.type === "Coordinator" ? "Coordinator" : d.ieee))}</b><small>${esc([d.area, d.type === "EndDevice" ? "Battery device" : d.type].filter(Boolean).join(" · "))}</small></div><button class="icon-btn" data-mapclose="${esc(bt)}" aria-label="Close">${ic("close", "s20")}</button></div>
-      ${kv([[d.type === "EndDevice" ? "Connects through" : null, parent ? `${nameOf(parent) || parent.ieee} (LQI ${r.parent.lqi ?? "?"})` : d.type === "EndDevice" ? "Not found" : null],
-        [d.type !== "EndDevice" ? "Battery devices using it" : null, d.type !== "EndDevice" ? kids : null], ["Signal (24 h)", lqiOf(d) === null ? null : Math.round(lqiOf(d))], ["Status", statusOf(d) !== "active" ? STATUS[statusOf(d)].label : warnings(d)[0]?.label || "Active"]].filter(([k]) => k))}
-      ${d.type !== "Coordinator" ? `<div class="row-actions"><button class="btn" data-open="${esc(d.ieee)}">Open details</button></div>` : ""}`;
+    box.innerHTML = `<div class="mi-head">${stateIc(d)}<div class="text"><b>${esc(nameOf(d) || (d.type === "Coordinator" ? t("map.coordinator") : d.ieee))}</b><small>${esc([d.area, typeLabel(d.type)].filter(Boolean).join(" · "))}</small></div><button class="icon-btn" data-mapclose="${esc(bt)}" aria-label="${esc(t("common.close"))}">${ic("close", "s20")}</button></div>
+      ${kv([[d.type === "EndDevice" ? th("map.connects_through") : null, parent ? `${nameOf(parent) || parent.ieee} (LQI ${r.parent.lqi ?? "?"})` : d.type === "EndDevice" ? t("map.not_found") : null],
+        [d.type !== "EndDevice" ? th("map.kids") : null, d.type !== "EndDevice" ? kids : null], [th("more.signal_24h"), lqiOf(d) === null ? null : Math.round(lqiOf(d))], [th("devices.col.status"), statusOf(d) !== "active" ? STATUS[statusOf(d)].label : warnings(d)[0] ? issueLabel(warnings(d)[0]) : STATUS.active.label]].filter(([k]) => k))}
+      ${d.type !== "Coordinator" ? `<div class="row-actions"><button class="btn" data-open="${esc(d.ieee)}">${th("map.open_details")}</button></div>` : ""}`;
   };
 
   const startSim = (bt, svg) => {
@@ -945,7 +1053,7 @@
     const diff = mapDiff(bt);
     const diffCol = (l) => { const st = diff.status[[l.a, l.b].sort().join("|")]; return st === "moved" ? "var(--info)" : st === "better" ? "var(--success)" : st === "worse" ? "var(--error)" : "var(--disabled)"; };
     gl.innerHTML = L.map((l, i) => { const changed = diff && diff.status[[l.a, l.b].sort().join("|")]; return `<line data-i="${i}" stroke="${diff ? diffCol(l) : lqiCol(l.lqi)}" stroke-width="${changed ? 3 : l.parent ? 1.6 : 1.1}" ${l.parent ? "" : 'stroke-dasharray="5 4"'} opacity="${diff && !changed ? 0.35 : l.parent ? 0.85 : 0.6}"><title>LQI ${esc(l.lqi ?? "?")}</title></line>`; }).join("");
-    gn.innerHTML = nodes.map((n, i) => `<g class="mnode" data-n="${i}" tabindex="0"><circle r="${n.r}" fill="${mapNodeCol(n.d)}" stroke="var(--card)" stroke-width="2"/>${n.d.type === "Coordinator" ? `<text class="c" text-anchor="middle" dy="4">C</text>` : `<text class="lbl" text-anchor="middle" dy="${-n.r - 5}">${esc((nameOf(n.d) || "").slice(0, 28))}</text>`}<title>${esc(nameOf(n.d) || (n.d.type === "Coordinator" ? "Coordinator" : n.id))}${n.d.area ? " · " + esc(n.d.area) : ""}</title></g>`).join("");
+    gn.innerHTML = nodes.map((n, i) => `<g class="mnode" data-n="${i}" tabindex="0"><circle r="${n.r}" fill="${mapNodeCol(n.d)}" stroke="var(--card)" stroke-width="2"/>${n.d.type === "Coordinator" ? `<text class="c" text-anchor="middle" dy="4">C</text>` : `<text class="lbl" text-anchor="middle" dy="${-n.r - 5}">${esc((nameOf(n.d) || "").slice(0, 28))}</text>`}<title>${esc(nameOf(n.d) || (n.d.type === "Coordinator" ? t("map.coordinator") : n.id))}${n.d.area ? " · " + esc(n.d.area) : ""}</title></g>`).join("");
     const lineEls = [...gl.children], nodeEls = [...gn.children];
     let view = MAP.view?.[bt] || { k: 1, x: 0, y: 0 };
     const applyView = () => { vp.setAttribute("transform", `translate(${view.x} ${view.y}) scale(${view.k})`); svg.classList.toggle("zoomed", view.k >= 1.4); (MAP.view ||= {})[bt] = view; };
@@ -1026,7 +1134,7 @@
 
   const renderActivity = () => {
     const events = [...(state.data.events || [])].reverse().slice(0, 500);
-    if (!events.length) { $("#view").innerHTML = `<div class="card">${emptyState("history", "No activity yet", "Joins, leaves, renames, removals, battery changes and online/offline changes appear here.")}</div>`; return; }
+    if (!events.length) { $("#view").innerHTML = `<div class="card">${emptyState("history", th("activity.empty"), th("activity.empty_text"))}</div>`; return; }
     const groups = [];
     events.forEach((e) => { const day = fmtDate(e.time, false); if (!groups.length || groups[groups.length - 1].day !== day) groups.push({ day, items: [] }); groups[groups.length - 1].items.push(e); });
     $("#view").innerHTML = `<div class="card">${groups.map((g) => `<div class="logday">${esc(g.day)}</div>` + g.items.map((e) => {
@@ -1034,7 +1142,7 @@
       const who = e.name && !IEEE_RE.test(e.name) ? e.name : nameOf(d) || e.ieee;
       const [icon, color] = EVENT_ICON(e.kind);
       return `<div class="log" ${d ? `data-open="${esc(e.ieee)}"` : ""}><span class="state-ic" style="color:${color}">${ic(icon)}</span>
-        <div class="text"><div class="t1"><b>${esc(who)}</b> ${esc(e.kind)}${e.detail ? ` · ${esc(e.detail)}` : ""}</div><div class="t2">${esc(netLabel(e.instance))} network${d?.area ? ` · ${esc(d.area)}` : ""}</div></div>
+        <div class="text"><div class="t1"><b>${esc(who)}</b> ${esc(eventKind(e.kind))}${e.detail ? ` · ${esc(eventDetail(e))}` : ""}</div><div class="t2">${th("net.network", { name: esc(netLabel(e.instance)) })}${d?.area ? ` · ${esc(d.area)}` : ""}</div></div>
         <time>${esc(fmtTime(e.time))}</time></div>`;
     }).join("")).join("")}</div>`;
   };
@@ -1042,67 +1150,69 @@
   // ------------------------------------------------------------ settings
   const renderSettings = async (refetch = true) => {
     if (refetch || !state.settings) {
-      if (!state.settings) $("#view").innerHTML = `<div class="card">${emptyState("cog", "Loading settings…", "")}</div>`;
-      try { state.settings = await api("api/settings"); } catch (err) { $("#view").innerHTML = `<div class="card">${emptyState("alert-circle", "Couldn't load settings", esc(err.message))}</div>`; return; }
+      if (!state.settings) $("#view").innerHTML = `<div class="card">${emptyState("cog", th("settings.loading"), "")}</div>`;
+      try { state.settings = await api("api/settings"); } catch (err) { $("#view").innerHTML = `<div class="card">${emptyState("alert-circle", th("settings.load_failed"), esc(err.message))}</div>`; return; }
     }
     if (state.view !== "settings") return;
     const S = state.settings, s = S.settings;
     const off = !s.alerts_enabled;
     const disabled = new Set(s.disabled_checks || []), notify = new Set(s.notify_checks || []);
-    const sw = (key, checked, title, desc, dis = false) => `<div class="set-row ${dis ? "disabled" : ""}"><div class="text"><div class="t1">${title}</div><div class="t2">${desc}</div></div><div class="ctl"><label class="switch"><input type="checkbox" data-set="${key}" ${checked ? "checked" : ""} ${dis ? "disabled" : ""} aria-label="${esc(title)}"><span class="track"></span><span class="thumb"></span></label></div></div>`;
-    const num = (key, title, desc, min, max, unit) => `<div class="set-row"><div class="text"><div class="t1">${title}</div><div class="t2">${desc}</div></div><div class="ctl"><input class="field num" type="number" data-num="${key}" min="${min}" max="${max}" value="${esc(s[key])}" aria-label="${esc(title)}"><span class="unit">${unit}</span></div></div>`;
+    const sw = (key, checked, title, desc, dis = false) => `<div class="set-row ${dis ? "disabled" : ""}"><div class="text"><div class="t1">${esc(title)}</div><div class="t2">${desc}</div></div><div class="ctl"><label class="switch"><input type="checkbox" data-set="${key}" ${checked ? "checked" : ""} ${dis ? "disabled" : ""} aria-label="${esc(title)}"><span class="track"></span><span class="thumb"></span></label></div></div>`;
+    const num = (key, title, desc, min, max, unit) => `<div class="set-row"><div class="text"><div class="t1">${esc(title)}</div><div class="t2">${desc}</div></div><div class="ctl"><input class="field num" type="number" data-num="${key}" min="${min}" max="${max}" value="${esc(s[key])}" aria-label="${esc(title)}"><span class="unit">${unit}</span></div></div>`;
     const checks = S.checks.map((c) => {
       const cur = disabled.has(c.key) ? "off" : notify.has(c.key) ? "notify" : c.event ? "off" : "show";
-      const opts = c.event ? [["off", "Off"], ["notify", "Notify"]] : [["off", "Off"], ["show", "Show in Health"], ["notify", "Show and notify"]];
+      const opts = c.event ? [["off", t("settings.check.off")], ["notify", t("settings.check.notify")]] : [["off", t("settings.check.off")], ["show", t("settings.check.show")], ["notify", t("settings.check.show_notify")]];
       const rowDis = off && c.event;
-      return `<div class="set-row ${rowDis ? "disabled" : ""}"><div class="text"><div class="t1">${esc(c.label)}</div><div class="t2">${esc(c.description)}</div></div><div class="ctl"><select class="field" data-checksel="${c.key}" data-event="${c.event ? 1 : 0}" aria-label="${esc(c.label)}" ${rowDis ? "disabled" : ""}>${opts.map(([v, l]) => `<option value="${v}" ${cur === v ? "selected" : ""} ${off && v === "notify" && cur !== "notify" ? "disabled" : ""}>${l}</option>`).join("")}</select></div></div>`;
+      return `<div class="set-row ${rowDis ? "disabled" : ""}"><div class="text"><div class="t1">${esc(checkLabel(c))}</div><div class="t2">${esc(checkDesc(c))}</div></div><div class="ctl"><select class="field" data-checksel="${c.key}" data-event="${c.event ? 1 : 0}" aria-label="${esc(checkLabel(c))}" ${rowDis ? "disabled" : ""}>${opts.map(([v, l]) => `<option value="${v}" ${cur === v ? "selected" : ""} ${off && v === "notify" && cur !== "notify" ? "disabled" : ""}>${esc(l)}</option>`).join("")}</select></div></div>`;
     }).join("");
     const nm = S.networkmap || {};
-    const scans = S.networks.map((n) => { const x = nm[n.topic] || {}; return `${netLabel(n.topic)}: ${x.running_since ? "scanning…" : x.scanned_at ? relTime(x.scanned_at) : "never"}`; }).join(" · ");
-    const hours = [`<option value="-1" ${s.networkmap_hour < 0 ? "selected" : ""}>Off (manual only)</option>`].concat([...Array(24).keys()].map((h) => `<option value="${h}" ${s.networkmap_hour === h ? "selected" : ""}>Daily at ${String(h).padStart(2, "0")}:00</option>`)).join("");
+    const scans = scanLine(S.networks.map((n) => n.topic), nm);
+    const hours = [`<option value="-1" ${s.networkmap_hour < 0 ? "selected" : ""}>${th("settings.scan_off")}</option>`].concat([...Array(24).keys()].map((h) => `<option value="${h}" ${s.networkmap_hour === h ? "selected" : ""}>${th("settings.scan_daily", { time: `${String(h).padStart(2, "0")}:00` })}</option>`)).join("");
+    const weekdays = [...Array(7).keys()].map((i) => intl((l) => new Date(Date.UTC(2024, 0, 1 + i)).toLocaleDateString(l, { weekday: "long", timeZone: "UTC" })));
     $("#view").innerHTML = `
-      <div class="card"><div class="card-header">Notifications</div>
-        ${off ? `<div class="card-content"><div class="alert" style="--a: var(--warning)">${ic("bell-off")}<div class="body"><b>Alerts are off.</b> Nothing is sent. Your choices below are kept for when you turn them back on.</div></div></div>` : ""}
-        ${sw("alerts_enabled", s.alerts_enabled, "Send alerts", "Master switch for every alert")}
-        ${sw("persistent_notifications", s.persistent_notifications, "Home Assistant notifications", "Shows in the notification panel and clears itself when fixed", off)}
-        ${sw("fire_events", s.fire_events, "Automation event", "Fires <span class='mono'>z2m_tracker_alert</span> for your automations", off)}
-        <div class="set-row ${off ? "disabled" : ""}"><div class="text"><div class="t1">Mobile notifications</div><div class="t2">Notify service, e.g. <span class="mono">notify.mobile_app_your_phone</span></div></div>
-          <div class="ctl"><input class="field" id="notifySvc" style="width:240px" value="${esc(s.notify_service || "")}" placeholder="notify.mobile_app_…" spellcheck="false" ${off ? "disabled" : ""}><button class="btn" data-act="save-notify" ${off ? "disabled" : ""}>Save</button></div></div>
-        <div class="card-actions"><button class="btn" data-act="test-notify" ${off ? "disabled" : ""}>${ic("bell", "s18")}Send test notification</button></div>
+      <div class="card"><div class="card-header">${th("settings.notifications")}</div>
+        ${off ? `<div class="card-content"><div class="alert" style="--a: var(--warning)">${ic("bell-off")}<div class="body"><b>${th("settings.alerts_off")}</b> ${th("settings.alerts_off_text")}</div></div></div>` : ""}
+        ${sw("alerts_enabled", s.alerts_enabled, t("settings.send_alerts"), th("settings.send_alerts_desc"))}
+        ${sw("persistent_notifications", s.persistent_notifications, t("settings.ha_notifications"), th("settings.ha_notifications_desc"), off)}
+        ${sw("fire_events", s.fire_events, t("settings.automation_event"), th("settings.automation_event_desc", { event: "<span class='mono'>z2m_tracker_alert</span>" }), off)}
+        <div class="set-row ${off ? "disabled" : ""}"><div class="text"><div class="t1">${th("settings.mobile")}</div><div class="t2">${th("settings.mobile_desc", { example: '<span class="mono">notify.mobile_app_your_phone</span>' })}</div></div>
+          <div class="ctl"><input class="field" id="notifySvc" style="width:240px" value="${esc(s.notify_service || "")}" placeholder="notify.mobile_app_…" spellcheck="false" ${off ? "disabled" : ""}><button class="btn" data-act="save-notify" ${off ? "disabled" : ""}>${th("common.save")}</button></div></div>
+        <div class="card-actions"><button class="btn" data-act="test-notify" ${off ? "disabled" : ""}>${ic("bell", "s18")}${th("settings.test_notification")}</button></div>
       </div>
-      <div class="card"><div class="card-header"><div>Weekly summary<small>One message a week: what needs attention, batteries to buy, new and removed devices.</small></div></div>
-        ${sw("weekly_summary", s.weekly_summary, "Send a weekly summary", "Uses your notification settings above, plus the z2m_tracker_summary event")}
-        <div class="set-row ${s.weekly_summary ? "" : "disabled"}"><div class="text"><div class="t1">When</div><div class="t2">Day and time it's sent</div></div><div class="ctl">
-          <select class="field" id="sumDay" ${s.weekly_summary ? "" : "disabled"}>${["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((n, i) => `<option value="${i}" ${s.summary_day === i ? "selected" : ""}>${n}</option>`).join("")}</select>
+      <div class="card"><div class="card-header"><div>${th("settings.weekly")}<small>${th("settings.weekly_desc")}</small></div></div>
+        ${sw("weekly_summary", s.weekly_summary, t("settings.weekly_send"), th("settings.weekly_send_desc", { event: "z2m_tracker_summary" }))}
+        <div class="set-row ${s.weekly_summary ? "" : "disabled"}"><div class="text"><div class="t1">${th("settings.when")}</div><div class="t2">${th("settings.when_desc")}</div></div><div class="ctl">
+          <select class="field" id="sumDay" ${s.weekly_summary ? "" : "disabled"}>${weekdays.map((n, i) => `<option value="${i}" ${s.summary_day === i ? "selected" : ""}>${n}</option>`).join("")}</select>
           <select class="field" id="sumHour" ${s.weekly_summary ? "" : "disabled"}>${[...Array(24).keys()].map((h) => `<option value="${h}" ${s.summary_hour === h ? "selected" : ""}>${String(h).padStart(2, "0")}:00</option>`).join("")}</select></div></div>
-        <div class="card-actions"><button class="btn" data-act="send-summary">Send one now</button></div>
+        <div class="card-actions"><button class="btn" data-act="send-summary">${th("settings.send_now")}</button></div>
       </div>
-      <div class="card"><div class="card-header"><div>Checks<small>Off stops checking. Show in Health lists it only. Show and notify also sends an alert.</small></div></div>${checks}</div>
-      <div class="card"><div class="card-header">Thresholds</div>
-        ${num("offline_alert_minutes", "Offline for", "How long a device is unavailable before it's flagged", 0, 10080, "min")}
-        ${num("frozen_alert_hours", "Reading unchanged for", "How long a reading can stay identical while the device keeps reporting", 1, 720, "h")}
-        ${num("battery_alert_percent", "Low battery at", "Battery level at or below which a device is flagged", 0, 100, "%")}
-        ${num("chatty_per_hour", "Chatty above", "Messages an hour, averaged over 6 hours, before a device counts as chatty", 60, 36000, "/h")}
+      <div class="card"><div class="card-header"><div>${th("settings.checks")}<small>${th("settings.checks_desc")}</small></div></div>${checks}</div>
+      <div class="card"><div class="card-header">${th("settings.thresholds")}</div>
+        ${num("offline_alert_minutes", t("settings.offline_for"), th("settings.offline_for_desc"), 0, 10080, th("settings.unit_min"))}
+        ${num("frozen_alert_hours", t("settings.frozen_for"), th("settings.frozen_for_desc"), 1, 720, th("settings.unit_h"))}
+        ${num("battery_alert_percent", t("settings.battery_at"), th("settings.battery_at_desc"), 0, 100, "%")}
+        ${num("chatty_per_hour", t("settings.chatty_above"), th("settings.chatty_above_desc"), 60, 36000, th("settings.unit_per_h"))}
       </div>
-      <div class="card"><div class="card-header"><div>Routing scan<small>Maps which router each device connects through. Adds network traffic for a few minutes.</small></div></div>
-        <div class="set-row"><div class="text"><div class="t1">Wi-Fi channels (2.4 GHz)</div><div class="t2">Used to check your Zigbee channels for overlap. Your router's Wi-Fi settings show the channel, e.g. 1, 6 or 11.</div></div><div class="ctl"><input class="field" id="wifiCh" style="width:120px" value="${esc(s.wifi_channels || "")}" placeholder="e.g. 9" inputmode="numeric"><button class="btn" data-act="save-wifi">Save</button></div></div>
-        <div class="set-row"><div class="text"><div class="t1">Schedule</div><div class="t2">Last scans: ${esc(scans)}</div></div><div class="ctl"><select class="field" id="scanHour">${hours}</select></div></div>
-        <div class="card-actions"><button class="btn" data-act="scan">${ic("sitemap", "s18")}Run scan now</button></div>
+      <div class="card"><div class="card-header"><div>${th("settings.routing_scan")}<small>${th("settings.routing_scan_desc")}</small></div></div>
+        <div class="set-row"><div class="text"><div class="t1">${th("settings.wifi")}</div><div class="t2">${th("settings.wifi_desc")}</div></div><div class="ctl"><input class="field" id="wifiCh" style="width:120px" value="${esc(s.wifi_channels || "")}" placeholder="${esc(t("settings.wifi_placeholder"))}" inputmode="numeric"><button class="btn" data-act="save-wifi">${th("common.save")}</button></div></div>
+        <div class="set-row"><div class="text"><div class="t1">${th("settings.schedule")}</div><div class="t2">${th("settings.last_scans", { scans: esc(scans) })}</div></div><div class="ctl"><select class="field" id="scanHour">${hours}</select></div></div>
+        <div class="card-actions"><button class="btn" data-act="scan">${ic("sitemap", "s18")}${th("settings.scan_now")}</button></div>
       </div>
-      <div class="card"><div class="card-header">Home Assistant entities</div>
-        ${sw("ha_entities", s.ha_entities, "Add entities to Zigbee devices", `${S.entities} published. Needs attention, Reading frozen, Reconfigure and Battery replaced are enabled. Signal, uptime, battery days left, battery type and Connected via are added disabled.`)}
+      <div class="card"><div class="card-header">${th("settings.entities")}</div>
+        ${sw("ha_entities", s.ha_entities, t("settings.entities_add"), th("settings.entities_desc", { n: S.entities }))}
       </div>
-      <div class="card"><div class="card-header">Ignored alerts</div>
-        ${S.muted.length ? S.muted.map((m) => `<div class="set-row"><div class="text"><div class="t1">${esc(m.name)}</div><div class="t2">${esc((S.checks.find((c) => c.key === m.kind) || {}).label || m.kind)} · ${m.until ? `until ${esc(fmtDate(m.until))}` : "forever"}</div></div><div class="ctl"><button class="btn" data-act="unmute" data-ieee="${esc(m.ieee)}" data-kind="${esc(m.kind)}">Stop ignoring</button></div></div>`).join("") + `<div class="card-actions"><button class="btn" data-act="unmute-all">Stop ignoring all</button></div>` : `<div class="set-row"><div class="text"><div class="t2">Nothing ignored.</div></div></div>`}
+      <div class="card"><div class="card-header">${th("settings.ignored")}</div>
+        ${S.muted.length ? S.muted.map((m) => { const c = S.checks.find((x) => x.key === m.kind); return `<div class="set-row"><div class="text"><div class="t1">${esc(m.name)}</div><div class="t2">${esc(c ? checkLabel(c) : m.kind)} · ${m.until ? th("settings.until", { date: esc(fmtDate(m.until)) }) : th("settings.forever")}</div></div><div class="ctl"><button class="btn" data-act="unmute" data-ieee="${esc(m.ieee)}" data-kind="${esc(m.kind)}">${th("common.stop_ignoring")}</button></div></div>`; }).join("") + `<div class="card-actions"><button class="btn" data-act="unmute-all">${th("settings.stop_ignoring_all")}</button></div>` : `<div class="set-row"><div class="text"><div class="t2">${th("settings.nothing_ignored")}</div></div></div>`}
       </div>
-      <div class="card"><div class="card-header">Appearance &amp; data</div>
-        <div class="set-row"><div class="text"><div class="t1">Theme</div><div class="t2">Saved in this browser</div></div><div class="ctl"><select class="field" id="themeSel">${THEMES.map((t) => `<option value="${t}" ${theme === t ? "selected" : ""}>${cap(t)}</option>`).join("")}</select></div></div>
-        <div class="set-row"><div class="text"><div class="t1">Import history</div><div class="t2">Re-scan Z2M databases, backups, logs and HA registries for old devices and names</div></div><div class="ctl"><button class="btn" data-act="import">Import</button></div></div>
-        <div class="set-row"><div class="text"><div class="t1">Backup</div><div class="t2">Download the tracker's full history, or restore it from a backup file. Separate from HA backups.</div></div><div class="ctl"><a class="btn" href="api/backup" download>Download</a><button class="btn" data-act="restore">Restore</button><input type="file" id="restoreFile" accept=".json,application/json" hidden></div></div>
-        <div class="set-row"><div class="text"><div class="t1">Export</div><div class="t2">Every device with hardware, battery and asset details as CSV</div></div><div class="ctl"><a class="btn" href="api/export.csv" download>Export CSV</a></div></div>
-        <div class="set-row"><div class="text"><div class="t1">Networks</div><div class="t2">${S.networks.map((n) => esc(n.topic)).join(", ")}. Add networks in the app's Configuration tab.</div></div><div class="ctl">${S.networks.filter((n) => n.panel).map((n) => `<a class="btn" href="${esc(n.panel)}" target="_top">${esc(netLabel(n.topic))}${ic("open-in-new", "s18")}</a>`).join("")}</div></div>
-        <div class="set-row"><div class="text"><div class="t1">Device details</div><div class="t2">Side panel next to the list on wide screens, or a pop-up dialog. Phones always use the dialog.</div></div><div class="ctl"><select class="field" id="layoutSel"><option value="pane" ${state.layout === "pane" ? "selected" : ""}>Side panel</option><option value="dialog" ${state.layout === "dialog" ? "selected" : ""}>Pop-up dialog</option></select></div></div>
-        <div class="set-row links"><div class="text"><div class="t1">Version</div><div class="t2">Z2M Device Tracker ${esc(S.version)}</div></div><div class="ctl">${LINKS.map(([href, label]) => `<a class="btn" href="${href}" target="_blank" rel="noopener">${label}${ic("open-in-new", "s18")}</a>`).join("")}</div></div>
+      <div class="card"><div class="card-header">${th("settings.appearance")}</div>
+        <div class="set-row"><div class="text"><div class="t1">${th("settings.language")}</div><div class="t2">${th("settings.language_desc")}</div></div><div class="ctl"><select class="field" id="langSel"><option value="auto" ${I18N.pref === "auto" ? "selected" : ""}>${th("settings.language_auto", { code: esc(I18N.auto) })}</option>${I18N.langs.map((l) => `<option value="${esc(l.code)}" ${I18N.pref === l.code ? "selected" : ""}>${esc(l.name || l.code)}</option>`).join("")}</select></div></div>
+        <div class="set-row"><div class="text"><div class="t1">${th("settings.theme")}</div><div class="t2">${th("settings.theme_desc")}</div></div><div class="ctl"><select class="field" id="themeSel">${THEMES.map((x) => `<option value="${x}" ${theme === x ? "selected" : ""}>${th(`theme.${x}`)}</option>`).join("")}</select></div></div>
+        <div class="set-row"><div class="text"><div class="t1">${th("menu.import_history")}</div><div class="t2">${th("settings.import_desc")}</div></div><div class="ctl"><button class="btn" data-act="import">${th("common.import")}</button></div></div>
+        <div class="set-row"><div class="text"><div class="t1">${th("settings.backup")}</div><div class="t2">${th("settings.backup_desc")}</div></div><div class="ctl"><a class="btn" href="api/backup" download>${th("common.download")}</a><button class="btn" data-act="restore">${th("common.restore")}</button><input type="file" id="restoreFile" accept=".json,application/json" hidden></div></div>
+        <div class="set-row"><div class="text"><div class="t1">${th("settings.export")}</div><div class="t2">${th("settings.export_desc")}</div></div><div class="ctl"><a class="btn" href="api/export.csv" download>${th("menu.export_csv")}</a></div></div>
+        <div class="set-row"><div class="text"><div class="t1">${th("settings.networks")}</div><div class="t2">${th("settings.networks_desc", { topics: S.networks.map((n) => esc(n.topic)).join(", ") })}</div></div><div class="ctl">${S.networks.filter((n) => n.panel).map((n) => `<a class="btn" href="${esc(n.panel)}" target="_top">${esc(netLabel(n.topic))}${ic("open-in-new", "s18")}</a>`).join("")}</div></div>
+        <div class="set-row"><div class="text"><div class="t1">${th("settings.details")}</div><div class="t2">${th("settings.details_desc")}</div></div><div class="ctl"><select class="field" id="layoutSel"><option value="pane" ${state.layout === "pane" ? "selected" : ""}>${th("settings.side_panel")}</option><option value="dialog" ${state.layout === "dialog" ? "selected" : ""}>${th("settings.popup")}</option></select></div></div>
+        <div class="set-row links"><div class="text"><div class="t1">${th("settings.version")}</div><div class="t2">Z2M Device Tracker ${esc(S.version)}</div></div><div class="ctl">${LINKS.map(([href, label]) => `<a class="btn" href="${href}" target="_blank" rel="noopener">${th(label)}${ic("open-in-new", "s18")}</a>`).join("")}</div></div>
       </div>`;
   };
   const saveSettings = async (changes) => {
@@ -1110,14 +1220,14 @@
       const res = await api("api/settings", { changes });
       state.settings = res;
       renderSettings(false);
-      snack(res.persisted ? "Saved" : "Applied, but couldn't save to the app configuration. It resets on restart.", res.persisted ? 1600 : 5000);
+      snack(res.persisted ? t("common.saved") : t("settings.not_persisted"), res.persisted ? 1600 : 5000);
       load();
-    } catch (err) { snack(`Couldn't save: ${err.message}`, 4000); renderSettings(false); }
+    } catch (err) { snack(t("settings.save_failed", { error: err.message }), 4000); renderSettings(false); }
   };
 
   // ------------------------------------------------------------ more-info dialog
   const sparkline = (points, { min = null, max = null, color = "var(--primary)" } = {}) => {
-    if (!points || points.length < 2) return `<div class="card-content muted">Not enough data yet. This fills in as readings arrive.</div>`;
+    if (!points || points.length < 2) return `<div class="card-content muted">${th("more.no_chart")}</div>`;
     const W = 500, H = 120, pad = 6;
     const xs = points.map((p) => p[0]), ys = points.map((p) => p[1]);
     const x0 = Math.min(...xs), x1 = Math.max(...xs), lo = min ?? Math.min(...ys), hi = max ?? Math.max(...ys);
@@ -1138,50 +1248,50 @@
     const u = d.update || {};
     const r = d.routing;
     const lqi = lqiOf(d), power = powerOf(d);
-    const bigState = st !== "active" ? STATUS[st].label : warnings(d)[0]?.label || "Active";
+    const bigState = st !== "active" ? STATUS[st].label : warnings(d)[0] ? issueLabel(warnings(d)[0]) : STATUS.active.label;
     return `
-      <div class="more-hero">${stateIc(d)}<div class="big">${esc(bigState)}</div><div class="sub">Last seen ${esc(relTime(d.last_seen).toLowerCase())}</div></div>
+      <div class="more-hero">${stateIc(d)}<div class="big">${esc(bigState)}</div><div class="sub">${th("more.last_seen", { when: esc(relTime(d.last_seen, true)) })}</div></div>
       <div class="more-actions">
-        ${d.status !== "removed" ? `<button class="btn outlined" data-act="reconfigure" data-ieee="${esc(d.ieee)}">${ic("refresh", "s18")}Reconfigure</button><button class="btn outlined" data-act="rename">${ic("pencil", "s18")}Rename or set area</button>` : ""}
-        ${d.status !== "removed" && d.type === "EndDevice" ? `<button class="btn outlined" data-act="move" data-ieee="${esc(d.ieee)}">${ic("swap-horizontal", "s18")}Change router</button>` : ""}
-        ${d.model && d.supported !== false ? `<a class="btn outlined" href="https://www.zigbee2mqtt.io/devices/${encodeURIComponent(String(d.model).replace(/\//g, "_"))}.html" target="_blank" rel="noopener">${ic("information-outline", "s18")}Docs</a>` : ""}
-        ${d.ha_device_id ? `<a class="btn outlined" href="/config/devices/device/${esc(d.ha_device_id)}" target="_top">${ic("home-assistant", "s18")}Device page</a>` : ""}
+        ${d.status !== "removed" ? `<button class="btn outlined" data-act="reconfigure" data-ieee="${esc(d.ieee)}">${ic("refresh", "s18")}${th("common.reconfigure")}</button><button class="btn outlined" data-act="rename">${ic("pencil", "s18")}${th("more.rename")}</button>` : ""}
+        ${d.status !== "removed" && d.type === "EndDevice" ? `<button class="btn outlined" data-act="move" data-ieee="${esc(d.ieee)}">${ic("swap-horizontal", "s18")}${th("more.change_router")}</button>` : ""}
+        ${d.model && d.supported !== false ? `<a class="btn outlined" href="https://www.zigbee2mqtt.io/devices/${encodeURIComponent(String(d.model).replace(/\//g, "_"))}.html" target="_blank" rel="noopener">${ic("information-outline", "s18")}${th("more.docs")}</a>` : ""}
+        ${d.ha_device_id ? `<a class="btn outlined" href="/config/devices/device/${esc(d.ha_device_id)}" target="_top">${ic("home-assistant", "s18")}${th("more.device_page")}</a>` : ""}
         ${state.data.panels?.[d.instance] && d.status !== "removed" ? `<a class="btn outlined" href="${esc(state.data.panels[d.instance])}" target="_top">${ic("zigbee", "s18")}Zigbee2MQTT</a>` : ""}
       </div>
-      ${u.state === "updating" ? `<div class="alerts"><div class="alert" style="--a:var(--info)">${ic("chip")}<div class="body"><b>Updating firmware${u.progress !== undefined && u.progress !== null ? ` · ${Math.round(u.progress)} %` : ""}</b>${u.remaining ? ` · about ${span(u.remaining)} left` : ""}. Keep the device powered and in range.<div class="bar"><i style="width:${Math.max(2, Math.min(100, u.progress || 0))}%"></i></div></div></div></div>` : ""}
-      ${u.state === "available" && d.status !== "removed" ? `<div class="alerts"><div class="alert" style="--a:var(--info)">${ic("chip")}<div class="body"><b>Firmware update available</b> · ${esc(u.installed_version)} → ${esc(u.latest_version)}</div><button class="btn" data-act="ota-update">Update</button></div></div>` : ""}
-      <div class="alerts">${(d.issues || []).map((i) => `<div class="alert" style="--a:${i.severity === "warning" ? "var(--warning)" : "var(--info)"}">${ic(KIND_ICON[i.kind] || "alert")}<div class="body"><b>${esc(i.title)}.</b> ${esc(i.detail)}</div>${issueActions(i)}</div>`).join("")}
-        ${st === "removed" ? `<div class="alert" style="--a:var(--text-2)">${ic("information-outline")}<div class="body"><b>Removed from Zigbee2MQTT</b> ${d.removed_at ? `on ${esc(fmtDate(d.removed_at))}` : "(date not recorded)"}.${d.successor ? ` Replaced by ${devLink(d.successor)}.` : ""}</div></div>` : ""}</div>
-      ${kv([["Model", deviceLine(d) || "Unknown"], ["Description", d.description], ["Area", d.area], ["Network", netLabel(d.instance)], ["Signal (24 h)", lqi === null ? null : Math.round(lqi)],
-        ["Battery", typeof d.battery === "number" ? `${Math.round(d.battery)} %` : power], ["First seen", fmtDate(d.first_seen) || "Unknown"], ["Last seen", fmtDate(d.last_seen) || "Never"],
-        ["Availability", d.availability ? `${cap(d.availability)} since ${fmtDate(d.availability_since)}` : null], ["IEEE address", d.ieee, true], ["Zigbee model ID", d.model_id, true], ["Manufacturer", d.manufacturer, true],
-        ["Radio maker", d.oui_vendor], ["Type", d.type], ["Power source", d.power_source], ["Firmware", [d.software_build_id, d.date_code].filter(Boolean).join(" · ")],
-        ["OTA", u.installed_version !== undefined && u.installed_version !== -1 ? `${u.installed_version}${u.state === "available" ? ` → ${u.latest_version} available` : " (latest)"}` : null],
-        ["Interview", d.interview_state ? cap(d.interview_state.toLowerCase().replace(/_/g, " ")) : null], ["HA name", d.ha_name]])}
-      ${d.status !== "removed" && u.installed_version !== undefined && u.installed_version !== -1 && u.state !== "updating" ? `<div class="row-actions"><button class="btn" data-act="ota-check">${ic("refresh", "s18")}Check for firmware update</button></div>` : ""}
-      <div class="sub-h">Routing</div>
-      ${r ? kv([[d.type === "EndDevice" ? "Connects through" : "Child devices", d.type === "EndDevice" ? (r.parent ? nameOf(state.byIeee.get(r.parent.ieee)) || r.parent.ieee : "Not found in scan") : r.children], ["Depth", r.depth], ["Scanned", fmtDate(r.scanned_at)]]) +
+      ${u.state === "updating" ? `<div class="alerts"><div class="alert" style="--a:var(--info)">${ic("chip")}<div class="body"><b>${th("more.updating")}${u.progress !== undefined && u.progress !== null ? ` · ${Math.round(u.progress)} %` : ""}</b>${u.remaining ? ` · ${th("more.time_left", { duration: esc(span(u.remaining)) })}` : ""}. ${th("more.keep_powered")}<div class="bar"><i style="width:${Math.max(2, Math.min(100, u.progress || 0))}%"></i></div></div></div></div>` : ""}
+      ${u.state === "available" && d.status !== "removed" ? `<div class="alerts"><div class="alert" style="--a:var(--info)">${ic("chip")}<div class="body"><b>${th("issue.update.title")}</b> · ${esc(u.installed_version)} → ${esc(u.latest_version)}</div><button class="btn" data-act="ota-update">${th("common.update")}</button></div></div>` : ""}
+      <div class="alerts">${(d.issues || []).map((i) => `<div class="alert" style="--a:${i.severity === "warning" ? "var(--warning)" : "var(--info)"}">${ic(KIND_ICON[i.kind] || "alert")}<div class="body"><b>${esc(issueTitle(i))}.</b> ${esc(issueDetail(i))}</div>${issueActions(i)}</div>`).join("")}
+        ${st === "removed" ? `<div class="alert" style="--a:var(--text-2)">${ic("information-outline")}<div class="body"><b>${th("more.removed")}</b> ${d.removed_at ? th("more.removed_on", { date: esc(fmtDate(d.removed_at)) }) : th("more.removed_no_date")}.${d.successor ? ` ${th("more.replaced_by", { device: devLink(d.successor) })}.` : ""}</div></div>` : ""}</div>
+      ${kv([[th("devices.col.model"), deviceLine(d) || t("common.unknown")], [th("more.description"), d.description], [th("devices.col.area"), d.area], [th("more.network"), netLabel(d.instance)], [th("more.signal_24h"), lqi === null ? null : Math.round(lqi)],
+        [th("devices.col.battery"), typeof d.battery === "number" ? `${Math.round(d.battery)} %` : power], [th("more.first_seen"), fmtDate(d.first_seen) || t("common.unknown")], [th("devices.col.last_seen"), fmtDate(d.last_seen) || t("time.never")],
+        [th("more.availability"), d.availability ? t("more.availability_since", { state: tx(`more.availability.${d.availability}`, null, cap(d.availability)), date: fmtDate(d.availability_since) }) : null], [th("more.ieee"), d.ieee, true], [th("more.model_id"), d.model_id, true], [th("more.manufacturer"), d.manufacturer, true],
+        [th("more.radio_maker"), d.oui_vendor], [th("more.type"), typeLabel(d.type)], [th("more.power_source"), d.power_source], [th("more.firmware"), [d.software_build_id, d.date_code].filter(Boolean).join(" · ")],
+        [th("more.ota"), u.installed_version !== undefined && u.installed_version !== -1 ? (u.state === "available" ? t("more.ota_available", { installed: u.installed_version, latest: u.latest_version }) : t("more.ota_latest", { installed: u.installed_version })) : null],
+        [th("more.interview"), d.interview_state ? tx(`more.interview.${d.interview_state.toLowerCase()}`, null, cap(d.interview_state.toLowerCase().replace(/_/g, " "))) : null], [th("more.ha_name"), d.ha_name]])}
+      ${d.status !== "removed" && u.installed_version !== undefined && u.installed_version !== -1 && u.state !== "updating" ? `<div class="row-actions"><button class="btn" data-act="ota-check">${ic("refresh", "s18")}${th("more.ota_check")}</button></div>` : ""}
+      <div class="sub-h">${th("more.routing")}</div>
+      ${r ? kv([[d.type === "EndDevice" ? th("map.connects_through") : th("more.children"), d.type === "EndDevice" ? (r.parent ? nameOf(state.byIeee.get(r.parent.ieee)) || r.parent.ieee : t("more.not_in_scan")) : r.children], [th("more.depth"), r.depth], [th("more.scanned"), fmtDate(r.scanned_at)]]) +
         (r.neighbours?.length ? `<div class="rep-list">${r.neighbours.slice(0, 6).map((n) => `<div><span>${devLink(n.ieee)}</span><span class="muted">LQI ${esc(n.lqi ?? "?")}</span></div>`).join("")}</div>` : "")
-        : `<div class="card-content muted">Not scanned yet. The routing scan runs nightly, or start one from the menu.</div>`}
+        : `<div class="card-content muted">${th("more.not_scanned")}</div>`}
       ${tabTraffic(d)}
-      ${d.features?.length ? `<div class="sub-h">Capabilities</div><div class="caps">${d.features.map((f) => `<span>${esc(f)}</span>`).join("")}</div>` : ""}`;
+      ${d.features?.length ? `<div class="sub-h">${th("more.capabilities")}</div><div class="caps">${d.features.map((f) => `<span>${esc(f)}</span>`).join("")}</div>` : ""}`;
   };
 
   const tabTraffic = (d) => {
     if (d.status === "removed" || d.type === "Coordinator") return "";
     const m = d.metrics || {}, z = d.z2m_stats || {};
     const rate = m.msg_rate_6h;
-    const counting = rate === undefined && m.msg_24h === undefined ? `<div class="card-content muted">Message counts start from the last app update. Nothing received from this device since then.</div>` : "";
-    const traffic = counting + kv([["Messages, last 6 h", rate !== undefined ? `${Math.round(rate)} an hour${rate ? ` (one every ${rate >= 3600 ? "<1" : Math.round(3600 / rate)} s)` : ""}` : null],
-      ["Usual rate", m.msg_rate_prev !== undefined ? `${Math.round(m.msg_rate_prev)} an hour` : null], ["Messages, last 24 h", m.msg_24h],
-      ["Since Zigbee2MQTT started", z.messages !== undefined && z.messages !== null ? `${z.messages} messages · left ${z.leave_count ?? 0}× · address changed ${z.nwk_changes ?? 0}×` : null]]);
+    const counting = rate === undefined && m.msg_24h === undefined ? `<div class="card-content muted">${th("traffic.counting")}</div>` : "";
+    const traffic = counting + kv([[th("traffic.last_6h"), rate !== undefined ? t("traffic.per_hour", { n: Math.round(rate) }) + (rate ? ` ${t("traffic.one_every", { s: rate >= 3600 ? "<1" : Math.round(3600 / rate) })}` : "") : null],
+      [th("traffic.usual"), m.msg_rate_prev !== undefined ? t("traffic.per_hour", { n: Math.round(m.msg_rate_prev) }) : null], [th("traffic.last_24h"), m.msg_24h],
+      [th("traffic.since_start"), z.messages !== undefined && z.messages !== null ? t("traffic.since_start_value", { n: z.messages, left: z.leave_count ?? 0, changed: z.nwk_changes ?? 0 }) : null]]);
     const lost = d.lost_bindings || [];
     const bindings = d.bindings;
-    const label = (b) => { const t = b.target || ""; if (t.startsWith("group:")) { const g = t.slice(6); return `group ${esc(state.data.groups?.[d.instance]?.[g] || g)}`; } const [ieee, ep] = t.split("/"); const o = state.byIeee.get(ieee); return o?.type === "Coordinator" ? "Coordinator" : `${devLink(ieee)}${ep && ep !== "1" && ep !== "None" ? ` (endpoint ${esc(ep)})` : ""}`; };
-    const list = bindings === null || bindings === undefined ? `<div class="card-content muted">Not reported by Zigbee2MQTT yet.</div>`
-      : !bindings.length && !lost.length ? `<div class="card-content muted">No bindings.</div>`
-      : `<div class="rep-list">${bindings.map((b) => `<div><span>${esc(b.cluster)} → ${label(b)}</span><span class="muted">endpoint ${esc(b.ep)}</span></div>`).join("")}${lost.map((b) => `<div><span style="color:var(--error)">${esc(b.cluster)} → ${label(b)}</span><span class="muted">lost ${esc(relTime(b.lost_at).toLowerCase())}</span></div>`).join("")}</div>`;
-    return `<div class="sub-h">Traffic</div>${traffic}<div class="sub-h">Bindings</div>${list}`;
+    const label = (b) => { const tgt = b.target || ""; if (tgt.startsWith("group:")) { const g = tgt.slice(6); return th("bindings.group", { name: esc(state.data.groups?.[d.instance]?.[g] || g) }); } const [ieee, ep] = tgt.split("/"); const o = state.byIeee.get(ieee); return o?.type === "Coordinator" ? th("map.coordinator") : `${devLink(ieee)}${ep && ep !== "1" && ep !== "None" ? ` (${th("bindings.endpoint", { ep: esc(ep) })})` : ""}`; };
+    const list = bindings === null || bindings === undefined ? `<div class="card-content muted">${th("bindings.not_reported")}</div>`
+      : !bindings.length && !lost.length ? `<div class="card-content muted">${th("bindings.none")}</div>`
+      : `<div class="rep-list">${bindings.map((b) => `<div><span>${esc(b.cluster)} → ${label(b)}</span><span class="muted">${th("bindings.endpoint", { ep: esc(b.ep) })}</span></div>`).join("")}${lost.map((b) => `<div><span style="color:var(--error)">${esc(b.cluster)} → ${label(b)}</span><span class="muted">${th("bindings.lost", { when: esc(relTime(b.lost_at, true)) })}</span></div>`).join("")}</div>`;
+    return `<div class="sub-h">${th("traffic.title")}</div>${traffic}<div class="sub-h">${th("bindings.title")}</div>${list}`;
   };
 
   const tabHealth = (d) => {
@@ -1189,14 +1299,14 @@
     const outages = [...(d.outages || [])].reverse().slice(0, 8);
     const readings = Object.entries(d.readings || {});
     return `
-      <div class="sub-h">Signal, last 7 days</div>
-      ${kv([["Now", d.lqi ?? "—"], ["24 h average", m.lqi_24h ?? "—"], ["Previous week", m.lqi_prev_7d ?? "—"]])}
+      <div class="sub-h">${th("dhealth.signal")}</div>
+      ${kv([[th("dhealth.now"), d.lqi ?? "—"], [th("dhealth.avg_24h"), m.lqi_24h ?? "—"], [th("dhealth.prev_week"), m.lqi_prev_7d ?? "—"]])}
       ${sparkline(m.lqi_spark, { min: 0, max: 255 })}
-      <div class="sub-h">Availability${d.uptime_30d !== null && d.uptime_30d !== undefined ? ` · ${d.uptime_30d} % over 30 days` : ""}</div>
-      ${outages.length ? `<div class="rep-list">${outages.map((o) => { const s = (new Date(o.end || Date.now()) - new Date(o.start)) / 1000; return `<div><span>${esc(fmtDate(o.start))}</span><span class="muted">${o.end ? span(s) : `ongoing · ${span(s)}`}</span></div>`; }).join("")}</div>` : `<div class="card-content muted">No outages recorded${d.availability ? "" : " (Z2M availability isn't reporting this device)"}.</div>`}
-      <div class="sub-h">Monitored readings</div>
-      ${readings.length ? `<div class="rep-list">${readings.map(([k, r]) => `<div><span>${esc(cap(k.replace(/_/g, " ")))}: ${esc(r.value)}</span><span class="muted">changed ${esc(relTime(r.changed_at).toLowerCase())} · ${esc(r.reports)} reports since</span></div>`).join("")}</div>` : `<div class="card-content muted">No temperature, humidity, pressure or air-quality readings to watch.</div>`}
-      ${(d.muted || []).length ? `<div class="sub-h">Ignored alerts</div><div class="rep-list">${d.muted.map((k) => `<div><span>${esc(cap(k.replace(/_/g, " ")))}</span><button class="btn" data-act="unmute" data-ieee="${esc(d.ieee)}" data-kind="${esc(k)}">Stop ignoring</button></div>`).join("")}</div>` : ""}`;
+      <div class="sub-h">${th("more.availability")}${d.uptime_30d !== null && d.uptime_30d !== undefined ? ` · ${th("dhealth.uptime", { percent: d.uptime_30d })}` : ""}</div>
+      ${outages.length ? `<div class="rep-list">${outages.map((o) => { const s = (new Date(o.end || Date.now()) - new Date(o.start)) / 1000; return `<div><span>${esc(fmtDate(o.start))}</span><span class="muted">${o.end ? esc(span(s)) : th("dhealth.ongoing", { duration: esc(span(s)) })}</span></div>`; }).join("")}</div>` : `<div class="card-content muted">${th(d.availability ? "dhealth.no_outages" : "dhealth.no_outages_no_avail")}</div>`}
+      <div class="sub-h">${th("dhealth.readings")}</div>
+      ${readings.length ? `<div class="rep-list">${readings.map(([k, r]) => `<div><span>${esc(readingName(k))}: ${esc(r.value)}</span><span class="muted">${th("dhealth.changed", { when: esc(relTime(r.changed_at, true)), n: esc(r.reports) })}</span></div>`).join("")}</div>` : `<div class="card-content muted">${th("dhealth.no_readings")}</div>`}
+      ${(d.muted || []).length ? `<div class="sub-h">${th("settings.ignored")}</div><div class="rep-list">${d.muted.map((k) => `<div><span>${esc(tx(`check.${k}.label`, null, cap(k.replace(/_/g, " "))))}</span><button class="btn" data-act="unmute" data-ieee="${esc(d.ieee)}" data-kind="${esc(k)}">${th("common.stop_ignoring")}</button></div>`).join("")}</div>` : ""}`;
   };
 
   const tabBattery = (d) => {
@@ -1205,20 +1315,20 @@
     const reps = (rec.replacements || []).map((r, i) => [r, i]).reverse();
     return `
       <div class="more-hero"><span class="state-ic" style="color:${batColor(d.battery)}">${ic("battery")}</span><div class="big">${typeof d.battery === "number" ? `${Math.round(d.battery)} %` : "—"}</div>
-        <div class="sub">${est === null || est === undefined ? "Not enough history for an estimate yet" : est <= 0 ? "Due for replacement now" : `About ${Math.round(est)} days until 10 %`}</div></div>
-      <div class="more-actions"><button class="btn filled" data-act="battery-replaced">${ic("battery-sync", "s18")}Battery replaced</button></div>
+        <div class="sub">${est === null || est === undefined ? th("battery.no_estimate") : est <= 0 ? th("battery.due_now") : th("battery.days_left", { n: Math.round(est) })}</div></div>
+      <div class="more-actions"><button class="btn filled" data-act="battery-replaced">${ic("battery-sync", "s18")}${th("battery.replaced")}</button></div>
       ${sparkline(m.battery_spark, { min: 0, max: 100, color: batColor(d.battery) })}
-      <div class="sub-h">Battery details${rec.source === "battery_notes" ? " · from Battery Notes" : rec.source === "library" ? " · suggested by the Battery Notes library" : ""}</div>
+      <div class="sub-h">${th("battery.details")}${rec.source === "battery_notes" ? ` · ${th("battery.from_bn")}` : rec.source === "library" ? ` · ${th("battery.from_library")}` : ""}</div>
       <form class="form" id="batForm" onsubmit="return false">
-        <label>Battery type<input class="field" name="type" list="batTypes" value="${esc(rec.type || "")}" placeholder="CR2032, AAA…" autocomplete="off"></label>
-        <label>Quantity<input class="field" name="quantity" type="number" min="1" max="20" value="${esc(rec.quantity ?? "")}" placeholder="1"></label>
-        <label class="wide">First installed<input class="field" name="installed" type="date" value="${esc(rec.installed || "")}"></label>
+        <label>${th("battery.type")}<input class="field" name="type" list="batTypes" value="${esc(rec.type || "")}" placeholder="CR2032, AAA…" autocomplete="off"></label>
+        <label>${th("battery.quantity")}<input class="field" name="quantity" type="number" min="1" max="20" value="${esc(rec.quantity ?? "")}" placeholder="1"></label>
+        <label class="wide">${th("battery.installed")}<input class="field" name="installed" type="date" value="${esc(rec.installed || "")}"></label>
       </form>
-      <datalist id="batTypes">${["CR2032", "CR2450", "CR2477", "CR1632", "CR123A", "AAA", "AA", "18650", "Rechargeable (built-in)"].map((t) => `<option value="${t}"></option>`).join("")}</datalist>
-      <div class="row-actions"><button class="btn" data-act="save-battery">Save</button><span class="saved" id="savedBat">Saved</span></div>
-      <div class="sub-h">Replacement history</div>
-      ${reps.length ? `<div class="rep-list">${reps.map(([r, i]) => `<div><span>${esc(fmtDate(r.date, false))} <span class="muted">· ${esc(r.source)}${r.note ? ` · ${esc(r.note)}` : ""}</span></span><button class="icon-btn" data-act="bat-remove" data-index="${i}" aria-label="Remove entry">${ic("delete", "s20")}</button></div>`).join("")}</div>`
-        : `<div class="card-content muted">${rec.last_replaced ? `Last replaced ${esc(fmtDate(rec.last_replaced, false))} (Battery Notes).` : "No replacements recorded yet."}</div>`}`;
+      <datalist id="batTypes">${["CR2032", "CR2450", "CR2477", "CR1632", "CR123A", "AAA", "AA", "18650", t("battery.rechargeable")].map((x) => `<option value="${esc(x)}"></option>`).join("")}</datalist>
+      <div class="row-actions"><button class="btn" data-act="save-battery">${th("common.save")}</button><span class="saved" id="savedBat">${th("common.saved")}</span></div>
+      <div class="sub-h">${th("battery.history")}</div>
+      ${reps.length ? `<div class="rep-list">${reps.map(([r, i]) => `<div><span>${esc(fmtDate(r.date, false))} <span class="muted">· ${esc(r.source)}${r.note ? ` · ${esc(r.note)}` : ""}</span></span><button class="icon-btn" data-act="bat-remove" data-index="${i}" aria-label="${esc(t("battery.remove_entry"))}">${ic("delete", "s20")}</button></div>`).join("")}</div>`
+        : `<div class="card-content muted">${rec.last_replaced ? th("battery.last_replaced_bn", { date: esc(fmtDate(rec.last_replaced, false)) }) : th("battery.no_replacements")}</div>`}`;
   };
 
   const tabHistory = (d) => {
@@ -1226,44 +1336,44 @@
     const events = (state.data.events || []).filter((e) => e.ieee === d.ieee).slice(-30).reverse();
     const removed = visible().filter((x) => x.status === "removed" && x.ieee !== d.ieee && !x.successor).sort((a, b) => collator.compare(nameOf(a) || "~", nameOf(b) || "~"));
     let lineage = "";
-    if (d.successor) lineage += `<div><span>Replaced by ${devLink(d.successor)}</span><button class="btn" data-act="unlink" data-old="${esc(d.ieee)}" data-new="${esc(d.successor)}">Unlink</button></div>`;
-    (d.predecessors || []).forEach((p) => { lineage += `<div><span>Replaces ${devLink(p)}</span><button class="btn" data-act="unlink" data-old="${esc(p)}" data-new="${esc(d.ieee)}">Unlink</button></div>`; });
-    const sugg = (d.suggestions || []).map((s) => `<div class="alert" style="--a:var(--info)">${ic("link-variant")}<div class="body">Possibly replaces <b>${esc(s.name || s.ieee)}</b>, removed ${esc(fmtDate(s.removed_at, false) || "earlier")}.</div><button class="btn" data-act="link" data-old="${esc(s.ieee)}" data-new="${esc(d.ieee)}">Link</button></div>`).join("");
+    if (d.successor) lineage += `<div><span>${th("more.replaced_by", { device: devLink(d.successor) })}</span><button class="btn" data-act="unlink" data-old="${esc(d.ieee)}" data-new="${esc(d.successor)}">${th("common.unlink")}</button></div>`;
+    (d.predecessors || []).forEach((p) => { lineage += `<div><span>${th("history.replaces", { device: devLink(p) })}</span><button class="btn" data-act="unlink" data-old="${esc(p)}" data-new="${esc(d.ieee)}">${th("common.unlink")}</button></div>`; });
+    const sugg = (d.suggestions || []).map((s) => `<div class="alert" style="--a:var(--info)">${ic("link-variant")}<div class="body">${th("history.possibly_replaces", { name: `<b>${esc(s.name || s.ieee)}</b>`, date: esc(fmtDate(s.removed_at, false) || t("history.earlier")) })}</div><button class="btn" data-act="link" data-old="${esc(s.ieee)}" data-new="${esc(d.ieee)}">${th("common.link")}</button></div>`).join("");
     return `
-      <div class="sub-h">Names</div>
-      ${names.length ? `<ul class="names">${names.map((n) => { const now = n.name === d.friendly_name && d.status !== "removed"; return `<li class="${now ? "now" : ""}">${ic(now ? "check" : "pencil", "s20")}<div><div class="t1">${esc(n.name)}${now ? " (current)" : ""}</div><div class="t2">${esc(`${n.from ? fmtDate(n.from, false) : "Unknown"} – ${n.until ? fmtDate(n.until, false) : now ? "present" : "unknown"}`)} · ${esc(n.source || "")}</div></div></li>`; }).join("")}</ul>` : `<div class="card-content muted">Never named.</div>`}
-      <div class="sub-h">Replacements</div>
+      <div class="sub-h">${th("history.names")}</div>
+      ${names.length ? `<ul class="names">${names.map((n) => { const now = n.name === d.friendly_name && d.status !== "removed"; return `<li class="${now ? "now" : ""}">${ic(now ? "check" : "pencil", "s20")}<div><div class="t1">${esc(n.name)}${now ? ` ${th("history.current")}` : ""}</div><div class="t2">${esc(`${n.from ? fmtDate(n.from, false) : t("common.unknown")} – ${n.until ? fmtDate(n.until, false) : now ? t("history.present") : t("history.unknown_lower")}`)} · ${esc(n.source || "")}</div></div></li>`; }).join("")}</ul>` : `<div class="card-content muted">${th("history.never_named")}</div>`}
+      <div class="sub-h">${th("history.replacements")}</div>
       ${sugg ? `<div class="alerts">${sugg}</div>` : ""}
-      ${lineage ? `<div class="rep-list">${lineage}</div>` : !sugg ? `<div class="card-content muted">Not linked to any other device.</div>` : ""}
-      ${d.status !== "removed" && removed.length ? `<div class="row-actions"><select class="field" id="linkSel" style="flex:1;min-width:0"><option value="">Link a removed device this replaces…</option>${removed.map((x) => `<option value="${esc(x.ieee)}">${esc(nameOf(x) || x.ieee)}${x.removed_at ? ` · removed ${esc(fmtDate(x.removed_at, false))}` : ""}</option>`).join("")}</select><button class="btn" data-act="link-sel">Link</button></div>` : ""}
-      <div class="sub-h">Logbook</div>
-      ${events.length ? events.map((e) => { const [icon, color] = EVENT_ICON(e.kind); return `<div class="log" style="cursor:default"><span class="state-ic" style="color:${color}">${ic(icon)}</span><div class="text"><div class="t1">${esc(cap(e.kind))}${e.detail ? ` · ${esc(e.detail)}` : ""}</div><div class="t2">${esc(fmtDate(e.time))}</div></div></div>`; }).join("") : `<div class="card-content muted">Nothing logged yet.</div>`}`;
+      ${lineage ? `<div class="rep-list">${lineage}</div>` : !sugg ? `<div class="card-content muted">${th("history.not_linked")}</div>` : ""}
+      ${d.status !== "removed" && removed.length ? `<div class="row-actions"><select class="field" id="linkSel" style="flex:1;min-width:0"><option value="">${th("history.link_removed")}</option>${removed.map((x) => `<option value="${esc(x.ieee)}">${esc(nameOf(x) || x.ieee)}${x.removed_at ? ` · ${th("history.removed_on", { date: esc(fmtDate(x.removed_at, false)) })}` : ""}</option>`).join("")}</select><button class="btn" data-act="link-sel">${th("common.link")}</button></div>` : ""}
+      <div class="sub-h">${th("history.logbook")}</div>
+      ${events.length ? events.map((e) => { const [icon, color] = EVENT_ICON(e.kind); return `<div class="log" style="cursor:default"><span class="state-ic" style="color:${color}">${ic(icon)}</span><div class="text"><div class="t1">${esc(cap(eventKind(e.kind)))}${e.detail ? ` · ${esc(eventDetail(e))}` : ""}</div><div class="t2">${esc(fmtDate(e.time))}</div></div></div>`; }).join("") : `<div class="card-content muted">${th("history.nothing_logged")}</div>`}`;
   };
 
   const tabAsset = (d) => {
     const a = d.asset || {};
-    const f = (k, l, type = "text", cls = "") => `<label class="${cls}">${l}<input class="field" name="${k}" type="${type}" value="${esc(a[k] || "")}" autocomplete="off"></label>`;
+    const f = (k, key, type = "text", cls = "") => `<label class="${cls}">${th(key)}<input class="field" name="${k}" type="${type}" value="${esc(a[k] || "")}" autocomplete="off"></label>`;
     return `
-      <div class="sub-h">Asset details</div>
-      <form class="form" id="assetForm" onsubmit="return false">${f("location", "Location", "text", "wide")}${f("purchase_date", "Purchased", "date")}${f("warranty_until", "Warranty until", "date")}${f("shop", "Bought from")}${f("price", "Price")}${f("serial", "Serial number", "text", "wide")}</form>
-      <div class="row-actions"><button class="btn" data-act="save-asset">Save</button><span class="saved" id="savedAsset">Saved</span></div>
-      <div class="sub-h">Notes</div>
-      <div class="form"><label class="wide"><textarea class="field" id="note" placeholder="What is this device, where is it, why was it removed?">${esc(d.note || "")}</textarea></label></div>
-      <div class="row-actions"><button class="btn" data-act="save-note">Save note</button><span class="saved" id="savedNote">Saved</span><span class="spacer"></span><button class="btn danger" data-act="forget">${ic("delete", "s18")}Forget device</button></div>
-      <div class="card-content muted" style="font-size:12px">Sources: ${esc((d.sources || []).join(" · ") || "—")}</div>`;
+      <div class="sub-h">${th("asset.title")}</div>
+      <form class="form" id="assetForm" onsubmit="return false">${f("location", "asset.location", "text", "wide")}${f("purchase_date", "asset.purchased", "date")}${f("warranty_until", "asset.warranty", "date")}${f("shop", "asset.shop")}${f("price", "asset.price")}${f("serial", "asset.serial", "text", "wide")}</form>
+      <div class="row-actions"><button class="btn" data-act="save-asset">${th("common.save")}</button><span class="saved" id="savedAsset">${th("common.saved")}</span></div>
+      <div class="sub-h">${th("asset.notes")}</div>
+      <div class="form"><label class="wide"><textarea class="field" id="note" placeholder="${esc(t("asset.note_placeholder"))}">${esc(d.note || "")}</textarea></label></div>
+      <div class="row-actions"><button class="btn" data-act="save-note">${th("asset.save_note")}</button><span class="saved" id="savedNote">${th("common.saved")}</span><span class="spacer"></span><button class="btn danger" data-act="forget">${ic("delete", "s18")}${th("asset.forget")}</button></div>
+      <div class="card-content muted" style="font-size:12px">${th("asset.sources", { sources: esc((d.sources || []).join(" · ") || "—") })}</div>`;
   };
 
   const moreHtml = (d) => {
     const isBat = !!d.battery_record || typeof d.battery === "number";
-    const tabs = [["info", "Info"], ["health", "Health"], ["history", "History"], ...(isBat ? [["battery", "Battery"]] : []), ["asset", "Notes"]];
+    const tabs = [["info", "more.tab.info"], ["health", "more.tab.health"], ["history", "more.tab.history"], ...(isBat ? [["battery", "more.tab.battery"]] : []), ["asset", "more.tab.notes"]];
     if (!tabs.find((t) => t[0] === state.moreTab)) state.moreTab = "info";
     const fn = { info: tabInfo, health: tabHealth, history: tabHistory, battery: tabBattery, asset: tabAsset }[state.moreTab];
     const name = nameOf(d);
     return `
-      <div class="more-head"><button class="icon-btn" data-act="close" aria-label="Close">${ic("close")}</button>
-        <div class="titles"><h2 id="moreTitle" class="${name ? "" : "unknown"}">${esc(name || "Unnamed device")}</h2><small>${esc([d.area, `${netLabel(d.instance)} network`].filter(Boolean).join(" · "))}</small></div>
-        <button class="icon-btn" data-act="copy" data-ieee="${esc(d.ieee)}" aria-label="Copy IEEE address" title="Copy ${esc(d.ieee)}">${ic("content-copy")}</button></div>
-      <nav class="more-tabs" role="tablist">${tabs.map(([k, l]) => `<button class="tab" role="tab" data-tab="${k}" aria-selected="${state.moreTab === k}">${l}</button>`).join("")}</nav>
+      <div class="more-head"><button class="icon-btn" data-act="close" aria-label="${esc(t("common.close"))}">${ic("close")}</button>
+        <div class="titles"><h2 id="moreTitle" class="${name ? "" : "unknown"}">${esc(name || t("devices.unnamed"))}</h2><small>${esc([d.area, t("net.network", { name: netLabel(d.instance) })].filter(Boolean).join(" · "))}</small></div>
+        <button class="icon-btn" data-act="copy" data-ieee="${esc(d.ieee)}" aria-label="${esc(t("more.copy_ieee"))}" title="${esc(t("more.copy", { ieee: d.ieee }))}">${ic("content-copy")}</button></div>
+      <nav class="more-tabs" role="tablist">${tabs.map(([k, l]) => `<button class="tab" role="tab" data-tab="${k}" aria-selected="${state.moreTab === k}">${th(l)}</button>`).join("")}</nav>
       <div class="more-body">${fn(d)}</div>`;
   };
   const renderMore = (fresh = false, fromList = false) => {
@@ -1273,7 +1383,7 @@
       if (dlg.open) { state.keepOpen = true; dlg.close(); state.keepOpen = false; }
       const pane = $("#pane");
       if (!pane) return;
-      if (!d) { pane.innerHTML = `<div class="pane-empty">${ic("zigbee")}<b>Select a device</b>Its details, health, history, battery and notes appear here.<div class="muted" style="margin-top:12px;font-size:13px">Use ↑ and ↓ to move through the list.</div></div>`; return; }
+      if (!d) { pane.innerHTML = `<div class="pane-empty">${ic("zigbee")}<b>${th("more.select")}</b>${th("more.select_text")}<div class="muted" style="margin-top:12px;font-size:13px">${th("more.select_keys")}</div></div>`; return; }
       if (!fresh && state.editing && pane.contains(document.activeElement)) return;
       const keep = !fromList && pane.querySelector(".more-body") ? pane.querySelector(".more-body").scrollTop : state.paneScroll || 0;
       pane.innerHTML = moreHtml(d);
@@ -1352,53 +1462,53 @@
   const flash = (sel) => { const s = $(sel); if (!s) return; s.classList.add("show"); setTimeout(() => s.classList.remove("show"), 1600); };
   const actions = {
     close: () => closeDevice(),
-    async copy(b) { try { await navigator.clipboard.writeText(b.dataset.ieee); snack("IEEE address copied"); } catch (e) { snack(b.dataset.ieee); } },
+    async copy(b) { try { await navigator.clipboard.writeText(b.dataset.ieee); snack(t("snack.ieee_copied")); } catch (e) { snack(b.dataset.ieee); } },
     async reconfigure(b) {
       const ieee = b.dataset.ieee, d = state.byIeee.get(ieee);
       const battery = d?.power_source === "Battery" || typeof d?.battery === "number";
-      const ok = await confirmDialog({ title: `Reconfigure ${nameOf(d) || ieee}?`, ok: "Reconfigure",
-        html: `<p>Zigbee2MQTT sends the binding and reporting setup to the device again. Names, settings and history aren't changed.</p><p>Use it when a device stops updating a value. It can take up to 40 seconds.</p>${statusOf(d) === "offline" ? `<div class="alert" style="--a:var(--error)">${ic("wifi-off")}<div class="body">This device is offline (last heard ${esc(relTime(d.last_seen).toLowerCase())}), so it probably won't respond. Check it has power first.</div></div>` : ""}${battery ? `<div class="alert" style="--a:var(--warning)">${ic("alert")}<div class="body">This device runs on battery and may be asleep. Press its button just before you confirm.</div></div>` : ""}` });
+      const ok = await confirmDialog({ title: t("reconfigure.title", { name: nameOf(d) || ieee }), ok: t("common.reconfigure"),
+        html: `<p>${th("reconfigure.text1")}</p><p>${th("reconfigure.text2")}</p>${statusOf(d) === "offline" ? `<div class="alert" style="--a:var(--error)">${ic("wifi-off")}<div class="body">${th("reconfigure.offline", { when: esc(relTime(d.last_seen, true)) })}</div></div>` : ""}${battery ? `<div class="alert" style="--a:var(--warning)">${ic("alert")}<div class="body">${th("reconfigure.battery")}</div></div>` : ""}` });
       if (!ok) return;
       b.disabled = true; b.classList.add("busy");
-      snack(`Reconfiguring ${nameOf(d) || ieee}…`, 8000);
-      try { await api("api/reconfigure", { ieee }); snack("Reconfigured"); } catch (err) { snack(`Reconfigure failed: ${err.message}`, 5000); }
+      snack(t("reconfigure.running", { name: nameOf(d) || ieee }), 8000);
+      try { await api("api/reconfigure", { ieee }); snack(t("reconfigure.done")); } catch (err) { snack(t("reconfigure.failed", { error: err.message }), 5000); }
       b.disabled = false; b.classList.remove("busy"); load();
     },
     async mute(b) {
       const d = state.byIeee.get(b.dataset.ieee);
-      const ok = await confirmDialog({ title: "Ignore this alert?", ok: "Ignore",
-        html: `<p>Stops flagging this problem for ${esc(nameOf(d) || b.dataset.ieee)}. Other devices aren't affected.</p><label>For<select class="field" id="cDays"><option value="1">1 day</option><option value="7" selected>7 days</option><option value="30">30 days</option><option value="0">Forever</option></select></label>` });
+      const ok = await confirmDialog({ title: t("mute.title"), ok: t("common.ignore"),
+        html: `<p>${th("mute.text", { name: esc(nameOf(d) || b.dataset.ieee) })}</p><label>${th("mute.for")}<select class="field" id="cDays">${[1, 7, 30].map((n) => `<option value="${n}" ${n === 7 ? "selected" : ""}>${th("unit.days", { n })}</option>`).join("")}<option value="0">${th("mute.forever")}</option></select></label>` });
       if (!ok) return;
       const days = Number($("#cDays").value);
-      try { await api("api/mute", { ieee: b.dataset.ieee, kind: b.dataset.kind, muted: true, days: days || null }); snack(days ? `Ignored for ${days} day${days === 1 ? "" : "s"}` : "Ignored. Undo in Settings."); load(); } catch (err) { snack(err.message); }
+      try { await api("api/mute", { ieee: b.dataset.ieee, kind: b.dataset.kind, muted: true, days: days || null }); snack(days ? t("mute.done_days", { n: days }) : t("mute.done_forever")); load(); } catch (err) { snack(err.message); }
     },
     group(b) { state.group = !state.group; store.set("z2mt.group", state.group ? "1" : "0"); renderDevices(); },
     async rename() {
       const ieee = state.open, d = state.byIeee.get(ieee);
       await loadAreas();
-      const areaOpts = state.areas ? `<option value="">No area</option>${state.areas.map((a) => `<option value="${esc(a.id)}" ${a.name === d.area ? "selected" : ""}>${esc(a.name)}</option>`).join("")}` : "";
-      const ok = await confirmDialog({ title: "Rename or set area", ok: "Save",
-        html: `<p>Changes the name in Zigbee2MQTT and Home Assistant together, including entity IDs.</p><label>Name<input class="field" id="cName" value="${esc(nameOf(d) || "")}" maxlength="120" autocomplete="off"></label>${state.areas ? `<label>Area<select class="field" id="cArea" ${d.ha_device_id ? "" : "disabled"}>${areaOpts}</select></label>${d.ha_device_id ? "" : `<p>Area can't be set because this device isn't in Home Assistant yet.</p>`}` : `<p>Areas couldn't be loaded from Home Assistant.</p>`}` });
+      const areaOpts = state.areas ? `<option value="">${th("devices.no_area")}</option>${state.areas.map((a) => `<option value="${esc(a.id)}" ${a.name === d.area ? "selected" : ""}>${esc(a.name)}</option>`).join("")}` : "";
+      const ok = await confirmDialog({ title: t("more.rename"), ok: t("common.save"),
+        html: `<p>${th("rename.text")}</p><label>${th("devices.col.name")}<input class="field" id="cName" value="${esc(nameOf(d) || "")}" maxlength="120" autocomplete="off"></label>${state.areas ? `<label>${th("devices.col.area")}<select class="field" id="cArea" ${d.ha_device_id ? "" : "disabled"}>${areaOpts}</select></label>${d.ha_device_id ? "" : `<p>${th("rename.no_ha")}</p>`}` : `<p>${th("rename.no_areas")}</p>`}` });
       if (!ok) return;
       const name = $("#cName").value.trim(), area = $("#cArea")?.value ?? null;
       const currentArea = state.areas?.find((a) => a.name === d.area)?.id || "";
       try {
         if (name && name !== nameOf(d)) { await api("api/rename", { ieee, name }); }
         if (state.areas && d.ha_device_id && area !== null && area !== currentArea) { await api("api/area", { ieee, area_id: area || null }); }
-        snack("Saved"); load();
+        snack(t("common.saved")); load();
       } catch (err) { snack(err.message, 5000); }
     },
     async "ota-check"(b) {
-      b.disabled = true; b.classList.add("busy"); snack("Checking for a firmware update…", 6000);
-      try { const r = await api("api/ota", { ieee: state.open, action: "check" }); snack(r.available ? "An update is available" : "No update available"); load(); } catch (err) { snack(err.message, 5000); }
+      b.disabled = true; b.classList.add("busy"); snack(t("ota.checking"), 6000);
+      try { const r = await api("api/ota", { ieee: state.open, action: "check" }); snack(r.available ? t("ota.available") : t("ota.none")); load(); } catch (err) { snack(err.message, 5000); }
       b.disabled = false; b.classList.remove("busy");
     },
     async "ota-update"() {
       const d = state.byIeee.get(state.open), u = d.update || {};
-      const ok = await confirmDialog({ title: `Update ${nameOf(d) || d.ieee}?`, ok: "Update",
-        html: `<p>Installs firmware ${esc(u.latest_version)} (currently ${esc(u.installed_version)}). It usually takes 10 to 60 minutes, and the device may not respond while it updates.</p><p>Keep it powered and in range. Battery devices need to stay awake, so press their button if the update doesn't start.</p>` });
+      const ok = await confirmDialog({ title: t("ota.title", { name: nameOf(d) || d.ieee }), ok: t("common.update"),
+        html: `<p>${th("ota.text1", { latest: esc(u.latest_version), installed: esc(u.installed_version) })}</p><p>${th("ota.text2")}</p>` });
       if (!ok) return;
-      try { await api("api/ota", { ieee: d.ieee, action: "update" }); snack("Firmware update started"); load(); } catch (err) { snack(err.message, 5000); }
+      try { await api("api/ota", { ieee: d.ieee, action: "update" }); snack(t("ota.started")); load(); } catch (err) { snack(err.message, 5000); }
     },
     pair() { state.move = null; state.pairNet = state.pairNet || state.data.instances[0]; renderPair(); const dlg = $("#pairDlg"); if (!dlg.open) dlg.showModal(); },
     move(b) { state.move = { target: b.dataset.ieee || state.open, via: b.dataset.via || null }; renderPair(); const dlg = $("#pairDlg"); if (!dlg.open) dlg.showModal(); },
@@ -1408,16 +1518,16 @@
       const net = move ? move.instance : $("#pairNet")?.value || state.pairNet;
       if (!move) state.pairNet = net;
       const via = $("#pairVia")?.value || "";
-      if (move && !via) { snack("Choose the router to move it to"); return; }
+      if (move && !via) { snack(t("pair.choose_router")); return; }
       b.disabled = true;
       try {
         await api("api/pairing", { instance: net, seconds: Number($("#pairSecs")?.value || 180), via: via || null, target: move ? move.ieee : null });
-        snack(move ? `Pairing open through the chosen router. Put ${nameOf(move)} into pairing mode now.` : "Pairing is open. Put the device in pairing mode now.", 5000);
+        snack(move ? t("pair.open_move", { name: nameOf(move) }) : t("pair.open_new"), 5000);
         await load();
       } catch (err) { snack(err.message, 5000); }
       b.disabled = false;
     },
-    async "pair-stop"() { const net = state.move ? state.byIeee.get(state.move.target)?.instance : state.pairNet; try { await api("api/pairing", { instance: net, seconds: 0 }); snack("Pairing closed"); await load(); } catch (err) { snack(err.message); } },
+    async "pair-stop"() { const net = state.move ? state.byIeee.get(state.move.target)?.instance : state.pairNet; try { await api("api/pairing", { instance: net, seconds: 0 }); snack(t("pair.closed")); await load(); } catch (err) { snack(err.message); } },
     async "pair-save"(b) {
       const ieee = b.dataset.ieee, d = state.byIeee.get(ieee), box = b.closest(".pair-dev");
       const name = box.querySelector("[name=name]").value.trim(), area = box.querySelector("[name=area]")?.value || "", btype = box.querySelector("[name=btype]")?.value.trim();
@@ -1426,46 +1536,46 @@
         if (name && name !== nameOf(d)) await api("api/rename", { ieee, name });
         if (area && d?.ha_device_id) await api("api/area", { ieee, area_id: area });
         if (btype) await api("api/battery", { ieee, info: { type: btype.replace(/^\d+\s*[x×]\s*/i, ""), quantity: (btype.match(/^(\d+)\s*[x×]/i) || [])[1] || 1, installed: todayIso() } });
-        snack("Saved"); await load();
+        snack(t("common.saved")); await load();
       } catch (err) { snack(err.message, 5000); }
       b.disabled = false;
     },
     async "save-wifi"() { await saveSettings({ wifi_channels: $("#wifiCh").value.trim() }); },
     async "send-summary"() { try { const r = await api("api/summary", {}); snack(r.title, 4000); } catch (err) { snack(err.message); } },
     restore() { $("#restoreFile").click(); },
-    async unmute(b) { try { await api("api/mute", { ieee: b.dataset.ieee, kind: b.dataset.kind, muted: false }); snack("No longer ignored"); if (state.view === "settings") await renderSettings(); load(); } catch (err) { snack(err.message); } },
-    async "unmute-all"() { for (const m of state.settings?.muted || []) { try { await api("api/mute", { ieee: m.ieee, kind: m.kind, muted: false }); } catch (e) { /* keep going */ } } snack("Nothing ignored now"); await renderSettings(); load(); },
-    async "bindings-ack"(b) { try { await api("api/bindings/ack", { ieee: b.dataset.ieee }); snack("Lost bindings dismissed"); load(); } catch (err) { snack(err.message); } },
-    async link(b) { try { await api("api/link", { old: b.dataset.old, new: b.dataset.new }); snack("Linked. History, notes and asset details carried over"); load(); } catch (err) { snack(err.message); } },
-    async "link-sel"() { const old = $("#linkSel")?.value; if (!old) { snack("Choose the removed device first"); return; } try { await api("api/link", { old, new: state.open }); snack("Linked"); load(); } catch (err) { snack(err.message); } },
-    async unlink(b) { try { await api("api/unlink", { old: b.dataset.old, new: b.dataset.new }); snack("Unlinked"); load(); } catch (err) { snack(err.message); } },
-    async scan() { try { await api("api/networkmap", {}); snack("Routing scan started. It takes a few minutes.", 4000); setTimeout(load, 1500); } catch (err) { snack(err.message); } },
-    async import() { try { const r = await api("api/import", {}); snack(`Import done: ${r.new_devices} new devices, ${r.new_events} new events`, 4000); load(); } catch (err) { snack(err.message); } },
-    theme() { theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]; store.set("z2mt.theme", theme); applyTheme(); snack(`Theme: ${cap(theme)}`); if (state.view === "settings") renderSettings(false); },
+    async unmute(b) { try { await api("api/mute", { ieee: b.dataset.ieee, kind: b.dataset.kind, muted: false }); snack(t("snack.unmuted")); if (state.view === "settings") await renderSettings(); load(); } catch (err) { snack(err.message); } },
+    async "unmute-all"() { for (const m of state.settings?.muted || []) { try { await api("api/mute", { ieee: m.ieee, kind: m.kind, muted: false }); } catch (e) { /* keep going */ } } snack(t("snack.unmuted_all")); await renderSettings(); load(); },
+    async "bindings-ack"(b) { try { await api("api/bindings/ack", { ieee: b.dataset.ieee }); snack(t("snack.bindings_dismissed")); load(); } catch (err) { snack(err.message); } },
+    async link(b) { try { await api("api/link", { old: b.dataset.old, new: b.dataset.new }); snack(t("snack.linked_carried")); load(); } catch (err) { snack(err.message); } },
+    async "link-sel"() { const old = $("#linkSel")?.value; if (!old) { snack(t("snack.choose_removed")); return; } try { await api("api/link", { old, new: state.open }); snack(t("snack.linked")); load(); } catch (err) { snack(err.message); } },
+    async unlink(b) { try { await api("api/unlink", { old: b.dataset.old, new: b.dataset.new }); snack(t("snack.unlinked")); load(); } catch (err) { snack(err.message); } },
+    async scan() { try { await api("api/networkmap", {}); snack(t("snack.scan_started"), 4000); setTimeout(load, 1500); } catch (err) { snack(err.message); } },
+    async import() { try { const r = await api("api/import", {}); snack(t("snack.import_done", { devices: r.new_devices, events: r.new_events }), 4000); load(); } catch (err) { snack(err.message); } },
+    theme() { theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]; store.set("z2mt.theme", theme); applyTheme(); snack(t("menu.theme", { theme: t(`theme.${theme}`) })); if (state.view === "settings") renderSettings(false); },
     async "save-note"() { const note = $("#note").value; try { await api("api/note", { ieee: state.open, note }); state.byIeee.get(state.open).note = note; flash("#savedNote"); state.editing = false; } catch (err) { snack(err.message); } },
     async "save-asset"() { const asset = Object.fromEntries(new FormData($("#assetForm")).entries()); try { await api("api/asset", { ieee: state.open, asset }); state.byIeee.get(state.open).asset = asset; flash("#savedAsset"); state.editing = false; } catch (err) { snack(err.message); } },
     async "save-battery"() { const info = Object.fromEntries(new FormData($("#batForm")).entries()); try { await api("api/battery", { ieee: state.open, info }); flash("#savedBat"); state.editing = false; load(); } catch (err) { snack(err.message); } },
     async "battery-replaced"() {
       const ieee = state.open, d = state.byIeee.get(ieee);
-      const ok = await confirmDialog({ title: "Battery replaced", ok: "Save",
-        html: `<p>Records a new battery for ${esc(nameOf(d) || ieee)}${d?.battery_notes ? " and updates Battery Notes" : ""}.</p><label>Replaced on<input class="field" type="date" id="cDate" value="${todayIso()}" max="${todayIso()}"></label><label>Note (optional)<input class="field" id="cNote" maxlength="200" autocomplete="off"></label>` });
+      const ok = await confirmDialog({ title: t("battery.replaced"), ok: t("common.save"),
+        html: `<p>${th(d?.battery_notes ? "battery.records_bn" : "battery.records", { name: esc(nameOf(d) || ieee) })}</p><label>${th("battery.replaced_on")}<input class="field" type="date" id="cDate" value="${todayIso()}" max="${todayIso()}"></label><label>${th("battery.note")}<input class="field" id="cNote" maxlength="200" autocomplete="off"></label>` });
       if (!ok) return;
-      try { const res = await api("api/battery/replaced", { ieee, date: $("#cDate").value || todayIso(), note: $("#cNote").value }); snack(res.entry?.battery_notes_synced ? "Saved and Battery Notes updated" : "Saved"); load(); } catch (err) { snack(err.message, 4000); }
+      try { const res = await api("api/battery/replaced", { ieee, date: $("#cDate").value || todayIso(), note: $("#cNote").value }); snack(res.entry?.battery_notes_synced ? t("battery.saved_bn") : t("common.saved")); load(); } catch (err) { snack(err.message, 4000); }
     },
     async "bat-remove"(b) {
-      if (!(await confirmDialog({ title: "Remove this entry?", ok: "Remove", danger: true, html: "<p>Removes it from the tracker's history only. Battery Notes isn't changed.</p>" }))) return;
+      if (!(await confirmDialog({ title: t("battery.remove_title"), ok: t("common.remove"), danger: true, html: `<p>${th("battery.remove_text")}</p>` }))) return;
       try { await api("api/battery/remove", { ieee: state.open, index: Number(b.dataset.index) }); load(); } catch (err) { snack(err.message); }
     },
     async forget() {
       const ieee = state.open, d = state.byIeee.get(ieee);
       const events = (state.data.events || []).filter((e) => e.ieee === ieee).length;
-      const ok = await confirmDialog({ title: `Forget ${nameOf(d) || "this device"}?`, ok: "Forget", danger: true,
-        html: `<p>This permanently deletes the device's history from the tracker.</p><div class="facts"><span class="mono">${esc(ieee)}</span><br>${formerOf(d).length} former names · ${events} events${d?.note ? " · a note" : ""}</div>${d?.status !== "removed" ? `<p>It's still in Zigbee2MQTT, so it will reappear straight away with an empty history.</p>` : ""}` });
+      const ok = await confirmDialog({ title: nameOf(d) ? t("forget.title", { name: nameOf(d) }) : t("forget.title_unnamed"), ok: t("forget.ok"), danger: true,
+        html: `<p>${th("forget.text")}</p><div class="facts"><span class="mono">${esc(ieee)}</span><br>${esc([t("forget.names", { n: formerOf(d).length }), t("forget.events", { n: events }), d?.note ? t("forget.note") : null].filter(Boolean).join(" · "))}</div>${d?.status !== "removed" ? `<p>${th("forget.still_in_z2m")}</p>` : ""}` });
       if (!ok) return;
-      try { await api("api/forget", { ieee }); closeDevice(); snack("Device forgotten"); load(); } catch (err) { snack(err.message); }
+      try { await api("api/forget", { ieee }); closeDevice(); snack(t("forget.done")); load(); } catch (err) { snack(err.message); }
     },
     async "save-notify"() { await saveSettings({ notify_service: $("#notifySvc").value.trim() }); },
-    async "test-notify"(b) { b.disabled = true; try { const r = await api("api/test-notification", {}); snack(r.channels.length ? `Test sent to ${r.channels.join(", ")}` : "Every channel is switched off", 4000); } catch (err) { snack(err.message); } b.disabled = false; },
+    async "test-notify"(b) { b.disabled = true; try { const r = await api("api/test-notification", {}); snack(r.channels.length ? t("snack.test_sent", { channels: r.channels.join(", ") }) : t("snack.all_off"), 4000); } catch (err) { snack(err.message); } b.disabled = false; },
   };
 
   // ------------------------------------------------------------ pairing assistant
@@ -1479,7 +1589,8 @@
     const same = routersFor(d.instance, d.area).filter((r) => r.type === "Router" && r.area && r.area === d.area && r.ieee !== cur);
     return same.sort((a, b) => (lqiOf(b) ?? 0) - (lqiOf(a) ?? 0))[0] || null;
   };
-  const routerLabel = (r) => (r.type === "Coordinator" ? "Coordinator" : `${r.area ? `${r.area} · ` : ""}${nameOf(r) || r.ieee}`);
+  const routerLabel = (r) => (r.type === "Coordinator" ? t("map.coordinator") : `${r.area ? `${r.area} · ` : ""}${nameOf(r) || r.ieee}`);
+  const keepOpen = () => `<label>${th("pair.keep_open")}<select class="field" id="pairSecs">${[[120, 2], [180, 3], [254, 4]].map(([v, n]) => `<option value="${v}" ${v === 180 ? "selected" : ""}>${th("unit.minutes_long", { n })}</option>`).join("")}</select></label>`;
   const fmtLeft = (l) => `${Math.floor(l / 60)}:${String(l % 60).padStart(2, "0")}`;
   const renderPair = () => {
     const dlg = $("#pairDlg");
@@ -1492,48 +1603,48 @@
     if (dlg.contains(document.activeElement) && ["INPUT", "SELECT"].includes(document.activeElement.tagName)) return;
     const routers = routersFor(net, move?.area);
     const chosen = move ? state.move.via || suggestRouter(move)?.ieee || "" : state.pairVia || "";
-    const viaSelect = (label, anyOption) => `<label class="wide">${label}<select class="field" id="pairVia">${anyOption ? `<option value="">Any device (whole network)</option>` : ""}${routers.map((r) => `<option value="${esc(r.ieee)}" ${r.ieee === chosen ? "selected" : ""}>${esc(routerLabel(r))}${move && r.ieee === move.routing?.parent?.ieee ? " (current)" : ""}${move && r.area && r.area === move.area ? " · same room" : ""}</option>`).join("")}</select></label>`;
-    const docs = move?.model ? `<a href="https://www.zigbee2mqtt.io/devices/${encodeURIComponent(String(move.model).replace(/\//g, "_"))}.html" target="_blank" rel="noopener">pairing instructions</a>` : "its pairing instructions";
+    const viaSelect = (label, anyOption) => `<label class="wide">${label}<select class="field" id="pairVia">${anyOption ? `<option value="">${th("pair.any")}</option>` : ""}${routers.map((r) => `<option value="${esc(r.ieee)}" ${r.ieee === chosen ? "selected" : ""}>${esc(routerLabel(r))}${move && r.ieee === move.routing?.parent?.ieee ? ` ${th("history.current")}` : ""}${move && r.area && r.area === move.area ? ` · ${th("pair.same_room")}` : ""}</option>`).join("")}</select></label>`;
+    const docs = move?.model ? `<a href="https://www.zigbee2mqtt.io/devices/${encodeURIComponent(String(move.model).replace(/\//g, "_"))}.html" target="_blank" rel="noopener">${th("pair.instructions")}</a>` : th("pair.its_instructions");
     let body;
     if (move) {
       const cur = move.routing?.parent;
       const done = session?.target === move.ieee && session?.rejoined;
       body = done
-        ? `<div class="more-hero"><span class="state-ic" style="color:var(--success)">${ic("check")}</span><div class="big">Rejoined</div><div class="sub">${esc(nameOf(move))} rejoined while pairing was open only through ${esc(session.via_name || "the chosen router")}.</div></div>
-           <div class="card-content muted">Its name, history and Home Assistant entities are unchanged. Run a routing scan in a few minutes to confirm the new connection on the map.</div>
-           <div class="more-actions"><button class="btn outlined" data-act="scan">${ic("sitemap", "s18")}Run routing scan</button><button class="btn filled" data-act="pair-close">Done</button></div>`
+        ? `<div class="more-hero"><span class="state-ic" style="color:var(--success)">${ic("check")}</span><div class="big">${th("pair.rejoined")}</div><div class="sub">${th("pair.rejoined_text", { name: esc(nameOf(move)), via: esc(session.via_name || t("pair.chosen_router")) })}</div></div>
+           <div class="card-content muted">${th("pair.rejoined_hint")}</div>
+           <div class="more-actions"><button class="btn outlined" data-act="scan">${ic("sitemap", "s18")}${th("menu.run_scan")}</button><button class="btn filled" data-act="pair-close">${th("common.done")}</button></div>`
         : permit.on && session?.target === move.ieee
-          ? `<div class="more-hero"><span class="state-ic" style="color:var(--primary)">${ic("cellphone-wireless")}</span><div class="big" id="pairLeft">${fmtLeft(left)}</div><div class="sub">Pairing is open only through <b>${esc(session.via_name || "the chosen router")}</b>.</div></div>
-             <div class="alerts"><div class="alert" style="--a:var(--info)">${ic("information-outline")}<div class="body"><b>Now put ${esc(nameOf(move))} into pairing mode.</b> Usually that means holding its button for about 5 seconds until the light flashes. See ${docs}. Keep it close to the router.</div></div></div>
-             <div class="card-content muted">Waiting for it to rejoin…</div>
-             <div class="more-actions"><button class="btn outlined danger" data-act="pair-stop">Stop pairing</button></div>`
-          : `<div class="card-content"><p style="margin:0 0 8px">Battery devices pick their own router, so they can't be reassigned directly. Instead, pairing opens <b>only through the router you choose</b> and you re-pair ${esc(nameOf(move))}. Its name, history and Home Assistant entities stay the same.</p>
-               <p class="muted" style="margin:0">Currently connected through <b>${esc(cur ? nameOf(state.byIeee.get(cur.ieee)) || cur.ieee : "unknown")}</b>${cur?.lqi !== undefined ? ` (LQI ${esc(cur.lqi)})` : ""}${move.area ? ` · device is in ${esc(move.area)}` : ""}.</p></div>
-             <div class="form">${viaSelect("Move to", false)}<label>Keep open for<select class="field" id="pairSecs"><option value="120">2 minutes</option><option value="180" selected>3 minutes</option><option value="254">4 minutes</option></select></label></div>
-             <div class="more-actions"><button class="btn filled" data-act="pair-start">${ic("swap-horizontal", "s18")}Start</button></div>`;
+          ? `<div class="more-hero"><span class="state-ic" style="color:var(--primary)">${ic("cellphone-wireless")}</span><div class="big" id="pairLeft">${fmtLeft(left)}</div><div class="sub">${th("pair.open_through", { via: `<b>${esc(session.via_name || t("pair.chosen_router"))}</b>` })}</div></div>
+             <div class="alerts"><div class="alert" style="--a:var(--info)">${ic("information-outline")}<div class="body"><b>${th("pair.now_put", { name: esc(nameOf(move)) })}</b> ${th("pair.how", { docs })}</div></div></div>
+             <div class="card-content muted">${th("pair.waiting_rejoin")}</div>
+             <div class="more-actions"><button class="btn outlined danger" data-act="pair-stop">${th("pair.stop")}</button></div>`
+          : `<div class="card-content"><p style="margin:0 0 8px">${th("pair.move_explain", { name: esc(nameOf(move)), only: `<b>${th("pair.only_chosen")}</b>` })}</p>
+               <p class="muted" style="margin:0">${th("pair.currently", { router: `<b>${esc(cur ? nameOf(state.byIeee.get(cur.ieee)) || cur.ieee : t("history.unknown_lower"))}</b>` })}${cur?.lqi !== undefined ? ` (LQI ${esc(cur.lqi)})` : ""}${move.area ? ` · ${th("pair.device_in", { area: esc(move.area) })}` : ""}.</p></div>
+             <div class="form">${viaSelect(th("pair.move_to"), false)}${keepOpen()}</div>
+             <div class="more-actions"><button class="btn filled" data-act="pair-start">${ic("swap-horizontal", "s18")}${th("pair.start")}</button></div>`;
     } else {
       const joined = (session?.joined || []).map((ieee) => state.byIeee.get(ieee) || { ieee });
-      body = `${permit.on ? `<div class="more-hero"><span class="state-ic" style="color:var(--primary)">${ic("cellphone-wireless")}</span><div class="big" id="pairLeft">${fmtLeft(left)}</div><div class="sub">Pairing is open on the ${esc(netLabel(net))} network${session?.via_name ? `, only through <b>${esc(session.via_name)}</b>` : ""}. Put your device into pairing mode now.</div></div>
-            <div class="more-actions"><button class="btn outlined danger" data-act="pair-stop">Stop pairing</button></div>`
-          : `<div class="form"><label>Network<select class="field" id="pairNet">${state.data.instances.map((bt) => `<option value="${esc(bt)}" ${bt === net ? "selected" : ""}>${esc(netLabel(bt))}</option>`).join("")}</select></label>
-              <label>Keep open for<select class="field" id="pairSecs"><option value="120">2 minutes</option><option value="180" selected>3 minutes</option><option value="254">4 minutes</option></select></label>
-              ${viaSelect("Pair through", true)}</div>
-             <div class="card-content muted">Choose a router near where the new device will live, or leave it on any device. Then reset the device or hold its pairing button.</div>
-             <div class="more-actions"><button class="btn filled" data-act="pair-start">${ic("plus", "s18")}Start pairing</button></div>`}
-        <div class="sub-h">Joined in this session</div>
+      body = `${permit.on ? `<div class="more-hero"><span class="state-ic" style="color:var(--primary)">${ic("cellphone-wireless")}</span><div class="big" id="pairLeft">${fmtLeft(left)}</div><div class="sub">${session?.via_name ? th("pair.open_on_via", { net: esc(netLabel(net)), via: `<b>${esc(session.via_name)}</b>` }) : th("pair.open_on", { net: esc(netLabel(net)) })}</div></div>
+            <div class="more-actions"><button class="btn outlined danger" data-act="pair-stop">${th("pair.stop")}</button></div>`
+          : `<div class="form"><label>${th("more.network")}<select class="field" id="pairNet">${state.data.instances.map((bt) => `<option value="${esc(bt)}" ${bt === net ? "selected" : ""}>${esc(netLabel(bt))}</option>`).join("")}</select></label>
+              ${keepOpen()}
+              ${viaSelect(th("pair.through"), true)}</div>
+             <div class="card-content muted">${th("pair.new_hint")}</div>
+             <div class="more-actions"><button class="btn filled" data-act="pair-start">${ic("plus", "s18")}${th("pair.start_pairing")}</button></div>`}
+        <div class="sub-h">${th("pair.joined")}</div>
         ${joined.length ? joined.map((d) => {
           const ready = d.interview_state === "SUCCESSFUL";
           const isBat = d.power_source === "Battery" || typeof d.battery === "number";
-          return `<div class="pair-dev"><div class="row" style="border:0;min-height:56px">${d.type ? stateIc(d) : `<span class="state-ic">${ic("zigbee")}</span>`}<div class="text"><div class="t1">${esc(nameOf(d) || d.ieee)}</div><div class="t2">${ready ? esc(deviceLine(d) || "Identified") : "Interviewing… keep it awake and close by"} · <span class="mono">${esc(d.ieee)}</span></div></div></div>
-            ${ready ? `<div class="form"><label>Name<input class="field" name="name" value="${esc(nameOf(d) || "")}" autocomplete="off"></label>
-              <label>Area<select class="field" name="area"><option value="">Choose…</option>${(state.areas || []).map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("")}</select></label>
-              ${isBat ? `<label class="wide">Battery<input class="field" name="btype" list="batTypes2" value="${esc(d.battery_record?.label || "")}" placeholder="e.g. CR2032 or 2× AAA"></label>` : ""}</div>
-              <div class="row-actions"><button class="btn" data-act="pair-save" data-ieee="${esc(d.ieee)}">Save</button></div>` : ""}</div>`;
-        }).join("") : `<div class="card-content muted">${permit.on ? "Waiting for a device to join…" : "Nothing yet."}</div>`}
+          return `<div class="pair-dev"><div class="row" style="border:0;min-height:56px">${d.type ? stateIc(d) : `<span class="state-ic">${ic("zigbee")}</span>`}<div class="text"><div class="t1">${esc(nameOf(d) || d.ieee)}</div><div class="t2">${ready ? esc(deviceLine(d) || t("pair.identified")) : th("pair.interviewing")} · <span class="mono">${esc(d.ieee)}</span></div></div></div>
+            ${ready ? `<div class="form"><label>${th("devices.col.name")}<input class="field" name="name" value="${esc(nameOf(d) || "")}" autocomplete="off"></label>
+              <label>${th("devices.col.area")}<select class="field" name="area"><option value="">${th("common.choose")}</option>${(state.areas || []).map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("")}</select></label>
+              ${isBat ? `<label class="wide">${th("devices.col.battery")}<input class="field" name="btype" list="batTypes2" value="${esc(d.battery_record?.label || "")}" placeholder="${esc(t("pair.battery_placeholder"))}"></label>` : ""}</div>
+              <div class="row-actions"><button class="btn" data-act="pair-save" data-ieee="${esc(d.ieee)}">${th("common.save")}</button></div>` : ""}</div>`;
+        }).join("") : `<div class="card-content muted">${permit.on ? th("pair.waiting_join") : th("pair.nothing_yet")}</div>`}
         <datalist id="batTypes2">${["CR2032", "CR2450", "CR2477", "CR1632", "CR123A", "AAA", "2× AAA", "AA", "2× AA", "4× AA"].map((t) => `<option value="${t}"></option>`).join("")}</datalist>`;
     }
     dlg.innerHTML = `
-      <div class="more-head"><button class="icon-btn" data-act="pair-close" aria-label="Close">${ic("close")}</button><div class="titles"><h2 id="pairTitle">${move ? `Move ${esc(nameOf(move) || move.ieee)}` : "Pair a new device"}</h2><small>${move ? "Re-pair it through a router you choose" : "Opens pairing, then helps you set up what joins"}</small></div></div>
+      <div class="more-head"><button class="icon-btn" data-act="pair-close" aria-label="${esc(t("common.close"))}">${ic("close")}</button><div class="titles"><h2 id="pairTitle">${move ? th("pair.move_title", { name: esc(nameOf(move) || move.ieee) }) : th("pair.title")}</h2><small>${move ? th("pair.move_subtitle") : th("pair.subtitle")}</small></div></div>
       <div class="more-body">${body}</div>`;
     clearInterval(pairTick);
     if (permit.on) pairTick = setInterval(() => { const el = $("#pairLeft"); if (!el) return; const l = Math.max(0, Math.round((new Date(permit.end) - Date.now()) / 1000)); el.textContent = fmtLeft(l); if (!l) { clearInterval(pairTick); load(); } }, 1000);
@@ -1586,31 +1697,32 @@
       return;
     }
     if (state.view !== "settings") return;
-    const t = e.target;
-    if (t.dataset.set) saveSettings({ [t.dataset.set]: t.checked });
-    else if (t.dataset.num) {
-      const v = Number(t.value);
-      if (!Number.isFinite(v) || v < Number(t.min) || v > Number(t.max)) { snack(`Enter a number from ${t.min} to ${t.max}`); t.value = state.settings.settings[t.dataset.num]; return; }
-      saveSettings({ [t.dataset.num]: Math.round(v) });
-    } else if (t.id === "scanHour") saveSettings({ networkmap_hour: Number(t.value) });
-    else if (t.id === "themeSel") { theme = t.value; store.set("z2mt.theme", theme); applyTheme(); }
-    else if (t.id === "sumDay") saveSettings({ summary_day: Number(t.value) });
-    else if (t.id === "sumHour") saveSettings({ summary_hour: Number(t.value) });
-    else if (t.id === "restoreFile" && t.files?.[0]) {
-      const file = t.files[0];
-      t.value = "";
-      confirmDialog({ title: "Restore from backup?", ok: "Restore", danger: true, html: `<p>Replaces the tracker's entire history with <b>${esc(file.name)}</b>. Anything recorded since that backup is lost.</p>` }).then(async (ok) => {
+    const el = e.target;
+    if (el.dataset.set) saveSettings({ [el.dataset.set]: el.checked });
+    else if (el.dataset.num) {
+      const v = Number(el.value);
+      if (!Number.isFinite(v) || v < Number(el.min) || v > Number(el.max)) { snack(t("settings.number_range", { min: el.min, max: el.max })); el.value = state.settings.settings[el.dataset.num]; return; }
+      saveSettings({ [el.dataset.num]: Math.round(v) });
+    } else if (el.id === "scanHour") saveSettings({ networkmap_hour: Number(el.value) });
+    else if (el.id === "themeSel") { theme = el.value; store.set("z2mt.theme", theme); applyTheme(); }
+    else if (el.id === "langSel") { store.set("z2mt.lang", el.value); location.reload(); }
+    else if (el.id === "sumDay") saveSettings({ summary_day: Number(el.value) });
+    else if (el.id === "sumHour") saveSettings({ summary_hour: Number(el.value) });
+    else if (el.id === "restoreFile" && el.files?.[0]) {
+      const file = el.files[0];
+      el.value = "";
+      confirmDialog({ title: t("restore.title"), ok: t("common.restore"), danger: true, html: `<p>${th("restore.text", { file: `<b>${esc(file.name)}</b>` })}</p>` }).then(async (ok) => {
         if (!ok) return;
-        try { const body = JSON.parse(await file.text()); const r = await api("api/restore", body); snack(`Restored ${r.devices} devices and ${r.events} events`, 4000); load(); }
-        catch (err) { snack(err instanceof SyntaxError ? "That file isn't valid JSON" : err.message, 5000); }
+        try { const body = JSON.parse(await file.text()); const r = await api("api/restore", body); snack(t("restore.done", { devices: r.devices, events: r.events }), 4000); load(); }
+        catch (err) { snack(err instanceof SyntaxError ? t("restore.bad_json") : err.message, 5000); }
       });
     }
-    else if (t.id === "layoutSel") { state.layout = t.value; store.set("z2mt.layout", t.value); snack(t.value === "pane" ? "Details open in a side panel" : "Details open in a pop-up"); }
-    else if (t.dataset.checksel) {
+    else if (el.id === "layoutSel") { state.layout = el.value; store.set("z2mt.layout", el.value); snack(el.value === "pane" ? t("settings.layout_pane") : t("settings.layout_dialog")); }
+    else if (el.dataset.checksel) {
       const s = state.settings.settings;
       const disabled = new Set(s.disabled_checks || []), notify = new Set(s.notify_checks || []);
-      const key = t.dataset.checksel, val = t.value;
-      if (val === "off") { notify.delete(key); if (t.dataset.event !== "1") disabled.add(key); }
+      const key = el.dataset.checksel, val = el.value;
+      if (val === "off") { notify.delete(key); if (el.dataset.event !== "1") disabled.add(key); }
       else if (val === "show") { disabled.delete(key); notify.delete(key); }
       else { disabled.delete(key); notify.add(key); }
       saveSettings({ disabled_checks: [...disabled], notify_checks: [...notify] });
@@ -1619,6 +1731,9 @@
   window.addEventListener("hashchange", () => { const h = decodeURIComponent(location.hash.slice(1)); if (IEEE_RE.test(h) && h !== state.open) openDevice(h); });
 
   (async () => {
+    await loadI18n();
+    translateStatic();
+    applyTheme();
     await load();
     const h = decodeURIComponent(location.hash.slice(1));
     if (IEEE_RE.test(h) && state.byIeee.has(h)) openDevice(h);

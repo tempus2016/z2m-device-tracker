@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import queue
+import re
 import signal
 import ssl
 import sys
@@ -38,6 +39,8 @@ CONFIG_DIR = "/homeassistant"
 MIGRATE_FROM = f"{CONFIG_DIR}/.storage/z2m_tracker"
 APP_DIR = Path(__file__).parent
 WWW = APP_DIR / "www"
+I18N_DIR = WWW / "i18n"
+LANG_RE = re.compile(r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
 SAVE_INTERVAL = 30
 METRICS_SAVE_INTERVAL = 300
 HEALTH_INTERVAL = 60
@@ -415,6 +418,27 @@ def record_battery_replaced(ieee: str, date: str, source: str, note: str) -> dic
     return entry
 
 
+def i18n_file(name: str) -> bytes | None:
+    """Sidebar translation file www/i18n/<name>.json; "index" lists the available languages."""
+    if name == "index":
+        languages = []
+        for path in sorted(I18N_DIR.glob("*.json")):
+            if not LANG_RE.match(path.stem):
+                continue
+            try:
+                label = json.loads(path.read_text(encoding="utf-8")).get("language.name") or path.stem
+            except (OSError, ValueError, AttributeError):
+                continue
+            languages.append({"code": path.stem, "name": label})
+        return json.dumps({"languages": languages}).encode("utf-8")
+    if not LANG_RE.match(name):
+        return None
+    path = (I18N_DIR / f"{name}.json").resolve()
+    if path.parent != I18N_DIR.resolve() or not path.is_file():
+        return None
+    return path.read_bytes()
+
+
 def settings_payload() -> dict:
     with tracker.lock:
         now_ts = time.time()
@@ -652,6 +676,12 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
             else:
                 self.send_error(404)
+        elif path.startswith("/i18n/") and path.endswith(".json"):
+            body = i18n_file(path[len("/i18n/") : -len(".json")])
+            if body is None:
+                self.send_error(404)
+            else:
+                self._send(200, body, "application/json; charset=utf-8")
         elif path == "/api/devices":
             self._send(200, tracker.snapshot_json())
         elif path == "/api/settings":
