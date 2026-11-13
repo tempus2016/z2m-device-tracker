@@ -981,5 +981,10 @@
   "replace.ready": "Ready to replace {old} with {new}.",
   "replace.battery_warn": "{name} runs on battery and may be asleep. Press its button just before you apply, or the bindings may fail.",
   "replace.the_new_device": "The new device",
-  "replace.apply": "Apply"
+  "replace.apply": "Apply",
+  "settings.when_day": "Summary day",
+  "settings.when_hour": "Summary hour",
+  "asset.note_saved": "Note saved",
+  "activity.show_more": "Show {n} more",
+  "devices.show_all": "Show all {n} devices"
 }

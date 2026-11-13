@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#ffffff" />
 <title>Zigbee Tracker</title>
 <style>
   @font-face { font-family: "Roboto"; font-weight: 400; font-display: swap; src: url("fonts/roboto-latin-400-normal.woff2") format("woff2"); }
@@ -79,6 +80,12 @@
   .tab:hover { color: var(--text); background: var(--hover); }
   .tab[aria-selected="true"] { color: var(--primary-text); }
   .tab[aria-selected="true"]::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 0; height: 2px; border-radius: 2px 2px 0 0; background: var(--primary); }
+  .badge, .count-line, .chip .n, .dt td.num, .bat, .kv b, .info-grid b, .trend-stats b, .log time, .map-legend .lg .n { font-variant-numeric: tabular-nums; }
+  /* Rows and cells that open a device: a real button, styled as the text it replaces */
+  .open-btn { appearance: none; border: 0; background: none; margin: 0; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; display: block; width: 100%; min-width: 0; border-radius: 4px; }
+  .open-btn .t1, .open-btn .t2, .open-btn .name, .open-btn .name-2, .open-btn .ln { display: block; }
+  button.log { appearance: none; border: 0; background: none; margin: 0; font: inherit; color: inherit; text-align: left; width: 100%; }
+  .sort-btn { appearance: none; border: 0; background: none; margin: 0 -6px; padding: 4px 6px; font: inherit; font-weight: 500; color: inherit; cursor: pointer; border-radius: 6px; }
   .badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--sec-bg); color: var(--text-2); font-size: 12px; font-weight: 500; display: inline-grid; place-items: center; }
   .badge.warn { background: var(--warning); color: #000; }
   .badge.info { background: var(--info); color: #fff; }
@@ -442,7 +449,7 @@
   .sig i { width: 4px; border-radius: 1px; background: var(--divider); }
   .sig i:nth-child(1) { height: 25%; } .sig i:nth-child(2) { height: 50%; } .sig i:nth-child(3) { height: 75%; } .sig i:nth-child(4) { height: 100%; }
   .sig i.on { background: var(--c); }
-  .snack { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); min-width: 280px; max-width: calc(100vw - 32px); padding: 14px 16px; border-radius: 4px; background: var(--snackbar); color: var(--card); font-size: 14px; box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 60; }
+  .snack { position: fixed; left: 50%; bottom: 24px; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 20px); min-width: 280px; max-width: calc(100vw - 32px); padding: 14px 16px; border-radius: 4px; background: var(--snackbar); color: var(--card); font-size: 14px; box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 60; }
   .snack.show { opacity: 1; transform: translate(-50%, 0); }
   .conn { display: none; }
   .conn.show { display: flex; }
@@ -478,30 +485,30 @@
     <span class="logo" id="logo"></span>
     <h1 data-t="app.title">Zigbee Tracker</h1>
     <span class="live" id="live" title="Connection to the tracker" data-ta="title=app.connection"><i></i><span id="liveText" data-t="app.connecting">Connecting</span></span>
-    <button class="icon-btn" id="menuBtn" aria-label="More options" data-ta="aria-label=menu.more" aria-haspopup="true" aria-expanded="false"></button>
+    <button class="icon-btn" id="menuBtn" aria-label="More options" data-ta="aria-label=menu.more" aria-haspopup="menu" aria-controls="menu" aria-expanded="false"></button>
   </div>
   <nav class="tabs" role="tablist" aria-label="Sections" data-ta="aria-label=tabs.sections">
-    <button class="tab" role="tab" data-view="devices" aria-selected="true"><span data-i="zigbee"></span><span data-t="tabs.devices">Devices</span></button>
-    <button class="tab" role="tab" data-view="health" aria-selected="false"><span data-i="heart-pulse"></span><span data-t="tabs.health">Health</span> <span class="badge" id="issueBadge">0</span></button>
-    <button class="tab" role="tab" data-view="updates" aria-selected="false"><span data-i="update"></span><span data-t="tabs.updates">Updates</span> <span class="badge info" id="otaBadge" hidden>0</span></button>
-    <button class="tab" role="tab" data-view="activity" aria-selected="false"><span data-i="history"></span><span data-t="tabs.activity">Activity</span></button>
-    <button class="tab" role="tab" data-view="map" aria-selected="false"><span data-i="sitemap"></span><span data-t="tabs.map">Map</span></button>
-    <button class="tab" role="tab" data-view="settings" aria-selected="false"><span data-i="cog"></span><span data-t="tabs.settings">Settings</span></button>
+    <button class="tab" role="tab" id="tab-devices" data-view="devices" aria-controls="view" aria-selected="true" tabindex="0"><span data-i="zigbee"></span><span data-t="tabs.devices">Devices</span></button>
+    <button class="tab" role="tab" id="tab-health" data-view="health" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="heart-pulse"></span><span data-t="tabs.health">Health</span> <span class="badge" id="issueBadge">0</span></button>
+    <button class="tab" role="tab" id="tab-updates" data-view="updates" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="update"></span><span data-t="tabs.updates">Updates</span> <span class="badge info" id="otaBadge" hidden>0</span></button>
+    <button class="tab" role="tab" id="tab-activity" data-view="activity" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="history"></span><span data-t="tabs.activity">Activity</span></button>
+    <button class="tab" role="tab" id="tab-map" data-view="map" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="sitemap"></span><span data-t="tabs.map">Map</span></button>
+    <button class="tab" role="tab" id="tab-settings" data-view="settings" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="cog"></span><span data-t="tabs.settings">Settings</span></button>
   </nav>
-  <div class="menu" id="menu" hidden role="menu">
-    <a href="api/export.csv" download role="menuitem"><span data-i="download"></span><span data-t="menu.export_csv">Export CSV</span></a>
-    <button data-act="scan" role="menuitem"><span data-i="sitemap"></span><span data-t="menu.run_scan">Run routing scan</span></button>
-    <button data-act="import" role="menuitem"><span data-i="refresh"></span><span data-t="menu.import_history">Import history</span></button>
-    <button data-act="theme" role="menuitem"><span data-i="information-outline"></span><span id="themeLabel">Theme: Auto</span></button>
-    <a href="https://github.com/tempus2016/z2m-device-tracker/wiki" target="_blank" rel="noopener" role="menuitem"><span data-i="help-circle-outline"></span><span data-t="links.wiki">Wiki</span></a>
-    <a href="https://github.com/tempus2016/z2m-device-tracker" target="_blank" rel="noopener" role="menuitem"><span data-i="open-in-new"></span>GitHub</a>
-    <a href="https://github.com/tempus2016/z2m-device-tracker/releases" target="_blank" rel="noopener" role="menuitem"><span data-i="note-text-outline"></span><span data-t="links.releases">Releases</span></a>
+  <div class="menu" id="menu" hidden role="menu" aria-labelledby="menuBtn">
+    <a href="api/export.csv" download role="menuitem" tabindex="-1"><span data-i="download"></span><span data-t="menu.export_csv">Export CSV</span></a>
+    <button data-act="scan" role="menuitem" tabindex="-1"><span data-i="sitemap"></span><span data-t="menu.run_scan">Run routing scan</span></button>
+    <button data-act="import" role="menuitem" tabindex="-1"><span data-i="refresh"></span><span data-t="menu.import_history">Import history</span></button>
+    <button data-act="theme" role="menuitem" tabindex="-1"><span data-i="information-outline"></span><span id="themeLabel">Theme: Auto</span></button>
+    <a href="https://github.com/tempus2016/z2m-device-tracker/wiki" target="_blank" rel="noopener" role="menuitem" tabindex="-1"><span data-i="help-circle-outline"></span><span data-t="links.wiki">Wiki</span></a>
+    <a href="https://github.com/tempus2016/z2m-device-tracker" target="_blank" rel="noopener" role="menuitem" tabindex="-1"><span data-i="open-in-new"></span>GitHub</a>
+    <a href="https://github.com/tempus2016/z2m-device-tracker/releases" target="_blank" rel="noopener" role="menuitem" tabindex="-1"><span data-i="note-text-outline"></span><span data-t="links.releases">Releases</span></a>
   </div>
 </header>
 
 <main class="page" id="page">
   <div class="alert conn" id="conn" style="--a: var(--error)"><span data-i="lan-disconnect"></span><div class="body" id="connText"></div></div>
-  <div id="view"></div>
+  <div id="view" role="tabpanel" aria-labelledby="tab-devices"></div>
 </main>
 
 <dialog class="more" id="more" aria-labelledby="moreTitle"></dialog>
@@ -722,7 +729,9 @@
   const applyTheme = () => {
     if (theme === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme", theme);
     $("#themeLabel").textContent = t("menu.theme", { theme: t(`theme.${theme}`) });
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", getComputedStyle(document.documentElement).getPropertyValue("--card").trim() || "#ffffff");
   };
+  window.matchMedia?.("(prefers-color-scheme: dark)").addEventListener?.("change", () => applyTheme());
   let snackT;
   const snack = (msg, ms = 2600) => { const s = $("#snack"); s.textContent = msg; s.classList.add("show"); clearTimeout(snackT); snackT = setTimeout(() => s.classList.remove("show"), ms); };
 
@@ -784,6 +793,7 @@
   // title and text are HTML: pass th(...) or escaped text.
   const emptyState = (icon, title, text) => `<div class="empty">${ic(icon)}<b>${title}</b>${text}</div>`;
 
+  const DEV_LIMIT = 200;
   const renderDevices = () => {
     const all = visible();
     const list = filtered();
@@ -791,12 +801,13 @@
     const col = (k, key, cls = "") => {
       const label = th(key);
       const on = state.sort === k, up = on ? sortDir() > 0 : (DEFAULT_DIR[k] || 1) > 0;
-      return `<th class="sortable ${on ? "on" : ""} ${cls}" data-sort="${k}" aria-sort="${on ? (sortDir() > 0 ? "ascending" : "descending") : "none"}"><span class="h">${label}${ic(up ? "arrow-up" : "arrow-down")}</span></th>`;
+      return `<th class="sortable ${on ? "on" : ""} ${cls}" data-sort="${k}" aria-sort="${on ? (sortDir() > 0 ? "ascending" : "descending") : "none"}"><button type="button" class="sort-btn"><span class="h">${label}${ic(up ? "arrow-up" : "arrow-down")}</span></button></th>`;
     };
     const pane = usePane();
     if (state.group) list.sort((a, b) => (a.area ? 0 : 1) - (b.area ? 0 : 1) || collator.compare(a.area || "", b.area || ""));
     let lastArea;
-    const rows = list.map((d) => {
+    const shown = state.devAll || list.length <= DEV_LIMIT ? list : list.slice(0, DEV_LIMIT);
+    const rows = shown.map((d) => {
       const noArea = t("devices.no_area");
       const head = state.group && (d.area || noArea) !== lastArea ? `<tr class="grp"><td colspan="8">${esc(d.area || noArea)} <span>${list.filter((x) => (x.area || noArea) === (d.area || noArea)).length}</span></td></tr>` : "";
       lastArea = d.area || noArea;
@@ -838,6 +849,7 @@
         <div class="table-wrap">${list.length ? `<table class="dt ${pane ? "compact" : ""}"><thead><tr><th class="ic-cell"></th>${col("name", "devices.col.name")}${col("area", "devices.col.area", "hide-sm col-area")}${col("model", "devices.col.model", "hide-md col-model")}${col("status", "devices.col.status")}${col("battery", "devices.col.battery", "num hide-sm")}${col("signal", "devices.col.signal", "num hide-md")}${col("last_seen", "devices.col.last_seen", "hide-md")}</tr></thead><tbody>${rows}</tbody></table>`
           : emptyState("magnify", th("devices.none_found"), state.query ? th("devices.no_match", { query: esc(state.query) }) : th("devices.empty_filter"))}</div>
       </div>
+      ${shown.length < list.length ? `<div class="row-actions" style="justify-content:center;padding-top:12px"><button class="btn outlined" data-act="dev-all">${th("devices.show_all", { n: list.length })}</button></div>` : ""}
       <div class="count-line" style="margin:8px 4px 0;text-align:right">${th("devices.count", { shown: list.length, n: all.length })}</div>
       </div>${pane ? `<aside class="card pane" id="pane" aria-label="${esc(t("more.details"))}"></aside>` : ""}</div>`;
     $("#page").classList.toggle("wide", pane);
@@ -880,7 +892,7 @@
           <div class="acts">${panel ? `<a class="btn" href="${esc(panel)}" target="_top">${th("health.open_z2m")}</a>` : ""}</div></div>`;
       }
       return `<div class="row"><span class="state-ic" style="color:${tone}">${ic(KIND_ICON[i.kind] || "alert")}</span>
-        <div class="text row-open" data-open="${esc(i.ieee)}" style="cursor:pointer"><div class="t1">${esc(issueTitle(i))}: ${esc(issueName(i))}</div><div class="t2">${esc(issueDetail(i))}${d?.area ? ` · ${esc(d.area)}` : ""}</div></div>
+        <button type="button" class="text row-open open-btn" data-open="${esc(i.ieee)}"><span class="t1">${esc(issueTitle(i))}: ${esc(issueName(i))}</span><span class="t2">${esc(issueDetail(i))}${d?.area ? ` · ${esc(d.area)}` : ""}</span></button>
         <div class="acts">${issueActions(i)}</div></div>`;
     };
     const warn = issues.filter((i) => i.severity === "warning"), info = issues.filter((i) => i.severity !== "warning");
@@ -1178,7 +1190,7 @@
     const diff = mapDiff(bt);
     const diffCol = (l) => { const st = diff.status[[l.a, l.b].sort().join("|")]; return st === "moved" ? "var(--info)" : st === "better" ? "var(--success)" : st === "worse" ? "var(--error)" : "var(--disabled)"; };
     gl.innerHTML = L.map((l, i) => { const changed = diff && diff.status[[l.a, l.b].sort().join("|")]; return `<line data-i="${i}" stroke="${diff ? diffCol(l) : lqiCol(l.lqi)}" stroke-width="${changed ? 3 : l.parent ? 1.6 : 1.1}" ${l.parent ? "" : 'stroke-dasharray="5 4"'} opacity="${diff && !changed ? 0.35 : l.parent ? 0.85 : 0.6}"><title>LQI ${esc(l.lqi ?? "?")}</title></line>`; }).join("");
-    gn.innerHTML = nodes.map((n, i) => `<g class="mnode" data-n="${i}" tabindex="0"><circle r="${n.r}" fill="${mapNodeCol(n.d)}" stroke="var(--card)" stroke-width="2"/>${n.d.type === "Coordinator" ? `<text class="c" text-anchor="middle" dy="4">C</text>` : `<text class="lbl" text-anchor="middle" dy="${-n.r - 5}">${esc((nameOf(n.d) || "").slice(0, 28))}</text>`}<title>${esc(nameOf(n.d) || (n.d.type === "Coordinator" ? t("map.coordinator") : n.id))}${n.d.area ? " · " + esc(n.d.area) : ""}</title></g>`).join("");
+    gn.innerHTML = nodes.map((n, i) => `<g class="mnode" data-n="${i}" tabindex="0" role="button" aria-label="${esc([...new Set([nameOf(n.d) || (n.d.type === "Coordinator" ? t("map.coordinator") : n.id), typeLabel(n.d.type), n.d.area].filter(Boolean))].join(", "))}"><circle r="${n.r}" fill="${mapNodeCol(n.d)}" stroke="var(--card)" stroke-width="2"/>${n.d.type === "Coordinator" ? `<text class="c" text-anchor="middle" dy="4">C</text>` : `<text class="lbl" text-anchor="middle" dy="${-n.r - 5}">${esc((nameOf(n.d) || "").slice(0, 28))}</text>`}<title>${esc(nameOf(n.d) || (n.d.type === "Coordinator" ? t("map.coordinator") : n.id))}${n.d.area ? " · " + esc(n.d.area) : ""}</title></g>`).join("");
     const lineEls = [...gl.children], nodeEls = [...gn.children];
     const hadView = !!MAP.view?.[bt];
     let view = MAP.view?.[bt] || { k: 1, x: 0, y: 0 };
@@ -1413,8 +1425,10 @@
     };
   };
 
+  const LOG_PAGE = 100;
   const renderActivity = () => {
-    const events = [...(state.data.events || [])].reverse().slice(0, 500);
+    const all = [...(state.data.events || [])].reverse().slice(0, 500);
+    const events = all.slice(0, state.logLimit || LOG_PAGE);
     if (!events.length) { $("#view").innerHTML = `<div class="card">${emptyState("history", th("activity.empty"), th("activity.empty_text"))}</div>`; return; }
     const groups = [];
     events.forEach((e) => { const day = fmtDate(e.time, false); if (!groups.length || groups[groups.length - 1].day !== day) groups.push({ day, items: [] }); groups[groups.length - 1].items.push(e); });
@@ -1422,10 +1436,11 @@
       const d = state.byIeee.get(e.ieee);
       const who = e.name && !IEEE_RE.test(e.name) ? e.name : nameOf(d) || e.ieee;
       const [icon, color] = EVENT_ICON(e.kind);
-      return `<div class="log" ${d ? `data-open="${esc(e.ieee)}"` : ""}><span class="state-ic" style="color:${color}">${ic(icon)}</span>
-        <div class="text"><div class="t1"><b>${esc(who)}</b> ${esc(eventKind(e.kind))}${e.detail ? ` · ${esc(eventDetail(e))}` : ""}</div><div class="t2">${th("net.network", { name: esc(netLabel(e.instance)) })}${d?.area ? ` · ${esc(d.area)}` : ""}</div></div>
-        <time>${esc(fmtTime(e.time))}</time></div>`;
-    }).join("")).join("")}</div>`;
+      const tag = d ? "button" : "div";
+      return `<${tag} class="log${d ? " open-btn" : ""}" ${d ? `type="button" data-open="${esc(e.ieee)}"` : ""}><span class="state-ic" style="color:${color}">${ic(icon)}</span>
+        <span class="text"><span class="t1"><b>${esc(who)}</b> ${esc(eventKind(e.kind))}${e.detail ? ` · ${esc(eventDetail(e))}` : ""}</span><span class="t2">${th("net.network", { name: esc(netLabel(e.instance)) })}${d?.area ? ` · ${esc(d.area)}` : ""}</span></span>
+        <time datetime="${esc(e.time)}">${esc(fmtTime(e.time))}</time></${tag}>`;
+    }).join("")).join("")}${events.length < all.length ? `<div class="row-actions" style="justify-content:center;padding-top:12px"><button class="btn outlined" data-act="log-more">${th("activity.show_more", { n: Math.min(LOG_PAGE, all.length - events.length) })}</button></div>` : ""}</div>`;
   };
 
   // ------------------------------------------------------------ settings
@@ -1457,14 +1472,14 @@
         ${sw("persistent_notifications", s.persistent_notifications, t("settings.ha_notifications"), th("settings.ha_notifications_desc"), off)}
         ${sw("fire_events", s.fire_events, t("settings.automation_event"), th("settings.automation_event_desc", { event: "<span class='mono'>z2m_tracker_alert</span>" }), off)}
         <div class="set-row ${off ? "disabled" : ""}"><div class="text"><div class="t1">${th("settings.mobile")}</div><div class="t2">${th("settings.mobile_desc", { example: '<span class="mono">notify.mobile_app_your_phone</span>' })}</div></div>
-          <div class="ctl"><input class="field" id="notifySvc" style="width:240px" value="${esc(s.notify_service || "")}" placeholder="notify.mobile_app_…" spellcheck="false" ${off ? "disabled" : ""}><button class="btn" data-act="save-notify" ${off ? "disabled" : ""}>${th("common.save")}</button></div></div>
+          <div class="ctl"><input class="field" id="notifySvc" aria-label="${esc(t("settings.mobile"))}" autocomplete="off" style="width:240px" value="${esc(s.notify_service || "")}" placeholder="notify.mobile_app_…" spellcheck="false" ${off ? "disabled" : ""}><button class="btn" data-act="save-notify" ${off ? "disabled" : ""}>${th("common.save")}</button></div></div>
         <div class="card-actions"><button class="btn" data-act="test-notify" ${off ? "disabled" : ""}>${ic("bell", "s18")}${th("settings.test_notification")}</button></div>
       </div>
       <div class="card"><div class="card-header"><div>${th("settings.weekly")}<small>${th("settings.weekly_desc")}</small></div></div>
         ${sw("weekly_summary", s.weekly_summary, t("settings.weekly_send"), th("settings.weekly_send_desc", { event: "z2m_tracker_summary" }))}
         <div class="set-row ${s.weekly_summary ? "" : "disabled"}"><div class="text"><div class="t1">${th("settings.when")}</div><div class="t2">${th("settings.when_desc")}</div></div><div class="ctl">
-          <select class="field" id="sumDay" ${s.weekly_summary ? "" : "disabled"}>${weekdays.map((n, i) => `<option value="${i}" ${s.summary_day === i ? "selected" : ""}>${n}</option>`).join("")}</select>
-          <select class="field" id="sumHour" ${s.weekly_summary ? "" : "disabled"}>${[...Array(24).keys()].map((h) => `<option value="${h}" ${s.summary_hour === h ? "selected" : ""}>${String(h).padStart(2, "0")}:00</option>`).join("")}</select></div></div>
+          <select class="field" id="sumDay" aria-label="${esc(t("settings.when_day"))}" ${s.weekly_summary ? "" : "disabled"}>${weekdays.map((n, i) => `<option value="${i}" ${s.summary_day === i ? "selected" : ""}>${n}</option>`).join("")}</select>
+          <select class="field" id="sumHour" aria-label="${esc(t("settings.when_hour"))}" ${s.weekly_summary ? "" : "disabled"}>${[...Array(24).keys()].map((h) => `<option value="${h}" ${s.summary_hour === h ? "selected" : ""}>${String(h).padStart(2, "0")}:00</option>`).join("")}</select></div></div>
         <div class="card-actions"><button class="btn" data-act="send-summary">${th("settings.send_now")}</button></div>
       </div>
       <div class="card"><div class="card-header"><div>${th("settings.checks")}<small>${th("settings.checks_desc")}</small></div></div>${checks}</div>
@@ -1475,8 +1490,8 @@
         ${num("chatty_per_hour", t("settings.chatty_above"), th("settings.chatty_above_desc"), 60, 36000, th("settings.unit_per_h"))}
       </div>
       <div class="card"><div class="card-header"><div>${th("settings.routing_scan")}<small>${th("settings.routing_scan_desc")}</small></div></div>
-        <div class="set-row"><div class="text"><div class="t1">${th("settings.wifi")}</div><div class="t2">${th("settings.wifi_desc")}</div></div><div class="ctl"><input class="field" id="wifiCh" style="width:120px" value="${esc(s.wifi_channels || "")}" placeholder="${esc(t("settings.wifi_placeholder"))}" inputmode="numeric"><button class="btn" data-act="save-wifi">${th("common.save")}</button></div></div>
-        <div class="set-row"><div class="text"><div class="t1">${th("settings.schedule")}</div><div class="t2">${th("settings.last_scans", { scans: esc(scans) })}</div></div><div class="ctl"><select class="field" id="scanHour">${hours}</select></div></div>
+        <div class="set-row"><div class="text"><div class="t1">${th("settings.wifi")}</div><div class="t2">${th("settings.wifi_desc")}</div></div><div class="ctl"><input class="field" id="wifiCh" aria-label="${esc(t("settings.wifi"))}" autocomplete="off" style="width:120px" value="${esc(s.wifi_channels || "")}" placeholder="${esc(t("settings.wifi_placeholder"))}" inputmode="numeric"><button class="btn" data-act="save-wifi">${th("common.save")}</button></div></div>
+        <div class="set-row"><div class="text"><div class="t1">${th("settings.schedule")}</div><div class="t2">${th("settings.last_scans", { scans: esc(scans) })}</div></div><div class="ctl"><select class="field" id="scanHour" aria-label="${esc(t("settings.schedule"))}">${hours}</select></div></div>
         <div class="card-actions"><button class="btn" data-act="scan">${ic("sitemap", "s18")}${th("settings.scan_now")}</button></div>
       </div>
       <div class="card"><div class="card-header">${th("settings.entities")}</div>
@@ -1486,13 +1501,13 @@
         ${S.muted.length ? S.muted.map((m) => { const c = S.checks.find((x) => x.key === m.kind); return `<div class="set-row"><div class="text"><div class="t1">${esc(m.name)}</div><div class="t2">${esc(c ? checkLabel(c) : m.kind)} · ${m.until ? th("settings.until", { date: esc(fmtDate(m.until)) }) : th("settings.forever")}</div></div><div class="ctl"><button class="btn" data-act="unmute" data-ieee="${esc(m.ieee)}" data-kind="${esc(m.kind)}">${th("common.stop_ignoring")}</button></div></div>`; }).join("") + `<div class="card-actions"><button class="btn" data-act="unmute-all">${th("settings.stop_ignoring_all")}</button></div>` : `<div class="set-row"><div class="text"><div class="t2">${th("settings.nothing_ignored")}</div></div></div>`}
       </div>
       <div class="card"><div class="card-header">${th("settings.appearance")}</div>
-        <div class="set-row"><div class="text"><div class="t1">${th("settings.language")}</div><div class="t2">${th("settings.language_desc")}</div></div><div class="ctl"><select class="field" id="langSel"><option value="auto" ${I18N.pref === "auto" ? "selected" : ""}>${th("settings.language_auto", { code: esc(I18N.auto) })}</option>${I18N.langs.map((l) => `<option value="${esc(l.code)}" ${I18N.pref === l.code ? "selected" : ""}>${esc(l.name || l.code)}</option>`).join("")}</select></div></div>
-        <div class="set-row"><div class="text"><div class="t1">${th("settings.theme")}</div><div class="t2">${th("settings.theme_desc")}</div></div><div class="ctl"><select class="field" id="themeSel">${THEMES.map((x) => `<option value="${x}" ${theme === x ? "selected" : ""}>${th(`theme.${x}`)}</option>`).join("")}</select></div></div>
+        <div class="set-row"><div class="text"><div class="t1">${th("settings.language")}</div><div class="t2">${th("settings.language_desc")}</div></div><div class="ctl"><select class="field" id="langSel" aria-label="${esc(t("settings.language"))}"><option value="auto" ${I18N.pref === "auto" ? "selected" : ""}>${th("settings.language_auto", { code: esc(I18N.auto) })}</option>${I18N.langs.map((l) => `<option value="${esc(l.code)}" ${I18N.pref === l.code ? "selected" : ""}>${esc(l.name || l.code)}</option>`).join("")}</select></div></div>
+        <div class="set-row"><div class="text"><div class="t1">${th("settings.theme")}</div><div class="t2">${th("settings.theme_desc")}</div></div><div class="ctl"><select class="field" id="themeSel" aria-label="${esc(t("settings.theme"))}">${THEMES.map((x) => `<option value="${x}" ${theme === x ? "selected" : ""}>${th(`theme.${x}`)}</option>`).join("")}</select></div></div>
         <div class="set-row"><div class="text"><div class="t1">${th("menu.import_history")}</div><div class="t2">${th("settings.import_desc")}</div></div><div class="ctl"><button class="btn" data-act="import">${th("common.import")}</button></div></div>
         <div class="set-row"><div class="text"><div class="t1">${th("settings.backup")}</div><div class="t2">${th("settings.backup_desc")}</div></div><div class="ctl"><a class="btn" href="api/backup" download>${th("common.download")}</a><button class="btn" data-act="restore">${th("common.restore")}</button><input type="file" id="restoreFile" accept=".json,application/json" hidden></div></div>
         <div class="set-row"><div class="text"><div class="t1">${th("settings.export")}</div><div class="t2">${th("settings.export_desc")}</div></div><div class="ctl"><a class="btn" href="api/export.csv" download>${th("menu.export_csv")}</a></div></div>
         <div class="set-row"><div class="text"><div class="t1">${th("settings.networks")}</div><div class="t2">${th("settings.networks_desc", { topics: S.networks.map((n) => esc(n.topic)).join(", ") })}</div></div><div class="ctl">${S.networks.filter((n) => n.panel).map((n) => `<a class="btn" href="${esc(n.panel)}" target="_top">${esc(netLabel(n.topic))}${ic("open-in-new", "s18")}</a>`).join("")}</div></div>
-        <div class="set-row"><div class="text"><div class="t1">${th("settings.details")}</div><div class="t2">${th("settings.details_desc")}</div></div><div class="ctl"><select class="field" id="layoutSel"><option value="pane" ${state.layout === "pane" ? "selected" : ""}>${th("settings.side_panel")}</option><option value="dialog" ${state.layout === "dialog" ? "selected" : ""}>${th("settings.popup")}</option></select></div></div>
+        <div class="set-row"><div class="text"><div class="t1">${th("settings.details")}</div><div class="t2">${th("settings.details_desc")}</div></div><div class="ctl"><select class="field" id="layoutSel" aria-label="${esc(t("settings.details"))}"><option value="pane" ${state.layout === "pane" ? "selected" : ""}>${th("settings.side_panel")}</option><option value="dialog" ${state.layout === "dialog" ? "selected" : ""}>${th("settings.popup")}</option></select></div></div>
         <div class="set-row links"><div class="text"><div class="t1">${th("settings.version")}</div><div class="t2">Z2M Device Tracker ${esc(S.version)}</div></div><div class="ctl">${LINKS.map(([href, label]) => `<a class="btn" href="${href}" target="_blank" rel="noopener">${th(label)}${ic("open-in-new", "s18")}</a>`).join("")}</div></div>
       </div>`;
   };
@@ -1628,7 +1643,7 @@
       <div class="sub-h">${th("history.replacements")}</div>
       ${sugg ? `<div class="alerts">${sugg}</div>` : ""}
       ${lineage ? `<div class="rep-list">${lineage}</div>` : !sugg ? `<div class="card-content muted">${th("history.not_linked")}</div>` : ""}
-      ${d.status !== "removed" && removed.length ? `<div class="row-actions"><select class="field" id="linkSel" style="flex:1;min-width:0"><option value="">${th("history.link_removed")}</option>${removed.map((x) => `<option value="${esc(x.ieee)}">${esc(nameOf(x) || x.ieee)}${x.removed_at ? ` · ${th("history.removed_on", { date: esc(fmtDate(x.removed_at, false)) })}` : ""}</option>`).join("")}</select><button class="btn" data-act="link-sel">${th("common.link")}</button></div>` : ""}
+      ${d.status !== "removed" && removed.length ? `<div class="row-actions"><select class="field" id="linkSel" aria-label="${esc(t("history.link_removed"))}" style="flex:1;min-width:0"><option value="">${th("history.link_removed")}</option>${removed.map((x) => `<option value="${esc(x.ieee)}">${esc(nameOf(x) || x.ieee)}${x.removed_at ? ` · ${th("history.removed_on", { date: esc(fmtDate(x.removed_at, false)) })}` : ""}</option>`).join("")}</select><button class="btn" data-act="link-sel">${th("common.link")}</button></div>` : ""}
       <div class="sub-h">${th("history.logbook")}</div>
       ${events.length ? events.map((e) => { const [icon, color] = EVENT_ICON(e.kind); return `<div class="log" style="cursor:default"><span class="state-ic" style="color:${color}">${ic(icon)}</span><div class="text">${logLine(e)}</div></div>`; }).join("") : `<div class="card-content muted">${th("history.nothing_logged")}</div>`}`;
   };
@@ -1747,7 +1762,7 @@
       <form class="form" id="assetForm" onsubmit="return false">${f("location", "asset.location", "text", "wide")}${f("purchase_date", "asset.purchased", "date")}${f("warranty_until", "asset.warranty", "date")}${f("shop", "asset.shop")}${f("price", "asset.price")}${f("serial", "asset.serial", "text", "wide")}</form>
       <div class="row-actions"><button class="btn" data-act="save-asset">${th("common.save")}</button><span class="saved" id="savedAsset">${th("common.saved")}</span></div>
       <div class="sub-h">${th("asset.notes")}</div>
-      <div class="form"><label class="wide"><textarea class="field" id="note" placeholder="${esc(t("asset.note_placeholder"))}">${esc(d.note || "")}</textarea></label></div>
+      <div class="form"><label class="wide"><textarea class="field" id="note" aria-label="${esc(t("asset.notes"))}" placeholder="${esc(t("asset.note_placeholder"))}">${esc(d.note || "")}</textarea></label></div>
       <div class="row-actions"><button class="btn" data-act="save-note">${th("asset.save_note")}</button><span class="saved" id="savedNote">${th("common.saved")}</span><span class="spacer"></span><button class="btn danger" data-act="forget">${ic("delete", "s18")}${th("asset.forget")}</button></div>
       <div class="card-content muted" style="font-size:12px">${th("asset.sources", { sources: esc((d.sources || []).join(" · ") || "—") })}</div>`;
   };
@@ -1762,8 +1777,8 @@
       <div class="more-head"><button class="icon-btn" data-act="close" aria-label="${esc(t("common.close"))}">${ic("close")}</button>
         <div class="titles"><h2 id="moreTitle" class="${name ? "" : "unknown"}">${esc(name || t("devices.unnamed"))}</h2><small>${esc([d.area, t("net.network", { name: netLabel(d.instance) })].filter(Boolean).join(" · "))}</small></div>
         <button class="icon-btn" data-act="copy" data-ieee="${esc(d.ieee)}" aria-label="${esc(t("more.copy_ieee"))}" title="${esc(t("more.copy", { ieee: d.ieee }))}">${ic("content-copy")}</button></div>
-      <nav class="more-tabs" role="tablist">${tabs.map(([k, l]) => `<button class="tab" role="tab" data-tab="${k}" aria-selected="${state.moreTab === k}">${th(l)}</button>`).join("")}</nav>
-      <div class="more-body">${fn(d)}</div>`;
+      <nav class="more-tabs" role="tablist" aria-label="${esc(t("more.details"))}">${tabs.map(([k, l]) => `<button class="tab" role="tab" id="mtab-${k}" data-tab="${k}" aria-controls="moreBody" aria-selected="${state.moreTab === k}" tabindex="${state.moreTab === k ? 0 : -1}">${th(l)}</button>`).join("")}</nav>
+      <div class="more-body" id="moreBody" role="tabpanel" aria-labelledby="mtab-${state.moreTab}">${fn(d)}</div>`;
   };
   const renderMore = (fresh = false, fromList = false) => {
     const dlg = $("#more");
@@ -1789,17 +1804,28 @@
     state.editing = false;
     if (!dlg.open) dlg.showModal();
   };
+  // The hash holds the open device (#0x…) or, with none open, the tab (#health). Devices is the bare URL.
+  const VIEWS = ["devices", "health", "updates", "activity", "map", "settings"];
+  const syncHash = () => { const h = state.open ? encodeURIComponent(state.open) : state.view !== "devices" ? state.view : ""; history.replaceState(null, "", h ? `#${h}` : location.pathname + location.search); };
+  // A note typed but not saved is saved when the device, tab or view changes, or the dialog closes.
+  const flushNote = () => {
+    const n = document.getElementById("note"), ieee = state.open, d = state.byIeee.get(ieee);
+    if (!n || !d || n.value === (d.note || "")) return;
+    const note = n.value, before = d.note;
+    d.note = note;
+    api("api/note", { ieee, note }).then(() => snack(t("asset.note_saved"))).catch((err) => { d.note = before; snack(err.message); });
+  };
   const markSelected = () => document.querySelectorAll(".dt tbody tr[data-open]").forEach((r) => r.setAttribute("aria-selected", String(r.dataset.open === state.open)));
   const openDevice = (ieee, tab) => {
-    if (state.open !== ieee) { state.moreTab = tab || state.moreTab || "info"; state.paneScroll = 0; }
+    if (state.open !== ieee) { flushNote(); state.moreTab = tab || state.moreTab || "info"; state.paneScroll = 0; }
     state.open = ieee;
-    history.replaceState(null, "", `#${encodeURIComponent(ieee)}`);
+    syncHash();
     if (usePane() && state.view !== "devices") { state.view = "devices"; state.settingsShown = false; render(); window.scrollTo(0, 0); }
     renderMore(true);
     markSelected();
     if (usePane()) document.querySelector(`.dt tr[data-open="${CSS.escape(ieee)}"]`)?.scrollIntoView({ block: "nearest" });
   };
-  const closeDevice = () => { state.open = null; history.replaceState(null, "", location.pathname + location.search); const dlg = $("#more"); if (dlg.open) dlg.close(); if (usePane()) { renderMore(true); markSelected(); } };
+  const closeDevice = () => { flushNote(); state.open = null; syncHash(); const dlg = $("#more"); if (dlg.open) dlg.close(); if (usePane()) { renderMore(true); markSelected(); } };
   const moveSelection = (delta) => {
     const rows = [...document.querySelectorAll(".dt tbody tr[data-open]")];
     if (!rows.length) return;
@@ -1807,7 +1833,7 @@
     i = i < 0 ? 0 : Math.max(0, Math.min(rows.length - 1, i + delta));
     openDevice(rows[i].dataset.open);
   };
-  $("#more").addEventListener("close", () => { if (state.open && !state.keepOpen) { state.open = null; history.replaceState(null, "", location.pathname + location.search); } });
+  $("#more").addEventListener("close", () => { if (state.open && !state.keepOpen) { flushNote(); state.open = null; syncHash(); } });
   $("#more").addEventListener("click", (e) => { if (e.target === e.currentTarget) closeDevice(); });
   $("#more").addEventListener("input", () => { state.editing = true; });
   $("#view").addEventListener("input", (e) => { if (e.target.closest("#pane")) state.editing = true; });
@@ -1835,7 +1861,8 @@
     const badge = $("#issueBadge"); badge.textContent = issues.length; badge.classList.toggle("warn", warn > 0);
     const otaCount = otaList().filter((d) => d.update?.state === "available" || d.update?.state === "updating").length;
     $("#otaBadge").textContent = otaCount; $("#otaBadge").hidden = !otaCount;
-    document.querySelectorAll(".toolbar .tab").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.view === state.view)));
+    document.querySelectorAll(".toolbar .tab").forEach((t) => { const on = t.dataset.view === state.view; t.setAttribute("aria-selected", String(on)); t.tabIndex = on ? 0 : -1; });
+    $("#view").setAttribute("aria-labelledby", `tab-${state.view}`);
     if (state.view !== "devices") $("#page").classList.remove("wide");
     if (state.view === "devices") { if (!(usePane() && state.editing && $("#pane")?.contains(document.activeElement))) renderDevices(); }
     else if (state.view === "health") renderHealth();
@@ -1849,12 +1876,14 @@
     if ($("#pairDlg").open) renderPair();
     if ($("#replaceDlg").open && state.replace?.step === 1) renderReplace();
   };
-  const go = (view) => { state.view = view; state.settingsShown = false; render(); window.scrollTo(0, 0); };
+  const go = (view) => { flushNote(); state.view = view; state.settingsShown = false; if (!state.open) syncHash(); render(); window.scrollTo(0, 0); };
 
   // ------------------------------------------------------------ actions
   const flash = (sel) => { const s = $(sel); if (!s) return; s.classList.add("show"); setTimeout(() => s.classList.remove("show"), 1600); };
   const actions = {
     close: () => closeDevice(),
+    "dev-all"() { state.devAll = true; renderDevices(); },
+    "log-more"() { state.logLimit = (state.logLimit || LOG_PAGE) + LOG_PAGE; renderActivity(); },
     async copy(b) { try { await navigator.clipboard.writeText(b.dataset.ieee); snack(t("snack.ieee_copied")); } catch (e) { snack(b.dataset.ieee); } },
     async reconfigure(b) {
       const ieee = b.dataset.ieee, d = state.byIeee.get(ieee);
@@ -2044,7 +2073,7 @@
     const rows = list.map((d) => {
       const u = d.update || {}, [st, act] = otaStatus(d);
       return `<tr><td class="ic-cell">${stateIc(d)}</td>
-        <td class="row-open dev" data-open="${esc(d.ieee)}" style="cursor:pointer"><div class="name">${esc(nameOf(d) || d.ieee)}</div><div class="name-2">${esc(deviceLine(d) || d.ieee)}</div></td>
+        <td class="dev"><button type="button" class="row-open open-btn" data-open="${esc(d.ieee)}"><span class="name">${esc(nameOf(d) || d.ieee)}</span><span class="name-2">${esc(deviceLine(d) || d.ieee)}</span></button></td>
         <td class="nw"><span class="mono">${esc(otaVer(u.installed_version))}</span>${d.software_build_id ? `<div class="name-2">${th("ota.build", { build: esc(d.software_build_id) })}</div>` : ""}</td>
         <td class="mono nw">${esc(otaVer(u.latest_version))}</td>
         <td class="nw">${power(d)}</td>
@@ -2057,7 +2086,7 @@
       const retry = !ok && d?.update?.state === "available" && !O.status?.[h.ieee] ? `<button class="btn" data-act="ota-now" data-ieee="${esc(h.ieee)}" data-force="1">${th("ota.retry")}</button>` : "";
       const dur = h.duration ? ` · ${span(h.duration)}` : "";
       return `<div class="row" style="min-height:52px"><span style="color:${ok ? "var(--success)" : "var(--error)"}">${ic(ok ? "check" : "alert-circle")}</span>
-        <div class="text row-open" data-open="${esc(h.ieee)}" style="cursor:pointer"><div>${esc((d && nameOf(d)) || h.name || h.ieee)} <span class="mono muted">${esc(from)} → ${esc(to)}</span></div>${ok ? "" : `<div class="muted" style="font-size:14px">${th("ota.failed_error", { error: esc(h.error ? otaReason(h.error) : t("ota.unknown_error")) })}</div>`}</div>
+        <button type="button" class="text row-open open-btn" data-open="${esc(h.ieee)}"><span class="ln">${esc((d && nameOf(d)) || h.name || h.ieee)} <span class="mono muted">${esc(from)} → ${esc(to)}</span></span>${ok ? "" : `<span class="ln muted" style="font-size:14px">${th("ota.failed_error", { error: esc(h.error ? otaReason(h.error) : t("ota.unknown_error")) })}</span>`}</button>
         <span class="muted" style="white-space:nowrap">${esc(fmtDate(h.start))}${ok ? esc(dur) : ""}</span>${retry}</div>`;
     }).join("");
     const [wFrom, wTo] = (O.window_valid && O.window ? O.window : "02:00-05:00").split("-");
@@ -2319,7 +2348,17 @@
   // ------------------------------------------------------------ events
   const menu = $("#menu"), menuBtn = $("#menuBtn");
   const closeMenu = () => { menu.hidden = true; menuBtn.setAttribute("aria-expanded", "false"); };
-  menuBtn.addEventListener("click", (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; menuBtn.setAttribute("aria-expanded", String(!menu.hidden)); });
+  const menuItems = () => [...menu.querySelectorAll('[role="menuitem"]')];
+  menuBtn.addEventListener("click", (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; menuBtn.setAttribute("aria-expanded", String(!menu.hidden)); if (!menu.hidden) menuItems()[0]?.focus(); });
+  menu.addEventListener("keydown", (e) => {
+    const items = menuItems(), i = items.indexOf(document.activeElement);
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeMenu(); menuBtn.focus(); return; }
+    if (e.key === "Tab") { closeMenu(); return; }
+    const next = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: items.length - 1 }[e.key];
+    if (next === undefined) return;
+    e.preventDefault();
+    items[(next + items.length) % items.length].focus();
+  });
   document.addEventListener("click", (e) => {
     if (!menu.hidden && !e.target.closest("#menu")) closeMenu();
     const mz = e.target.closest("[data-mapzoom]"); if (mz) { MAP.sims[mz.dataset.net]?.zoom(Number(mz.dataset.mapzoom)); return; }
@@ -2342,7 +2381,7 @@
     if (act && actions[act.dataset.act]) { e.preventDefault(); closeMenu(); actions[act.dataset.act](act); return; }
     if (e.target.closest("#menu a")) { closeMenu(); return; }
     const tab = e.target.closest("[data-tab]");
-    if (tab) { state.moreTab = tab.dataset.tab; renderMore(true); return; }
+    if (tab) { flushNote(); const box = tab.closest("#more, #pane"); state.moreTab = tab.dataset.tab; renderMore(true); if (document.activeElement === document.body || !document.activeElement || !box?.contains(document.activeElement)) box?.querySelector(`[data-tab="${CSS.escape(state.moreTab)}"]`)?.focus(); return; }
     const open = e.target.closest("[data-open]");
     if (open) { e.preventDefault(); openDevice(open.dataset.open); return; }
     const view = e.target.closest("[data-view]");
@@ -2350,11 +2389,21 @@
     const chip = e.target.closest("[data-chip]");
     if (chip) { state.chip = chip.dataset.chip; state.view = "devices"; render(); return; }
     const th = e.target.closest("th[data-sort]");
-    if (th) { const k = th.dataset.sort; if (state.sort === k) state.dir = -sortDir(); else { state.sort = k; state.dir = 0; } store.set("z2mt.sort", state.sort); store.set("z2mt.dir", String(state.dir)); renderDevices(); }
+    if (th) { const k = th.dataset.sort; if (state.sort === k) state.dir = -sortDir(); else { state.sort = k; state.dir = 0; } store.set("z2mt.sort", state.sort); store.set("z2mt.dir", String(state.dir)); renderDevices(); document.querySelector(`th[data-sort="${CSS.escape(k)}"] .sort-btn`)?.focus(); }
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !menu.hidden) { closeMenu(); return; }
     if (e.key === "Enter" && e.target.matches("tr[data-open]")) { openDevice(e.target.dataset.open); return; }
+    const tl = e.target.matches?.('[role="tab"]') && e.target.closest('[role="tablist"]');
+    if (tl && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
+      const tabs = [...tl.querySelectorAll('[role="tab"]')], i = tabs.indexOf(e.target);
+      const n = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
+      const to = tabs[(n + tabs.length) % tabs.length];
+      e.preventDefault();
+      to.click();
+      (to.isConnected ? to : document.querySelector(`#more [data-tab="${CSS.escape(to.dataset.tab || "")}"], #pane [data-tab="${CSS.escape(to.dataset.tab || "")}"]`))?.focus();
+      return;
+    }
     const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
     if (!typing && usePane() && state.view === "devices" && (e.key === "ArrowDown" || e.key === "ArrowUp")) { e.preventDefault(); moveSelection(e.key === "ArrowDown" ? 1 : -1); return; }
     if (e.key === "Escape" && usePane() && state.open && !typing && !$("#confirmDlg").open) { closeDevice(); return; }
@@ -2402,7 +2451,11 @@
       saveSettings({ disabled_checks: [...disabled], notify_checks: [...notify] });
     }
   });
-  window.addEventListener("hashchange", () => { const h = decodeURIComponent(location.hash.slice(1)); if (IEEE_RE.test(h) && h !== state.open) openDevice(h); });
+  window.addEventListener("hashchange", () => {
+    const h = decodeURIComponent(location.hash.slice(1));
+    if (IEEE_RE.test(h) && h !== state.open) openDevice(h);
+    else if (VIEWS.includes(h) && h !== state.view) { if ($("#more").open) closeDevice(); go(h); }
+  });
 
   // Deep links from the dashboard cards: /app/<slug>/<ieee>. HA's app panel passes the route
   // tail to the iframe once it subscribes to properties.
@@ -2425,6 +2478,8 @@
     await loadI18n();
     translateStatic();
     applyTheme();
+    const hv = decodeURIComponent(location.hash.slice(1));
+    if (VIEWS.includes(hv)) state.view = hv;
     await load();
     const h = decodeURIComponent(location.hash.slice(1));
     if (IEEE_RE.test(h) && state.byIeee.has(h)) openDevice(h);
