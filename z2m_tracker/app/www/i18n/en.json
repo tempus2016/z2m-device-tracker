@@ -1251,5 +1251,22 @@
   "ping.no_reply": "No reply in {s} s",
   "ping.chart_title": "Nightly reply time, last 14 days",
   "ping.chart_empty": "The first nightly ping runs the hour after the routing scan.",
-  "ping.bar_none": "no reply"
+  "ping.bar_none": "no reply",
+  "shop.subtitle_buy": "Buy {total} for the next 60 days",
+  "shop.subtitle_enough": "Your spares cover the next 60 days",
+  "shop.subtitle_none": "Nothing due in the next 60 days. Count your spares here.",
+  "shop.col_type": "Type",
+  "shop.col_stock": "In stock",
+  "shop.col_need": "Next 60 days",
+  "shop.col_buy": "To buy",
+  "shop.buy": "Buy {n}",
+  "shop.enough": "Enough",
+  "shop.in_stock_of": "{type} in stock",
+  "shop.one_less": "One less",
+  "shop.one_more": "One more",
+  "shop.add": "Add",
+  "shop.add_placeholder": "Type, e.g. CR2450",
+  "shop.add_count": "How many",
+  "shop.add_count_bad": "Enter how many to add",
+  "shop.added": "Added {n} × {type}"
 }
