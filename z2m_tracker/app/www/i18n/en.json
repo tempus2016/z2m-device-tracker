@@ -649,7 +649,6 @@
   },
   "mute.done_forever": "Ignored. Undo in Settings.",
   "rename.text": "Changes the name in Zigbee2MQTT and Home Assistant together, including entity IDs.",
-  "rename.no_ha": "Area can't be set because this device isn't in Home Assistant yet.",
   "rename.no_areas": "Areas couldn't be loaded from Home Assistant.",
   "ota.checking": "Checking for a firmware update…",
   "ota.available": "An update is available",
