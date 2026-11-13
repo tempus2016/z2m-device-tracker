@@ -544,8 +544,14 @@ class Tracker:
             if ep.isdigit():
                 payload["from_endpoint"] = int(ep)
             if target.startswith("group:"):
+                # Zigbee2MQTT only accepts a group's friendly name as a bind target, not its ID.
                 gid = target.split(":", 1)[1]
-                payload["to"] = int(gid) if gid.isdigit() else gid
+                group_name = self.groups.get(base_topic, {}).get(gid)
+                if not group_name:
+                    failed.append(binding.get("label") or binding["key"])
+                    errors.append(f"Group {gid} no longer exists in Zigbee2MQTT")
+                    continue
+                payload["to"] = group_name
             else:
                 to_ieee, _, to_ep = target.partition("/")
                 payload["to"] = to_ieee
