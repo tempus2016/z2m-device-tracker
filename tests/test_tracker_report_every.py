@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from conftest import SENSOR, send, z2m_device
+from conftest import PLUG, SENSOR, send, z2m_device
 
 
 def setup(tracker) -> None:
@@ -61,3 +61,41 @@ def test_interval_survives_save_and_load(make_tracker, tracker):
     again = make_tracker()
     again.load()
     assert again.data["devices"][SENSOR]["report_every"] == 900
+
+
+def test_many_applies_valid_items_and_reports_invalid_ones(tracker):
+    send(tracker, "bridge/devices", [z2m_device(SENSOR, "Hive thermostat"), z2m_device(PLUG, "Landing plug", "Router")])
+    tracker.set_report_every(PLUG, 600)
+    calls = []
+    original = tracker.evaluate_health
+    tracker.evaluate_health = lambda: calls.append(1) or original()
+    result = tracker.set_report_every_many(
+        [
+            {"ieee": SENSOR, "seconds": 900},
+            {"ieee": PLUG, "seconds": None},
+            {"ieee": "0x0000000000000bad", "seconds": 900},
+            {"ieee": SENSOR, "seconds": 10},
+            {"ieee": SENSOR, "seconds": True},
+            "junk",
+        ]
+    )
+    assert result["applied"] == 2
+    assert not result["ok"]
+    assert [e["error"] for e in result["errors"]] == [
+        "unknown device",
+        "seconds must be 30 to 604800",
+        "seconds must be a number",
+        "unknown device",
+    ]
+    assert tracker.data["devices"][SENSOR]["report_every"] == 900
+    assert "report_every" not in tracker.data["devices"][PLUG]
+    assert calls == [1]  # one health run for the whole batch
+
+
+def test_many_with_nothing_valid_changes_nothing(tracker):
+    setup(tracker)
+    calls = []
+    tracker.evaluate_health = lambda: calls.append(1)
+    result = tracker.set_report_every_many([{"ieee": SENSOR, "seconds": 5}])
+    assert result == {"ok": False, "applied": 0, "errors": [{"ieee": SENSOR, "error": "seconds must be 30 to 604800"}]}
+    assert calls == []

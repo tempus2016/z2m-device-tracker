@@ -1648,19 +1648,38 @@ class Tracker:
 
     def set_report_every(self, ieee: str, seconds: int | None) -> bool:
         """Per-device "should report at least every" interval in seconds; None or 0 turns it off."""
-        if seconds and not REPORT_EVERY_MIN <= seconds <= REPORT_EVERY_MAX:
-            return False
+        return not self.set_report_every_many([{"ieee": ieee, "seconds": seconds}])["errors"]
+
+    def set_report_every_many(self, items: list) -> dict:
+        """Set or clear the report interval for several devices, with one health run at the end.
+
+        Each item is {"ieee", "seconds"}; seconds None or 0 turns it off. Valid items are applied,
+        invalid ones are listed in "errors" as {"ieee", "error"}.
+        """
+        applied = 0
+        errors: list[dict] = []
         with self.lock:
-            record = self.data["devices"].get(ieee)
-            if record is None:
-                return False
-            if seconds:
-                record["report_every"] = int(seconds)
-            else:
-                record.pop("report_every", None)
-            self._changed(structural=True)
-        self.evaluate_health()
-        return True
+            for item in items:
+                item = item if isinstance(item, dict) else {}
+                ieee, seconds = str(item.get("ieee") or ""), item.get("seconds")
+                record = self.data["devices"].get(ieee)
+                if record is None:
+                    errors.append({"ieee": ieee, "error": "unknown device"})
+                elif seconds is not None and (isinstance(seconds, bool) or not isinstance(seconds, (int, float))):
+                    errors.append({"ieee": ieee, "error": "seconds must be a number"})
+                elif seconds and not REPORT_EVERY_MIN <= seconds <= REPORT_EVERY_MAX:
+                    errors.append({"ieee": ieee, "error": f"seconds must be {REPORT_EVERY_MIN} to {REPORT_EVERY_MAX}"})
+                else:
+                    if seconds:
+                        record["report_every"] = int(seconds)
+                    else:
+                        record.pop("report_every", None)
+                    applied += 1
+            if applied:
+                self._changed(structural=True)
+        if applied:
+            self.evaluate_health()
+        return {"ok": not errors, "applied": applied, "errors": errors}
 
     def late_due(self, now: float) -> bool:
         """True once for each device that passes its report interval, so health runs then, not up to 60 s later."""

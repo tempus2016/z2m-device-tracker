@@ -928,12 +928,15 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 self._json(200 if ok else 404, {"ok": ok})
             elif path == "/api/report_every":
-                seconds = body.get("seconds")
-                if seconds is not None and (isinstance(seconds, bool) or not isinstance(seconds, (int, float))):
-                    self._json(400, {"ok": False, "error": "seconds must be a number"})
+                # One device ({ieee, seconds}) or many ({items: [{ieee, seconds}, ...]}).
+                items = body.get("items") if "items" in body else [{"ieee": ieee, "seconds": body.get("seconds")}]
+                if not isinstance(items, list):
+                    self._json(400, {"ok": False, "error": "items must be a list"})
                     return
-                ok = tracker.set_report_every(ieee, int(seconds) if seconds else None)
-                self._json(200 if ok else 400, {"ok": ok})
+                result = tracker.set_report_every_many(items)
+                if result["errors"]:
+                    result["error"] = result["errors"][0]["error"]
+                self._json(200 if result["applied"] or not result["errors"] else 400, result)
             elif path == "/api/bindings/ack":
                 ok = tracker.acknowledge_bindings(ieee)
                 self._json(200 if ok else 404, {"ok": ok})

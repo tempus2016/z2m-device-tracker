@@ -333,6 +333,21 @@
   .rep-foot .opt { margin-right: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-2); cursor: pointer; }
   .rep-foot .opt input { accent-color: var(--primary); width: 18px; height: 18px; margin: 0; }
   .rep-steps .ln { cursor: default; } .rep-steps .ln:hover { background: none; }
+
+  /* ------------------------------------------------------------ expected reporting for many devices */
+  dialog.more.wide { width: min(720px, calc(100vw - 32px)); }
+  .bulk-chips { padding: 0 24px 12px; }
+  .bulk-chips .gap { width: 12px; }
+  table.dt.bulk { min-width: 0; }
+  .dt.bulk th, .dt.bulk td { height: 44px; padding: 0 12px; }
+  .dt.bulk tbody tr { cursor: default; }
+  .dt.bulk .cb { width: 18px; padding-left: 24px; padding-right: 0; }
+  .dt.bulk input { width: 18px; height: 18px; margin: 0; vertical-align: middle; accent-color: var(--primary); cursor: pointer; }
+  .dt.bulk input:disabled { cursor: default; }
+  .dt.bulk .name { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+  .dt.bulk td.new { font-weight: 500; color: var(--primary-text); }
+  .dt.bulk tr.skip td { color: var(--text-2); }
+  .rep-foot .count { margin-right: auto; font-size: 14px; color: var(--text-2); }
   @media (max-width: 520px) { .swap { grid-template-columns: minmax(0, 1fr); } .swap > .mdi { transform: rotate(90deg); justify-self: center; } .stepper .s span { display: none; } .stepper .s.cur span { display: inline; } }
 
   .page.wide { max-width: 1680px; }
@@ -460,6 +475,10 @@
     .dt td { height: 64px; padding: 0 8px; white-space: normal; }
     .dt .name, .dt .name-2 { max-width: none; overflow-wrap: anywhere; }
     .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+    .chips.bulk-chips { flex-wrap: wrap; padding: 0 16px 12px; } .bulk-chips .gap { display: none; }
+    .dt.bulk th { display: table-cell; height: 40px; }
+    .dt.bulk th, .dt.bulk td { padding: 0 6px; } .dt.bulk td { height: 48px; } .dt.bulk td.num { white-space: nowrap; } .dt.bulk .cb { padding-left: 16px; }
+    dialog.more.wide { width: 100vw; }
     .alert { align-items: flex-start; }
     .dt .ic-cell { width: 52px; padding-left: 12px; }
     .count-line { display: none; }
@@ -507,6 +526,7 @@
 <dialog class="more" id="more" aria-labelledby="moreTitle"></dialog>
 <dialog class="more" id="pairDlg" aria-labelledby="pairTitle"></dialog>
 <dialog class="more" id="replaceDlg" aria-labelledby="repTitle"></dialog>
+<dialog class="more wide" id="bulkDlg" aria-labelledby="bulkTitle"></dialog>
 <dialog class="confirm" id="confirmDlg" aria-labelledby="cTitle">
   <form method="dialog">
     <div class="confirm-body"><h2 id="cTitle"></h2><div id="cText"></div></div>
@@ -1474,6 +1494,7 @@
         ${num("frozen_alert_hours", t("settings.frozen_for"), th("settings.frozen_for_desc"), 1, 720, th("settings.unit_h"))}
         ${num("battery_alert_percent", t("settings.battery_at"), th("settings.battery_at_desc"), 0, 100, "%")}
         ${num("chatty_per_hour", t("settings.chatty_above"), th("settings.chatty_above_desc"), 60, 36000, th("settings.unit_per_h"))}
+        <div class="set-row"><div class="text"><div class="t1">${th("report.title")}</div><div class="t2">${th("bulk.desc", { n: state.data ? state.data.devices.filter((d) => d.report_every && d.status !== "removed").length : 0 })}</div></div><div class="ctl"><button class="btn" data-act="bulk-open" ${state.data ? "" : "disabled"}>${th("bulk.open")}</button></div></div>
       </div>
       <div class="card"><div class="card-header"><div>${th("settings.routing_scan")}<small>${th("settings.routing_scan_desc")}</small></div></div>
         <div class="set-row"><div class="text"><div class="t1">${th("settings.wifi")}</div><div class="t2">${th("settings.wifi_desc")}</div></div><div class="ctl"><input class="field" id="wifiCh" style="width:120px" value="${esc(s.wifi_channels || "")}" placeholder="${esc(t("settings.wifi_placeholder"))}" inputmode="numeric"><button class="btn" data-act="save-wifi">${th("common.save")}</button></div></div>
@@ -1865,6 +1886,7 @@
     if (state.open && !(usePane() && state.view === "devices")) renderMore();
     if ($("#pairDlg").open) renderPair();
     if ($("#replaceDlg").open && state.replace?.step === 1) renderReplace();
+    if ($("#bulkDlg").open && !state.bulk?.busy) renderBulk();
   };
   const go = (view) => { state.view = view; state.settingsShown = false; render(); window.scrollTo(0, 0); };
 
@@ -2333,6 +2355,74 @@
     },
   });
   $("#replaceDlg").addEventListener("close", () => { state.replace = null; });
+
+  // ------------------------------------------------------------ expected reporting for many devices
+  // Suggested limit: the device's usual gap between messages times a multiplier, rounded up to a tidy value (30 s to 7 days).
+  const TIDY_SECONDS = [30, 45, 60, 120, 180, 300, 600, 900, 1200, 1800, 2700, 3600, 7200, 10800, 14400, 21600, 28800, 43200, 86400, 172800, 259200, 432000, 604800];
+  // A device exposing none of these only sends when something happens (door, button, plain switch), so a gap-based limit would misfire.
+  const PERIODIC = new Set(["temperature", "local_temperature", "humidity", "pressure", "power", "energy", "current", "co2", "voc", "formaldehyd", "pm25", "pm10", "aqi", "illuminance", "illuminance_lux", "soil_moisture"]);
+  const BULK_MULTS = [2, 3, 5, 10];
+  const isBattery = (d) => d.power_source === "Battery" || typeof d.battery === "number";
+  const bulkRows = (b) => (state.data?.devices || [])
+    .filter((d) => d.status !== "removed" && d.type !== "Coordinator" && (isBattery(d) ? b.battery : b.mains) && (!b.unset || !d.report_every))
+    .map((d) => {
+      // The 6-hour rate alone is only trusted with a dozen messages behind it; one message from a new device isn't a pattern.
+      const m = d.metrics || {}, rate = m.msg_rate_prev || ((m.msg_24h || 0) >= 12 && m.msg_rate_6h);
+      const gap = rate ? 3600 / rate : null;
+      const onChange = (d.features || []).length > 0 && !d.features.some((f) => PERIODIC.has(f));
+      const next = gap && !onChange ? TIDY_SECONDS.find((s) => s >= gap * b.mult) ?? TIDY_SECONDS.at(-1) : null;
+      const now = d.report_every || 0;
+      const picked = (next || now) && (b.picks.has(d.ieee) ? b.picks.get(d.ieee) : !!next);
+      return { d, name: nameOf(d) || d.ieee, gap, now, next, why: onChange ? "on_change" : "no_data", picked: !!picked };
+    })
+    .sort((x, y) => x.name.localeCompare(y.name));
+  const renderBulk = () => {
+    const dlg = $("#bulkDlg"), b = state.bulk;
+    if (!b) return;
+    const rows = bulkRows(b);
+    const applyN = rows.filter((r) => r.picked && r.next).length, offN = rows.filter((r) => r.picked && r.now).length;
+    const group = b.mains && b.battery ? "all" : b.mains ? "mains" : b.battery ? "battery" : "";
+    const chip = (act, v, on, label) => `<button class="chip" data-act="${act}" data-v="${v}" aria-pressed="${on}">${ic("check", "s18")}${label}</button>`;
+    const table = `<div class="table-wrap"><table class="dt bulk"><thead><tr><th class="cb"></th><th>${th("bulk.col.device")}</th><th class="num">${th("bulk.col.gap")}</th><th class="num">${th("bulk.col.now")}</th><th class="num">${th("bulk.col.new")}</th></tr></thead><tbody>
+      ${rows.map((r) => `<tr class="${r.next ? "" : "skip"}"><td class="cb"><input type="checkbox" data-bulk="${esc(r.d.ieee)}" ${r.picked ? "checked" : ""} ${r.next || r.now ? "" : "disabled"} aria-label="${esc(r.name)}"></td><td><div class="name">${esc(r.name)}</div></td><td class="num">${r.gap ? esc(span(r.gap)) : "—"}</td><td class="num">${r.now ? esc(span(r.now)) : th("report.off")}</td><td class="num ${r.next ? "new" : ""}">${r.next ? esc(span(r.next)) : th(`bulk.${r.why}`)}</td></tr>`).join("")}</tbody></table></div>`;
+    const scroll = dlg.querySelector(".more-body")?.scrollTop || 0;
+    dlg.innerHTML = `
+      <div class="more-head"><button class="icon-btn" data-act="bulk-close" aria-label="${esc(t("common.close"))}">${ic("close")}</button><div class="titles"><h2 id="bulkTitle">${th("bulk.title")}</h2></div></div>
+      <div class="more-body"><p class="rep-intro">${th("bulk.intro")}</p>
+        <div class="chips bulk-chips">${BULK_MULTS.map((m) => chip("bulk-mult", m, b.mult === m, `${m}×`)).join("")}<span class="gap"></span>${["mains", "battery", "unset"].map((k) => chip("bulk-group", k, b[k], th(`bulk.${k}`))).join("")}</div>
+        ${rows.length ? table : `<div class="card-content muted">${th(group ? "bulk.none" : "bulk.pick_group")}</div>`}</div>
+      <div class="rep-foot"><span class="count">${group ? th(`bulk.count_${group}`, { n: applyN, total: rows.length }) : ""}</span>${offN ? `<button class="btn" data-act="bulk-off" ${b.busy ? "disabled" : ""}>${th("bulk.turn_off", { n: offN })}</button>` : ""}<button class="btn" data-act="bulk-close">${th("common.cancel")}</button><button class="btn filled" data-act="bulk-apply" ${applyN && !b.busy ? "" : "disabled"}>${th("bulk.apply", { n: applyN })}</button></div>`;
+    dlg.querySelector(".more-body").scrollTop = scroll;
+  };
+  const bulkSend = async (want, seconds, doneKey) => {
+    const b = state.bulk;
+    if (!b || b.busy) return;
+    const items = bulkRows(b).filter((r) => r.picked && want(r)).map((r) => ({ ieee: r.d.ieee, seconds: seconds(r) }));
+    if (!items.length) return;
+    b.busy = true; renderBulk();
+    try {
+      const res = await api("api/report_every", { items });
+      snack(res.errors?.length ? t("bulk.partly", { n: res.applied, failed: res.errors.length, error: res.error || "" }) : t(doneKey, { n: res.applied }), 4000);
+      $("#bulkDlg").close();
+    } catch (err) { snack(err.message, 4000); b.busy = false; renderBulk(); }
+    await load();
+    if (state.view === "settings") renderSettings(false);
+  };
+  Object.assign(actions, {
+    "bulk-open"() { state.bulk = { mult: 3, mains: true, battery: false, unset: false, picks: new Map(), busy: false }; renderBulk(); $("#bulkDlg").showModal(); },
+    "bulk-close"() { $("#bulkDlg").close(); },
+    "bulk-mult"(b) { state.bulk.mult = Number(b.dataset.v); renderBulk(); },
+    "bulk-group"(b) { state.bulk[b.dataset.v] = !state.bulk[b.dataset.v]; renderBulk(); },
+    "bulk-apply"() { return bulkSend((r) => r.next, (r) => r.next, "bulk.applied"); },
+    "bulk-off"() { return bulkSend((r) => r.now, () => null, "bulk.turned_off"); },
+  });
+  $("#bulkDlg").addEventListener("close", () => { state.bulk = null; });
+  $("#bulkDlg").addEventListener("change", (e) => {
+    const b = state.bulk, ieee = e.target.dataset?.bulk;
+    if (!b || !ieee) return;
+    b.picks.set(ieee, e.target.checked);
+    renderBulk();
+  });
   $("#replaceDlg").addEventListener("change", (e) => {
     const r = state.replace; if (!r) return;
     if (e.target.name === "repNew") { r.new = e.target.value; $("#replaceDlg [data-act=rep-next]")?.removeAttribute("disabled"); }
