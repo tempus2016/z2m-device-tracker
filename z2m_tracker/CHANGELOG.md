@@ -1,13 +1,39 @@
 # Changelog
 
-## Unreleased
+## 1.2.0
 
 ### Added
-- Translations into German, Dutch, French, Spanish, Italian, Polish, Brazilian Portuguese, Swedish, Czech, Russian and Simplified Chinese. They cover the sidebar, the app's options, and the integration's setup, actions and dashboard cards. Each follows your Home Assistant profile language; the sidebar's Settings can pick another. The translations are machine-made, so corrections from native speakers are welcome.
+- Expected reporting: set how often a device should report, from 30 seconds to 7 days, on its Health tab. A device that goes quiet for longer is flagged as Stopped reporting, even while Zigbee2MQTT still shows it online. Settings → Thresholds → Expected reporting → Set for many devices… sets it for mains or battery devices at once, from each device's usual gap times 2, 3, 5 or 10.
+- When this device alerts: each device's Health tab shows how long it takes to alert, adding Zigbee2MQTT's availability timeout to `offline_alert_minutes`.
+- Router outages: when a router goes offline, the devices behind it are grouped under it as one issue and one notification instead of one each.
+- Pause alerts: ⋮ → Pause alerts for 30 min, 1 hour, 4 hours, until 08:00 or until resumed. Issues still open when the pause ends are sent once. The integration has `z2m_tracker.pause_alerts` and `z2m_tracker.resume_alerts`.
+- Critical devices: turn on Critical device on a device's Info tab. It alerts after `critical_offline_minutes` (default 5), its titles start with "Critical:", phone notifications are sent high priority / time-sensitive, and it ignores quiet hours.
+- Quiet hours: with `quiet_hours` on, alerts between `quiet_start` and `quiet_end` are held and sent as one morning summary.
+- Per-device limits: a device's Health tab can override the low battery level and the frozen reading time.
+- New checks: Pairing left open (also when something else opened it, with Close now), Changes router often, Router getting slower, Zigbee2MQTT memory, Group members offline, and Daily signal dip. Health has a Groups card listing every Zigbee2MQTT group and its members.
+- Ping: mains devices have a Ping button on the Info tab that shows the reply time. Routers are pinged once a night and the Trends tab shows the last 14 nights. Needs Zigbee2MQTT 2.7+.
+- Coordinators card: Zigbee2MQTT's own memory, MQTT traffic and leaves this week (Zigbee2MQTT 2.5+), and how it reaches the coordinator (TCP, mDNS or USB) with the adapter, versions and settings under More details.
+- Leftover in Home Assistant: Health lists Zigbee2MQTT devices that were removed from Zigbee2MQTT but stayed in Home Assistant with dead entities. Review and remove deletes the ones you tick.
+- Battery stock: record the spare batteries you have. The shopping list says how many to buy, and recording a battery change takes from stock.
+- Phone layout: a bottom tab bar, problems first on Health, jump chips in Settings and pinch zoom on the map. Taps no longer leave rows highlighted, inputs no longer zoom the page on iOS, and dialogs fit the screen.
+- Charts show the date and value under the pointer or finger, on every chart in the sidebar.
+- Network map: a Names option (All, Routers only, Off). The floor plan has a Links switch (Off, Problems, All) that defaults to Problems, so big networks stay readable; hovering a room shows its links and fades the rest.
+- Translations into German, Dutch, French, Spanish, Italian, Polish, Brazilian Portuguese, Swedish, Czech, Russian and Simplified Chinese. They cover the sidebar, the app's options, and the integration's setup, actions and dashboard cards. Each follows your Home Assistant profile language; the sidebar's Settings can pick another. The translations are machine-made, so corrections from native speakers are welcome. Text added in this release is English only for now.
 - The dashboard cards are translated too. They read the app's translation files through the integration, so they need this version of the app as well. With an older app they stay in English. Cards added before this version saved an English title in their settings: clear the Title field to get the translated one.
 
+### Changed
+- The replace wizard's Remove the old device option starts ticked only when the old device is offline, and shows in red when it will run.
+- The Coordinators card on Health is shorter: five facts per network, the rest under More details. An offline network or one with a memory warning opens expanded.
+- Every dropdown in the sidebar draws its own arrow, clear of the border.
+
 ### Fixed
-- A regional language such as Portuguese (Portugal) now picks the closest translation (Brazilian Portuguese) instead of falling back to English.
+- Text and buttons in the sidebar pass WCAG AA contrast in light and dark themes.
+- The sidebar works from the keyboard and with screen readers: focus stays put when the view refreshes, the map and signal bars are announced, and titles are real headings. Buttons and chips answer taps across at least 44 × 44 px on touch screens.
+- The Health badge matches the Needs attention count. Firmware updates now show on the Updates tab only.
+- Settings → Repairs stays empty while Send alerts is off in the app.
+- The battery chart no longer reads as 100 % for a device at 0 %, and a replacement logged this morning shows.
+- Map names no longer stay open after a tap on a phone.
+- A regional language such as Portuguese (Portugal) picks the closest translation (Brazilian Portuguese) instead of falling back to English.
 
 ## 1.1.0
 

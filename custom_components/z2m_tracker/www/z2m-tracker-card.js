@@ -1,6 +1,6 @@
 // /config/custom_components/z2m_tracker/www/z2m-tracker-card.js
 // Compact Home Assistant card summarising the Z2M Device Tracker app.
-const Z2M_TRACKER_CARD_VERSION = "1.1.0";
+const Z2M_TRACKER_CARD_VERSION = "1.2.0";
 
 const IEEE_RE = /^0x[0-9a-f]{16}$/i;
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
