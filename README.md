@@ -44,6 +44,7 @@ It has two parts, both in this repository:
 - **Radio channels**: shows your Zigbee channels against your 2.4 GHz Wi-Fi channels and warns about overlap.
 - **Network map**: interactive map with advice on which router a device should use and which routers are a single point of failure, nightly routing scans, and a before/after comparison between scans.
 - **Device actions**: pair through a chosen router, move a device to another router, reconfigure, rename, set area, OTA updates.
+- **Replace a device**: swap a dead device for a new one in three steps. The new device takes over its name, area, bindings, notes and, if you want, battery record, the old one is removed from Zigbee2MQTT, and both histories are linked.
 - **Batteries**: battery type and count (built-in library from Battery Notes), replacement records, estimates and a shopping list.
 - **Home Assistant entities**: MQTT discovery sensors attached to each Zigbee2MQTT device for use in automations.
 - Weekly summary, temporary ignore, backup and restore, CSV export.

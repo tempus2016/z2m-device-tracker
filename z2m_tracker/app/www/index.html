@@ -267,6 +267,39 @@
   .confirm-body .field { width: 100%; }
   .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px 16px; }
 
+  /* ------------------------------------------------------------ replacement wizard */
+  .rep-intro { padding: 12px 24px 12px; margin: 0; color: var(--text-2); }
+  .stepper { display: flex; align-items: center; gap: 8px; padding: 0 24px 16px; font-size: 13px; color: var(--text-2); }
+  .stepper .s { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .stepper .s i { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 12px; font-weight: 500; background: var(--sec-bg); }
+  .stepper .s i .mdi { width: 16px; height: 16px; }
+  .stepper .s.done i { background: var(--success); color: #fff; }
+  .stepper .s.cur { color: var(--text); font-weight: 500; } .stepper .s.cur i { background: var(--primary); color: #fff; }
+  .more-body > .stepper:first-child { padding-top: 16px; }
+  .stepper hr { flex: 1; border: 0; border-top: 1px solid var(--divider); margin: 0; min-width: 12px; }
+  .swap { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; align-items: center; padding: 0 24px 16px; }
+  .swap > .mdi { color: var(--text-2); }
+  .devbox { border: 1px solid var(--divider); border-radius: 12px; padding: 12px; display: flex; gap: 12px; align-items: center; min-width: 0; }
+  .devbox.new { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+  .devbox > div { min-width: 0; }
+  .devbox .t1, .pick .t1 { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .devbox .t2, .pick .t2 { font-size: 12px; color: var(--text-2); }
+  .pick .t2, .devbox .t2.mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .carry, .picks { padding: 0 12px 4px; }
+  .carry .ln, .pick { display: flex; align-items: center; gap: 12px; padding: 7px 12px; border-radius: 10px; cursor: pointer; }
+  .carry .ln:hover, .pick:hover { background: var(--hover); }
+  .carry .ln.dis { cursor: default; opacity: 0.55; } .carry .ln.dis:hover { background: none; }
+  .carry input, .pick input { width: 18px; height: 18px; margin: 0; accent-color: var(--primary); flex: none; cursor: inherit; }
+  .carry .ln .text, .pick .text { flex: 1; min-width: 0; } .carry .ln .t2 { font-size: 12px; color: var(--text-2); }
+  .carry .ln b { font-weight: 500; }
+  .pick:has(input:checked) { background: var(--chip-on); }
+  .pick .tag { font-size: 12px; color: var(--primary-text); white-space: nowrap; }
+  .rep-foot { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid var(--divider); flex-wrap: wrap; }
+  .rep-foot .opt { margin-right: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-2); cursor: pointer; }
+  .rep-foot .opt input { accent-color: var(--primary); width: 18px; height: 18px; margin: 0; }
+  .rep-steps .ln { cursor: default; } .rep-steps .ln:hover { background: none; }
+  @media (max-width: 520px) { .swap { grid-template-columns: minmax(0, 1fr); } .swap > .mdi { transform: rotate(90deg); justify-self: center; } .stepper .s span { display: none; } .stepper .s.cur span { display: inline; } }
+
   .page.wide { max-width: 1680px; }
   .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(400px, 480px); gap: 16px; align-items: start; }
   .split-list { min-width: 0; }
@@ -396,6 +429,7 @@
 
 <dialog class="more" id="more" aria-labelledby="moreTitle"></dialog>
 <dialog class="more" id="pairDlg" aria-labelledby="pairTitle"></dialog>
+<dialog class="more" id="replaceDlg" aria-labelledby="repTitle"></dialog>
 <dialog class="confirm" id="confirmDlg" aria-labelledby="cTitle">
   <form method="dialog">
     <div class="confirm-body"><h2 id="cTitle"></h2><div id="cText"></div></div>
@@ -428,7 +462,7 @@
     if (k.startsWith("interview")) return k.endsWith("successful") ? ["check", "var(--success)"] : ["alert-circle", "var(--error)"];
     return ({ joined: ["plus", "var(--success)"], added: ["plus", "var(--success)"], rejoined: ["plus", "var(--success)"], online: ["wifi", "var(--success)"], offline: ["wifi-off", "var(--error)"],
       left: ["minus", "var(--warning)"], removed: ["delete", "var(--text-2)"], renamed: ["pencil", "var(--state-icon)"], "model changed": ["swap-horizontal", "var(--state-icon)"], moved: ["swap-horizontal", "var(--state-icon)"],
-      linked: ["link-variant", "var(--state-icon)"], reconfigured: ["refresh", "var(--success)"], "reconfigure failed": ["refresh", "var(--error)"], "battery replaced": ["battery-sync", "var(--success)"],
+      linked: ["link-variant", "var(--state-icon)"], replaced: ["swap-horizontal", "var(--state-icon)"], "replaced by": ["swap-horizontal", "var(--text-2)"], reconfigured: ["refresh", "var(--success)"], "reconfigure failed": ["refresh", "var(--error)"], "battery replaced": ["battery-sync", "var(--success)"],
       "update available": ["chip", "var(--info)"], "routing scanned": ["sitemap", "var(--state-icon)"],
       "binding added": ["link-variant", "var(--success)"], "binding restored": ["link-variant", "var(--success)"], "binding removed": ["link-variant", "var(--error)"], unbound: ["link-variant", "var(--text-2)"], "binding change accepted": ["check", "var(--text-2)"] })[k] || ["information-outline", "var(--text-2)"];
   };
@@ -1143,6 +1177,7 @@
       <div class="more-hero">${stateIc(d)}<div class="big">${esc(bigState)}</div><div class="sub">Last seen ${esc(relTime(d.last_seen).toLowerCase())}</div></div>
       <div class="more-actions">
         ${d.status !== "removed" ? `<button class="btn outlined" data-act="reconfigure" data-ieee="${esc(d.ieee)}">${ic("refresh", "s18")}Reconfigure</button><button class="btn outlined" data-act="rename">${ic("pencil", "s18")}Rename or set area</button>` : ""}
+        ${canReplace(d) ? `<button class="btn outlined" data-act="replace" data-ieee="${esc(d.ieee)}">${ic("swap-horizontal", "s18")}Replace…</button>` : ""}
         ${d.status !== "removed" && d.type === "EndDevice" ? `<button class="btn outlined" data-act="move" data-ieee="${esc(d.ieee)}">${ic("swap-horizontal", "s18")}Change router</button>` : ""}
         ${d.model && d.supported !== false ? `<a class="btn outlined" href="https://www.zigbee2mqtt.io/devices/${encodeURIComponent(String(d.model).replace(/\//g, "_"))}.html" target="_blank" rel="noopener">${ic("information-outline", "s18")}Docs</a>` : ""}
         ${d.ha_device_id ? `<a class="btn outlined" href="/config/devices/device/${esc(d.ha_device_id)}" target="_top">${ic("home-assistant", "s18")}Device page</a>` : ""}
@@ -1237,7 +1272,7 @@
       ${lineage ? `<div class="rep-list">${lineage}</div>` : !sugg ? `<div class="card-content muted">Not linked to any other device.</div>` : ""}
       ${d.status !== "removed" && removed.length ? `<div class="row-actions"><select class="field" id="linkSel" style="flex:1;min-width:0"><option value="">Link a removed device this replaces…</option>${removed.map((x) => `<option value="${esc(x.ieee)}">${esc(nameOf(x) || x.ieee)}${x.removed_at ? ` · removed ${esc(fmtDate(x.removed_at, false))}` : ""}</option>`).join("")}</select><button class="btn" data-act="link-sel">Link</button></div>` : ""}
       <div class="sub-h">Logbook</div>
-      ${events.length ? events.map((e) => { const [icon, color] = EVENT_ICON(e.kind); return `<div class="log" style="cursor:default"><span class="state-ic" style="color:${color}">${ic(icon)}</span><div class="text"><div class="t1">${esc(cap(e.kind))}${e.detail ? ` · ${esc(e.detail)}` : ""}</div><div class="t2">${esc(fmtDate(e.time))}</div></div></div>`; }).join("") : `<div class="card-content muted">Nothing logged yet.</div>`}`;
+      ${events.length ? events.map((e) => { const [icon, color] = EVENT_ICON(e.kind); return `<div class="log" style="cursor:default"><span class="state-ic" style="color:${color}">${ic(icon)}</span><div class="text">${logLine(e)}</div></div>`; }).join("") : `<div class="card-content muted">Nothing logged yet.</div>`}`;
   };
 
   const tabAsset = (d) => {
@@ -1345,6 +1380,7 @@
     if (state.view !== "settings") state.settingsShown = false;
     if (state.open && !(usePane() && state.view === "devices")) renderMore();
     if ($("#pairDlg").open) renderPair();
+    if ($("#replaceDlg").open && state.replace?.step === 1) renderReplace();
   };
   const go = (view) => { state.view = view; state.settingsShown = false; render(); window.scrollTo(0, 0); };
 
@@ -1541,6 +1577,122 @@
   $("#pairDlg").addEventListener("close", () => { clearInterval(pairTick); state.move = null; });
   $("#pairDlg").addEventListener("change", (e) => { if (e.target.id === "pairVia") { if (state.move) state.move.via = e.target.value; else state.pairVia = e.target.value; } });
   $("#pairDlg").addEventListener("change", (e) => { if (e.target.id === "pairNet") { state.pairNet = e.target.value; renderPair(); } });
+
+  // ------------------------------------------------------------ replacement wizard
+  const canReplace = (d) => d.type !== "Coordinator" && !d.successor && (["offline", "removed", "ghost"].includes(statusOf(d)) || (d.issues || []).some((i) => i.kind === "silent"));
+  const logLine = (e) => {
+    const ref = e.ref && state.byIeee.get(e.ref);
+    if (!ref) return `<div class="t1">${esc(cap(e.kind))}${e.detail ? ` · ${esc(e.detail)}` : ""}</div><div class="t2">${esc(fmtDate(e.time))}</div>`;
+    const extra = (e.detail || "").split(". Carried over: ")[1];
+    return `<div class="t1">${esc(cap(e.kind))} ${devLink(e.ref)}</div><div class="t2">${esc(fmtDate(e.time))}${extra ? ` · carried over ${esc(extra)}` : ""}</div>`;
+  };
+  const repBindings = (d) => {
+    const all = [...(d.bindings || [])], keys = new Set(all.map((b) => b.key));
+    (d.lost_bindings || []).forEach((b) => { if (!keys.has(b.key)) all.push(b); });
+    return all.filter((b) => state.byIeee.get((b.target || "").split("/")[0])?.type !== "Coordinator");
+  };
+  const repBindLabel = (d, b) => { const t = b.target || ""; if (t.startsWith("group:")) { const g = t.slice(6); return `${state.data.groups?.[d.instance]?.[g] || `group ${g}`} group`; } return nameOf(state.byIeee.get(t.split("/")[0])) || t.split("/")[0]; };
+  const repRecent = (d) => IEEE_RE.test(d.friendly_name || "") && (ago(d.first_seen) ?? Infinity) < 7 * 86400;
+  const repCandidates = (old, all) => state.data.devices
+    .filter((d) => d.ieee !== old.ieee && d.status !== "removed" && d.type !== "Coordinator" && (all || repRecent(d)))
+    .sort((a, b) => (!!(b.model && b.model === old.model) - !!(a.model && a.model === old.model)) || ((b.instance === old.instance) - (a.instance === old.instance)) || (repRecent(b) - repRecent(a)) || String(b.first_seen || "").localeCompare(String(a.first_seen || "")));
+  const repStatus = (d) => { const st = statusOf(d); return st === "removed" ? `removed ${relTime(d.removed_at).toLowerCase()}` : st === "offline" ? `offline since ${fmtDate(d.availability_since || d.last_seen, false) || "unknown"}` : `last seen ${relTime(d.last_seen).toLowerCase()}`; };
+  const repStepper = (n) => `<div class="stepper">${["Pick new device", "What carries over", "Apply"].map((l, i) => `<span class="s ${i + 1 < n ? "done" : i + 1 === n ? "cur" : ""}"><i>${i + 1 < n ? ic("check") : i + 1}</i><span>${l}</span></span>`).join("<hr>")}</div>`;
+  const repBox = (d, sub, isNew) => `<div class="devbox ${isNew ? "new" : ""}">${stateIc(d)}<div><div class="t1">${esc(nameOf(d) || d.ieee)}</div><div class="t2">${esc(sub)}</div><div class="t2 mono">${esc(d.ieee)}</div></div></div>`;
+  const repItems = (old, neu) => {
+    const a = old.asset || {}, rec = old.battery_record, binds = repBindings(old);
+    const sameNet = !neu || neu.instance === old.instance;
+    const assetBits = [a.purchase_date ? `bought ${a.purchase_date.slice(0, 7)}` : "", a.shop, a.location, old.note ? "a note" : ""].filter(Boolean);
+    const bindNames = [...new Set(binds.map((b) => repBindLabel(old, b)))];
+    return [
+      ["name", "Name", nameOf(old), "Renamed in Zigbee2MQTT. Home Assistant entity IDs follow the name, so they stay the same once the old entities are gone.", !nameOf(old)],
+      ["area", "Area", old.area, old.area ? "" : "The old device had no area.", !old.area],
+      ["bindings", "Bindings", binds.length ? `${binds.length} · to ${bindNames.slice(0, 2).join(", ")}${bindNames.length > 2 ? "…" : ""}` : "", !sameNet ? "The new device is on another network, so bindings can't be copied." : binds.length ? "Re-created on the new device. Links to the coordinator are set up by Zigbee2MQTT itself." : "No bindings recorded.", !binds.length || !sameNet],
+      ["notes", "Notes and asset details", assetBits.join(", "), assetBits.length ? "The serial number isn't copied." : "Nothing recorded.", !assetBits.length],
+      ["battery", "Battery record", rec?.type ? [rec.label || rec.type, rec.last_replaced ? `replaced ${rec.last_replaced}` : ""].filter(Boolean).join(", ") : "", "Off by default: a new device comes with a fresh battery.", !old.battery_info || !Object.keys(old.battery_info).length],
+      ["remove", "Remove the old device", "", old.status === "removed" ? "Already gone from Zigbee2MQTT." : "Force remove from Zigbee2MQTT. Its history here is kept.", old.status === "removed"],
+    ];
+  };
+  const renderReplace = () => {
+    const dlg = $("#replaceDlg"), r = state.replace;
+    const old = r && state.byIeee.get(r.old);
+    if (!old) { if (dlg.open) dlg.close(); return; }
+    const neu = r.new ? state.byIeee.get(r.new) : null;
+    const oldName = nameOf(old) || old.ieee;
+    let body = "", foot = "";
+    if (r.step === 1) {
+      const list = repCandidates(old, r.showAll);
+      if (r.new && !list.some((d) => d.ieee === r.new)) r.new = null;
+      body = `<p class="rep-intro">Pair the new device first, then choose it here. The new device takes over ${esc(oldName)}'s name, area and setup. Its history starts where this one ended.</p>${repStepper(1)}
+        ${list.length ? `<div class="picks" role="radiogroup" aria-label="New device">${list.map((d) => `<label class="pick"><input type="radio" name="repNew" value="${esc(d.ieee)}" ${d.ieee === r.new ? "checked" : ""}>${stateIc(d)}<div class="text"><div class="t1">${esc(nameOf(d) || d.ieee)}</div><div class="t2">${esc([deviceLine(d) || "Unknown model", d.first_seen ? `joined ${relTime(d.first_seen).toLowerCase()}` : "", d.instance !== old.instance ? `${netLabel(d.instance)} network` : ""].filter(Boolean).join(" · "))}</div></div>${d.model && d.model === old.model ? `<span class="tag">Same model</span>` : ""}</label>`).join("")}</div>`
+          : `<div class="card-content muted">${r.showAll ? "There are no other devices to choose from." : "No new unnamed devices joined in the last 7 days. Pair the new device, or show all devices."}</div>${r.showAll ? "" : `<div class="more-actions"><button class="btn outlined" data-act="pair">${ic("plus", "s18")}Pair a device</button></div>`}`}`;
+      foot = `<label class="opt"><input type="checkbox" id="repAll" ${r.showAll ? "checked" : ""}>Show all devices</label><button class="btn" data-act="rep-close">Cancel</button><button class="btn filled" data-act="rep-next" ${r.new ? "" : "disabled"}>Next</button>`;
+    } else if (r.step === 2) {
+      const items = repItems(old, neu);
+      const clash = r.carry.name && nameOf(old) && old.status !== "removed" && !r.carry.remove;
+      body = `<p class="rep-intro">Choose what the new device takes over from ${esc(oldName)}.</p>${repStepper(2)}
+        <div class="swap">${repBox(old, [deviceLine(old), repStatus(old)].filter(Boolean).join(" · "), false)}${ic("swap-horizontal")}${repBox(neu, [deviceLine(neu), neu.first_seen ? `joined ${relTime(neu.first_seen).toLowerCase()}` : ""].filter(Boolean).join(" · "), true)}</div>
+        <div class="carry">${items.map(([k, title, value, hint, dis]) => `<label class="ln ${dis ? "dis" : ""}"><input type="checkbox" data-carry="${k}" ${r.carry[k] && !dis ? "checked" : ""} ${dis ? "disabled" : ""}><div class="text"><b>${esc(title)}</b>${value ? ` <span class="muted">${esc(value)}</span>` : ""}${hint ? `<div class="t2">${esc(hint)}</div>` : ""}</div></label>`).join("")}</div>
+        ${clash ? `<div class="alerts"><div class="alert" style="--a:var(--warning)">${ic("alert")}<div class="body">${esc(oldName)} is still in Zigbee2MQTT, which won't allow two devices with the same name. Also remove the old device, or the rename will fail.</div></div></div>` : ""}
+        <div class="card-content muted" style="font-size:13px">Both histories are linked either way, so each logbook points to the other.</div>`;
+      foot = `<button class="btn" data-act="rep-back">Back</button><button class="btn filled" data-act="rep-next">Next</button>`;
+    } else {
+      const items = repItems(old, neu).filter(([k, , , , dis]) => r.carry[k] && !dis);
+      const bat = neu && (neu.power_source === "Battery" || typeof neu.battery === "number");
+      if (r.busy) {
+        body = `${repStepper(3)}<div class="more-hero"><span class="state-ic" style="color:var(--primary)">${ic("refresh")}</span><div class="big">Applying…</div><div class="sub">This can take up to a minute. Keep this window open.</div></div>`;
+      } else if (r.result) {
+        const steps = r.result.steps || [];
+        const ok = r.result.ok;
+        body = `${repStepper(4)}<div class="more-hero"><span class="state-ic" style="color:${ok ? "var(--success)" : "var(--warning)"}">${ic(ok ? "check" : "alert")}</span><div class="big">${ok ? "Replaced" : "Partly done"}</div><div class="sub">${ok ? `${esc(nameOf(neu) || neu.ieee)} now takes over from ${esc(oldName)}.` : "Some steps didn't work. The rest were applied."}</div></div>
+          <div class="carry rep-steps">${steps.map((s) => `<div class="ln"><span style="color:${s.ok ? "var(--success)" : "var(--error)"}">${ic(s.ok ? "check" : "alert-circle", "s20")}</span><div class="text"><b>${esc(s.label)}</b>${s.detail ? `<div class="t2">${esc(s.detail)}</div>` : ""}</div></div>`).join("")}</div>`;
+        foot = `<button class="btn" data-act="rep-close">Done</button><button class="btn filled" data-act="rep-open" data-ieee="${esc(r.new)}">Open new device</button>`;
+      } else {
+        body = `<p class="rep-intro">Ready to replace ${esc(oldName)} with ${esc(nameOf(neu) || neu.ieee)}.</p>${repStepper(3)}
+          <div class="carry rep-steps">${items.length ? items.map(([, title, value]) => `<div class="ln"><span class="muted">${ic("check", "s20")}</span><div class="text"><b>${esc(title)}</b>${value ? ` <span class="muted">${esc(value)}</span>` : ""}</div></div>`).join("") : ""}<div class="ln"><span class="muted">${ic("link-variant", "s20")}</span><div class="text"><b>Link both histories</b></div></div></div>
+          ${r.carry.bindings && bat && items.some(([k]) => k === "bindings") ? `<div class="alerts"><div class="alert" style="--a:var(--warning)">${ic("alert")}<div class="body">${esc(nameOf(neu) || "The new device")} runs on battery and may be asleep. Press its button just before you apply, or the bindings may fail.</div></div></div>` : ""}`;
+        foot = `<button class="btn" data-act="rep-back">Back</button><button class="btn filled" data-act="rep-apply">${ic("swap-horizontal", "s18")}Apply</button>`;
+      }
+    }
+    const scroll = dlg.querySelector(".more-body")?.scrollTop || 0;
+    dlg.innerHTML = `
+      <div class="more-head"><button class="icon-btn" data-act="rep-close" aria-label="Close">${ic("close")}</button><div class="titles"><h2 id="repTitle">Replace ${esc(oldName)}</h2><small>${esc([deviceLine(old), `${netLabel(old.instance)} network`].filter(Boolean).join(" · "))}</small></div></div>
+      <div class="more-body">${body}</div>${foot ? `<div class="rep-foot">${foot}</div>` : ""}`;
+    dlg.querySelector(".more-body").scrollTop = r.step === 1 ? scroll : 0;
+  };
+  Object.assign(actions, {
+    replace(b) {
+      const old = state.byIeee.get(b.dataset.ieee || state.open);
+      if (!old) return;
+      const items = repItems(old, null);
+      const carry = Object.fromEntries(items.map(([k, , , , dis]) => [k, !dis && k !== "battery"]));
+      state.replace = { old: old.ieee, step: 1, new: null, showAll: false, carry, result: null, busy: false };
+      if (!repCandidates(old, false).length) state.replace.showAll = repCandidates(old, true).some((d) => d.model && d.model === old.model);
+      renderReplace();
+      const dlg = $("#replaceDlg"); if (!dlg.open) dlg.showModal();
+    },
+    "rep-close"() { $("#replaceDlg").close(); },
+    "rep-back"() { const r = state.replace; if (r && r.step > 1 && !r.busy) { r.step -= 1; renderReplace(); } },
+    "rep-next"() { const r = state.replace; if (!r || (r.step === 1 && !r.new)) return; r.step = Math.min(3, r.step + 1); renderReplace(); },
+    "rep-open"(b) { $("#replaceDlg").close(); openDevice(b.dataset.ieee, "history"); },
+    async "rep-apply"() {
+      const r = state.replace; if (!r || r.busy) return;
+      r.busy = true; renderReplace();
+      const carry = Object.fromEntries(repItems(state.byIeee.get(r.old), state.byIeee.get(r.new)).map(([k, , , , dis]) => [k, !!r.carry[k] && !dis]));
+      try { r.result = await api("api/replace", { old: r.old, new: r.new, carry }); }
+      catch (err) { r.result = { ok: false, steps: [{ label: "Replace", ok: false, detail: err.message }] }; }
+      r.busy = false;
+      await load();
+      if (state.replace === r) renderReplace();
+    },
+  });
+  $("#replaceDlg").addEventListener("close", () => { state.replace = null; });
+  $("#replaceDlg").addEventListener("change", (e) => {
+    const r = state.replace; if (!r) return;
+    if (e.target.name === "repNew") { r.new = e.target.value; $("#replaceDlg [data-act=rep-next]")?.removeAttribute("disabled"); }
+    else if (e.target.id === "repAll") { r.showAll = e.target.checked; renderReplace(); }
+    else if (e.target.dataset.carry) { r.carry[e.target.dataset.carry] = e.target.checked; if (["name", "remove"].includes(e.target.dataset.carry)) renderReplace(); }
+  });
 
   // ------------------------------------------------------------ events
   const menu = $("#menu"), menuBtn = $("#menuBtn");
