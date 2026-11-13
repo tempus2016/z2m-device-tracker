@@ -159,30 +159,34 @@ def device_issues(
         return issues
     muted = set(active_mutes(record, now)) | set(options.get("disabled_checks") or [])
 
-    def add(kind: str, severity: str, title: str, detail: str) -> None:
+    def add(kind: str, severity: str, title: str, detail: str, msg: str = "", **params: Any) -> None:
+        # title/detail stay English for notifications; msg + params let the sidebar translate them
+        # (keys issue.<msg>.title and issue.<msg>.detail in www/i18n/*.json).
         if kind in muted:
             return
-        issues.append(
-            {
-                "key": f"{kind}:{ieee}",
-                "kind": kind,
-                "label": KIND_LABELS[kind],
-                "severity": severity,
-                "ieee": ieee,
-                "title": title,
-                "detail": detail,
-            }
-        )
+        issue = {
+            "key": f"{kind}:{ieee}",
+            "kind": kind,
+            "label": KIND_LABELS[kind],
+            "severity": severity,
+            "ieee": ieee,
+            "title": title,
+            "detail": detail,
+        }
+        if msg:
+            issue["msg"] = msg
+            issue["params"] = params
+        issues.append(issue)
 
     offline_minutes = max(0, int(options.get("offline_alert_minutes", 60)))
     if record.get("availability") == "offline":
         age = _age(record.get("availability_since"), now) or 0
         if age >= offline_minutes * 60:
-            add("offline", WARNING, "Offline", f"Unavailable for {_span(age)}.")
+            add("offline", WARNING, "Offline", f"Unavailable for {_span(age)}.", "offline", seconds=int(age))
     elif record.get("availability") is None:
         age = _age(record.get("last_seen"), now)
         if age is not None and age > 2 * 86400:
-            add("silent", WARNING, "Not heard from", f"No messages for {_span(age)}.")
+            add("silent", WARNING, "Not heard from", f"No messages for {_span(age)}.", "silent", seconds=int(age))
 
     if record.get("interview_state") and record.get("interview_state") != "SUCCESSFUL":
         add(
@@ -190,6 +194,7 @@ def device_issues(
             WARNING,
             "Never identified",
             "Interview didn't complete, so the model is unknown. Try re-pairing it.",
+            "unidentified",
         )
 
     frozen_hours = max(0, int(options.get("frozen_alert_hours", 24)))
@@ -202,19 +207,34 @@ def device_issues(
                     WARNING,
                     "Reading not changing",
                     f"{key.replace('_', ' ')} stuck at {reading.get('value')} for {_span(age)} across {reading['reports']} reports. Try Reconfigure.",
+                    "frozen",
+                    reading=key,
+                    value=reading.get("value"),
+                    seconds=int(age),
+                    n=reading["reports"],
                 )
                 break
 
     lqi_24h = summary.get("lqi_24h")
     lqi_prev = summary.get("lqi_prev_7d")
     if lqi_24h is not None and lqi_24h < 30:
-        add("weak_signal", WARNING, "Weak signal", f"Average link quality {lqi_24h:.0f} over 24 h.")
+        add(
+            "weak_signal",
+            WARNING,
+            "Weak signal",
+            f"Average link quality {lqi_24h:.0f} over 24 h.",
+            "weak_signal",
+            lqi=round(lqi_24h),
+        )
     elif lqi_24h is not None and lqi_prev and lqi_24h < lqi_prev * 0.6 and lqi_24h < 80:
         add(
             "signal_drop",
             INFO,
             "Signal dropping",
             f"Link quality {lqi_24h:.0f} today vs {lqi_prev:.0f} over the previous week.",
+            "signal_drop",
+            lqi=round(lqi_24h),
+            prev=round(lqi_prev),
         )
 
     battery = record.get("battery")
@@ -225,11 +245,20 @@ def device_issues(
             WARNING,
             "Low battery",
             f"Battery at {battery:.0f}%." if isinstance(battery, (int, float)) else "Device reports low battery.",
+            "battery_low" if isinstance(battery, (int, float)) else "battery_low_reported",
+            percent=round(battery) if isinstance(battery, (int, float)) else None,
         )
     else:
         days = summary.get("battery_estimate_days")
         if days is not None and days <= 45:
-            add("battery_soon", INFO, "Battery running down", f"Expected to reach 10% in about {int(days)} days.")
+            add(
+                "battery_soon",
+                INFO,
+                "Battery running down",
+                f"Expected to reach 10% in about {int(days)} days.",
+                "battery_soon",
+                n=int(days),
+            )
 
     update = record.get("update") or {}
     if update.get("state") == "available":
@@ -238,6 +267,9 @@ def device_issues(
             INFO,
             "Firmware update available",
             f"{update.get('installed_version')} → {update.get('latest_version')}",
+            "update",
+            installed=update.get("installed_version"),
+            latest=update.get("latest_version"),
         )
 
     if summary.get("outages_24h", 0) >= FLAP_OUTAGES or summary.get("leaves_24h", 0) >= FLAP_LEAVES:
@@ -251,6 +283,9 @@ def device_issues(
             WARNING,
             "Keeps dropping out",
             f"In the last 24 h it {' and '.join(parts)}. Usually a weak or unstable link, a failing power supply, or a router nearby that keeps restarting.",
+            "flapping",
+            outages=summary.get("outages_24h") or 0,
+            leaves=summary.get("leaves_24h") or 0,
         )
 
     chatty_limit = max(1, int(options.get("chatty_per_hour", DEFAULT_CHATTY_PER_HOUR) or DEFAULT_CHATTY_PER_HOUR))
@@ -262,6 +297,9 @@ def device_issues(
             WARNING,
             "Very chatty",
             f"About {rate:.0f} messages an hour (one every {3600 / rate:.1f} s) over the last 6 h. That much traffic slows the whole mesh. Raise its reporting interval or set debounce/throttle for it in Zigbee2MQTT.",
+            "chatty_high",
+            rate=round(rate),
+            every=round(3600 / rate, 1),
         )
     elif rate is not None and usual and rate >= 5 * usual and rate >= 360:
         add(
@@ -269,6 +307,9 @@ def device_issues(
             INFO,
             "Chattier than usual",
             f"About {rate:.0f} messages an hour over the last 6 h, against its usual {usual:.0f}. Something changed: a stuck sensor, a reporting setting, or an automation sending commands in a loop.",
+            "chatty_rise",
+            rate=round(rate),
+            usual=round(usual),
         )
 
     drain = summary.get("battery_drain")
@@ -280,6 +321,13 @@ def device_issues(
             WARNING,
             "Battery draining fast",
             f"Dropped {drain['dropped']:.0f}% in the last {drain['days']} days, about {drain['factor']:.0f}× its usual rate of {drain['usual_rate']:.2f}% a day.{via} Often a weak link to its router (it keeps retrying), or a sensor stuck reporting.",
+            "battery_drain_via" if via else "battery_drain",
+            dropped=round(drain["dropped"]),
+            n=drain["days"],
+            factor=round(drain["factor"]),
+            usual_rate=round(drain["usual_rate"], 2),
+            parent=parent.get("name") if via else None,
+            lqi=parent.get("lqi") if via else None,
         )
 
     lost = [b for b in record.get("lost_bindings") or [] if (_age(b.get("lost_at"), now) or 0) >= BINDING_GRACE_SECONDS]
@@ -296,6 +344,10 @@ def device_issues(
             WARNING,
             "Binding lost",
             f"{len(lost)} binding{'s' if len(lost) != 1 else ''} gone since {lost[0].get('lost_at', '')[:16].replace('T', ' ')} UTC: {names}. {fix}",
+            "binding_lost_coordinator" if to_coord else "binding_lost",
+            n=len(lost),
+            since=lost[0].get("lost_at", ""),
+            names=names,
         )
 
     spof = summary.get("single_point")
@@ -309,6 +361,10 @@ def device_issues(
             INFO,
             "Single point of failure",
             f"In the last routing scan it was the only path to the coordinator for {len(routers)} router{'s' if len(routers) != 1 else ''} ({shown}){extra}. If it loses power they have to find another way in. Another router between them and the rest of the mesh removes the risk.",
+            "single_point",
+            n=len(routers),
+            names=shown,
+            devices=devices,
         )
 
     for suggestion in suggestions:
@@ -317,6 +373,9 @@ def device_issues(
             INFO,
             "Possible replacement",
             f"Has the same name as removed device {suggestion['name']} ({suggestion['ieee']}). Link them to carry over history.",
+            "replacement",
+            name=suggestion["name"],
+            ieee=suggestion["ieee"],
         )
         break
 

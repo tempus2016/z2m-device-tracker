@@ -1,0 +1,11 @@
+{
+  "source": "made-up test library",
+  "version": 1,
+  "devices": [
+    ["Acme", "Door sensor (DS-01)", "", "CR2032", 1],
+    ["Acme", "Motion sensor", "MS-9", "AAA", 2],
+    ["Widgetry", "Smart plug (P1)", "", "None", 0],
+    ["Foo", "Remote (R1)", "", "CR2032", 1],
+    ["Bar", "Remote (R1)", "", "CR2450", 1]
+  ]
+}

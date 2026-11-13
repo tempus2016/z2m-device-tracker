@@ -1,0 +1,5 @@
+devices:
+  '0x00158d0000700001':
+    friendly_name: Old bulb
+  '0x00158d0000500001':
+    friendly_name: Kitchen sensor

@@ -86,3 +86,11 @@ body:
       render: shell
     validations:
       required: false
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: If you use the integration, go to Settings → Devices & services → Z2M Device Tracker → ⋮ → Download diagnostics, and drag the file here. Device addresses, names, notes and your notify service are removed from it.
+    validations:
+      required: false

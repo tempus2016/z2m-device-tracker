@@ -1,0 +1,31 @@
+{
+  "devices": {
+    "0x00158d0000500001": {
+      "ieee": "0x00158d0000500001",
+      "instance": "zigbee2mqtt",
+      "friendly_name": "Hall sensor",
+      "names": [{"name": "Hall sensor", "from": "2025-01-01T00:00:00+00:00", "until": null, "source": "Z2M"}],
+      "type": "EndDevice",
+      "status": "active",
+      "availability": "online",
+      "first_seen": "2025-01-01T00:00:00+00:00",
+      "last_seen": "2026-05-31T23:00:00+00:00",
+      "battery": 9,
+      "muted": ["battery_low"],
+      "note": "Behind the radiator"
+    },
+    "0x00158d0000700001": {
+      "ieee": "0x00158d0000700001",
+      "instance": "zigbee2mqtt",
+      "friendly_name": "Old bulb",
+      "names": [{"name": "Old bulb", "from": null, "until": null, "source": "Z2M"}],
+      "status": "removed",
+      "removed_at": "2025-06-01T00:00:00+00:00"
+    }
+  },
+  "events": [
+    {"time": "2025-01-01T00:00:00+00:00", "instance": "zigbee2mqtt", "ieee": "0x00158d0000500001", "name": "Hall sensor", "kind": "joined", "detail": ""}
+  ],
+  "imported": null,
+  "bridges": {"zigbee2mqtt": {"state": "online", "since": "2026-05-01T00:00:00+00:00", "outages": [], "restarts": [], "info": {}, "health": {}}}
+}

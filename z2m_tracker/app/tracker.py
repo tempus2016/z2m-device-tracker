@@ -36,6 +36,19 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def _stamp_offline_since(record: dict) -> bool:
+    """Give an offline device with no start time one, counting from now.
+
+    Old data files can hold a device that is offline with no
+    availability_since, so the offline alert never fired for it. Counting from
+    when the tracker first saw it offline lets the alert threshold apply.
+    """
+    if record.get("availability") == "offline" and not record.get("availability_since"):
+        record["availability_since"] = _now()
+        return True
+    return False
+
+
 def _slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
 
@@ -246,6 +259,8 @@ class Tracker:
                     if key not in ("devices", "events", "imported", "networkmap", "alerted"):
                         self.data[key] = value
             for record in self.data["devices"].values():
+                if _stamp_offline_since(record):
+                    self.dirty = True
                 if record["status"] == STATUS_ACTIVE and record["friendly_name"] and record["instance"]:
                     self.names.setdefault(record["instance"], {})[record["friendly_name"]] = record["ieee"]
             if source == "migrated":
@@ -515,6 +530,74 @@ class Tracker:
         self.evaluate_health()
         return True
 
+    def restore_bindings(self, ieee: str, keys: list[str] | None = None) -> dict:
+        """Re-create lost bindings: a bind request for device/group targets, reconfigure for the coordinator.
+
+        keys limits it to those lost bindings; None restores all of them.
+        """
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            if record is None or record["status"] != STATUS_ACTIVE:
+                return {"ok": False, "error": "Device is not active in Zigbee2MQTT"}
+            base_topic = record["instance"]
+            lost = [dict(b) for b in record.get("lost_bindings") or []]
+            if keys is not None:
+                lost = [b for b in lost if b.get("key") in keys]
+        if not lost:
+            return {"ok": True, "restored": 0, "failed": []}
+        failed: list[str] = []
+        errors: list[str] = []
+        restored = 0
+        if any(b.get("coordinator") for b in lost):
+            result = self.reconfigure(ieee)
+            if result["ok"]:
+                restored += sum(1 for b in lost if b.get("coordinator"))
+            else:
+                failed += [b.get("label") or b["key"] for b in lost if b.get("coordinator")]
+                errors.append(str(result.get("error")))
+        for binding in lost:
+            if binding.get("coordinator"):
+                continue
+            target = binding.get("target") or ""
+            payload: dict[str, Any] = {"from": ieee, "clusters": [binding.get("cluster")]}
+            ep = str(binding.get("ep") or "")
+            if ep.isdigit():
+                payload["from_endpoint"] = int(ep)
+            if target.startswith("group:"):
+                # Zigbee2MQTT only accepts a group's friendly name as a bind target, not its ID.
+                gid = target.split(":", 1)[1]
+                group_name = self.groups.get(base_topic, {}).get(gid)
+                if not group_name:
+                    failed.append(binding.get("label") or binding["key"])
+                    errors.append(f"Group {gid} no longer exists in Zigbee2MQTT")
+                    continue
+                payload["to"] = group_name
+            else:
+                to_ieee, _, to_ep = target.partition("/")
+                payload["to"] = to_ieee
+                if to_ep.isdigit():
+                    payload["to_endpoint"] = int(to_ep)
+            result = self.request(base_topic, "device/bind", payload, timeout=30)
+            if result and result.get("status") == "ok" and not (result.get("data") or {}).get("failed"):
+                restored += 1
+            else:
+                failed.append(binding.get("label") or binding["key"])
+                errors.append(friendly_z2m_error((result or {}).get("error") or "No response from Zigbee2MQTT"))
+        with self.lock:
+            rec = self.data["devices"].get(ieee)
+            if rec is not None:
+                self._add_event(
+                    _now(),
+                    base_topic,
+                    ieee,
+                    rec.get("friendly_name"),
+                    "binding restore requested" if not failed else "binding restore failed",
+                    f"{restored} of {len(lost)} re-created" + (f": {errors[0]}" if errors else ""),
+                )
+                self._changed(structural=True)
+        ok = not failed
+        return {"ok": ok, "restored": restored, "failed": failed, "error": None if ok else errors[0]}
+
     def _handle_event(self, base_topic: str, payload: dict) -> None:
         event_type = payload.get("type")
         data = payload.get("data") or {}
@@ -598,6 +681,8 @@ class Tracker:
             return
         previous = record["availability"]
         if previous == state:
+            if _stamp_offline_since(record):
+                self._changed(structural=True)
             return
         now = _now()
         record["availability"] = state
@@ -643,6 +728,9 @@ class Tracker:
             if record.get("battery") != battery:
                 structural = True
             record["battery"] = battery
+            if self._replaced_since_reading(record):
+                structural = True
+            record["battery_reported"] = now
             replaced_from = self.metrics.add_battery(ieee, battery)
             if replaced_from is not None:
                 self._record_replacement(
@@ -653,6 +741,9 @@ class Tracker:
             if record.get("battery_low") != parsed["battery_low"]:
                 structural = True
             record["battery_low"] = parsed["battery_low"]
+            if self._replaced_since_reading(record):
+                structural = True
+            record["battery_reported"] = now
 
         update = parsed.get("update")
         if isinstance(update, dict):
@@ -1052,33 +1143,48 @@ class Tracker:
         self._backups_at = time.time()
         return out
 
+    # English text of each backup problem; the sidebar translates the same keys (issue.<msg>.detail).
+    BACKUP_TEXT = {
+        "backup_missing": "There's no coordinator_backup.json in its data folder. Without it, a replacement coordinator can't take over the network and every device must be re-paired.",
+        "backup_unreadable": "coordinator_backup.json exists but is unreadable. {error}",
+        "backup_no_key": "coordinator_backup.json has no network key, so it can't restore the network.",
+        "backup_channel": "The backup is for channel {backup} but the network runs on channel {network}. It's from an older network and wouldn't restore this one.",
+        "backup_pan": "The backup's PAN ID ({backup}) doesn't match the running network ({network}). It's from an older network and wouldn't restore this one.",
+        "backup_old": "The last coordinator backup is {n} days old. Zigbee2MQTT normally refreshes it at least daily, so writing it may be failing.",
+    }
+
     def _backup_issue(self, bt: str, now: float) -> str | None:
+        problem = self._backup_problem(bt, now)
+        return self.BACKUP_TEXT[problem[0]].format(**problem[1]) if problem else None
+
+    def _backup_problem(self, bt: str, now: float) -> tuple[str, dict] | None:
+        """(msg, params) for the coordinator backup problem, if any."""
         info = self._backups.get(bt) or {}
         if not info.get("found"):
             return None
         bridge = (self.data.get("bridges") or {}).get(bt) or {}
         if not info.get("exists"):
-            return "There's no coordinator_backup.json in its data folder. Without it, a replacement coordinator can't take over the network and every device must be re-paired."
+            return "backup_missing", {}
         if info.get("error"):
-            return f"coordinator_backup.json exists but is unreadable. {info['error']}"
+            return "backup_unreadable", {"error": info["error"]}
         if not info.get("has_key"):
-            return "coordinator_backup.json has no network key, so it can't restore the network."
+            return "backup_no_key", {}
         net = bridge.get("info") or {}
         try:
             pan = int(str(info.get("pan_id")), 16) if info.get("pan_id") is not None else None
         except ValueError:
             pan = None
         if net.get("channel") and info.get("channel") and int(net["channel"]) != int(info["channel"]):
-            return f"The backup is for channel {info['channel']} but the network runs on channel {net['channel']}. It's from an older network and wouldn't restore this one."
+            return "backup_channel", {"backup": info["channel"], "network": net["channel"]}
         if net.get("pan_id") is not None and pan is not None and int(net["pan_id"]) != pan:
-            return f"The backup's PAN ID ({pan}) doesn't match the running network ({net['pan_id']}). It's from an older network and wouldn't restore this one."
+            return "backup_pan", {"backup": pan, "network": net["pan_id"]}
         try:
             age = now - datetime.fromisoformat(info.get("date") or "").timestamp()
         except ValueError:
             age = 0
         uptime = (bridge.get("health") or {}).get("uptime_sec") or 0
         if age > BACKUP_MAX_AGE and bridge.get("state") == "online" and uptime > 86400:
-            return f"The last coordinator backup is {int(age // 86400)} days old. Zigbee2MQTT normally refreshes it at least daily, so writing it may be failing."
+            return "backup_old", {"n": int(age // 86400)}
         return None
 
     def _network_issues(self, now: float) -> list[dict]:
@@ -1103,6 +1209,8 @@ class Tracker:
                             "ieee": f"network:{bt}",
                             "title": "Zigbee2MQTT offline",
                             "detail": f"Not responding for {mins} min. Every device on this network is unreachable. Check the coordinator's power and network connection.",
+                            "msg": "network_offline",
+                            "params": {"seconds": int(age)},
                             "name": f"{label} network",
                             "instance": bt,
                         }
@@ -1117,12 +1225,14 @@ class Tracker:
                         "ieee": f"network:{bt}",
                         "title": "Restart needed",
                         "detail": "Zigbee2MQTT says it needs a restart to apply a settings change.",
+                        "msg": "restart_required",
+                        "params": {},
                         "name": f"{label} network",
                         "instance": bt,
                     }
                 )
             if "coordinator_backup" not in disabled:
-                problem = self._backup_issue(bt, now)
+                problem = self._backup_problem(bt, now)
                 if problem:
                     out.append(
                         {
@@ -1132,7 +1242,9 @@ class Tracker:
                             "severity": "warning",
                             "ieee": f"network:{bt}",
                             "title": "Coordinator backup",
-                            "detail": problem,
+                            "detail": self.BACKUP_TEXT[problem[0]].format(**problem[1]),
+                            "msg": problem[0],
+                            "params": problem[1],
                             "name": f"{label} network",
                             "instance": bt,
                         }
@@ -1180,6 +1292,14 @@ class Tracker:
                         {
                             "sev": 2,
                             "text": f"{label(net['topic'])} network (Zigbee channel {net['channel']}, {net['mhz']} MHz) overlaps Wi-Fi channel {w}. The easiest fix is moving your Wi-Fi to channel {best_w} in the router settings. Changing the Zigbee channel means re-pairing every device.",
+                            "msg": "overlap",
+                            "params": {
+                                "net": net["topic"],
+                                "channel": net["channel"],
+                                "mhz": net["mhz"],
+                                "wifi": w,
+                                "best": best_w,
+                            },
                         }
                     )
                 elif gap <= 16:
@@ -1187,6 +1307,8 @@ class Tracker:
                         {
                             "sev": 1,
                             "text": f"{label(net['topic'])} network (Zigbee channel {net['channel']}) sits just beside Wi-Fi channel {w}. Usually fine, but busy Wi-Fi can still cause occasional drops.",
+                            "msg": "beside",
+                            "params": {"net": net["topic"], "channel": net["channel"], "wifi": w},
                         }
                     )
         by_channel: dict[int, list] = {}
@@ -1202,6 +1324,8 @@ class Tracker:
                     {
                         "sev": 1,
                         "text": f"{names} both use Zigbee channel {channel}. Separate networks on one channel share its airtime, which matters if their coordinators or devices are within range of each other. If one of them has dropouts, moving the smaller network to channel {best} would separate them. That needs every device on it re-paired, so only do it if there's a real problem.",
+                        "msg": "shared",
+                        "params": {"nets": [n["topic"] for n in group], "channel": channel, "best": best},
                     }
                 )
         if nets and not findings:
@@ -1211,6 +1335,8 @@ class Tracker:
                     "text": "No overlap: your Zigbee channels are clear of the Wi-Fi channels you've entered"
                     + ("" if wifi else " (add your Wi-Fi channels in Settings to check them too)")
                     + ".",
+                    "msg": "clear" if wifi else "clear_no_wifi",
+                    "params": {},
                 }
             )
         return {"networks": nets, "wifi": wifi, "findings": findings}
@@ -1753,6 +1879,30 @@ class Tracker:
             return {"ok": True}
         return {"ok": False, "error": "Unknown action"}
 
+    def _replaced_since_reading(self, record: dict) -> bool:
+        """True when the battery was marked replaced after the device last reported its level.
+
+        Keeps a device off the shopping list from the moment it's ticked until a new reading
+        arrives. If that reading is still low, the device goes back on the list.
+        """
+        marked = []
+        for entry in (record.get("battery_info") or {}).get("replacements") or []:
+            if entry.get("source") == "Detected":
+                continue
+            day = str(entry.get("date") or "")
+            end_of_day = self._to_utc_iso(f"{day}T23:59:59") if re.fullmatch(r"\d{4}-\d{2}-\d{2}", day) else None
+            marked.append(_min_time(self._to_utc_iso(entry.get("recorded")), end_of_day))
+        marked.append(self._to_utc_iso((self.ha_battery.get(record["ieee"]) or {}).get("last_replaced")))
+        last_marked = _max_time(*marked)
+        if not last_marked:
+            return False
+        reading = record.get("battery_reported")
+        if not reading:
+            with self.metrics.lock:
+                points = (self.metrics.series.get(record["ieee"]) or {}).get("bat") or []
+                reading = self._to_utc_iso(points[-1][0]) if points else None
+        return reading is None or last_marked >= reading
+
     def battery_shopping(self, days: int = 60) -> list[dict]:
         """Batteries needed soon, grouped by type."""
         now = time.time()
@@ -1760,6 +1910,8 @@ class Tracker:
         with self.lock:
             for record in self.data["devices"].values():
                 if record["status"] != STATUS_ACTIVE or not self.is_battery_device(record):
+                    continue
+                if self._replaced_since_reading(record):
                     continue
                 level = record.get("battery")
                 est = self.metrics.summary(record["ieee"], now).get("battery_estimate_days")
@@ -1942,3 +2094,144 @@ class Tracker:
             self.data["imported"] = _now()
             self._changed(structural=True)
         return {"devices_found": len(result["devices"]), "new_devices": added, "new_events": new_events}
+
+    # ------------------------------------------------------------ replacement
+
+    def replacement_bindings(self, ieee: str) -> list[dict]:
+        """The old device's last known bindings worth re-creating (not the ones Z2M sets up to the coordinator)."""
+        with self.lock:
+            record = self.data["devices"].get(ieee) or {}
+            known = list(record.get("bindings") or [])
+            keys = {b["key"] for b in known}
+            known += [b for b in record.get("lost_bindings") or [] if b.get("key") not in keys]
+            return [b for b in known if not self._is_coordinator_target(b)]
+
+    def replace_problem(self, old_ieee: str, new_ieee: str) -> str | None:
+        with self.lock:
+            old = self.data["devices"].get(old_ieee)
+            new = self.data["devices"].get(new_ieee)
+            if old is None or new is None:
+                return "Both devices must be known to the tracker"
+            if old_ieee == new_ieee:
+                return "Choose a different device as the replacement"
+            if "Coordinator" in (old.get("type"), new.get("type")):
+                return "The coordinator can't be replaced here"
+            if new["status"] != STATUS_ACTIVE:
+                return "The new device must be in Zigbee2MQTT"
+        return None
+
+    def remove_from_z2m(self, ieee: str) -> dict:
+        """Force-remove a device from Zigbee2MQTT. The tracker keeps its history."""
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            if record is None or record["status"] != STATUS_ACTIVE:
+                return {"ok": True, "skipped": True}
+            base_topic = record["instance"]
+        result = self.request(base_topic, "device/remove", {"id": ieee, "force": True}, timeout=30)
+        ok = bool(result and result.get("status") == "ok")
+        return {"ok": ok, "error": None if ok else friendly_z2m_error((result or {}).get("error") or "No response")}
+
+    def rebind(self, old_ieee: str, new_ieee: str) -> dict:
+        """Re-create the old device's bindings on the new one through bridge/request/device/bind."""
+        wanted = self.replacement_bindings(old_ieee)
+        with self.lock:
+            new = self.data["devices"].get(new_ieee)
+            if new is None or new["status"] != STATUS_ACTIVE:
+                return {"ok": False, "error": "The new device isn't in Zigbee2MQTT", "done": 0, "failed": []}
+            base_topic = new["instance"]
+            version = str(((self.data.get("bridges") or {}).get(base_topic) or {}).get("info", {}).get("version") or "")
+            groups = dict(self.groups.get(base_topic) or {})
+            requests: dict[tuple[str, str], dict] = {}
+            for binding in wanted:
+                target = binding.get("target") or ""
+                if target.startswith("group:"):
+                    gid = target.split(":", 1)[1]
+                    to, to_ep = groups.get(gid) or (int(gid) if gid.isdigit() else gid), None
+                else:
+                    ieee, _, ep = target.partition("/")
+                    rec = self.data["devices"].get(ieee)
+                    if rec is None or rec["status"] != STATUS_ACTIVE or rec.get("instance") != base_topic:
+                        continue
+                    to, to_ep = ieee, ep if ep.isdigit() else None
+                entry = requests.setdefault(
+                    (binding.get("ep") or "", target),
+                    {"ep": binding.get("ep") or "", "to": to, "to_ep": to_ep, "clusters": [], "labels": []},
+                )
+                entry["clusters"].append(binding.get("cluster"))
+                entry["labels"].append(binding.get("label") or self.binding_label(base_topic, binding))
+        skipped = len(wanted) - sum(len(r["clusters"]) for r in requests.values())
+        legacy = version[:1].isdigit() and int(version.split(".", 1)[0]) < 2
+        done, failed = 0, []
+        for entry in list(requests.values())[:12]:
+            ep = entry["ep"]
+            if legacy:
+                payload: dict[str, Any] = {
+                    "from": f"{new_ieee}/{ep}" if ep.isdigit() else new_ieee,
+                    "to": f"{entry['to']}/{entry['to_ep']}" if entry["to_ep"] else entry["to"],
+                }
+            else:
+                payload = {"from": new_ieee, "to": entry["to"]}
+                if ep.isdigit():
+                    payload["from_endpoint"] = int(ep)
+                if entry["to_ep"]:
+                    payload["to_endpoint"] = int(entry["to_ep"])
+            payload["clusters"] = entry["clusters"]
+            result = self.request(base_topic, "device/bind", payload, timeout=20)
+            if result and result.get("status") == "ok":
+                done += len(entry["clusters"])
+            else:
+                failed.append(
+                    {
+                        "labels": entry["labels"],
+                        "error": friendly_z2m_error((result or {}).get("error") or "No response"),
+                    }
+                )
+        return {"ok": not failed, "done": done, "failed": failed, "skipped": skipped}
+
+    def carry_over(self, old_ieee: str, new_ieee: str, notes: bool, battery: bool) -> list[str]:
+        """Copy notes, asset details and the battery record from the old record. Returns what was copied."""
+        copied = []
+        with self.lock:
+            old = self.data["devices"].get(old_ieee)
+            new = self.data["devices"].get(new_ieee)
+            if old is None or new is None:
+                return copied
+            if notes:
+                if old.get("note"):
+                    mine = (new.get("note") or "").strip()
+                    new["note"] = old["note"] if not mine or mine == old["note"] else f"{mine}\n\n{old['note']}"
+                    copied.append("note")
+                asset = {k: v for k, v in (old.get("asset") or {}).items() if k != "serial"}
+                if asset:
+                    new["asset"] = {**asset, **(new.get("asset") or {})}
+                    copied.append("asset")
+            if battery and old.get("battery_info"):
+                info = json.loads(json.dumps(old["battery_info"]))
+                new["battery_info"] = {**(new.get("battery_info") or {}), **info}
+                copied.append("battery")
+            self._changed(structural=True)
+        return copied
+
+    def link_replacement(self, old_ieee: str, new_ieee: str, carried: list[str], new_name: str | None = None) -> bool:
+        """Join both histories: "replaced" on the new device, "replaced by" on the old one."""
+        with self.lock:
+            old = self.data["devices"].get(old_ieee)
+            new = self.data["devices"].get(new_ieee)
+            if old is None or new is None or old_ieee == new_ieee:
+                return False
+            if old_ieee not in new.setdefault("predecessors", []):
+                new["predecessors"].append(old_ieee)
+            old["successor"] = new_ieee
+            now = _now()
+            old_name = _display_name(old) or old_ieee
+            new_name = new_name or _display_name(new) or new_ieee
+            extra = f". Carried over: {', '.join(carried)}" if carried else ""
+            self._add_event(now, new["instance"], new_ieee, new_name, "replaced", f"{old_name} ({old_ieee}){extra}")
+            self.data["events"][-1]["ref"] = old_ieee
+            self._add_event(
+                now, old["instance"] or "unknown", old_ieee, old_name, "replaced by", f"{new_name} ({new_ieee})"
+            )
+            self.data["events"][-1]["ref"] = new_ieee
+            self._changed(structural=True)
+        self.evaluate_health()
+        return True

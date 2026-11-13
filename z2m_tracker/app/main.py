@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import queue
+import re
 import signal
 import ssl
 import sys
@@ -14,6 +15,7 @@ import time
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import unquote
 from zoneinfo import ZoneInfo
 
 import paho.mqtt.client as mqtt
@@ -23,12 +25,14 @@ from discovery import BASE as DISCOVERY_BASE
 from ha import HomeAssistant
 from health import CHECKS, DEFAULT_NOTIFY, mutes_of
 from metrics import Metrics
+from ota import OtaManager, parse_window
 from tracker import Tracker
+from tracker import _display_name as tracker_display_name
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
 _LOGGER = logging.getLogger("z2m_tracker")
 
-VERSION = "1.0.1"
+VERSION = "1.1.0"
 PORT = 8099
 DATA_PATH = "/data/history.json"
 METRICS_PATH = "/data/metrics.json"
@@ -38,10 +42,17 @@ CONFIG_DIR = "/homeassistant"
 MIGRATE_FROM = f"{CONFIG_DIR}/.storage/z2m_tracker"
 APP_DIR = Path(__file__).parent
 WWW = APP_DIR / "www"
+I18N_DIR = WWW / "i18n"
+LANG_RE = re.compile(r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
+# Fonts are served from this fixed list, so a request path never becomes a file path.
+FONTS = {font.name: font for font in (WWW / "fonts").glob("*.woff2")}
 SAVE_INTERVAL = 30
 METRICS_SAVE_INTERVAL = 300
 HEALTH_INTERVAL = 60
 HA_REFRESH_INTERVAL = 6 * 3600
+# Wait this long after a registry change before re-reading, so a burst of changes
+# (a new device brings a dozen entities) costs one refresh.
+HA_CHANGE_DELAY = 5
 FIRST_IMPORT_WAIT = 120
 
 # Ingress proxy (supervisor) and HA Core on the internal hassio network.
@@ -67,6 +78,8 @@ DEFAULT_OPTIONS = {
     "notify_checks": list(DEFAULT_NOTIFY),
     "wifi_channels": "",
     "chatty_per_hour": 1200,
+    "ota_window": "",
+    "ota_min_battery": 30,
 }
 
 CHECK_KEYS = {key for key, _, _, _ in CHECKS}
@@ -103,6 +116,13 @@ def _wifi(value):
     return ", ".join(str(int(p)) for p in dict.fromkeys(parts))
 
 
+def _ota_window(value):
+    value = str(value or "").replace(" ", "")
+    if value and parse_window(value) is None:
+        raise ValueError("enter a time range like 02:00-05:00, or leave it empty")
+    return value
+
+
 def _kinds(value):
     if not isinstance(value, list) or any(item not in CHECK_KEYS for item in value):
         raise ValueError("unknown check")
@@ -126,6 +146,8 @@ SETTINGS = {
     "chatty_per_hour": _int(60, 36000),
     "disabled_checks": _kinds,
     "notify_checks": _kinds,
+    "ota_window": _ota_window,
+    "ota_min_battery": _int(0, 100),
 }
 
 
@@ -170,7 +192,16 @@ home_assistant = HomeAssistant(CONFIG_DIR)
 tracker.battery_lib = BatteryLibrary(APP_DIR / "battery_library.json")
 discovery = Discovery(tracker, VERSION, bool(options.get("ha_entities", True)))
 stop_event = threading.Event()
+ha_changed_at = 0.0
+
+
+def ha_registry_changed() -> None:
+    global ha_changed_at
+    ha_changed_at = time.time()
+
+
 scan_lock = threading.Lock()
+ota_manager = OtaManager(tracker, options, home_assistant.logbook)
 
 
 # -------------------------------------------------------------------- alerts
@@ -415,6 +446,128 @@ def record_battery_replaced(ieee: str, date: str, source: str, note: str) -> dic
     return entry
 
 
+REPLACE_CARRY = ("name", "area", "bindings", "notes", "battery", "remove")
+
+
+def replace_device(old_ieee: str, new_ieee: str, carry: dict) -> dict:
+    """Swap a dead device for a new one: carry over what was chosen, then link both histories."""
+    problem = tracker.replace_problem(old_ieee, new_ieee)
+    if problem:
+        return {"ok": False, "error": problem, "steps": []}
+    want = {key: bool(carry.get(key)) for key in REPLACE_CARRY}
+    with tracker.lock:
+        old = dict(tracker.data["devices"][old_ieee])
+        new_instance = tracker.data["devices"][new_ieee]["instance"]
+    old_name = tracker_display_name(old)
+    steps: list[dict] = []
+    carried: list[str] = []
+
+    def step(key: str, label: str, ok: bool, detail: str = "") -> None:
+        steps.append({"key": key, "label": label, "ok": ok, "detail": detail})
+
+    if want["remove"]:
+        if old["status"] != "active":
+            step("remove", "Remove the old device", True, "Already gone from Zigbee2MQTT")
+        else:
+            result = tracker.remove_from_z2m(old_ieee)
+            step(
+                "remove",
+                "Remove the old device",
+                result["ok"],
+                "Removed from Zigbee2MQTT" if result["ok"] else result["error"],
+            )
+            if result["ok"]:
+                # Give Home Assistant a moment to drop the old entities so their IDs are free for the new device.
+                time.sleep(3)
+    new_name = None
+    if want["name"]:
+        if not old_name:
+            step("name", "Name", False, "The old device never had a name")
+        else:
+            result = tracker.rename(new_ieee, old_name)
+            if result["ok"]:
+                new_name = old_name
+                carried.append("name")
+            step("name", "Name", result["ok"], f"Renamed to {old_name}" if result["ok"] else result["error"])
+    if want["area"]:
+        area_name = old.get("area")
+        if not area_name:
+            step("area", "Area", False, "The old device had no area")
+        else:
+            try:
+                if new_ieee not in tracker.ha_device_ids:
+                    refresh_home_assistant()
+                device_id = tracker.ha_device_ids.get(new_ieee)
+                area_id = next((a["id"] for a in home_assistant.list_areas() if a["name"] == area_name), None)
+                if not device_id:
+                    step("area", "Area", False, "The new device isn't in Home Assistant yet. Set the area later.")
+                elif not area_id:
+                    step("area", "Area", False, f"Home Assistant has no area called {area_name} any more")
+                else:
+                    home_assistant.set_device_area(device_id, area_id)
+                    with tracker.lock:
+                        record = tracker.data["devices"].get(new_ieee)
+                        if record is not None:
+                            record["area"] = area_name
+                            tracker._changed(structural=True)
+                    carried.append("area")
+                    step("area", "Area", True, f"Set to {area_name}")
+            except Exception as err:  # noqa: BLE001 - HA errors are reported per step
+                step("area", "Area", False, str(err))
+    if want["bindings"]:
+        if old.get("instance") != new_instance:
+            step("bindings", "Bindings", False, "The new device is on a different network")
+        else:
+            result = tracker.rebind(old_ieee, new_ieee)
+            parts = []
+            if result.get("done"):
+                parts.append(f"{result['done']} re-created")
+            for failure in result.get("failed") or []:
+                parts.append(f"{'; '.join(failure['labels'])}: {failure['error']}")
+            if result.get("skipped"):
+                parts.append(f"{result['skipped']} skipped because the target is no longer in Zigbee2MQTT")
+            if result.get("error"):
+                parts.append(result["error"])
+            if result.get("done"):
+                carried.append("bindings")
+            step(
+                "bindings", "Bindings", result["ok"], ". ".join(p.rstrip(".") for p in parts) or "Nothing to re-create"
+            )
+    copied = tracker.carry_over(old_ieee, new_ieee, want["notes"], want["battery"])
+    if want["notes"]:
+        got = [x for x in copied if x in ("note", "asset")]
+        carried += ["notes"] if got else []
+        step("notes", "Notes and asset details", True, "Copied" if got else "Nothing to copy")
+    if want["battery"]:
+        carried += ["battery record"] if "battery" in copied else []
+        step("battery", "Battery record", True, "Copied" if "battery" in copied else "Nothing to copy")
+    linked = tracker.link_replacement(old_ieee, new_ieee, carried, new_name)
+    step("link", "Link both histories", linked, "Each logbook points to the other" if linked else "Couldn't link")
+    if want["battery"]:
+        threading.Thread(target=discovery.sync, daemon=True).start()
+    _LOGGER.info("Replaced %s with %s: %s", old_ieee, new_ieee, ", ".join(carried) or "history only")
+    return {"ok": all(s["ok"] for s in steps), "steps": steps}
+
+
+def i18n_file(name: str) -> bytes | None:
+    """Sidebar translation file www/i18n/<name>.json; "index" lists the available languages."""
+    if name == "index":
+        languages = []
+        for path in sorted(I18N_DIR.glob("*.json")):
+            if not LANG_RE.match(path.stem):
+                continue
+            try:
+                label = json.loads(path.read_text(encoding="utf-8")).get("language.name") or path.stem
+            except (OSError, ValueError, AttributeError):
+                continue
+            languages.append({"code": path.stem, "name": label})
+        return json.dumps({"languages": languages}).encode("utf-8")
+    # Looked up among the files that exist, so the requested name never becomes a file path.
+    files = {path.stem: path for path in I18N_DIR.glob("*.json") if LANG_RE.match(path.stem)}
+    path = files.get(name)
+    return path.read_bytes() if path else None
+
+
 def settings_payload() -> dict:
     with tracker.lock:
         now_ts = time.time()
@@ -479,6 +632,10 @@ def refresh_home_assistant() -> None:
         with tracker.lock:
             tracker.ha_device_ids = dict(home_assistant.device_ids)
             tracker.ha_battery = dict(home_assistant.battery)
+            for ieee, record in tracker.data["devices"].items():
+                if ieee in home_assistant.device_ids:
+                    record["area"] = home_assistant.areas.get(ieee)
+                    record["ha_name"] = home_assistant.names.get(ieee)
             tracker._changed(structural=True)
         _LOGGER.info(
             "Linked %d HA devices, %d with Battery Notes", len(home_assistant.device_ids), len(home_assistant.battery)
@@ -488,6 +645,7 @@ def refresh_home_assistant() -> None:
 
 
 def scheduler() -> None:
+    global ha_changed_at
     last_save = last_metrics = last_ha = last_health = 0.0
     last_scan_day = None
     while not stop_event.wait(5):
@@ -499,7 +657,9 @@ def scheduler() -> None:
             if now - last_metrics >= METRICS_SAVE_INTERVAL:
                 metrics.save()
                 last_metrics = now
-            if now - last_ha >= HA_REFRESH_INTERVAL:
+            changed = ha_changed_at and now - ha_changed_at >= HA_CHANGE_DELAY
+            if changed or now - last_ha >= HA_REFRESH_INTERVAL:
+                ha_changed_at = 0.0
                 refresh_home_assistant()
                 last_ha = now
             if now - last_health >= HEALTH_INTERVAL:
@@ -640,9 +800,9 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?", 1)[0]
         if path in ("/", "/index.html"):
             self._send(200, (WWW / "index.html").read_bytes(), "text/html; charset=utf-8")
-        elif path.startswith("/fonts/") and path.endswith(".woff2"):
-            font = (WWW / "fonts" / Path(path).name).resolve()
-            if font.parent == (WWW / "fonts").resolve() and font.is_file():
+        elif path.startswith("/fonts/"):
+            font = FONTS.get(path.removeprefix("/fonts/"))
+            if font is not None:
                 body = font.read_bytes()
                 self.send_response(200)
                 self.send_header("Content-Type", "font/woff2")
@@ -652,12 +812,20 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
             else:
                 self.send_error(404)
+        elif path.startswith("/i18n/") and path.endswith(".json"):
+            body = i18n_file(path[len("/i18n/") : -len(".json")])
+            if body is None:
+                self.send_error(404)
+            else:
+                self._send(200, body, "application/json; charset=utf-8")
         elif path == "/api/devices":
             self._send(200, tracker.snapshot_json())
         elif path == "/api/settings":
             self._json(200, settings_payload())
         elif path == "/api/version":
             self._json(200, {"version": tracker.version, "app": VERSION})
+        elif path == "/api/ota":
+            self._json(200, ota_manager.snapshot())
         elif path == "/api/scans":
             query = dict(
                 part.split("=", 1)
@@ -669,6 +837,18 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(400, {"error": "Unknown network"})
             else:
                 self._json(200, {"scans": tracker.scan_history(net)})
+        elif path == "/api/metrics":
+            query = dict(
+                part.split("=", 1)
+                for part in (self.path.split("?", 1)[1] if "?" in self.path else "").split("&")
+                if "=" in part
+            )
+            ieee = unquote(query.get("ieee", ""))
+            result = metrics.history(ieee, query.get("range", "")) if ieee else None
+            if result is None:
+                self._json(400, {"error": "Unknown device or range"})
+            else:
+                self._json(200, result)
         elif path == "/api/backup":
             stamp = datetime.now().strftime("%Y-%m-%d")
             self._send(
@@ -679,7 +859,7 @@ class Handler(BaseHTTPRequestHandler):
             )
         elif path == "/api/areas":
             try:
-                self._json(200, {"areas": home_assistant.list_areas()})
+                self._json(200, {"areas": home_assistant.list_areas(), "floors": home_assistant.list_floors()})
             except Exception as err:  # noqa: BLE001 - report HA errors to the caller
                 self._json(502, {"error": str(err)})
         elif path == "/api/export.csv":
@@ -729,9 +909,17 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/bindings/ack":
                 ok = tracker.acknowledge_bindings(ieee)
                 self._json(200 if ok else 404, {"ok": ok})
+            elif path == "/api/bindings/restore":
+                keys = body.get("keys")
+                result = tracker.restore_bindings(ieee, [str(k) for k in keys] if isinstance(keys, list) else None)
+                self._json(200 if result["ok"] else 502, result)
             elif path == "/api/link":
                 result = tracker.link(str(body.get("old") or ""), str(body.get("new") or ""))
                 self._json(200 if result["ok"] else 400, result)
+            elif path == "/api/replace":
+                carry = body.get("carry") if isinstance(body.get("carry"), dict) else {}
+                result = replace_device(str(body.get("old") or ""), str(body.get("new") or ""), carry)
+                self._json(200 if result["ok"] or result["steps"] else 400, result)
             elif path == "/api/unlink":
                 self._json(200, tracker.unlink(str(body.get("old") or ""), str(body.get("new") or "")))
             elif path == "/api/reconfigure":
@@ -772,6 +960,14 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/area":
                 device_id = tracker.ha_device_ids.get(ieee)
                 if not device_id:
+                    # The device list is only re-read every few hours, so a newly
+                    # paired device may be in HA already. Ask HA directly before giving up.
+                    device_id = home_assistant.find_device(ieee)
+                    if device_id:
+                        with tracker.lock:
+                            tracker.ha_device_ids[ieee] = device_id
+                            home_assistant.device_ids[ieee] = device_id
+                if not device_id:
                     self._json(400, {"ok": False, "error": "This device isn't in Home Assistant's device list"})
                 else:
                     area_id = body.get("area_id") or None
@@ -794,8 +990,28 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 self._json(200 if result["ok"] else 502, result)
             elif path == "/api/ota":
-                result = tracker.ota(ieee, str(body.get("action") or ""))
+                if body.get("action") == "update":
+                    result = ota_manager.enqueue([ieee], force=True)
+                    result["ok"] = bool(result["queued"])
+                    if not result["ok"]:
+                        result["error"] = (result["skipped"] or [{}])[0].get("reason") or "Already queued"
+                else:
+                    result = tracker.ota(ieee, str(body.get("action") or ""))
                 self._json(200 if result["ok"] else 502, result)
+            elif path == "/api/ota/check":
+                result = ota_manager.check_all()
+                self._json(200 if result["ok"] else 409, result)
+            elif path == "/api/ota/queue":
+                force = body.get("force") is True
+                if body.get("all") is True:
+                    result = ota_manager.enqueue_all(force)
+                else:
+                    ieees = [str(x) for x in body.get("ieees") or [] if isinstance(x, str)][:500]
+                    result = ota_manager.enqueue(ieees, force)
+                self._json(200, result)
+            elif path == "/api/ota/cancel":
+                result = ota_manager.cancel(ieee)
+                self._json(200 if result["ok"] else 404, result)
             elif path == "/api/summary":
                 self._json(200, {"ok": True, **send_weekly_summary()})
             elif path == "/api/import":
@@ -819,6 +1035,11 @@ def main() -> None:
 
     client = start_mqtt()
     threading.Thread(target=scheduler, name="scheduler", daemon=True).start()
+    ota_manager.start(stop_event)
+    if home_assistant.available:
+        threading.Thread(
+            target=home_assistant.watch, args=(ha_registry_changed, stop_event), name="ha-watch", daemon=True
+        ).start()
     if not tracker.data.get("imported"):
         threading.Thread(target=first_import, name="first-import", daemon=True).start()
 
