@@ -240,6 +240,21 @@
   .chart { width: 100%; height: 120px; display: block; }
   .chart-wrap { padding: 4px 16px 0; }
   .chart-axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-2); padding: 2px 16px 8px; }
+  .trend-head { display: flex; align-items: center; gap: 8px; padding: 12px 16px 0; flex-wrap: wrap; }
+  .bigchart-wrap { position: relative; padding: 4px 16px 0 44px; }
+  .bigchart { width: 100%; height: 180px; display: block; overflow: visible; }
+  .bigchart-y { position: absolute; left: 4px; width: 32px; text-align: right; transform: translateY(-50%); font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .bigchart-x { position: relative; height: 18px; margin: 4px 16px 4px 44px; font-size: 11px; color: var(--text-2); }
+  .bigchart-x span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+  .bigchart-x span.first { transform: none; } .bigchart-x span.last { transform: translateX(-100%); }
+  .trend-legend { display: flex; gap: 16px; flex-wrap: wrap; padding: 4px 16px 8px; font-size: 12px; color: var(--text-2); }
+  .trend-legend i { display: inline-block; width: 14px; height: 3px; vertical-align: 3px; margin-right: 6px; border-radius: 2px; }
+  .trend-stats-wrap { container-type: inline-size; }
+  .trend-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--divider); margin-top: 8px; padding: 4px 0; }
+  @container (min-width: 440px) { .trend-stats { grid-template-columns: repeat(var(--n), minmax(0, 1fr)); } }
+  .trend-stats > div { padding: 8px 16px; white-space: nowrap; }
+  .trend-stats small { display: block; font-size: 12px; color: var(--text-2); }
+  .trend-stats b { font-weight: 400; font-size: 16px; }
   .names { list-style: none; margin: 0; padding: 0 4px 8px; }
   .names li { display: flex; gap: 16px; align-items: center; padding: 8px 12px; border-radius: 12px; }
   .names li .mdi { color: var(--text-2); }
@@ -1240,6 +1255,112 @@
       ${events.length ? events.map((e) => { const [icon, color] = EVENT_ICON(e.kind); return `<div class="log" style="cursor:default"><span class="state-ic" style="color:${color}">${ic(icon)}</span><div class="text"><div class="t1">${esc(cap(e.kind))}${e.detail ? ` · ${esc(e.detail)}` : ""}</div><div class="t2">${esc(fmtDate(e.time))}</div></div></div>`; }).join("") : `<div class="card-content muted">Nothing logged yet.</div>`}`;
   };
 
+  // ------------------------------------------------------------ long-range charts (Trends tab)
+  const TREND_RANGES = [["24h", "24 h"], ["7d", "7 d"], ["30d", "30 d"], ["90d", "90 d"]];
+  const TREND = { range: TREND_RANGES.some((r) => r[0] === store.get("z2mt.trendRange")) ? store.get("z2mt.trendRange") : "30d", cache: new Map(), pending: new Set() };
+  const loadTrend = async (ieee, range) => {
+    const key = `${ieee}|${range}`;
+    if (TREND.pending.has(key)) return;
+    TREND.pending.add(key);
+    try { TREND.cache.set(key, { at: Date.now(), data: await api(`api/metrics?ieee=${encodeURIComponent(ieee)}&range=${range}`) }); }
+    catch (err) { TREND.cache.set(key, { at: Date.now(), error: err.message }); }
+    TREND.pending.delete(key);
+    if (state.open === ieee && state.moreTab === "trends") renderMore();
+  };
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-trend-range]");
+    if (!b) return;
+    TREND.range = b.dataset.trendRange;
+    store.set("z2mt.trendRange", TREND.range);
+    renderMore();
+  });
+  const CH = { W: 720, H: 180 };
+  // Polyline as a path, broken where readings are missing for longer than `gap` seconds.
+  const gapPath = (pts, sx, sy, gap) => pts.map((p, i) => `${i && p[0] - pts[i - 1][0] <= gap ? "L" : "M"}${sx(p[0]).toFixed(1)},${sy(p[1]).toFixed(1)}`).join("");
+  const bigChart = ({ x0, x1, lo, hi, yTicks, xTicks, body }) => {
+    const sx = (x) => ((x - x0) / (x1 - x0 || 1)) * CH.W;
+    const sy = (y) => CH.H - ((y - lo) / (hi - lo || 1)) * CH.H;
+    const grid = yTicks.map((v) => `<line x1="0" x2="${CH.W}" y1="${sy(v).toFixed(1)}" y2="${sy(v).toFixed(1)}" stroke="var(--divider)" vector-effect="non-scaling-stroke"/>`).join("");
+    const pct = (x) => Math.max(0, Math.min(100, (sx(x) / CH.W) * 100));
+    return `<div class="bigchart-wrap"><svg class="bigchart" viewBox="0 0 ${CH.W} ${CH.H}" preserveAspectRatio="none" aria-hidden="true">${grid}${body(sx, sy)}</svg>
+      ${yTicks.map((v) => `<span class="bigchart-y" style="top:${(4 + sy(v)).toFixed(0)}px">${v}</span>`).join("")}</div>
+      <div class="bigchart-x">${xTicks.map((x, i) => `<span class="${i === 0 ? "first" : i === xTicks.length - 1 ? "last" : ""}" style="left:${pct(x).toFixed(1)}%">${esc(x === "now" ? "Now" : fmtTick(x, x1 - x0))}</span>`).join("")}</div>`;
+  };
+  const fmtTick = (t, spanS) => new Date(t * 1000).toLocaleString(undefined, spanS <= 2 * 86400 ? { hour: "2-digit", minute: "2-digit" } : { day: "numeric", month: "short" });
+  const evenTicks = (x0, x1, n = 5) => Array.from({ length: n }, (_, i) => x0 + ((x1 - x0) * i) / (n - 1));
+  const trendLegend = (items) => `<div class="trend-legend">${items.map(([c, l, extra = ""]) => `<span><i style="background:${c};${extra}"></i>${l}</span>`).join("")}</div>`;
+
+  const lqiChart = (h) => {
+    const { line, band } = h.lqi;
+    if (line.length < 2) return `<div class="card-content muted">Not enough link quality readings in this range yet.</div>`;
+    const top = Math.max(...band.map((b) => b[2]), ...line.map((p) => p[1]));
+    const hi = Math.min(255, Math.max(100, Math.ceil(top / 50) * 50));
+    const yTicks = []; for (let v = 0; v <= hi; v += hi > 150 ? 100 : 50) yTicks.push(v);
+    const step = h.range === "24h" || h.range === "7d" ? 3600 : 86400;
+    return bigChart({ x0: h.start, x1: h.end, lo: 0, hi, yTicks, xTicks: evenTicks(h.start, h.end),
+      body: (sx, sy) => {
+        const clampX = (x) => sx(Math.max(h.start, Math.min(h.end, x)));
+        // One stepped shape per run of consecutive days, so neighbouring days don't leave seams.
+        const runs = [];
+        band.forEach((b, i) => { if (i && b[0] - band[i - 1][0] === 86400) runs[runs.length - 1].push(b); else runs.push([b]); });
+        const rects = runs.map((run) => {
+          const topEdge = run.map(([day, , mx]) => `${clampX(day).toFixed(1)},${sy(mx).toFixed(1)} ${clampX(day + 86400).toFixed(1)},${sy(mx).toFixed(1)}`).join(" ");
+          const bottomEdge = run.slice().reverse().map(([day, mn]) => `${clampX(day + 86400).toFixed(1)},${sy(mn).toFixed(1)} ${clampX(day).toFixed(1)},${sy(mn).toFixed(1)}`).join(" ");
+          return `M${topEdge} ${bottomEdge}Z`;
+        }).join("");
+        return `<rect x="0" y="${sy(50).toFixed(1)}" width="${CH.W}" height="${(CH.H - sy(50)).toFixed(1)}" fill="var(--warning)" fill-opacity="0.05"/>
+          <path d="${rects}" fill="var(--primary)" fill-opacity="0.18"/>
+          <line x1="0" x2="${CH.W}" y1="${sy(50).toFixed(1)}" y2="${sy(50).toFixed(1)}" stroke="var(--warning)" stroke-width="1.5" stroke-dasharray="6 4" vector-effect="non-scaling-stroke"/>
+          <path d="${gapPath(line, sx, sy, step * 3)}" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
+      } });
+  };
+
+  const batteryChart = (h, d) => {
+    const b = h.battery, pts = b.points;
+    if (pts.length < 2) return `<div class="card-content muted">Not enough battery readings in this range yet. The device reports battery about once a day.</div>`;
+    const x0 = b.start, histSpan = h.end - x0, last = pts[pts.length - 1];
+    // The projection may run past "now" by up to half the history span, so the history stays readable.
+    const x1 = b.empty_at ? Math.max(h.end, Math.min(b.empty_at, h.end + histSpan / 2)) : h.end;
+    const reps = ((d.battery_record || {}).replacements || []).map((r) => Date.parse(`${r.date}T12:00:00Z`) / 1000).filter((t) => t >= x0 && t <= h.end);
+    return bigChart({ x0, x1, lo: 0, hi: 100, yTicks: [0, 25, 50, 75, 100], xTicks: x1 > h.end ? [...evenTicks(x0, h.end, 4), x1] : evenTicks(x0, h.end),
+      body: (sx, sy) => {
+        let proj = "";
+        if (b.empty_at && b.empty_at > last[0]) {
+          const endX = Math.min(b.empty_at, x1);
+          const endY = last[1] - ((last[1] - 10) * (endX - last[0])) / (b.empty_at - last[0]);
+          proj = `<line x1="${sx(last[0]).toFixed(1)}" y1="${sy(last[1]).toFixed(1)}" x2="${sx(endX).toFixed(1)}" y2="${sy(endY).toFixed(1)}" stroke="var(--text-2)" stroke-width="2" stroke-dasharray="6 5" vector-effect="non-scaling-stroke"/>`;
+          if (b.empty_at <= x1) proj += `<line x1="${sx(b.empty_at).toFixed(1)}" x2="${sx(b.empty_at).toFixed(1)}" y1="0" y2="${CH.H}" stroke="var(--text-2)" stroke-dasharray="2 4" vector-effect="non-scaling-stroke"><title>Reaches 10 % around ${esc(fmtDate(b.empty_at, false))}</title></line>`;
+        }
+        const now = x1 > h.end ? `<line x1="${sx(h.end).toFixed(1)}" x2="${sx(h.end).toFixed(1)}" y1="0" y2="${CH.H}" stroke="var(--divider)" stroke-width="2" vector-effect="non-scaling-stroke"/>` : "";
+        const marks = reps.map((t) => `<line x1="${sx(t).toFixed(1)}" x2="${sx(t).toFixed(1)}" y1="0" y2="${CH.H}" stroke="var(--state-icon)" stroke-width="2" vector-effect="non-scaling-stroke"><title>Battery replaced ${esc(fmtDate(t, false))}</title></line>`).join("");
+        return `${now}${marks}${proj}<path d="${gapPath(pts, sx, sy, 3 * 86400)}" fill="none" stroke="var(--success)" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
+      } });
+  };
+
+  const tabTrends = (d) => {
+    const key = `${d.ieee}|${TREND.range}`;
+    const c = TREND.cache.get(key);
+    if (!c || Date.now() - c.at > 5 * 60_000) loadTrend(d.ieee, TREND.range);
+    const label = TREND_RANGES.find((r) => r[0] === TREND.range)[1];
+    const chips = `<div class="trend-head"><div class="chips">${TREND_RANGES.map(([k, l]) => `<button class="chip" data-trend-range="${k}" aria-pressed="${TREND.range === k}">${l}</button>`).join("")}</div></div>`;
+    if (!c) return `${chips}<div class="card-content muted">Loading…</div>`;
+    if (c.error) return `${chips}<div class="card-content muted">Couldn't load history: ${esc(c.error)}</div>`;
+    const h = c.data, isBat = !!d.battery_record || typeof d.battery === "number";
+    const t = h.lqi.trend_month, b = h.battery;
+    const trend = t === null || t === undefined ? "—" : Math.abs(t) < 1 ? "Steady" : `${t > 0 ? "+" : "−"}${Math.abs(Math.round(t))} / month`;
+    const empty = b.estimate_days === null || b.estimate_days === undefined ? "—" : b.estimate_days <= 0 ? "Now" : new Date(b.empty_at * 1000).toLocaleDateString(undefined, { month: "short", year: "numeric" });
+    const stats = [[`LQI avg, ${label}`, h.lqi.avg === null ? "—" : Math.round(h.lqi.avg)], ["LQI trend", trend, t !== null && t <= -5 ? "var(--warning-text)" : ""],
+      ...(isBat ? [["Battery drain", b.drain_month === null ? "—" : `${b.drain_month < 1 ? b.drain_month.toFixed(1) : Math.round(b.drain_month)} % / month`], ["Reaches 10 %", empty, b.estimate_days !== null && b.estimate_days <= 30 ? "var(--error)" : ""]] : [])];
+    const batLabel = TREND.range === "24h" ? "Battery, last 7 days" : "Battery";
+    return `${chips}
+      <div class="sub-h">Link quality (LQI)</div>
+      ${lqiChart(h)}
+      ${trendLegend([["var(--primary)", h.range === "24h" || h.range === "7d" ? "Hourly average" : "Daily average"], ["var(--primary)", "Daily min–max", "opacity:.3;height:8px;vertical-align:0"], ["var(--warning)", "Weak (below 50)"]])}
+      ${isBat ? `<div class="sub-h">${batLabel}</div>${batteryChart(h, d)}${trendLegend([["var(--success)", "Battery %"], ["var(--text-2)", "Projection to 10 %"], ["var(--state-icon)", "Replaced"]])}` : ""}
+      <div class="trend-stats-wrap"><div class="trend-stats" style="--n:${stats.length}">${stats.map(([k, v, color]) => `<div><small>${esc(k)}</small><b${color ? ` style="color:${color}"` : ""}>${esc(v)}</b></div>`).join("")}</div></div>
+      ${isBat && (b.estimate_days === null || b.estimate_days === undefined) ? `<div class="card-content muted" style="font-size:13px">The battery estimate needs at least two weeks of falling readings since the last battery change.</div>` : ""}`;
+  };
+
   const tabAsset = (d) => {
     const a = d.asset || {};
     const f = (k, l, type = "text", cls = "") => `<label class="${cls}">${l}<input class="field" name="${k}" type="${type}" value="${esc(a[k] || "")}" autocomplete="off"></label>`;
@@ -1255,9 +1376,9 @@
 
   const moreHtml = (d) => {
     const isBat = !!d.battery_record || typeof d.battery === "number";
-    const tabs = [["info", "Info"], ["health", "Health"], ["history", "History"], ...(isBat ? [["battery", "Battery"]] : []), ["asset", "Notes"]];
+    const tabs = [["info", "Info"], ["health", "Health"], ["trends", "Trends"], ["history", "History"], ...(isBat ? [["battery", "Battery"]] : []), ["asset", "Notes"]];
     if (!tabs.find((t) => t[0] === state.moreTab)) state.moreTab = "info";
-    const fn = { info: tabInfo, health: tabHealth, history: tabHistory, battery: tabBattery, asset: tabAsset }[state.moreTab];
+    const fn = { info: tabInfo, health: tabHealth, history: tabHistory, trends: tabTrends, battery: tabBattery, asset: tabAsset }[state.moreTab];
     const name = nameOf(d);
     return `
       <div class="more-head"><button class="icon-btn" data-act="close" aria-label="Close">${ic("close")}</button>

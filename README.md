@@ -45,6 +45,7 @@ It has two parts, both in this repository:
 - **Network map**: interactive map with advice on which router a device should use and which routers are a single point of failure, nightly routing scans, and a before/after comparison between scans.
 - **Device actions**: pair through a chosen router, move a device to another router, reconfigure, rename, set area, OTA updates.
 - **Batteries**: battery type and count (built-in library from Battery Notes), replacement records, estimates and a shopping list.
+- **Long-range trends**: each device's link quality and battery over 24 hours, 7, 30 or 90 days, with a daily min–max band, battery changes and a projection to when the battery runs low.
 - **Home Assistant entities**: MQTT discovery sensors attached to each Zigbee2MQTT device for use in automations.
 - Weekly summary, temporary ignore, backup and restore, CSV export.
 
