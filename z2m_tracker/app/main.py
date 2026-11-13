@@ -26,7 +26,7 @@ from ha import HomeAssistant
 from health import CHECKS, DEFAULT_NOTIFY, mutes_of
 from metrics import Metrics
 from ota import OtaManager, parse_window
-from tracker import Tracker
+from tracker import Tracker, shopping_text
 from tracker import _display_name as tracker_display_name
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
@@ -707,9 +707,7 @@ def weekly_summary_text() -> tuple[str, str]:
     else:
         lines.append("Nothing needs attention.")
     if shopping:
-        lines.append(
-            "Batteries for the next 60 days: " + ", ".join(f"{g['count']}× {g['type']}" for g in shopping) + "."
-        )
+        lines.append(shopping_text(shopping, 60))
     if joined:
         lines.append("New this week: " + ", ".join(joined[:6]) + ".")
     if removed:
@@ -950,6 +948,9 @@ class Handler(BaseHTTPRequestHandler):
                     200 if entry else 400,
                     {"ok": bool(entry), "entry": entry, "error": None if entry else "Invalid device or date"},
                 )
+            elif path == "/api/battery_stock":
+                result = tracker.set_battery_stock(str(body.get("type") or ""), body.get("count"), body.get("delta"))
+                self._json(200 if result["ok"] else 400, result)
             elif path == "/api/battery/remove":
                 ok = tracker.remove_battery_replacement(ieee, int(body.get("index", -1)))
                 threading.Thread(target=discovery.sync, daemon=True).start()

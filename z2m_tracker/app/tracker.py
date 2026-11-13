@@ -12,6 +12,7 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
+from datetime import date as date_cls
 from datetime import datetime, timezone, tzinfo
 from typing import Any
 
@@ -30,6 +31,13 @@ STATUS_REMOVED = "removed"
 MEASURE_KEYS = ("temperature", "local_temperature", "humidity", "pressure", "co2", "voc", "pm25", "soil_moisture")
 
 ASSET_FIELDS = ("purchase_date", "shop", "price", "warranty_until", "location", "serial")
+UNKNOWN_BATTERY_TYPE = "Unknown type"
+MAX_STOCK = 9999
+# A battery change recorded within this many days of one that already took from stock is
+# the same change seen twice (the app detecting the jump, then someone ticking it), so it
+# doesn't take again. Changes dated further back than this are history being filled in
+# and leave today's stock alone.
+STOCK_WINDOW_DAYS = 3
 
 
 def _now() -> str:
@@ -1424,6 +1432,7 @@ class Tracker:
                 "networkmap": self.data.get("networkmap") or {},
                 "permit": self.permit,
                 "battery_shopping": self.battery_shopping(60),
+                "battery_stock": dict(self.data.get("battery_stock") or {}),
                 "bridges": self.data.get("bridges") or {},
                 "radio": self.radio(),
                 "single_points": {bt: self.single_points(bt) for bt in self.base_topics},
@@ -1551,6 +1560,7 @@ class Tracker:
         if replacements and replacements[-1].get("date") == date and source == "Detected":
             return replacements[-1]
         replacements.append(entry)
+        self._take_from_stock(record, entry)
         replacements.sort(key=lambda r: r.get("date") or "")
         del replacements[: max(0, len(replacements) - 50)]
         self._add_event(
@@ -1562,6 +1572,89 @@ class Tracker:
             f"{date}{f' · {note}' if note else ''} ({source.lower()})",
         )
         return entry
+
+    def _stock_key(self, btype: str) -> str | None:
+        """The stock entry for a battery type, matched without regard to case. None when it isn't stocked."""
+        wanted = (btype or "").strip().casefold()
+        if not wanted:
+            return None
+        for key in self.data.get("battery_stock") or {}:
+            if key.casefold() == wanted:
+                return key
+        return None
+
+    def _take_from_stock(self, record: dict, entry: dict) -> None:
+        """Take one change's batteries from stock, once per change, never below zero."""
+        info = self.battery_summary(record)
+        key = self._stock_key(info["type"])
+        if key is None:
+            return
+        try:
+            day = date_cls.fromisoformat(str(entry.get("date"))[:10])
+        except ValueError:
+            return
+        today = datetime.fromtimestamp(time.time(), tz=self.local_tz).date()
+        if (today - day).days > STOCK_WINDOW_DAYS:
+            return
+        for other in (record.get("battery_info") or {}).get("replacements") or []:
+            if other is entry or "stock_used" not in other:
+                continue
+            try:
+                other_day = date_cls.fromisoformat(str(other.get("date"))[:10])
+            except ValueError:
+                continue
+            if abs((other_day - day).days) <= STOCK_WINDOW_DAYS:
+                return
+        stock = self.data["battery_stock"]
+        used = min(int(stock.get(key) or 0), int(info["quantity"] or 1))
+        stock[key] = int(stock.get(key) or 0) - used
+        entry["stock_used"] = used
+        entry["stock_type"] = key
+
+    def _known_battery_type(self, name: str) -> str | None:
+        """A device's spelling of this battery type ("aaa" -> "AAA"), so new stock matches the shopping list."""
+        wanted = name.casefold()
+        for record in self.data["devices"].values():
+            if self.is_battery_device(record):
+                btype = self.battery_summary(record)["type"]
+                if btype and btype.casefold() == wanted:
+                    return btype
+        return None
+
+    def set_battery_stock(self, btype: str, count: Any = None, delta: Any = None) -> dict:
+        """Set the spare count for a battery type (`count`), or add to it (`delta`, may be negative)."""
+        name = str(btype or "").strip()[:40]
+        if not name or name.casefold() == UNKNOWN_BATTERY_TYPE.casefold():
+            return {"ok": False, "error": "Give a battery type, for example CR2032"}
+
+        def whole(value: Any) -> int | None:
+            if isinstance(value, bool):
+                return None
+            try:
+                number = float(value)
+            except (TypeError, ValueError):
+                return None
+            return int(number) if number == int(number) else None
+
+        with self.lock:
+            stock = self.data.setdefault("battery_stock", {})
+            key = self._stock_key(name) or self._known_battery_type(name) or name
+            current = int(stock.get(key) or 0)
+            if count is not None:
+                value = whole(count)
+                if value is None:
+                    return {"ok": False, "error": "Count must be a whole number"}
+                new = value
+            elif delta is not None:
+                step = whole(delta)
+                if step is None:
+                    return {"ok": False, "error": "Change must be a whole number"}
+                new = current + step
+            else:
+                return {"ok": False, "error": "Give a count or a change"}
+            stock[key] = max(0, min(MAX_STOCK, new))
+            self._changed(structural=True)
+            return {"ok": True, "type": key, "count": stock[key]}
 
     def set_battery_info(self, ieee: str, values: dict) -> bool:
         with self.lock:
@@ -1597,7 +1690,14 @@ class Tracker:
             replacements = ((record or {}).get("battery_info") or {}).get("replacements") or []
             if not 0 <= index < len(replacements):
                 return False
-            replacements.pop(index)
+            removed = replacements.pop(index)
+            used = removed.get("stock_used")
+            if isinstance(used, int) and used > 0:
+                # Undo a change recorded by mistake: its batteries go back in the drawer.
+                stock = self.data.setdefault("battery_stock", {})
+                key = self._stock_key(str(removed.get("stock_type") or "")) or str(removed.get("stock_type") or "")
+                if key:
+                    stock[key] = min(MAX_STOCK, int(stock.get(key) or 0) + used)
             self._changed(structural=True)
             return True
 
@@ -1904,7 +2004,11 @@ class Tracker:
         return reading is None or last_marked >= reading
 
     def battery_shopping(self, days: int = 60) -> list[dict]:
-        """Batteries needed soon, grouped by type."""
+        """Batteries needed soon, grouped by type, against the spares in stock.
+
+        Each group has `count` (needed), `stock` and `to_buy`. `stock` and `to_buy` are None
+        for a type whose stock was never entered.
+        """
         now = time.time()
         groups: dict[str, dict] = {}
         with self.lock:
@@ -1923,7 +2027,7 @@ class Tracker:
                 if not due:
                     continue
                 info = self.battery_summary(record)
-                key = info["type"] or "Unknown type"
+                key = info["type"] or UNKNOWN_BATTERY_TYPE
                 group = groups.setdefault(key, {"type": key, "count": 0, "devices": []})
                 group["count"] += int(info["quantity"] or 1)
                 group["devices"].append(
@@ -1935,6 +2039,11 @@ class Tracker:
                         "quantity": info["quantity"] or 1,
                     }
                 )
+            stock = self.data.get("battery_stock") or {}
+            for group in groups.values():
+                stock_key = self._stock_key(group["type"]) if group["type"] != UNKNOWN_BATTERY_TYPE else None
+                group["stock"] = int(stock[stock_key]) if stock_key else None
+                group["to_buy"] = max(0, group["count"] - group["stock"]) if stock_key else None
         for group in groups.values():
             group["devices"].sort(
                 key=lambda d: (
@@ -1942,7 +2051,7 @@ class Tracker:
                     d["battery"] if d["battery"] is not None else 101,
                 )
             )
-        return sorted(groups.values(), key=lambda g: (g["type"] == "Unknown type", -g["count"]))
+        return sorted(groups.values(), key=lambda g: (g["type"] == UNKNOWN_BATTERY_TYPE, -g["count"]))
 
     def backup(self) -> bytes:
         with self.lock, self.metrics.lock:
@@ -2207,6 +2316,10 @@ class Tracker:
                     copied.append("asset")
             if battery and old.get("battery_info"):
                 info = json.loads(json.dumps(old["battery_info"]))
+                for entry in info.get("replacements") or []:
+                    # The old device's changes already took from stock; removing the copy mustn't refund it.
+                    entry.pop("stock_used", None)
+                    entry.pop("stock_type", None)
                 new["battery_info"] = {**(new.get("battery_info") or {}), **info}
                 copied.append("battery")
             self._changed(structural=True)
@@ -2235,3 +2348,20 @@ class Tracker:
             self._changed(structural=True)
         self.evaluate_health()
         return True
+
+
+def shopping_text(groups: list[dict], days: int = 60) -> str:
+    """One line for the weekly summary. Says "to buy" for types with stock entered, "needed" otherwise."""
+    if not groups:
+        return ""
+    if all(g.get("stock") is None for g in groups):
+        return f"Batteries for the next {days} days: " + ", ".join(f"{g['count']}× {g['type']}" for g in groups) + "."
+    parts = []
+    for g in groups:
+        if g.get("stock") is None:
+            parts.append(f"{g['count']}× {g['type']} needed")
+        elif g["to_buy"]:
+            parts.append(f"{g['to_buy']}× {g['type']} to buy ({g['stock']} in stock)")
+        else:
+            parts.append(f"{g['type']} covered by stock")
+    return f"Batteries for the next {days} days: " + ", ".join(parts) + "."

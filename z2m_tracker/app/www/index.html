@@ -166,6 +166,27 @@
   .dt tbody tr:hover { background: var(--hover); }
   .dt tbody tr:last-child td { border-bottom: 0; }
   .dt tbody tr.removed td { color: var(--text-2); }
+  table.dt.stock { min-width: 0; }
+  .dt.stock tbody tr { cursor: default; }
+  .dt.stock tbody tr:hover { background: none; }
+  .dt.stock th, .dt.stock td { padding: 0 12px; }
+  .dt.stock th { display: table-cell; height: 44px; white-space: normal; line-height: 1.2; }
+  @media (max-width: 600px) { .dt.stock th, .dt.stock td { padding-left: 6px; padding-right: 6px; } .dt.stock td.type { min-width: 0; } }
+  .dt.stock td { height: auto; padding-top: 8px; padding-bottom: 8px; }
+  .dt.stock td.type { white-space: normal; min-width: 140px; }
+  .dt.stock td.type .name-2 { max-width: none; white-space: normal; margin-top: 2px; }
+  .dt.stock td.type a { color: inherit; }
+  .qty-step { display: inline-flex; align-items: center; border: 1px solid var(--divider); border-radius: 18px; height: 34px; }
+  .qty-step button { appearance: none; border: 0; background: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: var(--primary-text); cursor: pointer; }
+  .qty-step button:hover { background: var(--hover); }
+  .qty-step button:disabled { color: var(--disabled); cursor: default; background: none; }
+  .qty-step b { min-width: 28px; text-align: center; font-weight: 500; }
+  .pill { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 11px; font-size: 12px; font-weight: 500; white-space: nowrap; background: color-mix(in srgb, var(--error) 14%, transparent); color: var(--error); }
+  .pill.ok { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
+  .stock-add { display: flex; gap: 8px; align-items: center; padding: 12px 16px; border-top: 1px solid var(--divider); flex-wrap: wrap; }
+  .stock-add #stockType { flex: 1; min-width: 140px; max-width: 240px; }
+  .stock-add .field.num { width: 72px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .dt .ic-cell { width: 72px; padding-right: 0; }
   .state-ic { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--state-icon); position: relative; }
   .state-ic::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: currentColor; opacity: 0.12; }
@@ -943,14 +964,33 @@
       <div class="card-actions"><button class="btn" data-view="settings">${th("radio.edit_wifi")}</button></div></div>`;
   };
 
+  // Spares in the drawer per battery type (state.data.battery_stock), matched without regard to case.
+  const stockKey = (type) => Object.keys(state.data.battery_stock || {}).find((k) => k.toLowerCase() === String(type).toLowerCase());
+  const stockOf = (type) => { const k = stockKey(type); return k === undefined ? 0 : state.data.battery_stock[k]; };
   const shoppingCard = () => {
     const groups = state.data.battery_shopping || [];
-    if (!groups.length) return "";
-    const btype = (g) => (g.type === "Unknown type" ? t("shop.unknown_type") : g.type);
-    const total = groups.map((g) => `${g.count}× ${btype(g)}`).join(", ");
+    const stock = state.data.battery_stock || {};
+    const hasBattery = state.data.devices.some((d) => d.battery_record && d.status === "active");
+    if (!groups.length && !hasBattery && !Object.values(stock).some((n) => n > 0)) return "";
+    const unknown = (g) => g.type === "Unknown type";
+    const btype = (g) => (unknown(g) ? t("shop.unknown_type") : g.type);
     const facts = (x) => [x.battery !== null && x.battery !== undefined ? `${Math.round(x.battery)} %` : t("shop.low"), x.days !== null && x.days !== undefined ? t("shop.about_days", { n: Math.max(0, Math.round(x.days)) }) : null, x.quantity > 1 ? t("shop.takes", { n: x.quantity }) : null].filter(Boolean).join(", ");
-    return `<div class="card"><div class="card-header">${ic("battery-alert-variant-outline")}<div>${th("shop.title")}<small>${th("shop.subtitle", { total: esc(total) })}</small></div></div>
-      ${groups.map((g) => `<div class="set-row"><div class="text"><div class="t1">${g.count}× ${esc(btype(g))}</div><div class="t2">${g.devices.map((x) => `<a href="#${esc(x.ieee)}" data-open="${esc(x.ieee)}">${esc(x.name)}</a> (${esc(facts(x))})`).join(" · ")}</div></div></div>`).join("")}
+    const needed = new Set(groups.map((g) => g.type.toLowerCase()));
+    const rows = [
+      ...groups.map((g) => { const have = unknown(g) ? 0 : stockOf(g.type); return { g, type: g.type, need: g.count, have, buy: Math.max(0, g.count - have) }; }),
+      ...Object.entries(stock).filter(([k, n]) => n > 0 && !needed.has(k.toLowerCase())).sort((a, b) => collator.compare(a[0], b[0])).map(([k, n]) => ({ g: null, type: k, need: 0, have: n, buy: 0 })),
+    ];
+    const toBuy = rows.filter((r) => r.buy > 0).map((r) => `${r.buy}× ${r.g ? btype(r.g) : r.type}`).join(", ");
+    const sub = toBuy ? th("shop.subtitle_buy", { total: esc(toBuy) }) : groups.length ? th("shop.subtitle_enough") : th("shop.subtitle_none");
+    const stepper = (r) => (r.g && unknown(r.g) ? `<span class="t2">–</span>` : `<span class="qty-step" role="group" aria-label="${esc(t("shop.in_stock_of", { type: r.type }))}"><button data-act="stock" data-type="${esc(r.type)}" data-delta="-1" aria-label="${esc(t("shop.one_less"))}" ${r.have ? "" : "disabled"}>${ic("minus", "s18")}</button><b>${r.have}</b><button data-act="stock" data-type="${esc(r.type)}" data-delta="1" aria-label="${esc(t("shop.one_more"))}">${ic("plus", "s18")}</button></span>`);
+    const devs = (g) => (g ? `<div class="name-2">${g.devices.map((x) => `<a href="#${esc(x.ieee)}" data-open="${esc(x.ieee)}">${esc(x.name)}</a> (${esc(facts(x))})`).join(" · ")}</div>` : "");
+    const types = [...new Set(["CR2032", "CR2450", "CR2477", "CR1632", "CR123A", "AAA", "AA", ...state.data.devices.map((d) => d.battery_record?.type).filter(Boolean)])].filter((x) => !rows.some((r) => r.type.toLowerCase() === x.toLowerCase()));
+    return `<div class="card"><div class="card-header">${ic("battery-alert-variant-outline")}<div>${th("shop.title")}<small>${sub}</small></div></div>
+      ${rows.length ? `<div class="table-wrap"><table class="dt stock"><thead><tr><th>${th("shop.col_type")}</th><th>${th("shop.col_stock")}</th><th class="num">${th("shop.col_need")}</th><th class="num"><span class="sr">${th("shop.col_buy")}</span></th></tr></thead><tbody>
+        ${rows.map((r) => `<tr><td class="type"><div>${esc(r.g ? btype(r.g) : r.type)}</div>${devs(r.g)}</td><td>${stepper(r)}</td><td class="num">${r.need}</td><td class="num">${r.buy ? `<span class="pill">${th("shop.buy", { n: r.buy })}</span>` : `<span class="pill ok">${th("shop.enough")}</span>`}</td></tr>`).join("")}
+      </tbody></table></div>` : ""}
+      <div class="stock-add"><input class="field" id="stockType" list="stockTypes" placeholder="${esc(t("shop.add_placeholder"))}" aria-label="${esc(t("battery.type"))}" maxlength="40" autocomplete="off"><input class="field num" id="stockN" type="number" min="1" max="999" value="1" aria-label="${esc(t("shop.add_count"))}"><button class="btn" data-act="stock-add">${ic("plus", "s18")}${th("shop.add")}</button>
+        <datalist id="stockTypes">${types.map((x) => `<option value="${esc(x)}"></option>`).join("")}</datalist></div>
     </div>`;
   };
 
@@ -1971,6 +2011,26 @@
       if (!ok) return;
       try { const res = await api("api/battery/replaced", { ieee, date: $("#cDate").value || todayIso(), note: $("#cNote").value }); snack(res.entry?.battery_notes_synced ? t("battery.saved_bn") : t("common.saved")); load(); } catch (err) { snack(err.message, 4000); }
     },
+    async stock(b) {
+      try {
+        const r = await api("api/battery_stock", { type: b.dataset.type, delta: Number(b.dataset.delta) });
+        state.data.battery_stock = { ...(state.data.battery_stock || {}), [r.type]: r.count };
+        if (state.view === "health") renderHealth();
+        load();
+      } catch (err) { snack(err.message); }
+    },
+    async "stock-add"() {
+      const type = $("#stockType")?.value.trim(), n = Math.round(Number($("#stockN")?.value || 1));
+      if (!type) { $("#stockType")?.focus(); return; }
+      if (!(n > 0)) { snack(t("shop.add_count_bad")); return; }
+      try {
+        const r = await api("api/battery_stock", { type, delta: n });
+        state.data.battery_stock = { ...(state.data.battery_stock || {}), [r.type]: r.count };
+        snack(t("shop.added", { n, type: r.type }));
+        if (state.view === "health") renderHealth();
+        load();
+      } catch (err) { snack(err.message); }
+    },
     async "bat-remove"(b) {
       if (!(await confirmDialog({ title: t("battery.remove_title"), ok: t("common.remove"), danger: true, html: `<p>${th("battery.remove_text")}</p>` }))) return;
       try { await api("api/battery/remove", { ieee: state.open, index: Number(b.dataset.index) }); load(); } catch (err) { snack(err.message); }
@@ -2355,6 +2415,7 @@
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !menu.hidden) { closeMenu(); return; }
     if (e.key === "Enter" && e.target.matches("tr[data-open]")) { openDevice(e.target.dataset.open); return; }
+    if (e.key === "Enter" && e.target.matches("#stockType, #stockN")) { e.preventDefault(); actions["stock-add"](); return; }
     const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
     if (!typing && usePane() && state.view === "devices" && (e.key === "ArrowDown" || e.key === "ArrowUp")) { e.preventDefault(); moveSelection(e.key === "ArrowDown" ? 1 : -1); return; }
     if (e.key === "Escape" && usePane() && state.open && !typing && !$("#confirmDlg").open) { closeDevice(); return; }

@@ -12,7 +12,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
-from .batteries import describe_member, recent_replacements, shopping_groups
+from .batteries import describe_member, group_summary, recent_replacements, shopping_groups, stock_line
 from .const import DOMAIN, SIGNAL_UPDATED, VERSION
 from .tracker import TrackerAppError, Z2MTracker
 
@@ -72,11 +72,11 @@ class BatteryTodoList(TodoListEntity):
         today = dt_util.now().date()
         items = [
             TodoItem(
-                summary=f"{group['type']} × {group['count']}",
+                summary=group_summary(group),
                 uid=uid,
                 status=TodoItemStatus.NEEDS_ACTION,
                 due=group["due"],
-                description=", ".join(describe_member(m) for m in group["devices"]),
+                description=stock_line(group) + ", ".join(describe_member(m) for m in group["devices"]),
             )
             for uid, group in sorted(self._open_groups().items(), key=lambda kv: (kv[1]["due"], kv[0]))
         ]
