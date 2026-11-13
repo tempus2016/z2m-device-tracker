@@ -14,6 +14,7 @@ import time
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import unquote
 from zoneinfo import ZoneInfo
 
 import paho.mqtt.client as mqtt
@@ -788,6 +789,18 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(400, {"error": "Unknown network"})
             else:
                 self._json(200, {"scans": tracker.scan_history(net)})
+        elif path == "/api/metrics":
+            query = dict(
+                part.split("=", 1)
+                for part in (self.path.split("?", 1)[1] if "?" in self.path else "").split("&")
+                if "=" in part
+            )
+            ieee = unquote(query.get("ieee", ""))
+            result = metrics.history(ieee, query.get("range", "")) if ieee else None
+            if result is None:
+                self._json(400, {"error": "Unknown device or range"})
+            else:
+                self._json(200, result)
         elif path == "/api/backup":
             stamp = datetime.now().strftime("%Y-%m-%d")
             self._send(
