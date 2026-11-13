@@ -312,6 +312,18 @@
   .bigchart-x span.first { transform: none; } .bigchart-x span.last { transform: translateX(-100%); }
   .trend-legend { display: flex; gap: 16px; flex-wrap: wrap; padding: 4px 16px 8px; font-size: 12px; color: var(--text-2); }
   .trend-legend i { display: inline-block; width: 14px; height: 3px; vertical-align: 3px; margin-right: 6px; border-radius: 2px; }
+  .bigchart-wrap.has-marks { padding-top: 24px; }
+  .bigchart-mark { position: absolute; top: 2px; display: inline-flex; align-items: center; gap: 2px; font-size: 11px; line-height: 18px; color: var(--text-2); white-space: nowrap; transform: translateX(-50%); pointer-events: none; }
+  .bigchart-mark .mdi { width: 14px; height: 14px; }
+  .bigchart-mark.end { transform: translateX(-100%); } .bigchart-mark.start { transform: none; }
+  /* Chart hover: guide line, point and value box, moved onto whichever chart the pointer is over. */
+  .chart-wrap, .ping-bars, .mem-bars, .hour-bars { position: relative; }
+  [data-points] { touch-action: pan-y; cursor: crosshair; }
+  .hov-guide { position: absolute; width: 0; border-left: 1px dashed var(--text-2); pointer-events: none; z-index: 2; }
+  .hov-dot { position: absolute; width: 8px; height: 8px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--card); border: 2px solid var(--hov-c, var(--primary)); pointer-events: none; z-index: 3; }
+  .hov-tip { position: absolute; pointer-events: none; z-index: 4; background: var(--card); color: var(--text); border: 1px solid var(--divider); border-radius: 6px; box-shadow: var(--shadow); padding: 4px 8px; font-size: 12px; line-height: 1.45; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .hov-tip b { display: block; font-weight: 500; color: var(--text-2); }
+  .ping-bars i.hov-on, .mem-bars i.hov-on, .hour-bars i.hov-on { opacity: 1; filter: brightness(1.15); }
   .trend-stats-wrap { container-type: inline-size; }
   .trend-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--divider); margin-top: 8px; padding: 4px 0; }
   @container (min-width: 440px) { .trend-stats { grid-template-columns: repeat(var(--n), minmax(0, 1fr)); } }
@@ -1086,10 +1098,11 @@
     const slots = [...Array(14).keys()].map((i) => { const dt = new Date(); dt.setHours(12, 0, 0, 0); dt.setDate(dt.getDate() - 13 + i); return { dt, mb: days.get(key(dt)) }; });
     const top = Math.max(...slots.map((x) => x.mb || 0)) * 1.1 || 1;
     const label = (dt) => intl((l) => dt.toLocaleDateString(l, { day: "numeric", month: "short" }));
-    const bars = slots.map((x, i) => x.mb == null ? `<i class="none"></i>`
-      : `<i class="${issue && i >= 7 ? "hi" : ""}" style="height:${Math.max(3, (x.mb / top) * 100).toFixed(1)}%" title="${esc(t("coord.memory_bar", { date: label(x.dt), n: Math.round(x.mb) }))}"></i>`).join("");
+    const hov = slots.map((x) => [null, null, label(x.dt), x.mb == null ? t("chart.no_data") : t("chart.memory", { value: Math.round(x.mb) })]);
+    const bars = slots.map((x, i) => x.mb == null ? `<i class="none" role="img" aria-label="${esc(`${hov[i][2]}: ${hov[i][3]}`)}"></i>`
+      : `<i class="${issue && i >= 7 ? "hi" : ""}" style="height:${Math.max(3, (x.mb / top) * 100).toFixed(1)}%" role="img" aria-label="${esc(t("coord.memory_bar", { date: label(x.dt), n: Math.round(x.mb) }))}"></i>`).join("");
     return `<div class="coord-extra"><div class="sub-h">${th("coord.memory_chart")}</div>
-      <div class="mem-bars" role="img" aria-label="${esc(t("coord.memory_chart"))}">${bars}</div>
+      <div class="mem-bars" role="group" aria-label="${esc(t("coord.memory_chart"))}" ${hoverAttrs(`mem-${bt}`, { bars: true, p: hov })}>${bars}</div>
       <div class="mem-axis"><span>${esc(label(slots[0].dt))}</span><span>${th("coord.today")}</span></div>
       ${issue ? `<div class="alert" style="--a:var(--warning)">${ic("chip")}<div class="body">${esc(issueDetail(issue))}</div></div>` : ""}</div>`;
   };
@@ -1118,14 +1131,15 @@
       const max = Math.max(...hours.map((x) => x?.lqi || 0)) || 1;
       const inDip = new Set(h.dips.flatMap((d) => [...Array(d.hours).keys()].map((k) => (d.start + k) % 24)));
       const hh = (n) => `${String(n).padStart(2, "0")}:00`;
+      const hov = hours.map((x, i) => [null, null, hh(i), ...(!x ? [t("chart.no_data")] : [t("chart.lqi", { value: Math.round(x.lqi) }), ...(x.drop >= 5 ? [t("chart.below_usual", { drop: x.drop })] : [])])]);
       const bars = hours.map((x, i) => {
-        if (!x) return `<i class="none" title="${esc(hh(i))}"></i>`;
+        if (!x) return `<i class="none" role="img" aria-label="${esc(`${hh(i)}: ${t("chart.no_data")}`)}"></i>`;
         const cls = inDip.has(i) ? "bad" : h.dips.length && x.drop >= 12 ? "lo" : "";
         const tip = x.drop >= 5 ? t("radio.hours_bar_drop", { hour: hh(i), lqi: Math.round(x.lqi), drop: x.drop }) : t("radio.hours_bar", { hour: hh(i), lqi: Math.round(x.lqi) });
-        return `<i class="${cls}" style="height:${Math.max(3, (x.lqi / max) * 100).toFixed(1)}%" title="${esc(tip)}"></i>`;
+        return `<i class="${cls}" style="height:${Math.max(3, (x.lqi / max) * 100).toFixed(1)}%" role="img" aria-label="${esc(tip)}"></i>`;
       }).join("");
       return `<div class="sub-h">${th("radio.hours_title", { n: h.devices })}${state.data.instances.length > 1 ? ` · ${th("radio.hours_net", { net: esc(netLabel(bt)) })}` : ""}</div>
-        <div class="hour-bars" role="img" aria-label="${esc(t("radio.hours_title", { n: h.devices }))}">${bars}</div>
+        <div class="hour-bars" role="group" aria-label="${esc(t("radio.hours_title", { n: h.devices }))}" ${hoverAttrs(`hours-${bt}`, { bars: true, p: hov })}>${bars}</div>
         <div class="hour-axis"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span></div>
         ${issue ? `<div class="hour-dip"><div class="alert" style="--a:var(--warning)">${ic("signal")}<div class="body"><b>${esc(issueTitle(issue))}.</b> ${esc(issueDetail(issue))}</div></div></div>` : ""}`;
     }).join("");
@@ -1766,8 +1780,93 @@
     } catch (err) { snack(t("settings.save_failed", { error: err.message }), 4000); renderSettings(false); }
   };
 
+  // ------------------------------------------------------------ chart hover
+  // A chart opts in with hoverAttrs(key, data) on its plot element (the <svg>, or the div holding the bars).
+  // data.p holds one entry per point: [x %, y % or null, heading, ...value lines]. For bar charts
+  // (data.bars) entry i belongs to the i-th <i> bar and x comes from the bar itself. data.m holds
+  // markers ([x %, text]) that add a line when the pointer is within a few pixels of them.
+  // One delegated listener serves every chart. Live re-renders replace the chart's DOM, so a
+  // MutationObserver moves the guide and box onto the new chart with the same key.
+  const hoverAttrs = (key, data) => `data-chart="${esc(key)}" data-points="${esc(JSON.stringify(data))}"`;
+  const fmtHover = (ts, hourly) => intl((l) => new Date(ts * 1000).toLocaleString(l, hourly ? { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" } : { day: "numeric", month: "short" }));
+  const pctX = (x, W) => +((x / W) * 100).toFixed(2);
+  const HOVER = { plot: null, key: null, cx: 0, els: null, bar: null };
+  const hoverEls = () => {
+    if (!HOVER.els) {
+      const mk = (cls) => Object.assign(document.createElement("div"), { className: cls });
+      HOVER.els = { guide: mk("hov-guide"), dot: mk("hov-dot"), tip: mk("hov-tip") };
+      HOVER.els.tip.setAttribute("aria-hidden", "true");
+    }
+    return HOVER.els;
+  };
+  const hoverHide = () => {
+    if (HOVER.els) Object.values(HOVER.els).forEach((el) => el.remove());
+    HOVER.bar?.classList.remove("hov-on");
+    HOVER.plot = HOVER.key = HOVER.bar = null;
+  };
+  const hoverShow = (plot, cx) => {
+    let data;
+    try { data = JSON.parse(plot.dataset.points); } catch (e) { return hoverHide(); }
+    const pts = data.p || [];
+    if (!pts.length) return hoverHide();
+    const host = plot instanceof SVGElement ? plot.parentElement : plot;
+    const hr = host.getBoundingClientRect(), pr = plot.getBoundingClientRect();
+    if (!pr.width) return hoverHide();
+    let i = 0, gx, gy = null, bar = null, best = Infinity;
+    if (data.bars) {
+      const kids = [...plot.querySelectorAll(":scope > i")];
+      kids.forEach((k, j) => { const r = k.getBoundingClientRect(), dist = Math.abs(r.left + r.width / 2 - cx); if (dist < best) { best = dist; i = j; } });
+      bar = kids[i];
+      if (!bar || !pts[i]) return hoverHide();
+      const r = bar.getBoundingClientRect();
+      gx = r.left + r.width / 2 - hr.left;
+    } else {
+      pts.forEach((p, j) => { const dist = Math.abs(pr.left + (p[0] / 100) * pr.width - cx); if (dist < best) { best = dist; i = j; } });
+      gx = pr.left - hr.left + (pts[i][0] / 100) * pr.width;
+      if (pts[i][1] !== null) gy = pr.top - hr.top + (pts[i][1] / 100) * pr.height;
+    }
+    const [, , head, ...lines] = pts[i];
+    // A marker joins the box when the pointer is on it, or nearer to it than to the snapped point.
+    (data.m || []).forEach(([mx, text]) => { const dist = Math.abs(pr.left + (mx / 100) * pr.width - cx); if (dist <= 12 || dist < best) lines.push(text); });
+    const { guide, dot, tip } = hoverEls();
+    if (HOVER.bar !== bar) { HOVER.bar?.classList.remove("hov-on"); bar?.classList.add("hov-on"); }
+    HOVER.plot = plot; HOVER.key = plot.dataset.chart || null; HOVER.cx = cx; HOVER.bar = bar;
+    const top = pr.top - hr.top;
+    Object.assign(guide.style, { left: `${gx.toFixed(1)}px`, top: `${top.toFixed(1)}px`, height: `${pr.height.toFixed(1)}px` });
+    if (guide.parentElement !== host) host.append(guide);
+    if (gy === null) dot.remove();
+    else {
+      Object.assign(dot.style, { left: `${gx.toFixed(1)}px`, top: `${gy.toFixed(1)}px` });
+      dot.style.setProperty("--hov-c", data.c || "var(--primary)");
+      if (dot.parentElement !== host) host.append(dot);
+    }
+    tip.innerHTML = `<b>${esc(head)}</b>${lines.map((l) => `<div>${esc(l)}</div>`).join("")}`;
+    if (tip.parentElement !== host) host.append(tip);
+    // Beside the guide, flipped to the left when it would run past the right edge.
+    const w = tip.offsetWidth;
+    let left = gx + 10;
+    if (left + w > hr.width) left = gx - 10 - w;
+    tip.style.left = `${Math.max(0, left).toFixed(1)}px`;
+    tip.style.top = `${Math.max(0, top).toFixed(1)}px`;
+  };
+  const hoverMove = (e) => {
+    const plot = e.target.closest?.("[data-points]");
+    if (plot) hoverShow(plot, e.clientX);
+    else if (HOVER.plot) hoverHide();
+  };
+  document.addEventListener("pointermove", hoverMove, { passive: true });
+  document.addEventListener("pointerdown", hoverMove, { passive: true });
+  document.addEventListener("pointerout", (e) => { if (!e.relatedTarget && HOVER.plot && e.pointerType === "mouse") hoverHide(); });
+  window.addEventListener("blur", hoverHide);
+  new MutationObserver(() => {
+    if (!HOVER.plot || HOVER.plot.isConnected) return;
+    const next = HOVER.key && document.querySelector(`[data-chart="${CSS.escape(HOVER.key)}"]`);
+    if (next) hoverShow(next, HOVER.cx); else hoverHide();
+  }).observe(document.body, { childList: true, subtree: true });
+
   // ------------------------------------------------------------ more-info dialog
-  const sparkline = (points, { min = null, max = null, color = "var(--primary)" } = {}) => {
+  // hover: { key, value: (v) => text, hourly } adds hover values to the chart.
+  const sparkline = (points, { min = null, max = null, color = "var(--primary)", hover = null } = {}) => {
     if (!points || points.length < 2) return `<div class="card-content muted">${th("more.no_chart")}</div>`;
     const W = 500, H = 120, pad = 6;
     const xs = points.map((p) => p[0]), ys = points.map((p) => p[1]);
@@ -1775,7 +1874,8 @@
     const sx = (x) => (x1 === x0 ? W / 2 : ((x - x0) / (x1 - x0)) * W);
     const sy = (y) => (hi === lo ? H / 2 : H - pad - ((y - lo) / (hi - lo)) * (H - pad * 2));
     const line = points.map((p) => `${sx(p[0]).toFixed(1)},${sy(p[1]).toFixed(1)}`).join(" ");
-    return `<div class="chart-wrap"><svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+    const hov = hover ? hoverAttrs(hover.key, { c: color, p: points.map(([x, y]) => [pctX(sx(x), W), pctX(sy(y), H), fmtHover(x, hover.hourly), hover.value(y)]) }) : "";
+    return `<div class="chart-wrap"><svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true" ${hov}>
       <line x1="0" x2="${W}" y1="${H - pad}" y2="${H - pad}" stroke="var(--divider)" vector-effect="non-scaling-stroke"/>
       <polygon points="0,${H} ${line} ${W},${H}" fill="${color}" fill-opacity="0.12"/>
       <polyline points="${line}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg></div>
@@ -1800,17 +1900,18 @@
     const last = pts[pts.length - 1][0], days = Array.from({ length: 14 }, (_, i) => last - (13 - i) * 86400);
     const vals = pts.map((p) => p[1]).filter((v) => v !== null);
     const hi = Math.max(200, ...vals), base = vals.length ? pingMedian(vals.slice(0, Math.max(1, Math.ceil(vals.length / 2)))) : 0;
-    const bars = days.map((day) => {
-      if (!byDay.has(day)) return `<i class="gap"></i>`;
-      const v = byDay.get(day), when = fmtTick(day, 14 * 86400);
-      if (v === null) return `<i class="none" title="${esc(`${when}: ${t("ping.bar_none")}`)}"></i>`;
+    const hov = days.map((day) => { const v = byDay.get(day); return [null, null, fmtHover(day, false), v === undefined ? t("chart.no_data") : v === null ? t("chart.no_reply") : t("chart.reply", { value: v })]; });
+    const bars = days.map((day, i) => {
+      if (!byDay.has(day)) return `<i class="gap" role="img" aria-label="${esc(`${hov[i][2]}: ${hov[i][3]}`)}"></i>`;
+      const v = byDay.get(day);
+      if (v === null) return `<i class="none" role="img" aria-label="${esc(`${hov[i][2]}: ${hov[i][3]}`)}"></i>`;
       const cls = v > 3 * base && v > 150 ? "bad" : v > 2 * base ? "lo" : "";
-      return `<i class="${cls}" style="height:${Math.max(2, (v / hi) * 100).toFixed(1)}%" title="${esc(`${when}: ${v} ms`)}"></i>`;
+      return `<i class="${cls}" style="height:${Math.max(2, (v / hi) * 100).toFixed(1)}%" role="img" aria-label="${esc(`${hov[i][2]}: ${hov[i][3]}`)}"></i>`;
     }).join("");
     const lab = (day) => { const v = byDay.get(day); return v === undefined ? "" : v === null ? t("ping.bar_none") : `${v} ms`; };
     const first = days.find((day) => byDay.has(day));
     const slow = (d.issues || []).find((i) => i.kind === "slow_router");
-    return `<div class="sub-h">${th("ping.chart_title")}</div><div class="ping-bars" role="img" aria-label="${esc(t("ping.chart_title"))}">${bars}</div>
+    return `<div class="sub-h">${th("ping.chart_title")}</div><div class="ping-bars" role="group" aria-label="${esc(t("ping.chart_title"))}" ${hoverAttrs("ping", { bars: true, p: hov })}>${bars}</div>
       <div class="chart-axis"><span>${esc(`${fmtTick(first, 14 * 86400)} · ${lab(first)}`)}</span><span>${esc(`${fmtTick(last, 14 * 86400)} · ${lab(last)}`)}</span></div>
       ${slow ? `<div class="alerts"><div class="alert" style="--a:${slow.severity === "warning" ? "var(--warning)" : "var(--info)"}">${ic("router-wireless")}<div class="body">${esc(issueDetail(slow))}</div></div></div>` : ""}`;
   };
@@ -1892,7 +1993,7 @@
     return `${offlineTiming(d)}
       <div class="sub-h">${th("dhealth.signal")}</div>
       ${kv([[th("dhealth.now"), d.lqi ?? "—"], [th("dhealth.avg_24h"), m.lqi_24h ?? "—"], [th("dhealth.prev_week"), m.lqi_prev_7d ?? "—"]])}
-      ${sparkline(m.lqi_spark, { min: 0, max: 255 })}
+      ${sparkline(m.lqi_spark, { min: 0, max: 255, hover: { key: "spark-lqi", hourly: true, value: (v) => t("chart.lqi", { value: Math.round(v) }) } })}
       <div class="sub-h">${th("more.availability")}${d.uptime_30d !== null && d.uptime_30d !== undefined ? ` · ${th("dhealth.uptime", { percent: d.uptime_30d })}` : ""}</div>
       ${outages.length ? `<div class="rep-list">${outages.map((o) => { const s = (new Date(o.end || Date.now()) - new Date(o.start)) / 1000; return `<div><span>${esc(fmtDate(o.start))}</span><span class="muted">${o.end ? esc(span(s)) : th("dhealth.ongoing", { duration: esc(span(s)) })}</span></div>`; }).join("")}</div>` : `<div class="card-content muted">${th(d.availability ? "dhealth.no_outages" : "dhealth.no_outages_no_avail")}</div>`}
       ${reportEvery(d)}
@@ -1958,7 +2059,7 @@
       <div class="more-hero"><span class="state-ic" style="color:${batColor(d.battery, batLow(d))}">${ic("battery")}</span><div class="big">${typeof d.battery === "number" ? `${Math.round(d.battery)} %` : "—"}</div>
         <div class="sub">${est === null || est === undefined ? th("battery.no_estimate") : est <= 0 ? th("battery.due_now") : th("battery.days_left", { n: Math.round(est) })}</div></div>
       <div class="more-actions"><button class="btn filled" data-act="battery-replaced">${ic("battery-sync", "s18")}${th("battery.replaced")}</button></div>
-      ${sparkline(m.battery_spark, { min: 0, max: 100, color: batColor(d.battery, batLow(d)) })}
+      ${sparkline(m.battery_spark, { min: 0, max: 100, color: batColor(d.battery, batLow(d)), hover: { key: "spark-bat", value: (v) => t("chart.battery", { value: Math.round(v) }) } })}
       <div class="sub-h">${th("battery.details")}${rec.source === "battery_notes" ? ` · ${th("battery.from_bn")}` : rec.source === "library" ? ` · ${th("battery.from_library")}` : ""}</div>
       <form class="form" id="batForm" onsubmit="return false">
         <label>${th("battery.type")}<input class="field" name="type" list="batTypes" value="${esc(rec.type || "")}" placeholder="CR2032, AAA…" autocomplete="off"></label>
@@ -2039,16 +2140,20 @@
     store.set("z2mt.trendRange", TREND.range);
     renderMore();
   });
-  const CH = { W: 720, H: 180 };
+  const CH = { W: 720, H: 180, PAD: 8 };
   // Polyline as a path, broken where readings are missing for longer than `gap` seconds.
   const gapPath = (pts, sx, sy, gap) => pts.map((p, i) => `${i && p[0] - pts[i - 1][0] <= gap ? "L" : "M"}${sx(p[0]).toFixed(1)},${sy(p[1]).toFixed(1)}`).join("");
-  const bigChart = ({ x0, x1, lo, hi, yTicks, xTicks, body }) => {
+  // The plot is inset by CH.PAD at top and bottom so a line at 0 or at the top value isn't drawn on the edge.
+  // hover(sx, sy) returns the chart's hover data; marks ([[x, label]]) get a label in a strip above the plot.
+  const bigChart = ({ x0, x1, lo, hi, yTicks, xTicks, body, hover = null, marks = [], key = "" }) => {
     const sx = (x) => ((x - x0) / (x1 - x0 || 1)) * CH.W;
-    const sy = (y) => CH.H - ((y - lo) / (hi - lo || 1)) * CH.H;
+    const sy = (y) => CH.PAD + (1 - (y - lo) / (hi - lo || 1)) * (CH.H - 2 * CH.PAD);
     const grid = yTicks.map((v) => `<line x1="0" x2="${CH.W}" y1="${sy(v).toFixed(1)}" y2="${sy(v).toFixed(1)}" stroke="var(--divider)" vector-effect="non-scaling-stroke"/>`).join("");
     const pct = (x) => Math.max(0, Math.min(100, (sx(x) / CH.W) * 100));
-    return `<div class="bigchart-wrap"><svg class="bigchart" viewBox="0 0 ${CH.W} ${CH.H}" preserveAspectRatio="none" aria-hidden="true">${grid}${body(sx, sy)}</svg>
-      ${yTicks.map((v) => `<span class="bigchart-y" style="top:${(4 + sy(v)).toFixed(0)}px">${v}</span>`).join("")}</div>
+    const padTop = marks.length ? 24 : 4;
+    const markLabels = marks.map(([x, label]) => { const f = pct(x) / 100; return `<span class="bigchart-mark ${f > 0.85 ? "end" : f < 0.15 ? "start" : ""}" style="left:calc(44px + (100% - 60px) * ${f.toFixed(4)})">${label}</span>`; }).join("");
+    return `<div class="bigchart-wrap${marks.length ? " has-marks" : ""}"><svg class="bigchart" viewBox="0 0 ${CH.W} ${CH.H}" preserveAspectRatio="none" aria-hidden="true" ${hover ? hoverAttrs(key, hover(sx, sy)) : ""}>${grid}${body(sx, sy)}</svg>
+      ${yTicks.map((v) => `<span class="bigchart-y" style="top:${(padTop + sy(v)).toFixed(0)}px">${v}</span>`).join("")}${markLabels}</div>
       <div class="bigchart-x">${xTicks.map((x, i) => `<span class="${i === 0 ? "first" : i === xTicks.length - 1 ? "last" : ""}" style="left:${pct(x).toFixed(1)}%">${esc(x === "now" ? t("trends.now") : fmtTick(x, x1 - x0))}</span>`).join("")}</div>`;
   };
   const fmtTick = (ts, spanS) => intl((l) => new Date(ts * 1000).toLocaleString(l, spanS <= 2 * 86400 ? { hour: "2-digit", minute: "2-digit" } : { day: "numeric", month: "short" }));
@@ -2062,7 +2167,14 @@
     const hi = Math.min(255, Math.max(100, Math.ceil(top / 50) * 50));
     const yTicks = []; for (let v = 0; v <= hi; v += hi > 150 ? 100 : 50) yTicks.push(v);
     const step = h.range === "24h" || h.range === "7d" ? 3600 : 86400;
-    return bigChart({ x0: h.start, x1: h.end, lo: 0, hi, yTicks, xTicks: evenTicks(h.start, h.end),
+    const hourly = step === 3600;
+    return bigChart({ x0: h.start, x1: h.end, lo: 0, hi, yTicks, xTicks: evenTicks(h.start, h.end), key: "trend-lqi",
+      // Hourly points sit mid-hour and daily ones mid-day, so the heading names the hour or day they cover.
+      hover: (sx, sy) => ({ p: line.map(([x, v]) => {
+        const day = Math.floor(x / 86400) * 86400, b = band.find((r) => r[0] === day);
+        return [pctX(sx(x), CH.W), pctX(sy(v), CH.H), fmtHover(x - (hourly ? 1800 : 43200), hourly), t("chart.lqi", { value: Math.round(v) }),
+          ...(b ? [t("chart.lqi_range", { min: Math.round(b[1]), max: Math.round(b[2]) })] : [])];
+      }) }),
       body: (sx, sy) => {
         const clampX = (x) => sx(Math.max(h.start, Math.min(h.end, x)));
         // One stepped shape per run of consecutive days, so neighbouring days don't leave seams.
@@ -2073,7 +2185,7 @@
           const bottomEdge = run.slice().reverse().map(([day, mn]) => `${clampX(day + 86400).toFixed(1)},${sy(mn).toFixed(1)} ${clampX(day).toFixed(1)},${sy(mn).toFixed(1)}`).join(" ");
           return `M${topEdge} ${bottomEdge}Z`;
         }).join("");
-        return `<rect x="0" y="${sy(50).toFixed(1)}" width="${CH.W}" height="${(CH.H - sy(50)).toFixed(1)}" fill="var(--warning)" fill-opacity="0.05"/>
+        return `<rect x="0" y="${sy(50).toFixed(1)}" width="${CH.W}" height="${(sy(0) - sy(50)).toFixed(1)}" fill="var(--warning)" fill-opacity="0.05"/>
           <path d="${rects}" fill="var(--primary)" fill-opacity="0.18"/>
           <line x1="0" x2="${CH.W}" y1="${sy(50).toFixed(1)}" y2="${sy(50).toFixed(1)}" stroke="var(--warning)" stroke-width="1.5" stroke-dasharray="6 4" vector-effect="non-scaling-stroke"/>
           <path d="${gapPath(line, sx, sy, step * 3)}" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
@@ -2086,19 +2198,36 @@
     const x0 = b.start, histSpan = h.end - x0, last = pts[pts.length - 1];
     // The projection may run past "now" by up to half the history span, so the history stays readable.
     const x1 = b.empty_at ? Math.max(h.end, Math.min(b.empty_at, h.end + histSpan / 2)) : h.end;
-    const reps = ((d.battery_record || {}).replacements || []).map((r) => Date.parse(`${r.date}T12:00:00Z`) / 1000).filter((at) => at >= x0 && at <= h.end);
-    return bigChart({ x0, x1, lo: 0, hi: 100, yTicks: [0, 25, 50, 75, 100], xTicks: x1 > h.end ? [...evenTicks(x0, h.end, 4), x1] : evenTicks(x0, h.end),
+    const reps = ((d.battery_record || {}).replacements || []).map((r) => Math.min(Date.parse(`${r.date}T12:00:00Z`) / 1000, h.end)).filter((at) => at >= x0);
+    const proj = b.empty_at && b.empty_at > last[0] ? { endX: Math.min(b.empty_at, x1) } : null;
+    // Straight line from the latest reading down to 10 % at empty_at.
+    const projY = (x) => last[1] - ((last[1] - 10) * (x - last[0])) / (b.empty_at - last[0]);
+    return bigChart({ x0, x1, lo: 0, hi: 100, yTicks: [0, 25, 50, 75, 100], xTicks: x1 > h.end ? [...evenTicks(x0, h.end, 4), x1] : evenTicks(x0, h.end), key: "trend-bat",
+      marks: reps.map((at) => [at, `${ic("battery-sync")}${th("trends.replaced")}`]),
+      hover: (sx, sy) => {
+        const p = pts.map(([x, v]) => [pctX(sx(x), CH.W), pctX(sy(v), CH.H), fmtHover(x, false), t("chart.battery", { value: Math.round(v) })]);
+        if (proj) for (let k = 1; k <= 12; k++) {
+          const x = last[0] + ((proj.endX - last[0]) * k) / 12, v = projY(x);
+          p.push([pctX(sx(x), CH.W), pctX(sy(v), CH.H), fmtHover(x, false), t("chart.projected", { value: Math.round(v) })]);
+        }
+        const m = reps.map((at) => [pctX(sx(at), CH.W), t("trends.replaced_on", { date: fmtDate(at, false) })]);
+        if (proj && b.empty_at <= x1) m.push([pctX(sx(b.empty_at), CH.W), t("trends.reaches_10_on", { date: fmtDate(b.empty_at, false) })]);
+        return { c: "var(--success)", p, m };
+      },
       body: (sx, sy) => {
-        let proj = "";
-        if (b.empty_at && b.empty_at > last[0]) {
-          const endX = Math.min(b.empty_at, x1);
-          const endY = last[1] - ((last[1] - 10) * (endX - last[0])) / (b.empty_at - last[0]);
-          proj = `<line x1="${sx(last[0]).toFixed(1)}" y1="${sy(last[1]).toFixed(1)}" x2="${sx(endX).toFixed(1)}" y2="${sy(endY).toFixed(1)}" stroke="var(--text-2)" stroke-width="2" stroke-dasharray="6 5" vector-effect="non-scaling-stroke"/>`;
-          if (b.empty_at <= x1) proj += `<line x1="${sx(b.empty_at).toFixed(1)}" x2="${sx(b.empty_at).toFixed(1)}" y1="0" y2="${CH.H}" stroke="var(--text-2)" stroke-dasharray="2 4" vector-effect="non-scaling-stroke"><title>${th("trends.reaches_10_on", { date: esc(fmtDate(b.empty_at, false)) })}</title></line>`;
+        let projLine = "";
+        if (proj) {
+          projLine = `<line x1="${sx(last[0]).toFixed(1)}" y1="${sy(last[1]).toFixed(1)}" x2="${sx(proj.endX).toFixed(1)}" y2="${sy(projY(proj.endX)).toFixed(1)}" stroke="var(--text-2)" stroke-width="2" stroke-dasharray="6 5" vector-effect="non-scaling-stroke"/>`;
+          if (b.empty_at <= x1) projLine += `<line x1="${sx(b.empty_at).toFixed(1)}" x2="${sx(b.empty_at).toFixed(1)}" y1="0" y2="${CH.H}" stroke="var(--text-2)" stroke-dasharray="2 4" vector-effect="non-scaling-stroke"/>`;
         }
         const now = x1 > h.end ? `<line x1="${sx(h.end).toFixed(1)}" x2="${sx(h.end).toFixed(1)}" y1="0" y2="${CH.H}" stroke="var(--divider)" stroke-width="2" vector-effect="non-scaling-stroke"/>` : "";
-        const marks = reps.map((at) => `<line x1="${sx(at).toFixed(1)}" x2="${sx(at).toFixed(1)}" y1="0" y2="${CH.H}" stroke="var(--state-icon)" stroke-width="2" vector-effect="non-scaling-stroke"><title>${th("trends.replaced_on", { date: esc(fmtDate(at, false)) })}</title></line>`).join("");
-        return `${now}${marks}${proj}<path d="${gapPath(pts, sx, sy, 3 * 86400)}" fill="none" stroke="var(--success)" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
+        // Replacements are events, not readings: thin, dashed and faded, with a labelled icon above the plot.
+        const marks = reps.map((at) => `<line x1="${sx(at).toFixed(1)}" x2="${sx(at).toFixed(1)}" y1="0" y2="${CH.H}" stroke="var(--state-icon)" stroke-opacity="0.7" stroke-width="1.5" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>`).join("");
+        // Readings get round dots (zero-length round-capped strokes stay round in the stretched plot):
+        // every reading when there are few, otherwise the latest one, so a short or flat line still shows.
+        const dots = (pts.length <= 14 ? pts : [last]).map(([x, v]) => `M${sx(x).toFixed(1)},${sy(v).toFixed(1)}h0`).join("");
+        return `${now}${marks}${projLine}<path d="${gapPath(pts, sx, sy, 3 * 86400)}" fill="none" stroke="var(--success)" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+          <path d="${dots}" stroke="var(--success)" stroke-width="7" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`;
       } });
   };
 
@@ -2122,7 +2251,7 @@
       ${lqiChart(h)}
       ${trendLegend([["var(--primary)", th(h.range === "24h" || h.range === "7d" ? "trends.hourly_avg" : "trends.daily_avg")], ["var(--primary)", th("trends.daily_range"), "opacity:.3;height:8px;vertical-align:0"], ["var(--warning)", th("trends.weak")]])}
       ${pingChart(d)}
-      ${isBat ? `<div class="sub-h">${batLabel}</div>${batteryChart(h, d)}${trendLegend([["var(--success)", th("trends.battery_pct")], ["var(--text-2)", th("trends.projection")], ["var(--state-icon)", th("trends.replaced")]])}` : ""}
+      ${isBat ? `<div class="sub-h">${batLabel}</div>${batteryChart(h, d)}${trendLegend([["var(--success)", th("trends.battery_pct")], ["var(--text-2)", th("trends.projection")], ["var(--state-icon)", th("trends.replaced"), "background:repeating-linear-gradient(90deg,var(--state-icon) 0 4px,transparent 4px 7px);opacity:.8"]])}` : ""}
       <div class="trend-stats-wrap"><div class="trend-stats" style="--n:${stats.length}">${stats.map(([k, v, color]) => `<div><small>${esc(k)}</small><b${color ? ` style="color:${color}"` : ""}>${esc(v)}</b></div>`).join("")}</div></div>
       ${isBat && (b.estimate_days === null || b.estimate_days === undefined) ? `<div class="card-content muted" style="font-size:13px">${th("trends.estimate_needs")}</div>` : ""}`;
   };
