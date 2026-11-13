@@ -143,6 +143,7 @@
   "more.no_chart": "Not enough data yet. This fills in as readings arrive.",
   "more.last_seen": "Last seen {when}",
   "more.rename": "Rename or set area",
+  "more.more": "More",
   "more.change_router": "Change router",
   "more.docs": "Docs",
   "more.device_page": "Device page",
