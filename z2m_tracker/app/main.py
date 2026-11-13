@@ -44,6 +44,8 @@ APP_DIR = Path(__file__).parent
 WWW = APP_DIR / "www"
 I18N_DIR = WWW / "i18n"
 LANG_RE = re.compile(r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
+# Fonts are served from this fixed list, so a request path never becomes a file path.
+FONTS = {font.name: font for font in (WWW / "fonts").glob("*.woff2")}
 SAVE_INTERVAL = 30
 METRICS_SAVE_INTERVAL = 300
 HEALTH_INTERVAL = 60
@@ -560,12 +562,10 @@ def i18n_file(name: str) -> bytes | None:
                 continue
             languages.append({"code": path.stem, "name": label})
         return json.dumps({"languages": languages}).encode("utf-8")
-    if not LANG_RE.match(name):
-        return None
-    path = (I18N_DIR / f"{name}.json").resolve()
-    if path.parent != I18N_DIR.resolve() or not path.is_file():
-        return None
-    return path.read_bytes()
+    # Looked up among the files that exist, so the requested name never becomes a file path.
+    files = {path.stem: path for path in I18N_DIR.glob("*.json") if LANG_RE.match(path.stem)}
+    path = files.get(name)
+    return path.read_bytes() if path else None
 
 
 def settings_payload() -> dict:
@@ -800,9 +800,9 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?", 1)[0]
         if path in ("/", "/index.html"):
             self._send(200, (WWW / "index.html").read_bytes(), "text/html; charset=utf-8")
-        elif path.startswith("/fonts/") and path.endswith(".woff2"):
-            font = (WWW / "fonts" / Path(path).name).resolve()
-            if font.parent == (WWW / "fonts").resolve() and font.is_file():
+        elif path.startswith("/fonts/"):
+            font = FONTS.get(path.removeprefix("/fonts/"))
+            if font is not None:
                 body = font.read_bytes()
                 self.send_response(200)
                 self.send_header("Content-Type", "font/woff2")
