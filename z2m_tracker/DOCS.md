@@ -16,6 +16,7 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `disabled_checks` | empty | Health checks to turn off completely. |
 | `notify_checks` | most checks | Health checks that send alerts. |
 | `offline_alert_minutes` | `60` | How long a device must be offline before an alert. |
+| `critical_offline_minutes` | `5` | The same for devices marked **Critical device** on their Info tab. |
 | `frozen_alert_hours` | `24` | How long a sensor reading must stay the same before it counts as frozen. |
 | `battery_alert_percent` | `15` | Battery level for a low battery alert. |
 | `networkmap_hour` | `3` | Hour of the nightly routing scan, or `-1` to turn it off. |
@@ -43,6 +44,16 @@ These checks show in Health but don't notify until you set them to **Show and no
 The device panel's Info tab also shows message rates, Zigbee2MQTT's own counters (messages, leaves, address changes) and the device's bindings.
 
 The integration can mirror warnings and notify-enabled checks into **Settings → Repairs**. Turn it off in the integration's options.
+
+## Critical devices
+
+Turn on **Critical device** on a device's Info tab for devices that must never fail quietly: smoke and leak sensors, the freezer plug, the heating. A critical device:
+
+- gets an Offline alert after `critical_offline_minutes` (default 5) instead of `offline_alert_minutes`;
+- shows a red **Critical** tag in its panel and on the Health tab, and has its own filter in the device list;
+- sends its alerts with the title starting **Critical:**, and with `critical: true` in the `z2m_tracker_alert` event.
+
+Alerts to `notify_service` for a critical device also carry the Companion app's high-priority data: `priority: high` and `ttl: 0` (Android, delivered straight away), and `push: interruption-level: time-sensitive` (iOS, shown through Focus modes).
 
 ## Firmware updates
 

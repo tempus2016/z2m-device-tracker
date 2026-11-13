@@ -24,6 +24,7 @@ FLAP_OUTAGES = 4
 FLAP_LEAVES = 2
 BINDING_GRACE_SECONDS = 600
 DEFAULT_CHATTY_PER_HOUR = 1200
+DEFAULT_CRITICAL_OFFLINE_MINUTES = 5
 
 # Everything the Settings page can switch: (key, label, description, is_event)
 CHECKS = [
@@ -158,6 +159,7 @@ def device_issues(
     if record.get("type") == "Coordinator" or record.get("status") != "active":
         return issues
     muted = set(active_mutes(record, now)) | set(options.get("disabled_checks") or [])
+    critical = bool(record.get("critical"))
 
     def add(kind: str, severity: str, title: str, detail: str, msg: str = "", **params: Any) -> None:
         # title/detail stay English for notifications; msg + params let the sidebar translate them
@@ -176,9 +178,14 @@ def device_issues(
         if msg:
             issue["msg"] = msg
             issue["params"] = params
+        if critical:
+            issue["critical"] = True
         issues.append(issue)
 
     offline_minutes = max(0, int(options.get("offline_alert_minutes", 60)))
+    if critical:
+        # Critical devices use their own, usually shorter, delay.
+        offline_minutes = max(0, int(options.get("critical_offline_minutes", DEFAULT_CRITICAL_OFFLINE_MINUTES)))
     if record.get("availability") == "offline":
         age = _age(record.get("availability_since"), now) or 0
         if age >= offline_minutes * 60:

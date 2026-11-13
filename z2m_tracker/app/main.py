@@ -65,6 +65,7 @@ DEFAULT_OPTIONS = {
     "notify_service": "",
     "alert_on_join": True,
     "offline_alert_minutes": 60,
+    "critical_offline_minutes": 5,
     "frozen_alert_hours": 24,
     "battery_alert_percent": 15,
     "networkmap_hour": 3,
@@ -83,6 +84,9 @@ DEFAULT_OPTIONS = {
 }
 
 CHECK_KEYS = {key for key, _, _, _ in CHECKS}
+# Companion app data for a critical device's alert: Android delivers it at once (high priority,
+# no time to live), iOS shows it as time-sensitive, which breaks through Focus modes.
+CRITICAL_PUSH = {"priority": "high", "ttl": 0, "push": {"interruption-level": "time-sensitive"}}
 EVENT_KEYS = {"joined": "joined", "left": "left", "interview failed": "interview_failed"}
 
 
@@ -135,6 +139,7 @@ SETTINGS = {
     "fire_events": _bool,
     "notify_service": _service,
     "offline_alert_minutes": _int(0, 10080),
+    "critical_offline_minutes": _int(0, 1440),
     "frozen_alert_hours": _int(0, 720),
     "battery_alert_percent": _int(0, 100),
     "networkmap_hour": _int(-1, 23),
@@ -222,7 +227,17 @@ class Alerts:
             except Exception:  # noqa: BLE001 - never let a notification failure kill the worker
                 _LOGGER.exception("Sending alert failed")
 
-    def _send(self, key: str, kind: str, ieee: str, name: str, title: str, message: str, instance: str | None) -> None:
+    def _send(
+        self,
+        key: str,
+        kind: str,
+        ieee: str,
+        name: str,
+        title: str,
+        message: str,
+        instance: str | None,
+        critical: bool = False,
+    ) -> None:
         data = {
             "key": key,
             "kind": kind,
@@ -232,6 +247,10 @@ class Alerts:
             "message": message,
             "network": instance,
         }
+        push = None
+        if critical:
+            data["critical"] = True
+            push = CRITICAL_PUSH
         _LOGGER.info("Alert: %s - %s", title, message)
 
         def job() -> None:
@@ -240,7 +259,7 @@ class Alerts:
             if options.get("persistent_notifications"):
                 home_assistant.persistent_notification(title, message, f"z2m_tracker_{key.replace(':', '_')}")
             if options.get("notify_service"):
-                home_assistant.notify(options["notify_service"], title, message)
+                home_assistant.notify(options["notify_service"], title, message, push)
 
         self.queue.put(job)
 
@@ -300,14 +319,16 @@ class Alerts:
             "left": "Zigbee device left",
             "interview failed": "Zigbee interview failed",
         }.get(kind, f"Zigbee: {kind}")
+        critical = tracker.is_critical(event["ieee"])
         self._send(
             f"event:{kind}:{event['ieee']}:{event['time']}",
             kind,
             event["ieee"],
             name,
-            title,
+            f"Critical: {title}" if critical else title,
             messages.get(kind, event.get("detail") or ""),
             event.get("instance"),
+            critical,
         )
 
     def check(self) -> None:
@@ -325,14 +346,16 @@ class Alerts:
             return
         for key in sorted(set(current) - sent):
             issue = current[key]
+            critical = bool(issue.get("critical"))
             self._send(
                 key,
                 issue["kind"],
                 issue["ieee"],
                 issue["name"],
-                f"Zigbee: {issue['name']} - {issue['label']}",
+                f"{'Critical' if critical else 'Zigbee'}: {issue['name']} - {issue['label']}",
                 issue["detail"],
                 issue.get("instance"),
+                critical,
             )
         for key in sent - set(current):
             self._dismiss(key)
@@ -611,6 +634,7 @@ def apply_settings(changes: dict) -> dict:
     if {
         "disabled_checks",
         "offline_alert_minutes",
+        "critical_offline_minutes",
         "frozen_alert_hours",
         "battery_alert_percent",
         "chatty_per_hour",
@@ -905,6 +929,9 @@ class Handler(BaseHTTPRequestHandler):
                     bool(body.get("muted")),
                     float(days) if isinstance(days, (int, float)) and days > 0 else None,
                 )
+                self._json(200 if ok else 404, {"ok": ok})
+            elif path == "/api/critical":
+                ok = tracker.set_critical(ieee, bool(body.get("critical")))
                 self._json(200 if ok else 404, {"ok": ok})
             elif path == "/api/bindings/ack":
                 ok = tracker.acknowledge_bindings(ieee)
