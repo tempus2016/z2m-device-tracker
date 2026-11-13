@@ -118,7 +118,7 @@ max_items: 5
 
 Three more cards read the same data. Each has a visual editor, and tapping a device opens it in the Zigbee Tracker sidebar.
 
-Battery devices, lowest first. Bars turn red at the app's low-battery threshold (`battery_alert_percent`). `show_all: true` ignores `max_items`.
+Battery devices, lowest first. Bars turn red at the app's low-battery threshold (`battery_alert_percent`, or the device's own limit). `show_all: true` ignores `max_items`.
 
 ```yaml
 type: custom:z2m-tracker-battery-card

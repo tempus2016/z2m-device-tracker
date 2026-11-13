@@ -630,7 +630,8 @@
     const label = t(n >= 3 ? "signal.strong" : n === 2 ? "signal.fair" : "signal.weak");
     return `<span class="sig" style="--c:${c}" title="${esc(t("signal.title", { label, lqi: Math.round(q) }))}" aria-label="${esc(t("signal.aria", { label, lqi: Math.round(q) }))}">${[1, 2, 3, 4].map((i) => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}</span>`;
   };
-  const batColor = (v) => (v === null || v === undefined ? "var(--text-2)" : v <= 15 ? "var(--error)" : v <= 35 ? "var(--warning)" : "var(--success)");
+  const batColor = (v, low = 15) => (v === null || v === undefined ? "var(--text-2)" : v <= low ? "var(--error)" : v <= low + 20 ? "var(--warning)" : "var(--success)");
+  const batLow = (d) => d.limits?.battery_percent ?? state.data?.options?.battery_alert_percent ?? 15;
   const kindIcon = (d) => {
     const t = `${d.description || ""} ${d.model || ""}`.toLowerCase();
     const map = [["smoke", "smoke-detector"], ["radiator", "radiator"], ["thermostat", "thermostat"], ["receiver", "thermostat"], ["bulb", "lightbulb"], ["plug", "power-plug"], ["socket", "power-plug"],
@@ -811,7 +812,7 @@
       const lqi = lqiOf(d);
       const power = powerOf(d);
       const bat = d.status !== "removed" && typeof d.battery === "number"
-        ? `<span class="bat" style="--c:${batColor(d.battery)}">${Math.round(d.battery)} %</span>`
+        ? `<span class="bat" style="--c:${batColor(d.battery, batLow(d))}">${Math.round(d.battery)} %</span>`
         : d.status !== "removed" && power ? `<span class="muted">${power}</span>` : `<span class="muted">—</span>`;
       const prev = former.length ? t("devices.previously", { names: former.join(", ") }) : null;
       const second = pane ? [d.area, prev || deviceLine(d)].filter(Boolean).join(" · ") : prev || d.ieee;
@@ -1577,6 +1578,18 @@
     return `<div class="sub-h">${th("traffic.title")}</div>${traffic}<div class="sub-h">${th("bindings.title")}</div>${list}${restoreAll}`;
   };
 
+  const limitsHtml = (d, hasReadings) => {
+    const o = state.data.options || {}, lim = d.limits || {};
+    const row = (id, key, label, min, max, unit, global) => `<div class="set-row"><div class="text"><div class="t1">${th(label)}</div><div class="t2">${th("dhealth.limit_settings", { value: esc(key === "frozen_hours" && global === 0 ? t("settings.check.off") : `${global ?? "—"} ${unit}`) })}</div></div><div class="ctl"><input class="field num" type="number" id="${id}" data-limit="${key}" min="${min}" max="${max}" step="1" value="${esc(lim[key] ?? "")}" placeholder="${esc(global ?? "")}" aria-label="${esc(t(label))}"><span class="unit" style="min-width:16px">${unit}</span></div></div>`;
+    const rows = [
+      d.battery_record ? row("limBat", "battery_percent", "dhealth.limit_battery", 0, 100, "%", o.battery_alert_percent) : "",
+      hasReadings ? row("limFrozen", "frozen_hours", "dhealth.limit_frozen", 1, 720, t("settings.unit_h"), o.frozen_alert_hours) : "",
+    ].join("");
+    if (!rows) return "";
+    return `<div class="sub-h">${th("dhealth.limits")}</div>${rows}
+      <div class="card-actions"><span class="saved" id="savedLimits" style="align-self:center">${th("common.saved")}</span><button class="btn" data-act="limits-reset" ${Object.keys(lim).length ? "" : "disabled"}>${th("dhealth.use_settings")}</button><button class="btn filled" data-act="save-limits">${th("common.save")}</button></div>`;
+  };
+
   const tabHealth = (d) => {
     const m = d.metrics || {};
     const outages = [...(d.outages || [])].reverse().slice(0, 8);
@@ -1589,6 +1602,7 @@
       ${outages.length ? `<div class="rep-list">${outages.map((o) => { const s = (new Date(o.end || Date.now()) - new Date(o.start)) / 1000; return `<div><span>${esc(fmtDate(o.start))}</span><span class="muted">${o.end ? esc(span(s)) : th("dhealth.ongoing", { duration: esc(span(s)) })}</span></div>`; }).join("")}</div>` : `<div class="card-content muted">${th(d.availability ? "dhealth.no_outages" : "dhealth.no_outages_no_avail")}</div>`}
       <div class="sub-h">${th("dhealth.readings")}</div>
       ${readings.length ? `<div class="rep-list">${readings.map(([k, r]) => `<div><span>${esc(readingName(k))}: ${esc(r.value)}</span><span class="muted">${th("dhealth.changed", { when: esc(relTime(r.changed_at, true)), n: esc(r.reports) })}</span></div>`).join("")}</div>` : `<div class="card-content muted">${th("dhealth.no_readings")}</div>`}
+      ${limitsHtml(d, readings.length > 0)}
       ${(d.muted || []).length ? `<div class="sub-h">${th("settings.ignored")}</div><div class="rep-list">${d.muted.map((k) => `<div><span>${esc(tx(`check.${k}.label`, null, cap(k.replace(/_/g, " "))))}</span><button class="btn" data-act="unmute" data-ieee="${esc(d.ieee)}" data-kind="${esc(k)}">${th("common.stop_ignoring")}</button></div>`).join("")}</div>` : ""}`;
   };
 
@@ -1597,10 +1611,10 @@
     const est = m.battery_estimate_days;
     const reps = (rec.replacements || []).map((r, i) => [r, i]).reverse();
     return `
-      <div class="more-hero"><span class="state-ic" style="color:${batColor(d.battery)}">${ic("battery")}</span><div class="big">${typeof d.battery === "number" ? `${Math.round(d.battery)} %` : "—"}</div>
+      <div class="more-hero"><span class="state-ic" style="color:${batColor(d.battery, batLow(d))}">${ic("battery")}</span><div class="big">${typeof d.battery === "number" ? `${Math.round(d.battery)} %` : "—"}</div>
         <div class="sub">${est === null || est === undefined ? th("battery.no_estimate") : est <= 0 ? th("battery.due_now") : th("battery.days_left", { n: Math.round(est) })}</div></div>
       <div class="more-actions"><button class="btn filled" data-act="battery-replaced">${ic("battery-sync", "s18")}${th("battery.replaced")}</button></div>
-      ${sparkline(m.battery_spark, { min: 0, max: 100, color: batColor(d.battery) })}
+      ${sparkline(m.battery_spark, { min: 0, max: 100, color: batColor(d.battery, batLow(d)) })}
       <div class="sub-h">${th("battery.details")}${rec.source === "battery_notes" ? ` · ${th("battery.from_bn")}` : rec.source === "library" ? ` · ${th("battery.from_library")}` : ""}</div>
       <form class="form" id="batForm" onsubmit="return false">
         <label>${th("battery.type")}<input class="field" name="type" list="batTypes" value="${esc(rec.type || "")}" placeholder="CR2032, AAA…" autocomplete="off"></label>
@@ -1963,6 +1977,14 @@
     theme() { theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]; store.set("z2mt.theme", theme); applyTheme(); snack(t("menu.theme", { theme: t(`theme.${theme}`) })); if (state.view === "settings") renderSettings(false); },
     async "save-note"() { const note = $("#note").value; try { await api("api/note", { ieee: state.open, note }); state.byIeee.get(state.open).note = note; flash("#savedNote"); state.editing = false; } catch (err) { snack(err.message); } },
     async "save-asset"() { const asset = Object.fromEntries(new FormData($("#assetForm")).entries()); try { await api("api/asset", { ieee: state.open, asset }); state.byIeee.get(state.open).asset = asset; flash("#savedAsset"); state.editing = false; } catch (err) { snack(err.message); } },
+    async "save-limits"() {
+      const body = { ieee: state.open };
+      document.querySelectorAll("[data-limit]").forEach((el) => { body[el.dataset.limit] = el.value.trim() === "" ? null : Number(el.value); });
+      try { await api("api/limits", body); flash("#savedLimits"); state.editing = false; load(); } catch (err) { snack(err.message); }
+    },
+    async "limits-reset"() {
+      try { await api("api/limits", { ieee: state.open, battery_percent: null, frozen_hours: null }); state.editing = false; snack(t("common.saved")); load(); } catch (err) { snack(err.message); }
+    },
     async "save-battery"() { const info = Object.fromEntries(new FormData($("#batForm")).entries()); try { await api("api/battery", { ieee: state.open, info }); flash("#savedBat"); state.editing = false; load(); } catch (err) { snack(err.message); } },
     async "battery-replaced"() {
       const ieee = state.open, d = state.byIeee.get(ieee);
@@ -2040,7 +2062,7 @@
     const when = !nextWin ? "" : nextWin.getHours() < 6 || nextWin.getHours() >= 20 ? "ota.next_run_tonight" : nextWin.toDateString() === new Date().toDateString() ? "ota.next_run_today" : "ota.next_run_tomorrow";
     const sched = !O.window ? th("ota.window_off") : !O.window_valid ? th("ota.window_invalid", { window: esc(O.window) }) : O.window_open ? th("ota.window_running", { time: esc(O.window.split("-")[1]) }) : th(when || "ota.next_run", { window: esc(otaWin(O.window)) });
     const checked = chk.running ? th("ota.checking_progress", { done: chk.done, total: chk.total }) : O.last_check ? th("ota.last_checked", { when: esc(relTime(O.last_check, true)) }) : th("ota.never_checked");
-    const power = (d) => (typeof d.battery === "number" ? `<span class="bat" style="--c:${batColor(d.battery)}">${Math.round(d.battery)} %</span>` : powerOf(d) ? `<span class="muted" title="${esc(powerOf(d))}">${ic("power-plug", "s18")}</span>` : d.power_source === "Battery" ? `<span class="muted">${th("devices.chip.battery")}</span>` : '<span class="muted">—</span>');
+    const power = (d) => (typeof d.battery === "number" ? `<span class="bat" style="--c:${batColor(d.battery, batLow(d))}">${Math.round(d.battery)} %</span>` : powerOf(d) ? `<span class="muted" title="${esc(powerOf(d))}">${ic("power-plug", "s18")}</span>` : d.power_source === "Battery" ? `<span class="muted">${th("devices.chip.battery")}</span>` : '<span class="muted">—</span>');
     const rows = list.map((d) => {
       const u = d.update || {}, [st, act] = otaStatus(d);
       return `<tr><td class="ic-cell">${stateIc(d)}</td>

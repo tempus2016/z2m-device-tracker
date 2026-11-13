@@ -15,7 +15,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone, tzinfo
 from typing import Any
 
-from health import device_issues, mutes_of, uptime
+from health import clean_limits, device_issues, limit_of, mutes_of, uptime
 from history_import import IEEE_RE, _features, collect_history
 from metrics import Metrics
 
@@ -1660,6 +1660,23 @@ class Tracker:
         self.evaluate_health()
         return True
 
+    def set_limits(self, ieee: str, changes: dict) -> dict:
+        """Set or clear the device's own battery/frozen limits. Only keys in `changes` are touched."""
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            if record is None:
+                return {"ok": False, "error": "Unknown device"}
+            limits, error = clean_limits(record.get("limits") or {}, changes)
+            if error:
+                return {"ok": False, "error": error}
+            if limits:
+                record["limits"] = limits
+            else:
+                record.pop("limits", None)
+            self._changed(structural=True)
+        self.evaluate_health()
+        return {"ok": True, "limits": limits}
+
     # ------------------------------------------------------------ Z2M actions
 
     def _bridge(self, base_topic: str) -> dict:
@@ -1919,6 +1936,7 @@ class Tracker:
                     (est is not None and est <= days)
                     or record.get("battery_low") is True
                     or (isinstance(level, (int, float)) and level <= 25 and est is None)
+                    or (isinstance(level, (int, float)) and level <= limit_of(record, self.options, "battery_percent"))
                 )
                 if not due:
                     continue

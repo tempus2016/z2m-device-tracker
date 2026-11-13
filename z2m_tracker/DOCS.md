@@ -16,8 +16,8 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `disabled_checks` | empty | Health checks to turn off completely. |
 | `notify_checks` | most checks | Health checks that send alerts. |
 | `offline_alert_minutes` | `60` | How long a device must be offline before an alert. |
-| `frozen_alert_hours` | `24` | How long a sensor reading must stay the same before it counts as frozen. |
-| `battery_alert_percent` | `15` | Battery level for a low battery alert. |
+| `frozen_alert_hours` | `24` | How long a sensor reading must stay the same before it counts as frozen. A device can have its own value (Health tab, **Limits for this device**). |
+| `battery_alert_percent` | `15` | Battery level for a low battery alert. A device can have its own value (Health tab, **Limits for this device**). |
 | `networkmap_hour` | `3` | Hour of the nightly routing scan, or `-1` to turn it off. |
 | `ha_entities` | `true` | Add tracker sensors to each Zigbee2MQTT device via MQTT discovery. |
 | `weekly_summary` | `true` | Send a weekly summary notification. |

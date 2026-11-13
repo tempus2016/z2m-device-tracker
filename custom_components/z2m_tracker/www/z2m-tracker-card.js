@@ -86,7 +86,8 @@ class Z2MTrackerCard extends HTMLElement {
     const issues = devices.flatMap((d) => (d.issues || []).map((i) => ({ ...i, area: d.area }))).filter((i) => i.severity === "warning");
     const due = devices.filter((d) => {
       const est = d.metrics?.battery_estimate_days;
-      return d.battery_record && ((est !== null && est !== undefined && est <= 60) || d.battery_low === true || (typeof d.battery === "number" && d.battery <= 25 && (est === null || est === undefined)));
+      const low = d.limits?.battery_percent ?? this._data.battery_alert_percent ?? 15;
+      return d.battery_record && ((est !== null && est !== undefined && est <= 60) || d.battery_low === true || (typeof d.battery === "number" && (d.battery <= low || (d.battery <= 25 && (est === null || est === undefined)))));
     });
     const shopping = {};
     due.forEach((d) => { const r = d.battery_record || {}; const k = r.type || "Unknown type"; shopping[k] = (shopping[k] || 0) + (r.quantity || 1); });
