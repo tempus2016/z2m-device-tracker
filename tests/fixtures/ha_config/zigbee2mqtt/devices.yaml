@@ -1,0 +1,9 @@
+'0x00158d0000500001':
+  friendly_name: Kitchen sensor
+  description: On the fridge
+'0x00158d0000600001':
+  friendly_name: Lamp
+'0x00158d0000900001':
+  friendly_name: '0x00158d0000900001'
+not-an-ieee:
+  friendly_name: Junk

@@ -18,17 +18,36 @@ There are two things in here, and they install separately:
 
 ```bash
 pip install ruff
-ruff check custom_components z2m_tracker
-ruff format --check custom_components z2m_tracker
+ruff check custom_components z2m_tracker tests
+ruff format --check custom_components z2m_tracker tests
 ```
 
 The settings are in `pyproject.toml`. CI also checks the app definition with the add-on
 linter, builds the app image for both architectures, and runs hassfest and HACS validation
 against the integration.
 
-There is no test suite yet. Anything that can be a pure function, such as a health check or
-a piece of history bookkeeping, should be, and a pull request that adds the first `pytest`
-tests for one is very welcome.
+## Tests
+
+The app's logic has a `pytest` suite in `tests/`: the health checks, the tracker's handling
+of Zigbee2MQTT messages, saving and loading history (including files from older versions),
+the history import, the battery library and the metrics. It needs Python 3.13 and the
+packages pinned in `z2m_tracker/Dockerfile`:
+
+```bash
+pip install pytest paho-mqtt==2.1.0 PyYAML==6.0.2 websocket-client==1.8.0
+python -m pytest
+```
+
+Or, with [uv](https://docs.astral.sh/uv/), in one line:
+
+```bash
+uv run --no-project --python 3.13 --with pytest --with paho-mqtt==2.1.0 --with PyYAML==6.0.2 --with websocket-client==1.8.0 pytest
+```
+
+The tests use a fake clock rather than sleeping, and small made-up files in `tests/fixtures/`.
+A change to a health check or to what the tracker stores should come with a test. Anything
+that can be a pure function, such as a health check or a piece of history bookkeeping, should
+be, so it can be tested without MQTT.
 
 ## Trying a change
 

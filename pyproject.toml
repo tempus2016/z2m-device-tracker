@@ -9,3 +9,9 @@ ignore = [
     "E501",  # line length handled by the formatter
     "E731",  # short lambda helpers inside methods
 ]
+
+[tool.pytest.ini_options]
+# The app's modules import each other as top-level modules (`from health import ...`).
+pythonpath = ["z2m_tracker/app"]
+testpaths = ["tests"]
+addopts = "-ra"

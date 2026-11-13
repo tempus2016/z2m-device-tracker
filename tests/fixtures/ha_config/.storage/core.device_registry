@@ -1,0 +1,14 @@
+{
+  "version": 1, "minor_version": 8, "key": "core.device_registry",
+  "data": {
+    "devices": [
+      {"identifiers": [["mqtt", "zigbee2mqtt_0x00158d0000500001"]], "name": "Kitchen sensor", "name_by_user": "Fridge thermometer", "area_id": "kitchen", "manufacturer": "FakeCo", "model": "Fake sensor", "model_id": "FK-1", "created_at": "2025-03-01T09:00:00+00:00"},
+      {"identifiers": [["mqtt", "zigbee2mqtt_bridge_0x00124b0000c00001"]], "name": "Zigbee2MQTT Bridge", "created_at": "2025-01-01T00:00:00+00:00"},
+      {"identifiers": [["hue", "abc"]], "name": "Not zigbee"}
+    ],
+    "deleted_devices": [
+      {"identifiers": [["mqtt", "zigbee2mqtt_0x00158d0000700001"]], "created_at": "2024-06-01T00:00:00+00:00", "orphaned_timestamp": 1746100000.0, "modified_at": "2025-05-01T00:00:00+00:00"},
+      {"identifiers": [["mqtt", "zigbee2mqtt_0x00158d0000990001"]], "created_at": "2024-01-01T00:00:00+00:00", "orphaned_timestamp": null, "modified_at": "2024-02-01T00:00:00+00:00"}
+    ]
+  }
+}

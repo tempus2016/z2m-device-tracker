@@ -1,0 +1,14 @@
+{
+  "version": 1, "minor_version": 15, "key": "core.entity_registry",
+  "data": {
+    "entities": [],
+    "deleted_entities": [
+      {"platform": "mqtt", "entity_id": "sensor.porch_motion_battery", "unique_id": "0x00158d0000990001_battery_zigbee2mqtt"},
+      {"platform": "mqtt", "entity_id": "binary_sensor.porch_motion_occupancy", "unique_id": "0x00158d0000990001_occupancy_zigbee2mqtt"},
+      {"platform": "mqtt", "entity_id": "sensor.porch_motion_2_linkquality", "unique_id": "0x00158d0000990001_linkquality_zigbee2mqtt"},
+      {"platform": "mqtt", "entity_id": "sensor.0x00158d0000990001_voltage", "unique_id": "0x00158d0000990001_voltage_zigbee2mqtt"},
+      {"platform": "mqtt", "entity_id": "sensor.garden_thing_temperature", "unique_id": "0x00158d0000990001_temperature_zigbee2mqtt"},
+      {"platform": "hue", "entity_id": "light.ignored", "unique_id": "0x00158d0000990001_state_zigbee2mqtt"}
+    ]
+  }
+}
