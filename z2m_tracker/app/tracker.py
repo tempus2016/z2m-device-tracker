@@ -33,6 +33,7 @@ from health import (
     offline_timing,
     uptime,
     z2m_availability,
+    z2m_setup,
 )
 from history_import import IEEE_RE, _features, collect_history
 from metrics import Metrics
@@ -2733,6 +2734,8 @@ class Tracker:
             "restart_required": bool(info.get("restart_required")),
             # Only Z2M's availability settings, not its whole config, to keep history.json small.
             "availability": z2m_availability(info),
+            # Connection, adapter, versions etc. for the Coordinators card: a few display fields, no secrets.
+            **z2m_setup(info),
         }
         bridge = self._bridge(base_topic)
         if bridge.get("info") != slim:
