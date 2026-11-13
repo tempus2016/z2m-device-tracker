@@ -729,6 +729,9 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/bindings/ack":
                 ok = tracker.acknowledge_bindings(ieee)
                 self._json(200 if ok else 404, {"ok": ok})
+            elif path == "/api/bindings/restore":
+                result = tracker.restore_bindings(ieee)
+                self._json(200 if result["ok"] else 502, result)
             elif path == "/api/link":
                 result = tracker.link(str(body.get("old") or ""), str(body.get("new") or ""))
                 self._json(200 if result["ok"] else 400, result)

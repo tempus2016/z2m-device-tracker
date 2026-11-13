@@ -81,7 +81,7 @@ If your Zigbee2MQTT uses a different base topic, or you run more than one instan
 2. Download **Z2M Device Tracker** and restart Home Assistant.
 3. Settings → Devices & services → Add integration → **Z2M Device Tracker**. The app's address is filled in for you.
 
-The integration also lists the app's problems in **Settings → Repairs**, and clears each one when it's fixed. Turn this off in the integration's options.
+The integration also lists the app's problems in **Settings → Repairs**, and clears each one when it's fixed. Device problems have a **Fix** button with the actions that suit them: restore or accept a lost binding, record a battery change, reconfigure, install a firmware update, or mute the check for 24 hours or until you unmute it. Turn Repairs off in the integration's options.
 
 Add the card to a dashboard:
 
