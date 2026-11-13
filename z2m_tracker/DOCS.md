@@ -85,7 +85,7 @@ Every night, the hour after the routing scan (04:00 when `networkmap_hour` is `-
 
 Ping uses Zigbee2MQTT's `bridge/request/action` API, so it needs Zigbee2MQTT 2.7 or newer. The time includes the trip through MQTT and Zigbee2MQTT, a few milliseconds.
 
-The integration can mirror warnings and notify-enabled checks into **Settings → Repairs**. Turn it off in the integration's options.
+The integration can mirror warnings and notify-enabled checks into **Settings → Repairs**. Turn it off in the integration's options. Repairs also stay empty while `alerts_enabled` is off.
 
 ## Pause alerts
 
