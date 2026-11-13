@@ -55,6 +55,9 @@
 - name: dependencies
   color: "0366d6"
   description: Dependency updates
+- name: tests
+  color: "c2e0c6"
+  description: The pytest suite and its fixtures
 
 # Conversation state, set automatically when somebody comments on an issue
 - name: Developer Reply

@@ -16,6 +16,7 @@ permissions:
 
 env:
   RUFF_VERSION: "0.17.3"
+  PYTEST_VERSION: "9.2.0"
 
 jobs:
   ruff:
@@ -35,11 +36,34 @@ jobs:
         run: python -m pip install --upgrade pip "ruff==${RUFF_VERSION}"
 
       - name: Run ruff
-        run: ruff check custom_components z2m_tracker
+        run: ruff check custom_components z2m_tracker tests
 
       - name: Check formatting
-        run: ruff format --check custom_components z2m_tracker
+        run: ruff format --check custom_components z2m_tracker tests
 
       - name: Compile every module
         # Catches syntax that ruff's target version allows but the runtime does not.
         run: python -m compileall -q custom_components z2m_tracker/app
+
+  pytest:
+    name: Pytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          # The app's base image (z2m_tracker/build.yaml) runs 3.13.
+          python-version: "3.13"
+
+      - name: Install dependencies
+        # Same pins as z2m_tracker/Dockerfile.
+        run: >-
+          python -m pip install --upgrade pip
+          "pytest==${PYTEST_VERSION}"
+          paho-mqtt==2.1.0 PyYAML==6.0.2 websocket-client==1.8.0
+
+      - name: Run tests
+        run: python -m pytest

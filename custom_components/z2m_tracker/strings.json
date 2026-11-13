@@ -31,12 +31,211 @@
     "import_history": {
       "name": "Import history",
       "description": "Ask the app to re-scan Z2M databases, configuration backups, logs and Home Assistant registries for devices and names, and merge them into the history."
+    },
+    "battery_replaced": {
+      "name": "Battery replaced",
+      "description": "Record a battery change for a Zigbee device. Also updates Battery Notes when it tracks the device.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The Zigbee2MQTT device. Pick it by name."
+        },
+        "ieee": {
+          "name": "IEEE address",
+          "description": "Use instead of a device, for example 0x00158d0001a2b3c4."
+        },
+        "date": {
+          "name": "Date",
+          "description": "When the battery was changed. Leave empty for today."
+        },
+        "battery_type": {
+          "name": "Battery type",
+          "description": "Saves the battery type for this device, for example CR2032. Leave empty to keep the current one."
+        }
+      }
+    },
+    "mute_device": {
+      "name": "Mute device",
+      "description": "Stop the tracker flagging problems with a Zigbee device.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The Zigbee2MQTT device. Pick it by name."
+        },
+        "ieee": {
+          "name": "IEEE address",
+          "description": "Use instead of a device, for example 0x00158d0001a2b3c4."
+        },
+        "checks": {
+          "name": "Checks",
+          "description": "Which checks to mute. Leave empty to mute all of them."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "How long to mute for. Leave empty to mute until you unmute it in the app."
+        }
+      }
+    },
+    "run_network_scan": {
+      "name": "Run network scan",
+      "description": "Start a routing scan (network map) in Zigbee2MQTT. It runs in the background and can take a few minutes.",
+      "fields": {
+        "base_topic": {
+          "name": "Base topic",
+          "description": "The Zigbee2MQTT network to scan, for example zigbee2mqtt. Leave empty to scan every network."
+        }
+      }
+    },
+    "reconfigure": {
+      "name": "Reconfigure",
+      "description": "Ask Zigbee2MQTT to reconfigure a device. This re-creates its reporting bindings. Wake battery devices first.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The Zigbee2MQTT device. Pick it by name."
+        },
+        "ieee": {
+          "name": "IEEE address",
+          "description": "Use instead of a device, for example 0x00158d0001a2b3c4."
+        }
+      }
+    },
+    "ota_update": {
+      "name": "Firmware update",
+      "description": "Start a firmware (OTA) update. Leave the device empty to update every device that has an update available.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The Zigbee2MQTT device. Leave empty to update all devices with an update."
+        },
+        "ieee": {
+          "name": "IEEE address",
+          "description": "Use instead of a device, for example 0x00158d0001a2b3c4."
+        }
+      }
+    },
+    "add_note": {
+      "name": "Add note",
+      "description": "Add a line to a Zigbee device's note in the tracker.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The Zigbee2MQTT device. Pick it by name."
+        },
+        "ieee": {
+          "name": "IEEE address",
+          "description": "Use instead of a device, for example 0x00158d0001a2b3c4."
+        },
+        "text": {
+          "name": "Text",
+          "description": "The text to add. It goes on a new line after the existing note."
+        }
+      }
     }
   },
   "issues": {
     "device_issue": {
       "title": "Zigbee: {name} - {title}",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "{name}: {title}",
+            "description": "{detail}\n\nPick a fix. Muting stops the tracker flagging this check for this device only.\n\n[Open in the Zigbee Tracker]({panel})",
+            "menu_options": {
+              "restore_binding": "Restore the binding",
+              "bindings_removed": "The binding was removed on purpose",
+              "battery_replaced": "Battery replaced today",
+              "reconfigure": "Reconfigure the device",
+              "install_update": "Install the firmware update",
+              "mute_day": "Mute this check for 24 hours",
+              "mute_forever": "Mute this check until I unmute it"
+            }
+          },
+          "restore_binding": {
+            "title": "Restore the binding",
+            "description": "Asks Zigbee2MQTT to re-create these bindings on {name}:\n\n{bindings}\n\nIf it runs on battery, wake it first, for example by pressing its button, then select Submit. This can take up to a minute per binding."
+          }
+        },
+        "abort": {
+          "not_loaded": "Z2M Device Tracker is not loaded.",
+          "app_error": "The fix didn't work: {error}"
+        }
+      }
+    },
+    "network_issue": {
+      "title": "Zigbee: {name} - {title}",
       "description": "{detail}\n\n[Open the Zigbee Tracker]({panel})"
+    }
+  },
+  "entity": {
+    "calendar": {
+      "batteries": {
+        "name": "Zigbee batteries"
+      }
+    },
+    "todo": {
+      "batteries": {
+        "name": "Zigbee batteries"
+      }
+    }
+  },
+  "selector": {
+    "check": {
+      "options": {
+        "offline": "Offline",
+        "silent": "Not heard from",
+        "frozen": "Frozen reading",
+        "battery_low": "Low battery",
+        "battery_soon": "Battery running down",
+        "battery_drain": "Battery draining fast",
+        "weak_signal": "Weak signal",
+        "signal_drop": "Signal dropping",
+        "unidentified": "Unidentified",
+        "update": "Firmware update",
+        "replacement": "Possible replacement",
+        "flapping": "Flapping",
+        "chatty": "Chatty device",
+        "binding_lost": "Binding lost",
+        "single_point": "Single point of failure"
+      }
+    }
+  },
+  "exceptions": {
+    "not_loaded": {
+      "message": "Z2M Device Tracker is not loaded."
+    },
+    "app_unreachable": {
+      "message": "The Z2M Device Tracker app is not reachable."
+    },
+    "app_error": {
+      "message": "The Z2M Device Tracker app returned an error: {error}"
+    },
+    "no_device": {
+      "message": "Choose a device or enter an IEEE address."
+    },
+    "unknown_device_id": {
+      "message": "No device with ID {device} in Home Assistant."
+    },
+    "not_zigbee": {
+      "message": "{device} is not a Zigbee2MQTT device."
+    },
+    "bad_ieee": {
+      "message": "{ieee} is not an IEEE address. It should look like 0x00158d0001a2b3c4."
+    },
+    "unknown_ieee": {
+      "message": "The tracker has no device {ieee}."
+    },
+    "not_active": {
+      "message": "{name} is not in Zigbee2MQTT any more."
+    },
+    "no_update": {
+      "message": "{name} has no firmware update available."
+    },
+    "unknown_base_topic": {
+      "message": "No Zigbee2MQTT network with base topic {base_topic}. Known: {known}."
+    },
+    "note_too_long": {
+      "message": "The note would be longer than {limit} characters. Shorten it in the app first."
     }
   }
 }

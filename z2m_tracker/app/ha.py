@@ -98,7 +98,18 @@ class HomeAssistant:
 
     def list_areas(self) -> list[dict]:
         areas = self._ws_call([{"type": "config/area_registry/list"}])[0] or []
-        return sorted(({"id": a["area_id"], "name": a["name"]} for a in areas), key=lambda a: a["name"].lower())
+        return sorted(
+            ({"id": a["area_id"], "name": a["name"], "floor_id": a.get("floor_id")} for a in areas),
+            key=lambda a: a["name"].lower(),
+        )
+
+    def list_floors(self) -> list[dict]:
+        """HA floors (2024.4+). Empty on older versions or if the registry can't be read."""
+        try:
+            floors = self._ws_call([{"type": "config/floor_registry/list"}])[0] or []
+        except Exception:  # noqa: BLE001 - floors are optional, areas still work without them
+            return []
+        return [{"id": f["floor_id"], "name": f["name"], "level": f.get("level")} for f in floors]
 
     def set_device_area(self, device_id: str, area_id: str | None) -> None:
         self._ws_call([{"type": "config/device_registry/update", "device_id": device_id, "area_id": area_id}])
@@ -127,6 +138,22 @@ class HomeAssistant:
         else:
             domain, name = "notify", service
         self._request("POST", f"/services/{domain}/{name}", {"title": title, "message": message})
+
+    def logbook(self, device_id: str, name: str, message: str) -> None:
+        """Add a logbook entry tied to one of the device's entities, so it shows on the device page."""
+        entities = [
+            e
+            for e in self._load_storage("core.entity_registry").get("entities", [])
+            if e.get("device_id") == device_id and not e.get("disabled_by")
+        ]
+        if not entities:
+            return
+        entities.sort(key=lambda e: (not str(e.get("entity_id", "")).startswith("update."), e.get("entity_id", "")))
+        self._request(
+            "POST",
+            "/services/logbook/log",
+            {"name": name, "message": message, "entity_id": entities[0]["entity_id"], "domain": "z2m_tracker"},
+        )
 
     # ---------------------------------------------------------------- inbound
 

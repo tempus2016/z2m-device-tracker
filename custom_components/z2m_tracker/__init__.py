@@ -16,13 +16,14 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError
 
-from .const import CARD_FILE, CONF_APP_URL, CONF_REPAIRS, DEFAULT_APP_URL, DOMAIN, URL_BASE, VERSION
+from .const import CARD_FILE, CARDS_FILE, CONF_APP_URL, CONF_REPAIRS, DEFAULT_APP_URL, DOMAIN, URL_BASE, VERSION
+from .services import async_register_services
 from .tracker import TrackerAppError, Z2MTracker
 from .websocket import async_register_websocket_commands
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.SENSOR]
+PLATFORMS = [Platform.CALENDAR, Platform.SENSOR, Platform.TODO]
 
 type Z2MTrackerConfigEntry = ConfigEntry[Z2MTracker]
 
@@ -33,6 +34,7 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
     www_path = Path(__file__).parent / "www"
     await hass.http.async_register_static_paths([StaticPathConfig(URL_BASE, str(www_path), False)])
     add_extra_js_url(hass, f"{URL_BASE}/{CARD_FILE}?v={VERSION}")
+    add_extra_js_url(hass, f"{URL_BASE}/{CARDS_FILE}?v={VERSION}")
     async_register_websocket_commands(hass)
     hass.data[f"{DOMAIN}_frontend"] = True
 
@@ -63,6 +65,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: Z2MTrackerConfigEntry) -
             _import_history,
             supports_response=SupportsResponse.OPTIONAL,
         )
+
+    async_register_services(hass)
 
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

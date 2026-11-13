@@ -1,0 +1,8 @@
+homeassistant:
+  enabled: true
+mqtt:
+  base_topic: zigbee2mqtt
+  server: mqtt://core-mosquitto:1883
+  password: '!secret mqtt_pass'
+  user: !secret mqtt_user
+devices: devices.yaml

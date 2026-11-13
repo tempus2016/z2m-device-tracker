@@ -1,0 +1,12 @@
+[2026-05-01 10:00:00] info: 	z2m: Starting Zigbee2MQTT version 2.1.0
+[2026-05-01 10:01:00] info: 	z2m:mqtt: MQTT publish: topic 'zigbee2mqtt/bridge/event', payload '{"data":{"friendly_name":"0x00158d0000600001","ieee_address":"0x00158d0000600001"},"type":"device_joined"}'
+[2026-05-01 10:01:05] info: 	z2m:mqtt: MQTT publish: topic 'zigbee2mqtt/bridge/event', payload '{"data":{"friendly_name":"0x00158d0000600001","ieee_address":"0x00158d0000600001","status":"started"},"type":"device_interview"}'
+[2026-05-01 10:01:30] info: 	z2m:mqtt: MQTT publish: topic 'zigbee2mqtt/bridge/event', payload '{"data":{"definition":{"description":"Smart plug","exposes":[{"property":"state"},{"property":"power"},{"property":"linkquality"}],"model":"PLUG-1","vendor":"PlugCo"},"friendly_name":"0x00158d0000600001","ieee_address":"0x00158d0000600001","status":"successful","supported":true},"type":"device_interview"}'
+[2026-05-01 10:05:00] info: 	z2m:mqtt: MQTT publish: topic 'zigbee2mqtt/bridge/response/device/rename', payload '{"data":{"from":"0x00158d0000600001","homeassistant_rename":false,"to":"Hall lamp"},"status":"ok"}'
+[2026-05-01 10:06:00] info: 	z2m:mqtt: MQTT publish: topic 'zigbee2mqtt/bridge/response/device/rename', payload '{"data":{"from":"Hall lamp","homeassistant_rename":false,"to":"Lamp"},"status":"ok"}'
+[2026-05-01 10:07:00] info: 	z2m:mqtt: MQTT publish: topic 'zigbee2mqtt/bridge/response/device/rename', payload '{"data":{"from":"Nobody","to":"Unknown"},"status":"error"}'
+[2026-05-01 11:00:00] info: 	z2m:mqtt: MQTT publish: topic 'zigbee2mqtt/bridge/event', payload '{"data":{"friendly_name":"Old bulb","ieee_address":"0x00158d0000700001"},"type":"device_leave"}'
+[2026-05-01 11:00:01] info: 	z2m:mqtt: MQTT publish: topic 'zigbee2mqtt/bridge/event', payload '{"data":{"ieee_address":"0x00158d0000700001"},"type":"device_announce"}'
+[2026-05-01 11:00:02] info: 	z2m:mqtt: MQTT publish: topic 'zigbee2mqtt/bridge/event', payload 'not json'
+[2026-05-01 11:00:03] info: 	z2m:mqtt: MQTT publish: topic 'other_z2m/bridge/event', payload '{"data":{"ieee_address":"0x00158d0000880001"},"type":"device_joined"}'
+[2026-05-01 11:00:04] info: 	z2m:mqtt: MQTT publish: topic 'zigbee2mqtt/Lamp', payload '{"state":"ON"}'
