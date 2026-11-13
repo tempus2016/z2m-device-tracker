@@ -50,6 +50,9 @@ options:
   chatty_per_hour: 1200
   ota_window: ""
   ota_min_battery: 30
+  quiet_hours: false
+  quiet_start: "23:00"
+  quiet_end: "07:00"
 schema:
   base_topics:
     - str
@@ -77,3 +80,6 @@ schema:
   chatty_per_hour: int(60,36000)?
   ota_window: str?
   ota_min_battery: int(0,100)?
+  quiet_hours: bool?
+  quiet_start: match(^([01]\d|2[0-3]):[0-5]\d$)?
+  quiet_end: match(^([01]\d|2[0-3]):[0-5]\d$)?

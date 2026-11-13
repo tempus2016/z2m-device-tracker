@@ -29,6 +29,11 @@ STATUS_REMOVED = "removed"
 # Measurements that should drift on their own; used for frozen-reading detection.
 MEASURE_KEYS = ("temperature", "local_temperature", "humidity", "pressure", "co2", "voc", "pm25", "soil_moisture")
 
+# Quiet hours: most lines per section of the morning digest, and most held event alerts kept.
+DIGEST_LINES = 10
+MAX_HELD_EVENTS = 50
+CLOCK_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
+
 ASSET_FIELDS = ("purchase_date", "shop", "price", "warranty_until", "location", "serial")
 
 
@@ -47,6 +52,18 @@ def _stamp_offline_since(record: dict) -> bool:
         record["availability_since"] = _now()
         return True
     return False
+
+
+def _clock_minutes(value: Any) -> int | None:
+    """Minutes after midnight for "HH:MM", or None."""
+    match = CLOCK_RE.match(str(value or "").strip())
+    return int(match[1]) * 60 + int(match[2]) if match else None
+
+
+def _first_sentence(text: str) -> str:
+    text = str(text or "").strip()
+    cut = text.find(". ")
+    return text[: cut + 1] if cut >= 0 else text
 
 
 def _slug(text: str) -> str:
@@ -1680,6 +1697,139 @@ class Tracker:
         with self.lock:
             return bool((self.data["devices"].get(ieee) or {}).get("critical"))
 
+    # ---------------------------------------------------------------- alerts
+
+    def in_quiet_hours(self, now: float | None = None) -> bool:
+        """True inside the quiet_start-quiet_end window (local time, may cross midnight)."""
+        if not self.options.get("quiet_hours"):
+            return False
+        start = _clock_minutes(self.options.get("quiet_start", "23:00"))
+        end = _clock_minutes(self.options.get("quiet_end", "07:00"))
+        if start is None or end is None or start == end:
+            return False
+        local = datetime.fromtimestamp(time.time() if now is None else now, tz=self.local_tz)
+        minute = local.hour * 60 + local.minute
+        return start <= minute < end if start < end else minute >= start or minute < end
+
+    def _quiet_state(self, now: float) -> dict:
+        quiet = self.data.get("quiet")
+        if not isinstance(quiet, dict):
+            quiet = {"since": datetime.fromtimestamp(now, tz=timezone.utc).isoformat(timespec="seconds")}
+        quiet.setdefault("issues", {})
+        quiet.setdefault("events", [])
+        self.data["quiet"] = quiet
+        return quiet
+
+    def hold_event(self, title: str, message: str) -> bool:
+        """Keep a join/leave/interview alert for the digest when it's quiet hours. False: send it now."""
+        now = time.time()
+        with self.lock:
+            if not self.in_quiet_hours(now):
+                return False
+            quiet = self._quiet_state(now)
+            quiet["events"] = [
+                *quiet["events"],
+                {
+                    "time": datetime.fromtimestamp(now, tz=timezone.utc).isoformat(timespec="seconds"),
+                    "title": title,
+                    "message": message,
+                },
+            ][-MAX_HELD_EVENTS:]
+            self.dirty = True
+        return True
+
+    def plan_alerts(self, issues: list[dict], enabled: set[str]) -> dict:
+        """Decide what one alert check sends and updates the record of what was sent.
+
+        Returns {"send": [issues to alert now], "dismiss": [keys that cleared], "digest": (title, message) | None,
+        "first": True on the very first check, when existing issues are only recorded}.
+        During quiet hours new issues are held (critical devices excepted); the first check after quiet hours
+        sends one digest instead of the held alerts.
+        """
+        now = time.time()
+        stamp = datetime.fromtimestamp(now, tz=timezone.utc).isoformat(timespec="seconds")
+        current = {issue["key"]: issue for issue in issues if issue["kind"] in enabled}
+        with self.lock:
+            initialised = self.data.get("alerts_initialised")
+            sent = set(self.data.get("alerted") or [])
+            self.data["alerts_initialised"] = True
+            self.dirty = True
+            if not enabled:
+                # Alerts are off: nothing to hold, nothing to report later.
+                self.data["quiet"] = None
+            if not initialised:
+                self.data["alerted"] = sorted(current)
+                return {"send": [], "dismiss": [], "digest": None, "first": True}
+            new = [current[key] for key in sorted(set(current) - sent)]
+            dismiss = sorted(sent - set(current))
+            urgent = [issue for issue in new if issue.get("critical")]
+            if enabled and self.in_quiet_hours(now):
+                held = self._quiet_state(now)["issues"]
+                for issue in new:
+                    if issue.get("critical"):
+                        held.pop(issue["key"], None)
+                        continue
+                    entry = held.setdefault(issue["key"], {"first": stamp})
+                    entry.pop("cleared", None)
+                    entry.update(name=issue["name"], label=issue["label"], detail=issue["detail"])
+                for key, entry in held.items():
+                    if key not in current and "cleared" not in entry:
+                        entry["cleared"] = stamp
+                self.data["alerted"] = sorted((sent & set(current)) | {issue["key"] for issue in urgent})
+                return {"send": urgent, "dismiss": dismiss, "digest": None, "first": False}
+            digest = None
+            send = new
+            if self.data.get("quiet"):
+                # Quiet hours are over: one digest, and what's still open counts as alerted.
+                digest = self._digest(self.data["quiet"], [i for i in new if not i.get("critical")], current)
+                self.data["quiet"] = None
+                send = urgent
+            self.data["alerted"] = sorted(current)
+            return {"send": send, "dismiss": dismiss, "digest": digest, "first": False}
+
+    def _digest(self, quiet: dict, still_open: list[dict], current: dict) -> tuple[str, str] | None:
+        held = quiet.get("issues") or {}
+        resolved = sorted(
+            (entry for key, entry in held.items() if key not in current and entry.get("cleared")),
+            key=lambda entry: entry["first"],
+        )
+        events = quiet.get("events") or []
+        if not still_open and not resolved and not events:
+            return None
+
+        def clock(iso: str) -> str:
+            try:
+                return datetime.fromisoformat(iso).astimezone(self.local_tz).strftime("%H:%M")
+            except (TypeError, ValueError):
+                return "?"
+
+        def section(heading: str, lines: list[str]) -> list[str]:
+            if not lines:
+                return []
+            more = len(lines) - DIGEST_LINES
+            return [heading, *(f"- {line}" for line in lines[:DIGEST_LINES])] + (
+                [f"- and {more} more"] if more > 0 else []
+            )
+
+        open_lines = []
+        for issue in still_open:
+            since = held.get(issue["key"], {}).get("first")
+            when = f" (since {clock(since)})" if since else ""
+            open_lines.append(f"{issue['name']} - {issue['label']}{when}: {_first_sentence(issue['detail'])}")
+        resolved_lines = [
+            f"{entry['name']} - {entry['label']} ({clock(entry['first'])}-{clock(entry['cleared'])})"
+            for entry in resolved
+        ]
+        event_lines = [f"{clock(e.get('time'))} {e.get('title')}: {_first_sentence(e.get('message'))}" for e in events]
+        n, m = len(still_open), len(resolved)
+        title = f"Zigbee overnight: {n} issue{'s' if n != 1 else ''}, {m} resolved"
+        body = [
+            *section("Still open:", open_lines),
+            *section("Resolved:", resolved_lines),
+            *section("Held alerts:", event_lines),
+        ]
+        return title, "\n".join(body)
+
     # ------------------------------------------------------------ Z2M actions
 
     def _bridge(self, base_topic: str) -> dict:
@@ -1984,6 +2134,8 @@ class Tracker:
         if not isinstance(history.get("devices"), dict):
             return {"ok": False, "error": "The backup has no device list"}
         with self.lock:
+            # Held quiet-hours alerts are about now, not about when the backup was made.
+            quiet = self.data.get("quiet")
             self.data = {
                 "devices": {},
                 "events": list(history.get("events") or []),
@@ -1994,6 +2146,7 @@ class Tracker:
             for key, value in history.items():
                 if key not in ("devices", "events", "imported", "networkmap", "alerted"):
                     self.data[key] = value
+            self.data["quiet"] = quiet
             for ieee, record in history["devices"].items():
                 self.data["devices"][ieee] = {**_new_record(ieee, record.get("instance")), **record}
             self.names = {}

@@ -81,6 +81,9 @@ DEFAULT_OPTIONS = {
     "chatty_per_hour": 1200,
     "ota_window": "",
     "ota_min_battery": 30,
+    "quiet_hours": False,
+    "quiet_start": "23:00",
+    "quiet_end": "07:00",
 }
 
 CHECK_KEYS = {key for key, _, _, _ in CHECKS}
@@ -127,6 +130,13 @@ def _ota_window(value):
     return value
 
 
+def _clock(value):
+    value = str(value or "").strip()
+    if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", value):
+        raise ValueError("enter a time like 23:00")
+    return value
+
+
 def _kinds(value):
     if not isinstance(value, list) or any(item not in CHECK_KEYS for item in value):
         raise ValueError("unknown check")
@@ -153,6 +163,9 @@ SETTINGS = {
     "notify_checks": _kinds,
     "ota_window": _ota_window,
     "ota_min_battery": _int(0, 100),
+    "quiet_hours": _bool,
+    "quiet_start": _clock,
+    "quiet_end": _clock,
 }
 
 
@@ -320,35 +333,31 @@ class Alerts:
             "interview failed": "Zigbee interview failed",
         }.get(kind, f"Zigbee: {kind}")
         critical = tracker.is_critical(event["ieee"])
+        message = messages.get(kind, event.get("detail") or "")
+        if not critical and tracker.hold_event(title, message):
+            _LOGGER.info("Quiet hours, held for the digest: %s - %s", title, message)
+            return
         self._send(
             f"event:{kind}:{event['ieee']}:{event['time']}",
             kind,
             event["ieee"],
             name,
             f"Critical: {title}" if critical else title,
-            messages.get(kind, event.get("detail") or ""),
+            message,
             event.get("instance"),
             critical,
         )
 
     def check(self) -> None:
         issues, _ = tracker.evaluate_health()
-        enabled = self.notify_set()
-        current = {issue["key"]: issue for issue in issues if issue["kind"] in enabled}
-        with tracker.lock:
-            initialised = tracker.data.get("alerts_initialised")
-            sent = set(tracker.data.get("alerted") or [])
-            tracker.data["alerted"] = sorted(current)
-            tracker.data["alerts_initialised"] = True
-            tracker.dirty = True
-        if not initialised:
-            _LOGGER.info("Alerts initialised with %d existing issues (not notified)", len(current))
+        plan = tracker.plan_alerts(issues, self.notify_set())
+        if plan["first"]:
+            _LOGGER.info("Alerts initialised with existing issues (not notified)")
             return
-        for key in sorted(set(current) - sent):
-            issue = current[key]
+        for issue in plan["send"]:
             critical = bool(issue.get("critical"))
             self._send(
-                key,
+                issue["key"],
                 issue["kind"],
                 issue["ieee"],
                 issue["name"],
@@ -357,8 +366,11 @@ class Alerts:
                 issue.get("instance"),
                 critical,
             )
-        for key in sent - set(current):
+        for key in plan["dismiss"]:
             self._dismiss(key)
+        if plan["digest"]:
+            title, message = plan["digest"]
+            self._send("digest", "digest", "", "Zigbee Tracker", title, message, None)
 
 
 alerts = Alerts()
