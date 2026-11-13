@@ -38,6 +38,7 @@ These checks show in Health but don't notify until you set them to **Show and no
 | Battery draining fast | Battery fell at least 3 times faster over the last 14 days than its rate since the last battery change (needs about 5 weeks of history). |
 | Binding lost | A binding (to a device, a group, or the coordinator for reporting) that disappeared and didn't come back within 10 minutes. Bindings removed with Zigbee2MQTT's Unbind are logged but not flagged. |
 | Single point of failure | A router that, in the latest routing scan, is the only path to the coordinator for other routers. Also listed in the Map tab's advice. |
+| Changes router often | An end device whose parent router changed 3+ times across the routing scans of the last 7 days (scans it's missing from don't count). The device's History tab lists its parent per scan and the one with the best link. Routers aren't checked: their parent in the scan is only the router they joined through. |
 | Coordinator backup | `coordinator_backup.json` missing, without a network key, not matching the running channel/PAN ID, or more than 3 days old. Only checked when the Zigbee2MQTT data folder is inside the HA config folder. |
 
 The device panel's Info tab also shows message rates, Zigbee2MQTT's own counters (messages, leaves, address changes) and the device's bindings.

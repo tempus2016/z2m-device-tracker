@@ -340,6 +340,37 @@ def test_mutes_of_and_active_mutes():
     assert sorted(health.active_mutes(rec, START)) == ["a", "b"]
 
 
+# ------------------------------------------------------------------ router hopping
+
+
+def test_router_hopping_at_threshold():
+    hops = {"changes": health.HOP_CHANGES, "lqi_min": 38, "lqi_max": 71}
+    issues = health.device_issues(record(), {"router_hops": hops}, {}, START, [])
+    assert [(i["kind"], i["severity"]) for i in issues] == [("router_hopping", "info")]
+    assert issues[0]["detail"] == "Changed router 3 times in 7 days · link quality 38 to 71."
+    assert issues[0]["params"] == {"n": 3, "days": 7, "lqi_min": 38, "lqi_max": 71}
+
+
+def test_router_hopping_detail_without_a_range():
+    same = health.device_issues(record(), {"router_hops": {"changes": 4, "lqi_min": 50, "lqi_max": 50}}, {}, START, [])
+    assert same[0]["detail"] == "Changed router 4 times in 7 days · link quality 50."
+    none = health.device_issues(
+        record(), {"router_hops": {"changes": 4, "lqi_min": None, "lqi_max": None}}, {}, START, []
+    )
+    assert none[0]["detail"] == "Changed router 4 times in 7 days."
+
+
+def test_router_hopping_below_threshold_or_disabled():
+    hops = {"router_hops": {"changes": health.HOP_CHANGES - 1, "lqi_min": 40, "lqi_max": 60}}
+    assert kinds(record(), hops) == []
+    assert kinds(record(), {"router_hops": {"changes": 9}}, {"disabled_checks": ["router_hopping"]}) == []
+
+
+def test_router_hopping_does_not_notify_by_default():
+    assert "router_hopping" not in health.ALERT_KINDS
+    assert "router_hopping" not in health.DEFAULT_NOTIFY
+
+
 # ------------------------------------------------------------------ catalogue consistency
 
 

@@ -46,6 +46,7 @@ mute_device:
             - chatty
             - binding_lost
             - single_point
+            - router_hopping
     duration:
       selector:
         duration:

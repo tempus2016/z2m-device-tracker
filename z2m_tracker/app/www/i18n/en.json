@@ -200,6 +200,7 @@
   "issue.label.battery_drain": "Battery draining fast",
   "issue.label.binding_lost": "Binding lost",
   "issue.label.single_point": "Single point of failure",
+  "issue.label.router_hopping": "Changes router often",
   "issue.label.coordinator_backup": "Coordinator backup",
   "issue.label.network_offline": "Network offline",
   "issue.label.restart_required": "Restart needed",
@@ -263,6 +264,10 @@
     "one": ", plus {n} battery device behind them",
     "other": ", plus {n} battery devices behind them"
   },
+  "issue.router_hopping.title": "Changes router often",
+  "issue.router_hopping.detail": "Changed router {n} times in {days} days{quality}.",
+  "issue.router_hopping.lqi": " · link quality {lqi}",
+  "issue.router_hopping.lqi_range": " · link quality {min} to {max}",
   "issue.replacement.title": "Possible replacement",
   "issue.replacement.detail": "Has the same name as removed device {name} ({ieee}). Link them to carry over history.",
   "issue.network_offline.title": "Zigbee2MQTT offline",
@@ -318,6 +323,8 @@
   "check.binding_lost.description": "A binding (device to device, group or coordinator reporting) disappeared and hasn't come back after 10 minutes.",
   "check.single_point.label": "Single point of failure",
   "check.single_point.description": "A router that is the only path to the coordinator for other routers in the last routing scan.",
+  "check.router_hopping.label": "Changes router often",
+  "check.router_hopping.description": "An end device whose parent router changed 3 or more times in the routing scans of the last 7 days. Usually a weak link or a router that keeps dropping.",
   "check.coordinator_backup.label": "Coordinator backup",
   "check.coordinator_backup.description": "Zigbee2MQTT's coordinator_backup.json is missing, more than 3 days old, or doesn't match the running network.",
   "check.joined.label": "Device joined",
@@ -624,6 +631,19 @@
   "history.logbook": "Logbook",
   "history.nothing_logged": "Nothing logged yet.",
   "history.carried_over": "carried over {items}",
+  "hops.title": {
+    "one": "Connects through, last {n} scan",
+    "other": "Connects through, last {n} scans"
+  },
+  "hops.title_plain": "Connects through",
+  "hops.none": {
+    "one": "Not in any routing scan in the last {n} day.",
+    "other": "Not in any routing scan in the last {n} days."
+  },
+  "hops.load_failed": "Couldn't load the routing history: {error}",
+  "hops.changed": "changed",
+  "hops.best": "Best link was {name} (LQI {lqi}).",
+  "hops.advice": "A mains-powered router close to it gives it one steady route.",
   "asset.title": "Asset details",
   "asset.location": "Location",
   "asset.purchased": "Purchased",
