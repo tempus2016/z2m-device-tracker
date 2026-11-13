@@ -670,6 +670,16 @@
     .alert > .btn { margin-left: 28px; }
   }
   @media (pointer: coarse) { input, select, textarea, .field { font-size: 16px; } }
+  /* On touch screens chips, buttons and icon buttons keep their look but get a tap area at least 44px tall and wide. */
+  @media (pointer: coarse) {
+    .chip, .btn, .icon-btn, .map-legend .lg { position: relative; }
+    .chip::before, .btn::before, .icon-btn::before, .map-legend .lg::before { content: ""; position: absolute; left: 50%; top: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%); }
+    /* A sideways-scrolling chip row clips anything outside it: give the taller tap areas room inside. */
+    .chips { padding-block: 6px; margin-block: -6px; }
+  }
+  @media (pointer: coarse) and (max-width: 600px) {
+    .chips { padding-bottom: 8px; }
+  }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 </style>
 </head>
@@ -1067,7 +1077,7 @@
       </div>
       <div class="${pane ? "split" : ""}"><div class="split-list">
       <div class="card">
-        <div class="table-wrap">${list.length ? `<table class="dt ${pane ? "compact" : ""}"><thead><tr><th class="ic-cell"></th>${col("name", "devices.col.name")}${col("area", "devices.col.area", "hide-sm col-area")}${col("model", "devices.col.model", "hide-md col-model")}${col("status", "devices.col.status")}${col("battery", "devices.col.battery", "num hide-sm")}${col("signal", "devices.col.signal", "num hide-md")}${col("last_seen", "devices.col.last_seen", "hide-md")}</tr></thead><tbody>${rows}</tbody></table>`
+        <div class="table-wrap">${list.length ? `<table class="dt ${pane ? "compact" : ""}"><thead><tr><th class="ic-cell"><span class="sr">${th("devices.col.type")}</span></th>${col("name", "devices.col.name")}${col("area", "devices.col.area", "hide-sm col-area")}${col("model", "devices.col.model", "hide-md col-model")}${col("status", "devices.col.status")}${col("battery", "devices.col.battery", "num hide-sm")}${col("signal", "devices.col.signal", "num hide-md")}${col("last_seen", "devices.col.last_seen", "hide-md")}</tr></thead><tbody>${rows}</tbody></table>`
           : emptyState("magnify", th("devices.none_found"), state.query ? th("devices.no_match", { query: esc(state.query) }) : th("devices.empty_filter"))}</div>
       </div>
       ${shown.length < list.length ? `<div class="row-actions" style="justify-content:center;padding-top:12px"><button class="btn outlined" data-act="dev-all">${th("devices.show_all", { n: list.length })}</button></div>` : ""}
@@ -2977,7 +2987,7 @@
         <div class="ota-head"><div class="text"><div class="t1">${avail ? th("ota.available_n", { n: avail }) : th("ota.all_up_to_date")}</div><div class="t2">${checked} · ${sched}</div></div>
           <button class="btn outlined ${chk.running ? "busy" : ""}" data-act="ota-check-all" ${chk.running ? "disabled" : ""}>${ic("refresh", "s18")}${th(chk.running ? "ota.checking_short" : "ota.check_now")}</button>
           <button class="btn filled" data-act="ota-update-all" ${ready ? "" : "disabled"}>${ic("download", "s18")}${th("ota.update_all")}</button></div>
-        ${list.length ? `<div class="table-wrap"><table class="dt ota" style="min-width:760px"><thead><tr><th class="ic-cell"></th><th>${th("ota.col.device")}</th><th>${th("ota.col.installed")}</th><th>${th("ota.col.available")}</th><th>${th("ota.col.power")}</th><th>${th("ota.col.status")}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+        ${list.length ? `<div class="table-wrap"><table class="dt ota" style="min-width:760px"><thead><tr><th class="ic-cell"><span class="sr">${th("devices.col.type")}</span></th><th>${th("ota.col.device")}</th><th>${th("ota.col.installed")}</th><th>${th("ota.col.available")}</th><th>${th("ota.col.power")}</th><th>${th("ota.col.status")}</th><th><span class="sr">${th("ota.col.actions")}</span></th></tr></thead><tbody>${rows}</tbody></table></div>`
           : emptyState("check", th("ota.nothing"), th("ota.nothing_text"))}
       </div>
       <div class="section-title">${th("ota.recent")} <span>${(O.history || []).length}</span></div>
@@ -3249,7 +3259,7 @@
     const applyN = rows.filter((r) => r.picked && r.next).length, offN = rows.filter((r) => r.picked && r.now).length;
     const group = b.mains && b.battery ? "all" : b.mains ? "mains" : b.battery ? "battery" : "";
     const chip = (act, v, on, label) => `<button class="chip" data-act="${act}" data-v="${v}" aria-pressed="${on}">${ic("check", "s18")}${label}</button>`;
-    const table = `<div class="table-wrap"><table class="dt bulk"><thead><tr><th class="cb"></th><th>${th("bulk.col.device")}</th><th class="num">${th("bulk.col.gap")}</th><th class="num">${th("bulk.col.now")}</th><th class="num">${th("bulk.col.new")}</th></tr></thead><tbody>
+    const table = `<div class="table-wrap"><table class="dt bulk"><thead><tr><th class="cb"><span class="sr">${th("bulk.col.pick")}</span></th><th>${th("bulk.col.device")}</th><th class="num">${th("bulk.col.gap")}</th><th class="num">${th("bulk.col.now")}</th><th class="num">${th("bulk.col.new")}</th></tr></thead><tbody>
       ${rows.map((r) => `<tr class="${r.next ? "" : "skip"}"><td class="cb"><input type="checkbox" data-bulk="${esc(r.d.ieee)}" ${r.picked ? "checked" : ""} ${r.next || r.now ? "" : "disabled"} aria-label="${esc(r.name)}"></td><td><div class="name">${esc(r.name)}</div></td><td class="num">${r.gap ? esc(span(r.gap)) : "—"}</td><td class="num">${r.now ? esc(span(r.now)) : th("report.off")}</td><td class="num ${r.next ? "new" : ""}">${r.next ? esc(span(r.next)) : th(`bulk.${r.why}`)}</td></tr>`).join("")}</tbody></table></div>`;
     const scroll = dlg.querySelector(".more-body")?.scrollTop || 0;
     dlg.innerHTML = `
