@@ -93,7 +93,7 @@ max_items: 5
 
 ## Contributing
 
-Bug reports and ideas go in the [issues](https://github.com/tempus2016/z2m-device-tracker/issues). For code, see [CONTRIBUTING.md](CONTRIBUTING.md), and report security problems privately as described in [SECURITY.md](SECURITY.md).
+Bug reports and ideas go in the [issues](https://github.com/tempus2016/z2m-device-tracker/issues). If you use the integration, attach its diagnostics: Settings → Devices & services → Z2M Device Tracker → ⋮ → Download diagnostics. Device addresses, names, notes and your notify service are removed from the file. For code, see [CONTRIBUTING.md](CONTRIBUTING.md), and report security problems privately as described in [SECURITY.md](SECURITY.md).
 
 ## Credits
 
