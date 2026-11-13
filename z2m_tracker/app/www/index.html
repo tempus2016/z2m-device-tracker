@@ -309,6 +309,8 @@
   .more-hero .sub { color: var(--text-2); }
   .more-actions { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; padding: 8px 16px 12px; }
   .alerts { display: grid; gap: 8px; padding: 0 16px 8px; }
+  .dev-more { position: relative; }
+  .dev-more .menu { top: calc(100% + 4px); right: 0; }
   .ping-result { display: flex; justify-content: center; padding: 0 16px 8px; }
   .ping-pill { display: inline-flex; align-items: center; gap: 4px; min-height: 22px; padding: 2px 10px; border-radius: 11px; font-size: 12px; font-weight: 500; background: var(--chip-on); color: var(--primary-text); }
   .ping-pill.ok { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
@@ -2269,6 +2271,33 @@
       ${slow ? `<div class="alerts"><div class="alert" style="--a:${slow.severity === "warning" ? "var(--warning)" : "var(--info)"}">${ic("router-wireless")}<div class="body">${esc(issueDetail(slow))}</div></div></div>` : ""}`;
   };
 
+  // The Info tab shows the one action that fixes the device's current state as the filled button,
+  // a second fitting action if there is one, and puts every other action in the More menu.
+  const infoActions = (d) => {
+    const gone = d.status === "removed", id = esc(d.ieee);
+    const lowBat = typeof d.battery === "number" && (d.issues || []).some((i) => i.kind === "battery_low");
+    const z2m = state.data.panels?.[d.instance];
+    const all = [
+      !gone && statusOf(d) !== "offline" && { k: "reconfigure", a: `data-act="reconfigure" data-ieee="${id}"`, i: "refresh", l: th("common.reconfigure") },
+      !gone && { k: "rename", a: 'data-act="rename"', i: "pencil", l: th("more.rename") },
+      lowBat && { k: "battery", a: 'data-act="battery-replaced"', i: "battery-sync", l: th("battery.replaced") },
+      d.can_ping && { k: "ping", a: `data-act="ping" data-ieee="${id}" ${PING.get(d.ieee)?.busy ? "disabled" : ""}`, i: "refresh", l: th("ping.button") },
+      canReplace(d) && { k: "replace", a: `data-act="replace" data-ieee="${id}"`, i: "swap-horizontal", l: th("replace.button") },
+      !gone && d.type === "EndDevice" && { k: "move", a: `data-act="move" data-ieee="${id}"`, i: "swap-horizontal", l: th("more.change_router") },
+      d.model && d.supported !== false && { href: `https://www.zigbee2mqtt.io/devices/${encodeURIComponent(String(d.model).replace(/\//g, "_"))}.html" target="_blank" rel="noopener`, i: "information-outline", l: th("more.docs") },
+      d.ha_device_id && { href: `/config/devices/device/${esc(d.ha_device_id)}" target="_top`, i: "home-assistant", l: th("more.device_page") },
+      z2m && !gone && { href: `${esc(z2m)}" target="_top`, i: "zigbee", l: "Zigbee2MQTT" },
+    ].filter(Boolean);
+    const lead = ["replace", "battery", "rename"].map((k) => all.find((x) => x.k === k)).filter(Boolean);
+    const shown = lead.slice(0, 2), rest = all.filter((x) => !shown.includes(x));
+    if (rest.length === 1) shown.push(rest.pop());
+    const el = (x, cls, extra = "") => x.href ? `<a class="${cls}" href="${x.href}" ${extra}>${ic(x.i, "s18")}${x.l}</a>` : `<button class="${cls}" ${x.a} ${extra}>${ic(x.i, "s18")}${x.l}</button>`;
+    if (!shown.length && !rest.length) return "";
+    return `<div class="more-actions">${shown.map((x, n) => el(x, !n && lead.includes(x) ? "btn filled" : "btn outlined")).join("")}
+      ${rest.length ? `<span class="dev-more"><button class="btn" data-act="dev-more" aria-haspopup="menu" aria-expanded="false">${ic("dots-vertical", "s18")}${th("more.more")}</button>
+        <span class="menu" role="menu" hidden>${rest.map((x) => el(x, "", 'role="menuitem" tabindex="-1"')).join("")}</span></span>` : ""}</div>`;
+  };
+
   const tabInfo = (d) => {
     const st = statusOf(d);
     const u = d.update || {};
@@ -2276,24 +2305,17 @@
     const lqi = lqiOf(d), power = powerOf(d);
     const bigState = st !== "active" ? STATUS[st].label : warnings(d)[0] ? issueLabel(warnings(d)[0]) : STATUS.active.label;
     const o = state.data.options || {};
+    const alerts = (d.issues || []).map((i) => `<div class="alert" style="--a:${i.severity !== "warning" ? "var(--info)" : severe(i, d) ? "var(--error)" : "var(--warning)"}">${ic(KIND_ICON[i.kind] || "alert")}<div class="body"><b>${esc(issueTitle(i))}.</b> ${esc(issueDetail(i))}</div><div class="alert-acts">${issueActions(i)}</div></div>`).join("")
+      + (st === "removed" ? `<div class="alert" style="--a:var(--text-2)">${ic("information-outline")}<div class="body"><b>${th("more.removed")}</b> ${d.removed_at ? th("more.removed_on", { date: esc(fmtDate(d.removed_at)) }) : th("more.removed_no_date")}.${d.successor ? ` ${th("more.replaced_by", { device: devLink(d.successor) })}.` : ""}</div></div>` : "");
     return `
       <div class="more-hero">${stateIc(d)}<div class="big">${esc(bigState)}</div><div class="sub">${th("more.last_seen", { when: esc(relTime(d.last_seen, true)) })}</div></div>
-      <div class="more-actions">
-        ${d.status !== "removed" ? `<button class="btn outlined" data-act="reconfigure" data-ieee="${esc(d.ieee)}">${ic("refresh", "s18")}${th("common.reconfigure")}</button><button class="btn outlined" data-act="rename">${ic("pencil", "s18")}${th("more.rename")}</button>` : ""}
-        ${d.can_ping ? `<button class="btn outlined" data-act="ping" data-ieee="${esc(d.ieee)}" ${PING.get(d.ieee)?.busy ? "disabled" : ""}>${ic("refresh", "s18")}${th("ping.button")}</button>` : ""}
-        ${canReplace(d) ? `<button class="btn outlined" data-act="replace" data-ieee="${esc(d.ieee)}">${ic("swap-horizontal", "s18")}${th("replace.button")}</button>` : ""}
-        ${d.status !== "removed" && d.type === "EndDevice" ? `<button class="btn outlined" data-act="move" data-ieee="${esc(d.ieee)}">${ic("swap-horizontal", "s18")}${th("more.change_router")}</button>` : ""}
-        ${d.model && d.supported !== false ? `<a class="btn outlined" href="https://www.zigbee2mqtt.io/devices/${encodeURIComponent(String(d.model).replace(/\//g, "_"))}.html" target="_blank" rel="noopener">${ic("information-outline", "s18")}${th("more.docs")}</a>` : ""}
-        ${d.ha_device_id ? `<a class="btn outlined" href="/config/devices/device/${esc(d.ha_device_id)}" target="_top">${ic("home-assistant", "s18")}${th("more.device_page")}</a>` : ""}
-        ${state.data.panels?.[d.instance] && d.status !== "removed" ? `<a class="btn outlined" href="${esc(state.data.panels[d.instance])}" target="_top">${ic("zigbee", "s18")}Zigbee2MQTT</a>` : ""}
-      </div>
+      ${alerts ? `<div class="alerts">${alerts}</div>` : ""}
+      ${infoActions(d)}
       ${d.status !== "removed" ? `<div class="set-row"><div class="text"><div class="t1">${th("more.critical")}</div><div class="t2">${th("more.critical_desc", { minutes: esc(o.critical_offline_minutes ?? 5), normal: esc(o.offline_alert_minutes ?? 60) })}</div></div>
         <label class="switch"><input type="checkbox" id="critSw" data-ieee="${esc(d.ieee)}" ${d.critical ? "checked" : ""} aria-label="${esc(t("more.critical"))}"><span class="track"></span><span class="thumb"></span></label></div>` : ""}
       ${pingResult(d)}
       ${u.state === "updating" ? `<div class="alerts"><div class="alert" style="--a:var(--info)">${ic("chip")}<div class="body"><b>${th("more.updating")}${u.progress !== undefined && u.progress !== null ? ` · ${Math.round(u.progress)} %` : ""}</b>${u.remaining ? ` · ${th("more.time_left", { duration: esc(span(u.remaining)) })}` : ""}. ${th("more.keep_powered")}<div class="bar"><i style="width:${Math.max(2, Math.min(100, u.progress || 0))}%"></i></div></div></div></div>` : ""}
       ${u.state === "available" && d.status !== "removed" ? `<div class="alerts"><div class="alert" style="--a:var(--info)">${ic("chip")}<div class="body"><b>${th("issue.update.title")}</b> · ${esc(u.installed_version)} → ${esc(u.latest_version)}</div><button class="btn" data-act="ota-update">${th("common.update")}</button></div></div>` : ""}
-      <div class="alerts">${(d.issues || []).map((i) => `<div class="alert" style="--a:${i.severity === "warning" ? "var(--warning)" : "var(--info)"}">${ic(KIND_ICON[i.kind] || "alert")}<div class="body"><b>${esc(issueTitle(i))}.</b> ${esc(issueDetail(i))}</div><div class="alert-acts">${issueActions(i)}</div></div>`).join("")}
-        ${st === "removed" ? `<div class="alert" style="--a:var(--text-2)">${ic("information-outline")}<div class="body"><b>${th("more.removed")}</b> ${d.removed_at ? th("more.removed_on", { date: esc(fmtDate(d.removed_at)) }) : th("more.removed_no_date")}.${d.successor ? ` ${th("more.replaced_by", { device: devLink(d.successor) })}.` : ""}</div></div>` : ""}</div>
       ${kv([[th("devices.col.model"), deviceLine(d) || t("common.unknown")], [th("more.description"), d.description], [th("devices.col.area"), d.area], [th("more.network"), netLabel(d.instance)], [th("more.signal_24h"), lqi === null ? null : Math.round(lqi)],
         [th("devices.col.battery"), typeof d.battery === "number" ? `${Math.round(d.battery)} %` : power], [th("more.first_seen"), fmtDate(d.first_seen) || t("common.unknown")], [th("devices.col.last_seen"), fmtDate(d.last_seen) || t("time.never")],
         [th("more.availability"), d.availability ? t("more.availability_since", { state: tx(`more.availability.${d.availability}`, null, cap(d.availability)), date: fmtDate(d.availability_since) }) : null], [th("more.ieee"), d.ieee, true], [th("more.model_id"), d.model_id, true], [th("more.manufacturer"), d.manufacturer, true],
@@ -2961,6 +2983,13 @@
       try { await api("api/limits", { ieee: state.open, battery_percent: null, frozen_hours: null }); state.editing = false; snack(t("common.saved")); load(); } catch (err) { snack(err.message); }
     },
     async "save-battery"() { const info = Object.fromEntries(new FormData($("#batForm")).entries()); try { await api("api/battery", { ieee: state.open, info }); flash("#savedBat"); state.editing = false; load(); } catch (err) { snack(err.message); } },
+    "dev-more"(b) {
+      const m = b.nextElementSibling;
+      if (!m.hidden) { closeDevMenu(true); return; }
+      m.hidden = false; b.setAttribute("aria-expanded", "true"); state.editing = true;
+      devMenuItems(m)[0]?.focus();
+      m.scrollIntoView({ block: "nearest" });
+    },
     async "battery-replaced"() {
       const ieee = state.open, d = state.byIeee.get(ieee);
       const ok = await confirmDialog({ title: t("battery.replaced"), ok: t("common.save"),
@@ -3419,8 +3448,30 @@
     e.preventDefault();
     items[(next + items.length) % items.length].focus();
   });
+  // The device panel's More menu. Picking an item, clicking elsewhere, Tab or Escape closes it.
+  const closeDevMenu = (refocus = false) => {
+    const m = document.querySelector(".dev-more .menu:not([hidden])");
+    if (!m) return;
+    const b = m.previousElementSibling;
+    m.hidden = true; b.setAttribute("aria-expanded", "false"); state.editing = false;
+    if (refocus) b.focus();
+  };
+  const devMenuItems = (m) => [...m.querySelectorAll('[role="menuitem"]:not(:disabled)')];
+  document.addEventListener("keydown", (e) => {
+    const m = e.target.closest?.(".dev-more")?.querySelector(".menu:not([hidden])");
+    if (!m) return;
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeDevMenu(true); return; }
+    if (e.key === "Tab") { closeDevMenu(); return; }
+    const items = devMenuItems(m), i = items.indexOf(document.activeElement);
+    const next = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: items.length - 1 }[e.key];
+    if (next === undefined) return;
+    e.preventDefault(); e.stopPropagation();
+    items[(next + items.length) % items.length]?.focus();
+  }, true);
   document.addEventListener("click", (e) => {
     if (!menu.hidden && !e.target.closest("#menu")) closeMenu();
+    if (!e.target.closest(".dev-more")) closeDevMenu();
+    else if (e.target.closest('.dev-more [role="menuitem"]')) closeDevMenu(true);
     const mz = e.target.closest("[data-mapzoom]"); if (mz) { MAP.sims[mz.dataset.net]?.zoom(Number(mz.dataset.mapzoom)); return; }
     const mr = e.target.closest("[data-mapreset]"); if (mr) { MAP.sims[mr.dataset.mapreset]?.reset(); return; }
     const mo = e.target.closest("[data-mapopts]"); if (mo) { const bt = mo.dataset.mapopts; MAP.opts[bt] = mo.getAttribute("aria-expanded") !== "true"; renderMap(true); return; }
