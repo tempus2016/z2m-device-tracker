@@ -12,10 +12,29 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
-from datetime import datetime, timezone, tzinfo
+from datetime import date, datetime, timedelta, timezone, tzinfo
+from datetime import date as date_cls
+from datetime import time as dtime
+from time import monotonic as _monotonic
 from typing import Any
 
-from health import device_issues, mutes_of, uptime
+from health import (
+    HOP_CHANGES,
+    HOP_DAYS,
+    REPORT_EVERY_MAX,
+    REPORT_EVERY_MIN,
+    clean_limits,
+    device_issues,
+    group_router_outages,
+    late_deadline,
+    limit_of,
+    mutes_of,
+    notify_kinds,
+    offline_timing,
+    uptime,
+    z2m_availability,
+    z2m_setup,
+)
 from history_import import IEEE_RE, _features, collect_history
 from metrics import Metrics
 
@@ -23,13 +42,36 @@ _LOGGER = logging.getLogger("z2m_tracker")
 
 MAX_EVENTS = 3000
 MAX_OUTAGES = 200
+# "Left the group" facts kept in history.json, and how long the Groups card shows one.
+MAX_GROUP_LEFT = 100
+GROUP_LEFT_DAYS = 30
 STATUS_ACTIVE = "active"
 STATUS_REMOVED = "removed"
+
+# Longest pause for alerts given in minutes (30 days).
+MAX_PAUSE_MINUTES = 43200
 
 # Measurements that should drift on their own; used for frozen-reading detection.
 MEASURE_KEYS = ("temperature", "local_temperature", "humidity", "pressure", "co2", "voc", "pm25", "soil_moisture")
 
+# Quiet hours: most lines per section of the morning digest, and most held event alerts kept.
+DIGEST_LINES = 10
+MAX_HELD_EVENTS = 50
+CLOCK_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
+# Zigbee2MQTT process memory from bridge/health: one point per local day (that day's highest reading).
+MEMORY_DAYS = 14
+MEMORY_GROWTH = 0.5  # flag growth above 50 %
+MEMORY_WINDOW_DAYS = 7  # over the last 7 days
+MEMORY_MIN_DAYS = 5  # with at least 5 days of data in that window
+
 ASSET_FIELDS = ("purchase_date", "shop", "price", "warranty_until", "location", "serial")
+UNKNOWN_BATTERY_TYPE = "Unknown type"
+MAX_STOCK = 9999
+# A battery change recorded within this many days of one that already took from stock is
+# the same change seen twice (the app detecting the jump, then someone ticking it), so it
+# doesn't take again. Changes dated further back than this are history being filled in
+# and leave today's stock alone.
+STOCK_WINDOW_DAYS = 3
 
 
 def _now() -> str:
@@ -47,6 +89,18 @@ def _stamp_offline_since(record: dict) -> bool:
         record["availability_since"] = _now()
         return True
     return False
+
+
+def _clock_minutes(value: Any) -> int | None:
+    """Minutes after midnight for "HH:MM", or None."""
+    match = CLOCK_RE.match(str(value or "").strip())
+    return int(match[1]) * 60 + int(match[2]) if match else None
+
+
+def _first_sentence(text: str) -> str:
+    text = str(text or "").strip()
+    cut = text.find(". ")
+    return text[: cut + 1] if cut >= 0 else text
 
 
 def _slug(text: str) -> str:
@@ -165,6 +219,65 @@ def _bindings_of(device: dict) -> list[dict] | None:
 
 BACKUP_MAX_AGE = 3 * 86400
 BACKUP_REFRESH = 600
+# Pairing (permit join) open longer than this raises pairing_open even when this app opened it.
+PAIRING_OPEN_ALERT = 600
+# A permit_join request seen this long before Z2M reports pairing open is taken as what opened it.
+PERMIT_HINT_SECONDS = 60
+PERMIT_ORIGIN_TEXT = {
+    "frontend": "opened in the Zigbee2MQTT frontend",
+    "mqtt": "opened from Home Assistant or an automation",
+}
+
+
+def _permit_opening(payload: Any) -> bool:
+    """Whether a bridge/request/permit_join payload opens pairing (Z2M 2.x "time", 1.x "value")."""
+    if isinstance(payload, dict):
+        if "value" in payload:
+            value = payload["value"]
+            return value.strip().lower() == "true" if isinstance(value, str) else bool(value)
+        payload = payload.get("time")
+    if isinstance(payload, bool):
+        return payload
+    if isinstance(payload, str):
+        if payload.strip().lower() in ("true", "false"):
+            return payload.strip().lower() == "true"
+    try:
+        return int(payload) > 0
+    except (TypeError, ValueError):
+        return False
+
+
+# Ping: the same read Z2M's availability check uses (genBasic zclVersion), sent through the
+# bridge/request/action "raw" API (Zigbee2MQTT 2.7+) so the reply comes back with our transaction id.
+PING_TIMEOUT = 10
+PING_MIN_Z2M = (2, 7)
+PING_SPACING = 2.0
+PING_GRACE = 5
+
+
+def _ping_address(device: dict) -> dict | None:
+    """Network address and the endpoint to read genBasic from (first endpoint listing it, as herdsman does)."""
+    nwk = device.get("network_address")
+    if not isinstance(nwk, int) or isinstance(nwk, bool):
+        return None
+    endpoints = device.get("endpoints")
+    ids: list[int] = []
+    if isinstance(endpoints, dict):
+        for key, info in endpoints.items():
+            try:
+                ep = int(key)
+            except (TypeError, ValueError):
+                continue
+            inputs = ((info or {}).get("clusters") or {}).get("input") or []
+            ids.append(ep)
+            if "genBasic" in inputs:
+                return {"nwk": nwk, "ep": ep}
+    return {"nwk": nwk, "ep": ids[0] if ids else 1}
+
+
+def _z2m_version(text: Any) -> tuple[int, int] | None:
+    match = re.match(r"\s*(\d+)\.(\d+)", str(text or ""))
+    return (int(match.group(1)), int(match.group(2))) if match else None
 
 
 def friendly_z2m_error(raw: str | None) -> str:
@@ -177,6 +290,69 @@ def friendly_z2m_error(raw: str | None) -> str:
     if "delivery failed" in low or "mac_no_ack" in low or "no ack" in low:
         return "The message couldn't be delivered to the device. Check that it has power and is in range."
     return text[:300] or "Zigbee2MQTT reported an error."
+
+
+def parent_rows(scans: list, ieee: str, since: str) -> list[dict]:
+    """The device's parent in each stored scan from `since` on, oldest first.
+
+    Scans where the device has no parent are skipped, not counted as a change. `changed` compares
+    with the previous scan that had one, even when that scan is older than `since`.
+    """
+    rows: list[dict] = []
+    previous = None
+    for scan in scans:
+        entry = (scan.get("parents") or {}).get(ieee)
+        if not entry:
+            continue
+        parent = entry[0]
+        lqi = entry[1] if len(entry) > 1 else None
+        if (scan.get("at") or "") >= since:
+            rows.append({"at": scan.get("at"), "ieee": parent, "lqi": lqi, "changed": previous not in (None, parent)})
+        previous = parent
+    return rows
+
+
+def hop_summary(rows: list[dict]) -> dict:
+    """Changes, link-quality range and best-link parent for parent_rows() output."""
+    lqis = [r["lqi"] for r in rows if isinstance(r.get("lqi"), (int, float))]
+    best = max((r for r in rows if isinstance(r.get("lqi"), (int, float))), key=lambda r: r["lqi"], default=None)
+    return {
+        "changes": sum(1 for r in rows if r["changed"]),
+        "parents": len({r["ieee"] for r in rows}),
+        "lqi_min": min(lqis) if lqis else None,
+        "lqi_max": max(lqis) if lqis else None,
+        "best": {"ieee": best["ieee"], "lqi": best["lqi"]} if best else None,
+    }
+
+
+def record_memory(days: list, today: date, mb: float) -> list:
+    """Add a reading to the daily memory history ([date, max MB] pairs) and drop days older than MEMORY_DAYS."""
+    key = today.isoformat()
+    if days and days[-1][0] == key:
+        days[-1][1] = max(days[-1][1], mb)
+    else:
+        days.append([key, mb])
+    oldest = (today - timedelta(days=MEMORY_DAYS - 1)).isoformat()
+    return [d for d in days if d[0] >= oldest][-MEMORY_DAYS:]
+
+
+def memory_growth(days: list, today: date, current: float | None = None) -> dict | None:
+    """{percent, days} when Zigbee2MQTT's memory grew more than MEMORY_GROWTH over the last week, else None.
+
+    Compares the oldest day in the window with the current reading (or the latest day), so a restart that
+    frees the memory clears the flag straight away.
+    """
+    start = (today - timedelta(days=MEMORY_WINDOW_DAYS - 1)).isoformat()
+    window = [d for d in days if d[0] >= start and isinstance(d[1], (int, float))]
+    if len(window) < MEMORY_MIN_DAYS or window[0][1] <= 0:
+        return None
+    first = window[0][1]
+    last = current if isinstance(current, (int, float)) and current > 0 else window[-1][1]
+    growth = (last - first) / first
+    if growth <= MEMORY_GROWTH:
+        return None
+    span_days = (today - date.fromisoformat(window[0][0])).days
+    return {"percent": round(growth * 100), "days": max(1, span_days)}
 
 
 def _display_name(record: dict) -> str | None:
@@ -221,17 +397,28 @@ class Tracker:
         self.issues: list[dict] = []
         self.ha_device_ids: dict[str, str] = {}
         self.ha_battery: dict[str, dict] = {}
+        self.ha_leftovers: list[dict] = []
         self._pending: dict[str, dict] = {}
         self.battery_lib = None
         self.permit: dict[str, dict] = {}
         self.scans: dict[str, list] = {}
         self.scans_path: str | None = None
         self.pairing_sessions: dict[str, dict] = {}
+        # Per base topic while pairing is open: {"since", "origin" (app/mqtt/frontend/None), "device"}.
+        self.permit_meta: dict[str, dict] = {}
+        self._permit_hint: dict[str, dict] = {}
         self.groups: dict[str, dict[str, str]] = {}
+        # Current member IEEEs per group per base topic (memory only; bridge/groups is retained).
+        self.group_members: dict[str, dict[str, list[str]]] = {}
         self._unbinds: dict[str, float] = {}
         self._spof_cache: dict[str, tuple] = {}
         self._backups: dict[str, dict] = {}
         self._backups_at = 0.0
+        self.started = time.time()
+        self._late_checked: dict[str, float] = {}
+        self._hours: dict[str, dict] = {}
+        self._hours_at: int | None = None
+        self.addresses: dict[str, dict] = {}
 
     # ------------------------------------------------------------ persistence
 
@@ -314,14 +501,12 @@ class Tracker:
                             self._handle_info(base_topic, parsed)
                     elif rest == "bridge/state":
                         self._handle_bridge_state(base_topic, text)
+                    elif rest == "bridge/request/permit_join":
+                        self._handle_permit_request(base_topic, text)
                     elif rest == "bridge/groups":
                         parsed = json.loads(text)
                         if isinstance(parsed, list):
-                            self.groups[base_topic] = {
-                                str(g.get("id")): g.get("friendly_name") or f"Group {g.get('id')}"
-                                for g in parsed
-                                if isinstance(g, dict)
-                            }
+                            self._handle_groups(base_topic, parsed)
                     elif rest == "bridge/health":
                         parsed = json.loads(text)
                         if isinstance(parsed, dict):
@@ -415,6 +600,9 @@ class Tracker:
                         self._add_event(now, base_topic, ieee, name, "model changed", f"{record[key]} → {value}")
                     record[key] = value
                     changed = True
+            address = _ping_address(device)
+            if address:
+                self.addresses[ieee] = address
             if self._update_bindings(base_topic, record, device, name, now, tracking_already):
                 changed = True
             record["last_listed"] = now
@@ -435,6 +623,135 @@ class Tracker:
         if self.lists_received >= set(self.base_topics):
             self.lists_ready.set()
         self._changed(structural=changed)
+
+    # ----------------------------------------------------------------- groups
+
+    def _handle_groups(self, base_topic: str, groups: list) -> None:
+        """bridge/groups: [{id, friendly_name, members: [{ieee_address, endpoint}], scenes}]."""
+        names: dict[str, str] = {}
+        members: dict[str, list[str]] = {}
+        for group in groups:
+            if not isinstance(group, dict) or group.get("id") is None:
+                continue
+            gid = str(group["id"])
+            names[gid] = group.get("friendly_name") or f"Group {gid}"
+            ieees: list[str] = []
+            for member in group.get("members") or []:
+                ieee = str((member or {}).get("ieee_address") or "").lower() if isinstance(member, dict) else ""
+                if ieee and ieee not in ieees:
+                    ieees.append(ieee)
+            members[gid] = ieees
+        previous = self.group_members.get(base_topic)
+        facts = list(self.data.get("group_left") or [])
+        # Forget facts for groups that are gone, and for members that are back in their group.
+        kept = [
+            f
+            for f in facts
+            if f.get("instance") != base_topic
+            or (f.get("group") in members and f.get("ieee") not in members[f.get("group")])
+        ]
+        if previous is not None:
+            now = _now()
+            for gid, current in members.items():
+                for ieee in previous.get(gid) or []:
+                    if ieee in current:
+                        continue
+                    kept = [
+                        f
+                        for f in kept
+                        if not (f.get("instance") == base_topic and f.get("group") == gid and f.get("ieee") == ieee)
+                    ]
+                    kept.append({"instance": base_topic, "group": gid, "ieee": ieee, "at": now})
+        kept = kept[-MAX_GROUP_LEFT:]
+        if kept != facts:
+            self.data["group_left"] = kept
+            self._changed(structural=True)
+        if names != self.groups.get(base_topic) or members != previous:
+            self.revision += 1
+        self.groups[base_topic] = names
+        self.group_members[base_topic] = members
+
+    def group_health(self, now: float) -> list[dict]:
+        """Each group with its members' state and members that left it recently (still on the network)."""
+        devices = self.data["devices"]
+        cutoff = datetime.fromtimestamp(now - GROUP_LEFT_DAYS * 86400, tz=timezone.utc).isoformat(timespec="seconds")
+        left_by: dict[tuple[str, str], list[dict]] = {}
+        for fact in self.data.get("group_left") or []:
+            record = devices.get(fact.get("ieee"))
+            # A device that left the network drops out of its groups first; only flag it once it's back.
+            if (fact.get("at") or "") < cutoff or record is None or record["status"] != STATUS_ACTIVE:
+                continue
+            left_by.setdefault((fact.get("instance"), fact.get("group")), []).append(
+                {"ieee": fact["ieee"], "name": _display_name(record) or fact["ieee"], "at": fact["at"]}
+            )
+        out = []
+        for bt in self.base_topics:
+            names = self.groups.get(bt) or {}
+            for gid, ieees in (self.group_members.get(bt) or {}).items():
+                left = left_by.get((bt, gid), [])
+                if not ieees and not left:
+                    continue
+                members = []
+                for ieee in ieees:
+                    record = devices.get(ieee) or {}
+                    offline = record.get("status") == STATUS_ACTIVE and record.get("availability") == "offline"
+                    seconds = None
+                    if offline and record.get("availability_since"):
+                        try:
+                            seconds = max(
+                                0, int(now - datetime.fromisoformat(record["availability_since"]).timestamp())
+                            )
+                        except ValueError:
+                            seconds = None
+                    members.append(
+                        {
+                            "ieee": ieee,
+                            "name": _display_name(record) or ieee,
+                            "offline": offline,
+                            "offline_seconds": seconds,
+                        }
+                    )
+                out.append(
+                    {
+                        "instance": bt,
+                        "id": gid,
+                        "name": names.get(gid) or f"Group {gid}",
+                        "members": members,
+                        "total": len(members),
+                        "offline": sum(1 for m in members if m["offline"]),
+                        "left": left,
+                    }
+                )
+        out.sort(key=lambda g: (-g["offline"], not g["left"], g["name"].lower()))
+        return out
+
+    def _group_issues(self, now: float) -> list[dict]:
+        if "group_member_offline" in set(self.options.get("disabled_checks") or []):
+            return []
+        limit = max(0, int(self.options.get("offline_alert_minutes", 60))) * 60
+        out = []
+        for group in self.group_health(now):
+            late = [m for m in group["members"] if m["offline"] and (m["offline_seconds"] or 0) >= limit]
+            if not late:
+                continue
+            names = ", ".join(m["name"] for m in late)
+            n, total = len(late), group["total"]
+            out.append(
+                {
+                    "key": f"group_member_offline:{group['instance']}:{group['id']}",
+                    "kind": "group_member_offline",
+                    "label": "Group members offline",
+                    "severity": "info",
+                    "ieee": f"group:{group['instance']}:{group['id']}",
+                    "title": "Group members offline",
+                    "detail": f"{n} of {total} member{'' if total == 1 else 's'} offline: {names}.",
+                    "msg": "group_member_offline",
+                    "params": {"n": n, "total": total, "names": names},
+                    "name": group["name"],
+                    "instance": group["instance"],
+                }
+            )
+        return out
 
     # --------------------------------------------------------------- bindings
 
@@ -660,6 +977,14 @@ class Tracker:
             pending["event"].set()
         if kind == "networkmap":
             self._ingest_networkmap(base_topic, payload)
+        elif kind == "permit_join" and payload.get("status") == "ok":
+            data = payload.get("data") or {}
+            device = data.get("device")
+            if device and _permit_opening(data):
+                for holder in (self.permit_meta.get(base_topic), self._permit_hint.get(base_topic)):
+                    if holder is not None:
+                        holder["device"] = device
+                self.revision += 1
         elif kind == "device/unbind" and payload.get("status") == "ok":
             source = str((payload.get("data") or {}).get("from") or "")
             ieee = (
@@ -893,6 +1218,31 @@ class Tracker:
         with self.lock:
             return list(self.scans.get(base_topic) or [])
 
+    def _hop_rows(self, record: dict, now: float, days: int = HOP_DAYS) -> list[dict]:
+        since = datetime.fromtimestamp(now - days * 86400, tz=timezone.utc).isoformat(timespec="seconds")
+        return parent_rows(self.scans.get(record.get("instance") or "") or [], record["ieee"], since)
+
+    def parent_history(self, ieee: str, days: int = HOP_DAYS) -> dict | None:
+        """Parent per routing scan over the last `days`, newest first, for the device panel's History tab."""
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            if record is None:
+                return None
+            rows = self._hop_rows(record, time.time(), days)
+
+            def name(parent: str) -> str:
+                return _display_name(self.data["devices"].get(parent) or {}) or parent
+
+            summary = hop_summary(rows)
+            if summary["best"]:
+                summary["best"]["name"] = name(summary["best"]["ieee"])
+            return {
+                "days": days,
+                "threshold": HOP_CHANGES,
+                "scans": [{**r, "name": name(r["ieee"])} for r in reversed(rows)],
+                **summary,
+            }
+
     def _to_utc_iso(self, value: Any) -> str | None:
         if value in (None, ""):
             return None
@@ -973,6 +1323,90 @@ class Tracker:
                 self._changed(structural=True)
             results[topic] = (result or {}).get("status", "timeout")
         return results
+
+    # ------------------------------------------------------------------- ping
+
+    def can_ping(self, record: dict) -> str | None:
+        """Why this device can't be pinged, or None if it can. Caller holds the lock."""
+        if record["status"] != STATUS_ACTIVE or not record.get("instance"):
+            return "Device is not active in Zigbee2MQTT"
+        if record.get("type") == "Coordinator":
+            return "The coordinator can't be pinged"
+        if self.is_battery_device(record):
+            return "Battery devices sleep, so they can't be pinged"
+        if record["ieee"] not in self.addresses:
+            return "Zigbee2MQTT hasn't listed this device's network address yet"
+        version = _z2m_version(
+            ((self.data.get("bridges") or {}).get(record["instance"]) or {}).get("info", {}).get("version")
+        )
+        if version is not None and version < PING_MIN_Z2M:
+            return "Ping needs Zigbee2MQTT 2.7 or newer"
+        return None
+
+    def ping(self, ieee: str) -> dict:
+        """Read genBasic zclVersion from a mains device and time the reply.
+
+        Returns {"ok": True, "ms": n}, {"ok": False, "timeout": True, ...} when the device didn't answer
+        within PING_TIMEOUT seconds, or {"ok": False, "error": ...} when it couldn't be asked at all.
+        Read-only: nothing is written to the device and Z2M's stored state isn't touched.
+        """
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            if record is None:
+                return {"ok": False, "error": "Unknown device"}
+            problem = self.can_ping(record)
+            if problem:
+                return {"ok": False, "error": problem}
+            base_topic = record["instance"]
+            address = dict(self.addresses[ieee])
+        params = {
+            "ieee_address": ieee,
+            "network_address": address["nwk"],
+            "dst_endpoint": address["ep"],
+            "cluster_key": "genBasic",
+            "zcl": {"frame_type": 0, "direction": 0, "command_key": "read", "payload": [{"attrId": 0}]},
+            "timeout": PING_TIMEOUT * 1000,
+        }
+        started = _monotonic()
+        # Z2M answers with an error once its own 10 s timeout runs out; the extra seconds cover the round trip.
+        result = self.request(
+            base_topic, "action", {"action": "raw", "params": params}, timeout=PING_TIMEOUT + PING_GRACE
+        )
+        ms = round((_monotonic() - started) * 1000)
+        if result is None:
+            return {"ok": False, "timeout": True, "seconds": PING_TIMEOUT, "detail": "No response from Zigbee2MQTT"}
+        if result.get("status") == "ok":
+            return {"ok": True, "ms": ms}
+        raw = str(result.get("error") or "")
+        if raw.startswith("Invalid") or "assert" in raw.lower():
+            return {"ok": False, "error": f"Zigbee2MQTT refused the ping: {raw[:200]}"}
+        return {"ok": False, "timeout": True, "seconds": PING_TIMEOUT, "detail": raw[:300]}
+
+    def ping_routers(self, wait: Callable[[float], Any]) -> dict[str, int]:
+        """Nightly: ping every active, online, mains router once, one at a time, and store the reply time.
+
+        `wait(seconds)` sleeps between pings and returns True to stop early (main.py passes stop_event.wait).
+        """
+        with self.lock:
+            targets = [
+                r["ieee"]
+                for r in self.data["devices"].values()
+                if r.get("type") == "Router" and r.get("availability") != "offline" and self.can_ping(r) is None
+            ]
+        counts = {"replied": 0, "no_reply": 0, "skipped": 0}
+        for index, ieee in enumerate(targets):
+            if index and wait(PING_SPACING):
+                break
+            result = self.ping(ieee)
+            if result.get("ok"):
+                self.metrics.add_ping(ieee, result["ms"])
+                counts["replied"] += 1
+            elif result.get("timeout"):
+                self.metrics.add_ping(ieee, None)
+                counts["no_reply"] += 1
+            else:
+                counts["skipped"] += 1
+        return counts
 
     # ----------------------------------------------------------------- health
 
@@ -1187,9 +1621,57 @@ class Tracker:
             return "backup_old", {"n": int(age // 86400)}
         return None
 
+    def _memory_problem(self, bridge: dict) -> dict | None:
+        if bridge.get("state") == "offline":
+            return None
+        return memory_growth(
+            bridge.get("memory_days") or [], self._today(), (bridge.get("health") or {}).get("memory_mb")
+        )
+
+    def network_hours(self, now: float) -> dict[str, dict]:
+        """Link quality by hour of day per network (Metrics.network_hours), recomputed once an hour."""
+        hour = int(now // 3600)
+        if self._hours_at == hour:
+            return self._hours
+        with self.lock:
+            members: dict[str, list[str]] = {}
+            for ieee, record in self.data["devices"].items():
+                if record.get("status") == STATUS_ACTIVE and record.get("type") != "Coordinator":
+                    members.setdefault(record.get("instance") or "", []).append(ieee)
+        out = {}
+        for bt in self.base_topics:
+            result = self.metrics.network_hours(members.get(bt, []), self.local_tz, now)
+            if result:
+                out[bt] = result
+        self._hours, self._hours_at = out, hour
+        return out
+
+    @staticmethod
+    def _dip_text(dip: dict) -> tuple[str, dict]:
+        """English detail and params for a signal_dip issue."""
+        start, end = dip["start"], (dip["start"] + dip["hours"]) % 24
+        middle = (start + dip["hours"] / 2) % 24
+        period = (
+            "mornings"
+            if 5 <= middle < 12
+            else "afternoons"
+            if 12 <= middle < 17
+            else "evenings"
+            if 17 <= middle < 22
+            else "nights"
+        )
+        params = {"n": dip["devices"], "period": period, "start": f"{start:02d}:00", "end": f"{end:02d}:00"}
+        text = (
+            f"Signal drops across {params['n']} device{'' if params['n'] == 1 else 's'} most {period}, {params['start']}–{params['end']}. "
+            "Something switches on then: Wi-Fi traffic on an overlapping channel, a microwave, "
+            "or a USB 3 device near the coordinator."
+        )
+        return text, params
+
     def _network_issues(self, now: float) -> list[dict]:
         out = []
         disabled = set(self.options.get("disabled_checks") or [])
+        hours = self.network_hours(now) if "signal_dip" not in disabled else {}
         for bt in self.base_topics:
             bridge = (self.data.get("bridges") or {}).get(bt) or {}
             label = "Main" if bt == "zigbee2mqtt" else bt.replace("zigbee2mqtt_", "").replace("_", " ").capitalize()
@@ -1231,6 +1713,27 @@ class Tracker:
                         "instance": bt,
                     }
                 )
+            if "pairing_open" not in disabled:
+                issue = self.pairing_open_issue(bt, now)
+                if issue:
+                    out.append(issue)
+            growth = None if "z2m_memory" in disabled else self._memory_problem(bridge)
+            if growth:
+                out.append(
+                    {
+                        "key": f"z2m_memory:{bt}",
+                        "kind": "z2m_memory",
+                        "label": "Memory climbing",
+                        "severity": "info",
+                        "ieee": f"network:{bt}",
+                        "title": "Zigbee2MQTT memory climbing",
+                        "detail": f"Memory up {growth['percent']} % in {growth['days']} days. Restarting Zigbee2MQTT frees it; if it keeps climbing, check its log for an extension or converter that leaks.",
+                        "msg": "z2m_memory",
+                        "params": growth,
+                        "name": f"{label} network",
+                        "instance": bt,
+                    }
+                )
             if "coordinator_backup" not in disabled:
                 problem = self._backup_problem(bt, now)
                 if problem:
@@ -1249,6 +1752,24 @@ class Tracker:
                             "instance": bt,
                         }
                     )
+            dips = (hours.get(bt) or {}).get("dips") or []
+            if dips:
+                text, params = self._dip_text(dips[0])
+                out.append(
+                    {
+                        "key": f"signal_dip:{bt}",
+                        "kind": "signal_dip",
+                        "label": "Daily signal dip",
+                        "severity": "info",
+                        "ieee": f"network:{bt}",
+                        "title": "Daily signal dip",
+                        "detail": text,
+                        "msg": "signal_dip",
+                        "params": params,
+                        "name": f"{label} network",
+                        "instance": bt,
+                    }
+                )
         return out
 
     def radio(self) -> dict:
@@ -1351,11 +1872,15 @@ class Tracker:
             if event.get("kind") == "left":
                 leaves[event["ieee"]] = leaves.get(event["ieee"], 0) + 1
         spof = {item["ieee"]: item for bt in self.base_topics for item in self.single_points(bt)}
+        bridges = self.data.get("bridges") or {}
+        down = {bt for bt, bridge in bridges.items() if (bridge or {}).get("state") == "offline"}
         out: dict[str, dict] = {}
         for ieee, record in self.data["devices"].items():
             extra: dict[str, Any] = {
                 "outages_24h": sum(1 for o in record.get("outages") or [] if (o.get("start") or "") >= day_ago),
                 "leaves_24h": leaves.get(ieee, 0),
+                "started": self.started,
+                "network_down": record.get("instance") in down,
             }
             parent = (record.get("routing") or {}).get("parent") or {}
             if parent.get("ieee"):
@@ -1365,6 +1890,10 @@ class Tracker:
                 }
             if ieee in spof:
                 extra["single_point"] = spof[ieee]
+            # Only end devices pick a parent to route through; a router's tree parent is just
+            # whoever let it join and says little about how its traffic flows.
+            if record.get("type") == "EndDevice":
+                extra["router_hops"] = hop_summary(self._hop_rows(record, now))
             out[ieee] = extra
         return out
 
@@ -1381,14 +1910,52 @@ class Tracker:
                     issue["name"] = _display_name(record) or record["ieee"]
                     issue["instance"] = record["instance"]
                     issues.append(issue)
+            group_router_outages(issues, self.data["devices"], self.options, now)
             issues.extend(self._network_issues(now))
+            issues.extend(self._group_issues(now))
             order = {"warning": 0, "info": 1}
             issues.sort(key=lambda i: (order.get(i["severity"], 2), i["name"].lower()))
-            changed = [i["key"] for i in issues] != [i["key"] for i in self.issues]
+
+            def shape(items: list[dict]) -> list:
+                return [(i["key"], i.get("behind"), i.get("devices")) for i in items]
+
+            changed = shape(issues) != shape(self.issues)
             self.issues = issues
             if changed:
                 self.revision += 1
         return issues, changed
+
+    # ------------------------------------------------------ leftovers in HA
+
+    def leftover_context(self) -> tuple[bool, dict[str, dict]]:
+        """What the tracker knows about each IEEE, for ha.find_leftovers.
+
+        Not ready until every tracked network has sent its device list since the
+        app started: before that, every device would look unknown."""
+        with self.lock:
+            ready = self.lists_received >= set(self.base_topics)
+            devices = self.data["devices"]
+            known = {}
+            for ieee, record in devices.items():
+                successor = record.get("successor")
+                known[ieee] = {
+                    "active": record["status"] == STATUS_ACTIVE,
+                    "name": _display_name(record),
+                    "removed_at": record.get("removed_at"),
+                    "successor": {
+                        "ieee": successor,
+                        "name": _display_name(devices.get(successor) or {}) or successor,
+                    }
+                    if successor
+                    else None,
+                }
+            return ready, known
+
+    def set_ha_leftovers(self, leftovers: list[dict]) -> None:
+        with self.lock:
+            if leftovers != self.ha_leftovers:
+                self.ha_leftovers = leftovers
+                self.revision += 1
 
     # ----------------------------------------------------------------- public
 
@@ -1414,6 +1981,11 @@ class Tracker:
                 item["issues"] = issues_by_device.get(ieee, [])
                 item["battery_record"] = self.battery_summary(record) if self.is_battery_device(record) else None
                 item["suggestions"] = suggestions.get(ieee, [])
+                bridge_info = (self.data.get("bridges") or {}).get(record.get("instance")) or {}
+                item["offline_timing"] = offline_timing(
+                    record, (bridge_info.get("info") or {}).get("availability"), self.options, now
+                )
+                item["can_ping"] = self.can_ping(record) is None
                 devices.append(item)
             payload = {
                 "devices": devices,
@@ -1424,15 +1996,20 @@ class Tracker:
                 "networkmap": self.data.get("networkmap") or {},
                 "permit": self.permit,
                 "battery_shopping": self.battery_shopping(60),
+                "ha_leftovers": self.ha_leftovers,
+                "battery_stock": dict(self.data.get("battery_stock") or {}),
                 "bridges": self.data.get("bridges") or {},
                 "radio": self.radio(),
+                "network_hours": self.network_hours(now),
                 "single_points": {bt: self.single_points(bt) for bt in self.base_topics},
                 "backups": self._backups,
                 "groups": self.groups,
+                "group_health": self.group_health(now),
                 "scan_times": {bt: [x["at"] for x in self.scans.get(bt) or []] for bt in self.base_topics},
                 "pairing": {bt: {**s, "joined": list(s["joined"])} for bt, s in self.pairing_sessions.items()},
                 "panels": self.options.get("_panels", {}),
                 "options": {k: v for k, v in self.options.items() if not k.startswith("_")},
+                "alerts_paused": self.alert_pause_state(),
                 "version": self.version,
             }
             return json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -1470,6 +2047,7 @@ class Tracker:
             "area",
             "ha_name",
             *ASSET_FIELDS,
+            "critical",
             "note",
         ]
         writer.writerow(columns)
@@ -1518,6 +2096,7 @@ class Tracker:
                         record.get("area") or "",
                         record.get("ha_name") or "",
                         *[asset.get(field, "") for field in ASSET_FIELDS],
+                        "yes" if record.get("critical") else "",
                         record.get("note") or "",
                     ]
                 )
@@ -1551,6 +2130,7 @@ class Tracker:
         if replacements and replacements[-1].get("date") == date and source == "Detected":
             return replacements[-1]
         replacements.append(entry)
+        self._take_from_stock(record, entry)
         replacements.sort(key=lambda r: r.get("date") or "")
         del replacements[: max(0, len(replacements) - 50)]
         self._add_event(
@@ -1562,6 +2142,89 @@ class Tracker:
             f"{date}{f' · {note}' if note else ''} ({source.lower()})",
         )
         return entry
+
+    def _stock_key(self, btype: str) -> str | None:
+        """The stock entry for a battery type, matched without regard to case. None when it isn't stocked."""
+        wanted = (btype or "").strip().casefold()
+        if not wanted:
+            return None
+        for key in self.data.get("battery_stock") or {}:
+            if key.casefold() == wanted:
+                return key
+        return None
+
+    def _take_from_stock(self, record: dict, entry: dict) -> None:
+        """Take one change's batteries from stock, once per change, never below zero."""
+        info = self.battery_summary(record)
+        key = self._stock_key(info["type"])
+        if key is None:
+            return
+        try:
+            day = date_cls.fromisoformat(str(entry.get("date"))[:10])
+        except ValueError:
+            return
+        today = datetime.fromtimestamp(time.time(), tz=self.local_tz).date()
+        if (today - day).days > STOCK_WINDOW_DAYS:
+            return
+        for other in (record.get("battery_info") or {}).get("replacements") or []:
+            if other is entry or "stock_used" not in other:
+                continue
+            try:
+                other_day = date_cls.fromisoformat(str(other.get("date"))[:10])
+            except ValueError:
+                continue
+            if abs((other_day - day).days) <= STOCK_WINDOW_DAYS:
+                return
+        stock = self.data["battery_stock"]
+        used = min(int(stock.get(key) or 0), int(info["quantity"] or 1))
+        stock[key] = int(stock.get(key) or 0) - used
+        entry["stock_used"] = used
+        entry["stock_type"] = key
+
+    def _known_battery_type(self, name: str) -> str | None:
+        """A device's spelling of this battery type ("aaa" -> "AAA"), so new stock matches the shopping list."""
+        wanted = name.casefold()
+        for record in self.data["devices"].values():
+            if self.is_battery_device(record):
+                btype = self.battery_summary(record)["type"]
+                if btype and btype.casefold() == wanted:
+                    return btype
+        return None
+
+    def set_battery_stock(self, btype: str, count: Any = None, delta: Any = None) -> dict:
+        """Set the spare count for a battery type (`count`), or add to it (`delta`, may be negative)."""
+        name = str(btype or "").strip()[:40]
+        if not name or name.casefold() == UNKNOWN_BATTERY_TYPE.casefold():
+            return {"ok": False, "error": "Give a battery type, for example CR2032"}
+
+        def whole(value: Any) -> int | None:
+            if isinstance(value, bool):
+                return None
+            try:
+                number = float(value)
+            except (TypeError, ValueError):
+                return None
+            return int(number) if number == int(number) else None
+
+        with self.lock:
+            stock = self.data.setdefault("battery_stock", {})
+            key = self._stock_key(name) or self._known_battery_type(name) or name
+            current = int(stock.get(key) or 0)
+            if count is not None:
+                value = whole(count)
+                if value is None:
+                    return {"ok": False, "error": "Count must be a whole number"}
+                new = value
+            elif delta is not None:
+                step = whole(delta)
+                if step is None:
+                    return {"ok": False, "error": "Change must be a whole number"}
+                new = current + step
+            else:
+                return {"ok": False, "error": "Give a count or a change"}
+            stock[key] = max(0, min(MAX_STOCK, new))
+            self._changed(structural=True)
+            return {"ok": True, "type": key, "count": stock[key]}
 
     def set_battery_info(self, ieee: str, values: dict) -> bool:
         with self.lock:
@@ -1597,7 +2260,14 @@ class Tracker:
             replacements = ((record or {}).get("battery_info") or {}).get("replacements") or []
             if not 0 <= index < len(replacements):
                 return False
-            replacements.pop(index)
+            removed = replacements.pop(index)
+            used = removed.get("stock_used")
+            if isinstance(used, int) and used > 0:
+                # Undo a change recorded by mistake: its batteries go back in the drawer.
+                stock = self.data.setdefault("battery_stock", {})
+                key = self._stock_key(str(removed.get("stock_type") or "")) or str(removed.get("stock_type") or "")
+                if key:
+                    stock[key] = min(MAX_STOCK, int(stock.get(key) or 0) + used)
             self._changed(structural=True)
             return True
 
@@ -1640,6 +2310,52 @@ class Tracker:
             or record["ieee"] in self.ha_battery
         )
 
+    def set_report_every(self, ieee: str, seconds: int | None) -> bool:
+        """Per-device "should report at least every" interval in seconds; None or 0 turns it off."""
+        return not self.set_report_every_many([{"ieee": ieee, "seconds": seconds}])["errors"]
+
+    def set_report_every_many(self, items: list) -> dict:
+        """Set or clear the report interval for several devices, with one health run at the end.
+
+        Each item is {"ieee", "seconds"}; seconds None or 0 turns it off. Valid items are applied,
+        invalid ones are listed in "errors" as {"ieee", "error"}.
+        """
+        applied = 0
+        errors: list[dict] = []
+        with self.lock:
+            for item in items:
+                item = item if isinstance(item, dict) else {}
+                ieee, seconds = str(item.get("ieee") or ""), item.get("seconds")
+                record = self.data["devices"].get(ieee)
+                if record is None:
+                    errors.append({"ieee": ieee, "error": "unknown device"})
+                elif seconds is not None and (isinstance(seconds, bool) or not isinstance(seconds, (int, float))):
+                    errors.append({"ieee": ieee, "error": "seconds must be a number"})
+                elif seconds and not REPORT_EVERY_MIN <= seconds <= REPORT_EVERY_MAX:
+                    errors.append({"ieee": ieee, "error": f"seconds must be {REPORT_EVERY_MIN} to {REPORT_EVERY_MAX}"})
+                else:
+                    if seconds:
+                        record["report_every"] = int(seconds)
+                    else:
+                        record.pop("report_every", None)
+                    applied += 1
+            if applied:
+                self._changed(structural=True)
+        if applied:
+            self.evaluate_health()
+        return {"ok": not errors, "applied": applied, "errors": errors}
+
+    def late_due(self, now: float) -> bool:
+        """True once for each device that passes its report interval, so health runs then, not up to 60 s later."""
+        due = False
+        with self.lock:
+            for ieee, record in self.data["devices"].items():
+                deadline = late_deadline(record, self.started)
+                if deadline is not None and now >= deadline and self._late_checked.get(ieee) != deadline:
+                    self._late_checked[ieee] = deadline
+                    due = True
+        return due
+
     def set_muted(self, ieee: str, kind: str, muted: bool, days: float | None = None) -> bool:
         with self.lock:
             record = self.data["devices"].get(ieee)
@@ -1659,6 +2375,264 @@ class Tracker:
             self._changed(structural=True)
         self.evaluate_health()
         return True
+
+    # ------------------------------------------------------------ alert pause
+
+    def pause_alerts(self, minutes: Any = None, until: Any = None, at: Any = None) -> dict:
+        """Hold every alert for `minutes`, until an ISO time, or until the next HH:MM local time.
+
+        With none of them the pause lasts until resume_alerts(). Raises ValueError for bad input.
+        """
+        now = time.time()
+        if minutes is not None:
+            if isinstance(minutes, bool) or not isinstance(minutes, (int, float)):
+                raise ValueError("minutes must be a number")
+            if not 1 <= minutes <= MAX_PAUSE_MINUTES:
+                raise ValueError(f"minutes must be from 1 to {MAX_PAUSE_MINUTES}")
+            end: float | None = now + float(minutes) * 60
+        elif until not in (None, ""):
+            iso = self._to_utc_iso(str(until))
+            if iso is None:
+                raise ValueError("until must be a date and time like 2026-11-14T08:00")
+            end = datetime.fromisoformat(iso).timestamp()
+            if end <= now:
+                raise ValueError("until must be in the future")
+        elif at not in (None, ""):
+            match = re.fullmatch(r"([01]?\d|2[0-3]):([0-5]\d)", str(at).strip())
+            if not match:
+                raise ValueError("at must be a time like 08:00")
+            day = datetime.fromtimestamp(now, tz=self.local_tz).date()
+            wall = dtime(int(match[1]), int(match[2]))
+            end = datetime.combine(day, wall, tzinfo=self.local_tz).timestamp()
+            if end <= now:
+                end = datetime.combine(day + timedelta(days=1), wall, tzinfo=self.local_tz).timestamp()
+        else:
+            end = None
+        with self.lock:
+            since = (self.data.get("alerts_paused") or {}).get("since") if self.alerts_paused() else None
+            self.data["alerts_paused"] = {
+                "since": since or datetime.fromtimestamp(now, tz=timezone.utc).isoformat(timespec="seconds"),
+                "until": datetime.fromtimestamp(end, tz=timezone.utc).isoformat(timespec="seconds") if end else None,
+            }
+            self._changed(structural=True)
+            state = self.alert_pause_state()
+        if end is None:
+            _LOGGER.info("Alerts paused until resumed")
+        else:
+            _LOGGER.info(
+                "Alerts paused until %s", datetime.fromtimestamp(end, tz=self.local_tz).strftime("%Y-%m-%d %H:%M")
+            )
+        return state
+
+    def resume_alerts(self) -> bool:
+        """End a pause now. Returns False when alerts weren't paused."""
+        with self.lock:
+            if not self.alerts_paused():
+                return False
+            self.data["alerts_paused"] = None
+            self._changed(structural=True)
+        _LOGGER.info("Alerts resumed")
+        return True
+
+    def alerts_paused(self) -> bool:
+        """True while a pause is running. A pause whose time has passed is cleared here."""
+        with self.lock:
+            pause = self.data.get("alerts_paused")
+            if not pause:
+                return False
+            until = pause.get("until")
+            try:
+                if until is None or datetime.fromisoformat(until).timestamp() > time.time():
+                    return True
+            except (TypeError, ValueError):
+                pass
+            self.data["alerts_paused"] = None
+            self._changed(structural=True)
+        _LOGGER.info("Alert pause ended")
+        return False
+
+    def alert_pause_state(self) -> dict | None:
+        """The running pause for the UI, with how many issues will be sent when it ends."""
+        with self.lock:
+            if not self.alerts_paused():
+                return None
+            pause = self.data["alerts_paused"]
+            pending = 0
+            if self.data.get("alerts_initialised"):
+                enabled = notify_kinds(self.options)
+                sent = set(self.data.get("alerted") or [])
+                pending = sum(1 for i in self.issues if i["kind"] in enabled and i["key"] not in sent)
+            return {"since": pause.get("since"), "until": pause.get("until"), "pending": pending}
+
+    def set_critical(self, ieee: str, critical: bool) -> bool:
+        """Mark a device as critical (shorter offline delay, high-priority alerts) or clear the mark."""
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            if record is None:
+                return False
+            if critical:
+                record["critical"] = True
+            else:
+                record.pop("critical", None)
+            self._changed(structural=True)
+        self.evaluate_health()
+        return True
+
+    def is_critical(self, ieee: str) -> bool:
+        with self.lock:
+            return bool((self.data["devices"].get(ieee) or {}).get("critical"))
+
+    # ---------------------------------------------------------------- alerts
+
+    def in_quiet_hours(self, now: float | None = None) -> bool:
+        """True inside the quiet_start-quiet_end window (local time, may cross midnight)."""
+        if not self.options.get("quiet_hours"):
+            return False
+        start = _clock_minutes(self.options.get("quiet_start", "23:00"))
+        end = _clock_minutes(self.options.get("quiet_end", "07:00"))
+        if start is None or end is None or start == end:
+            return False
+        local = datetime.fromtimestamp(time.time() if now is None else now, tz=self.local_tz)
+        minute = local.hour * 60 + local.minute
+        return start <= minute < end if start < end else minute >= start or minute < end
+
+    def _quiet_state(self, now: float) -> dict:
+        quiet = self.data.get("quiet")
+        if not isinstance(quiet, dict):
+            quiet = {"since": datetime.fromtimestamp(now, tz=timezone.utc).isoformat(timespec="seconds")}
+        quiet.setdefault("issues", {})
+        quiet.setdefault("events", [])
+        self.data["quiet"] = quiet
+        return quiet
+
+    def hold_event(self, title: str, message: str) -> bool:
+        """Keep a join/leave/interview alert for the digest when it's quiet hours. False: send it now."""
+        now = time.time()
+        with self.lock:
+            if not self.in_quiet_hours(now):
+                return False
+            quiet = self._quiet_state(now)
+            quiet["events"] = [
+                *quiet["events"],
+                {
+                    "time": datetime.fromtimestamp(now, tz=timezone.utc).isoformat(timespec="seconds"),
+                    "title": title,
+                    "message": message,
+                },
+            ][-MAX_HELD_EVENTS:]
+            self.dirty = True
+        return True
+
+    def plan_alerts(self, issues: list[dict], enabled: set[str]) -> dict:
+        """Decide what one alert check sends and updates the record of what was sent.
+
+        Returns {"send": [issues to alert now], "dismiss": [keys that cleared], "digest": (title, message) | None,
+        "first": True on the very first check, when existing issues are only recorded}.
+        During quiet hours new issues are held (critical devices excepted); the first check after quiet hours
+        sends one digest instead of the held alerts.
+        """
+        now = time.time()
+        stamp = datetime.fromtimestamp(now, tz=timezone.utc).isoformat(timespec="seconds")
+        current = {issue["key"]: issue for issue in issues if issue["kind"] in enabled}
+        with self.lock:
+            initialised = self.data.get("alerts_initialised")
+            sent = set(self.data.get("alerted") or [])
+            self.data["alerts_initialised"] = True
+            self.dirty = True
+            if not enabled:
+                # Alerts are off: nothing to hold, nothing to report later.
+                self.data["quiet"] = None
+            if not initialised:
+                self.data["alerted"] = sorted(current)
+                return {"send": [], "dismiss": [], "digest": None, "first": True}
+            # Devices behind an offline router never alert on their own: the router's alert covers them.
+            behind = {key for key, issue in current.items() if issue.get("behind")}
+            new = [current[key] for key in sorted(set(current) - behind - sent)]
+            dismiss = sorted(sent - set(current))
+            urgent = [issue for issue in new if issue.get("critical")]
+            if enabled and self.in_quiet_hours(now):
+                held = self._quiet_state(now)["issues"]
+                for issue in new:
+                    if issue.get("critical"):
+                        held.pop(issue["key"], None)
+                        continue
+                    entry = held.setdefault(issue["key"], {"first": stamp})
+                    entry.pop("cleared", None)
+                    entry.update(name=issue["name"], label=issue["label"], detail=issue["detail"])
+                for key, entry in held.items():
+                    if key not in current and "cleared" not in entry:
+                        entry["cleared"] = stamp
+                self.data["alerted"] = sorted((sent & set(current)) | {issue["key"] for issue in urgent})
+                return {"send": urgent, "dismiss": dismiss, "digest": None, "first": False}
+            digest = None
+            send = new
+            if self.data.get("quiet"):
+                # Quiet hours are over: one digest, and what's still open counts as alerted.
+                digest = self._digest(self.data["quiet"], [i for i in new if not i.get("critical")], current)
+                self.data["quiet"] = None
+                send = urgent
+            self.data["alerted"] = sorted((set(current) - behind) | (behind & sent))
+            return {"send": send, "dismiss": dismiss, "digest": digest, "first": False}
+
+    def _digest(self, quiet: dict, still_open: list[dict], current: dict) -> tuple[str, str] | None:
+        held = quiet.get("issues") or {}
+        resolved = sorted(
+            (entry for key, entry in held.items() if key not in current and entry.get("cleared")),
+            key=lambda entry: entry["first"],
+        )
+        events = quiet.get("events") or []
+        if not still_open and not resolved and not events:
+            return None
+
+        def clock(iso: str) -> str:
+            try:
+                return datetime.fromisoformat(iso).astimezone(self.local_tz).strftime("%H:%M")
+            except (TypeError, ValueError):
+                return "?"
+
+        def section(heading: str, lines: list[str]) -> list[str]:
+            if not lines:
+                return []
+            more = len(lines) - DIGEST_LINES
+            return [heading, *(f"- {line}" for line in lines[:DIGEST_LINES])] + (
+                [f"- and {more} more"] if more > 0 else []
+            )
+
+        open_lines = []
+        for issue in still_open:
+            since = held.get(issue["key"], {}).get("first")
+            when = f" (since {clock(since)})" if since else ""
+            open_lines.append(f"{issue['name']} - {issue['label']}{when}: {_first_sentence(issue['detail'])}")
+        resolved_lines = [
+            f"{entry['name']} - {entry['label']} ({clock(entry['first'])}-{clock(entry['cleared'])})"
+            for entry in resolved
+        ]
+        event_lines = [f"{clock(e.get('time'))} {e.get('title')}: {_first_sentence(e.get('message'))}" for e in events]
+        n, m = len(still_open), len(resolved)
+        title = f"Zigbee overnight: {n} issue{'s' if n != 1 else ''}, {m} resolved"
+        body = [
+            *section("Still open:", open_lines),
+            *section("Resolved:", resolved_lines),
+            *section("Held alerts:", event_lines),
+        ]
+        return title, "\n".join(body)
+
+    def set_limits(self, ieee: str, changes: dict) -> dict:
+        """Set or clear the device's own battery/frozen limits. Only keys in `changes` are touched."""
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            if record is None:
+                return {"ok": False, "error": "Unknown device"}
+            limits, error = clean_limits(record.get("limits") or {}, changes)
+            if error:
+                return {"ok": False, "error": error}
+            if limits:
+                record["limits"] = limits
+            else:
+                record.pop("limits", None)
+            self._changed(structural=True)
+        self.evaluate_health()
+        return {"ok": True, "limits": limits}
 
     # ------------------------------------------------------------ Z2M actions
 
@@ -1726,15 +2700,23 @@ class Tracker:
                 if not isinstance(uptime, (int, float))
                 else datetime.fromtimestamp(time.time() - uptime, tz=timezone.utc).isoformat(timespec="minutes"),
             }
+        mqtt = health.get("mqtt") or {}
+        memory = process.get("memory_used_mb")
         bridge["health"] = {
             "uptime_sec": uptime,
-            "memory_mb": process.get("memory_used_mb"),
-            "mqtt_connected": (health.get("mqtt") or {}).get("connected"),
-            "mqtt_published": (health.get("mqtt") or {}).get("published"),
+            "memory_mb": memory,
+            "mqtt_connected": mqtt.get("connected"),
+            "mqtt_published": mqtt.get("published"),
+            "mqtt_received": mqtt.get("received"),
             "os_load": ((health.get("os") or {}).get("load_average") or [None])[0],
             "updated": _now(),
         }
+        if isinstance(memory, (int, float)) and not isinstance(memory, bool) and memory > 0:
+            bridge["memory_days"] = record_memory(bridge.get("memory_days") or [], self._today(), round(memory, 1))
         self.dirty = True
+
+    def _today(self) -> date:
+        return datetime.fromtimestamp(time.time(), tz=self.local_tz).date()
 
     def _handle_info(self, base_topic: str, info: dict) -> None:
         coordinator = info.get("coordinator") or {}
@@ -1750,6 +2732,10 @@ class Tracker:
             "channel": network.get("channel"),
             "pan_id": network.get("pan_id"),
             "restart_required": bool(info.get("restart_required")),
+            # Only Z2M's availability settings, not its whole config, to keep history.json small.
+            "availability": z2m_availability(info),
+            # Connection, adapter, versions etc. for the Coordinators card: a few display fields, no secrets.
+            **z2m_setup(info),
         }
         bridge = self._bridge(base_topic)
         if bridge.get("info") != slim:
@@ -1766,20 +2752,120 @@ class Tracker:
             bridge["info"] = slim
             self._changed(structural=True)
         on = bool(info.get("permit_join"))
+        # Z2M 2.x: permit_join_end is an epoch in ms. 1.x: permit_join_timeout is seconds left.
         end = info.get("permit_join_end") or info.get("permit_join_timeout")
         end_iso = None
-        if isinstance(end, (int, float)) and end > 1e11:
-            end_iso = datetime.fromtimestamp(end / 1000, tz=timezone.utc).isoformat(timespec="seconds")
+        if isinstance(end, (int, float)) and not isinstance(end, bool) and end > 0:
+            end_ts = end / 1000 if end > 1e11 else time.time() + end
+            end_iso = datetime.fromtimestamp(end_ts, tz=timezone.utc).isoformat(timespec="seconds")
         state = {"on": on, "end": end_iso}
-        if self.permit.get(base_topic) != state:
+        previous = self.permit.get(base_topic)
+        if on and base_topic not in self.permit_meta:
+            self._permit_opened(base_topic, known_closed=previous is not None and not previous.get("on"))
+        elif not on:
+            self.permit_meta.pop(base_topic, None)
+            self._permit_hint.pop(base_topic, None)
+        if previous != state:
             self.permit[base_topic] = state
             if not on and base_topic in self.pairing_sessions:
                 self.pairing_sessions[base_topic]["active"] = False
             self.revision += 1
 
+    def _handle_permit_request(self, base_topic: str, text: str) -> None:
+        """Someone published bridge/request/permit_join. Remember it if it opens pairing and isn't ours."""
+        try:
+            payload = json.loads(text)
+        except ValueError:
+            payload = text
+        transaction = str(payload.get("transaction") or "") if isinstance(payload, dict) else ""
+        if transaction in self._pending or transaction.startswith("z2mt-") or not _permit_opening(payload):
+            return
+        device = payload.get("device") if isinstance(payload, dict) else None
+        self._permit_hint[base_topic] = {"origin": "mqtt", "at": time.time(), "device": device}
+
+    def _permit_opened(self, base_topic: str, known_closed: bool) -> None:
+        """Z2M reports pairing open and we hadn't seen it open: work out what opened it."""
+        hint = self._permit_hint.pop(base_topic, None)
+        if hint and time.time() - hint["at"] <= PERMIT_HINT_SECONDS:
+            origin, device = hint["origin"], hint.get("device")
+        else:
+            # Closed a moment ago and no MQTT request: the frontend (it talks to Z2M over its websocket).
+            # Open when we first hear from Z2M: we can't tell who opened it.
+            origin, device = ("frontend" if known_closed else None), None
+        self.permit_meta[base_topic] = {"since": time.time(), "origin": origin, "device": device}
+
+    def _z2m_major(self, base_topic: str) -> int | None:
+        version = str((self._bridge(base_topic).get("info") or {}).get("version") or "")
+        match = re.match(r"(\d+)\.", version)
+        return int(match.group(1)) if match else None
+
+    def permit_payload(self, base_topic: str, seconds: int) -> dict[str, Any]:
+        """bridge/request/permit_join payload: 1.x wants {"value": bool, "time"}, 2.x only {"time"} (0 closes)."""
+        if self._z2m_major(base_topic) == 1:
+            return {"value": True, "time": seconds} if seconds else {"value": False}
+        return {"time": seconds}
+
+    def pairing_open_issue(self, base_topic: str, now: float) -> dict | None:
+        """The pairing_open network issue, or None while pairing is closed or only briefly open by us."""
+        permit = self.permit.get(base_topic) or {}
+        meta = self.permit_meta.get(base_topic)
+        if not permit.get("on") or meta is None:
+            return None
+        age = max(0.0, now - meta["since"])
+        origin = meta.get("origin")
+        if age < PAIRING_OPEN_ALERT and origin in ("app", None):
+            return None
+        mins = max(1, round(age / 60))
+        left = None
+        if permit.get("end"):
+            try:
+                left = datetime.fromisoformat(permit["end"]).timestamp() - now
+            except ValueError:
+                left = None
+            if left is not None and left <= 0:
+                left = None
+        label = (
+            "Main"
+            if base_topic == "zigbee2mqtt"
+            else base_topic.replace("zigbee2mqtt_", "").replace("_", " ").capitalize()
+        )
+        parts = [f"Open for {mins} min"]
+        if origin in PERMIT_ORIGIN_TEXT:
+            parts.append(PERMIT_ORIGIN_TEXT[origin])
+        if meta.get("device"):
+            parts.append(f"only through {meta['device']}")
+        if left is not None:
+            parts.append(f"closes by itself in {max(1, round(left / 60))} min")
+        accepted = (
+            f"has accepted new devices for {mins} minute{'' if mins == 1 else 's'}"
+            if age >= 60
+            else "is accepting new devices"
+        )
+        return {
+            "key": f"pairing_open:{base_topic}",
+            "kind": "pairing_open",
+            "label": "Pairing open",
+            "severity": "warning",
+            "ieee": f"network:{base_topic}",
+            "title": "Pairing open",
+            "detail": " · ".join(parts),
+            "msg": "pairing_open",
+            "params": {
+                "seconds": int(age),
+                "origin": origin,
+                "device": meta.get("device"),
+                "left": int(left) if left is not None else None,
+            },
+            "notify_title": "Zigbee pairing still open",
+            "notify_message": f"{label} network {accepted}. Close it if you're not pairing anything.",
+            "name": f"{label} network",
+            "instance": base_topic,
+        }
+
     def start_pairing(self, base_topic: str, seconds: int, via: str | None = None, target: str | None = None) -> dict:
         seconds = max(0, min(254, int(seconds)))
-        payload: dict[str, Any] = {"time": seconds}
+        with self.lock:
+            payload = self.permit_payload(base_topic, seconds)
         via_name = None
         if via and seconds:
             with self.lock:
@@ -1795,6 +2881,9 @@ class Tracker:
                     "Coordinator" if router.get("type") == "Coordinator" else via
                 )
             payload["device"] = "Coordinator" if router.get("type") == "Coordinator" else via_name
+        if seconds:
+            with self.lock:
+                self._permit_hint[base_topic] = {"origin": "app", "at": time.time(), "device": payload.get("device")}
         result = self.request(base_topic, "permit_join", payload, timeout=15)
         ok = bool(result and result.get("status") == "ok")
         with self.lock:
@@ -1811,10 +2900,14 @@ class Tracker:
                 }
                 end = datetime.fromtimestamp(time.time() + seconds, tz=timezone.utc).isoformat(timespec="seconds")
                 self.permit[base_topic] = {"on": True, "end": end}
+                self.permit_meta[base_topic] = {"since": time.time(), "origin": "app", "device": payload.get("device")}
+                self._permit_hint.pop(base_topic, None)
             elif ok:
                 if base_topic in self.pairing_sessions:
                     self.pairing_sessions[base_topic]["active"] = False
                 self.permit[base_topic] = {"on": False, "end": None}
+                self.permit_meta.pop(base_topic, None)
+                self._permit_hint.pop(base_topic, None)
             self.revision += 1
         return {"ok": ok, "error": None if ok else friendly_z2m_error((result or {}).get("error") or "No response")}
 
@@ -1904,7 +2997,11 @@ class Tracker:
         return reading is None or last_marked >= reading
 
     def battery_shopping(self, days: int = 60) -> list[dict]:
-        """Batteries needed soon, grouped by type."""
+        """Batteries needed soon, grouped by type, against the spares in stock.
+
+        Each group has `count` (needed), `stock` and `to_buy`. `stock` and `to_buy` are None
+        for a type whose stock was never entered.
+        """
         now = time.time()
         groups: dict[str, dict] = {}
         with self.lock:
@@ -1919,11 +3016,12 @@ class Tracker:
                     (est is not None and est <= days)
                     or record.get("battery_low") is True
                     or (isinstance(level, (int, float)) and level <= 25 and est is None)
+                    or (isinstance(level, (int, float)) and level <= limit_of(record, self.options, "battery_percent"))
                 )
                 if not due:
                     continue
                 info = self.battery_summary(record)
-                key = info["type"] or "Unknown type"
+                key = info["type"] or UNKNOWN_BATTERY_TYPE
                 group = groups.setdefault(key, {"type": key, "count": 0, "devices": []})
                 group["count"] += int(info["quantity"] or 1)
                 group["devices"].append(
@@ -1935,6 +3033,11 @@ class Tracker:
                         "quantity": info["quantity"] or 1,
                     }
                 )
+            stock = self.data.get("battery_stock") or {}
+            for group in groups.values():
+                stock_key = self._stock_key(group["type"]) if group["type"] != UNKNOWN_BATTERY_TYPE else None
+                group["stock"] = int(stock[stock_key]) if stock_key else None
+                group["to_buy"] = max(0, group["count"] - group["stock"]) if stock_key else None
         for group in groups.values():
             group["devices"].sort(
                 key=lambda d: (
@@ -1942,7 +3045,7 @@ class Tracker:
                     d["battery"] if d["battery"] is not None else 101,
                 )
             )
-        return sorted(groups.values(), key=lambda g: (g["type"] == "Unknown type", -g["count"]))
+        return sorted(groups.values(), key=lambda g: (g["type"] == UNKNOWN_BATTERY_TYPE, -g["count"]))
 
     def backup(self) -> bytes:
         with self.lock, self.metrics.lock:
@@ -1964,6 +3067,10 @@ class Tracker:
         if not isinstance(history.get("devices"), dict):
             return {"ok": False, "error": "The backup has no device list"}
         with self.lock:
+            # A pause is about now, not about when the backup was made.
+            paused = self.data.get("alerts_paused")
+            # Held quiet-hours alerts are about now, not about when the backup was made.
+            quiet = self.data.get("quiet")
             self.data = {
                 "devices": {},
                 "events": list(history.get("events") or []),
@@ -1974,6 +3081,10 @@ class Tracker:
             for key, value in history.items():
                 if key not in ("devices", "events", "imported", "networkmap", "alerted"):
                     self.data[key] = value
+            self.data.pop("alerts_paused", None)
+            if paused:
+                self.data["alerts_paused"] = paused
+            self.data["quiet"] = quiet
             for ieee, record in history["devices"].items():
                 self.data["devices"][ieee] = {**_new_record(ieee, record.get("instance")), **record}
             self.names = {}
@@ -2189,7 +3300,7 @@ class Tracker:
         return {"ok": not failed, "done": done, "failed": failed, "skipped": skipped}
 
     def carry_over(self, old_ieee: str, new_ieee: str, notes: bool, battery: bool) -> list[str]:
-        """Copy notes, asset details and the battery record from the old record. Returns what was copied."""
+        """Copy notes, asset details, the battery record and the critical mark. Returns what was copied."""
         copied = []
         with self.lock:
             old = self.data["devices"].get(old_ieee)
@@ -2207,8 +3318,16 @@ class Tracker:
                     copied.append("asset")
             if battery and old.get("battery_info"):
                 info = json.loads(json.dumps(old["battery_info"]))
+                for entry in info.get("replacements") or []:
+                    # The old device's changes already took from stock; removing the copy mustn't refund it.
+                    entry.pop("stock_used", None)
+                    entry.pop("stock_type", None)
                 new["battery_info"] = {**(new.get("battery_info") or {}), **info}
                 copied.append("battery")
+            if old.get("critical"):
+                # The replacement does the same job, so it stays critical.
+                new["critical"] = True
+                copied.append("critical")
             self._changed(structural=True)
         return copied
 
@@ -2235,3 +3354,20 @@ class Tracker:
             self._changed(structural=True)
         self.evaluate_health()
         return True
+
+
+def shopping_text(groups: list[dict], days: int = 60) -> str:
+    """One line for the weekly summary. Says "to buy" for types with stock entered, "needed" otherwise."""
+    if not groups:
+        return ""
+    if all(g.get("stock") is None for g in groups):
+        return f"Batteries for the next {days} days: " + ", ".join(f"{g['count']}× {g['type']}" for g in groups) + "."
+    parts = []
+    for g in groups:
+        if g.get("stock") is None:
+            parts.append(f"{g['count']}× {g['type']} needed")
+        elif g["to_buy"]:
+            parts.append(f"{g['to_buy']}× {g['type']} to buy ({g['stock']} in stock)")
+        else:
+            parts.append(f"{g['type']} covered by stock")
+    return f"Batteries for the next {days} days: " + ", ".join(parts) + "."

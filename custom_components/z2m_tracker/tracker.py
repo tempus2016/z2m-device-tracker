@@ -26,6 +26,9 @@ FULL_REFRESH_EVERY = 8
 REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=20)
 # Requests the app answers only after Zigbee2MQTT replies (reconfigure waits up to 40 s).
 SLOW_REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=60)
+# Sidebar translation keys the cards reuse, and how long a fetched language is kept.
+CARD_STRING_PREFIXES = ("card.", "issue.", "unit.", "reading.", "net.")
+STRINGS_TTL = 3600
 
 
 def _wifi_overlap(mhz: int | None, wifi: list[int]) -> str | None:
@@ -102,6 +105,8 @@ class Z2MTracker:
         self._lock = asyncio.Lock()
         # Repairs issue ids fixed from HA, hidden until the deadline (monotonic) or until the app clears them.
         self._snoozed: dict[str, float] = {}
+        # Card translations per requested language: (monotonic time fetched, result).
+        self._strings: dict[str, tuple[float, dict[str, Any]]] = {}
 
     async def async_start(self) -> None:
         await self._async_poll(None)
@@ -174,7 +179,12 @@ class Z2MTracker:
         options = self.data.get("options") or {}
         notify = set(options.get("notify_checks") or []) - set(options.get("disabled_checks") or [])
         wanted: dict[str, dict] = {}
-        for issue in self.data.get("issues") or []:
+        issues = self.data.get("issues") or []
+        keys = {str(issue.get("key", "")) for issue in issues}
+        for issue in issues:
+            # A device behind an offline router is covered by the router's repair, which lists it.
+            if issue.get("behind") and f"offline:{issue['behind']}" in keys:
+                continue
             if issue.get("severity") == "warning" or issue.get("kind") in notify:
                 wanted["issue_" + re.sub(r"[^a-z0-9_]+", "_", str(issue.get("key", "")).lower())] = issue
         self._prune_snoozed(wanted)
@@ -184,15 +194,17 @@ class Z2MTracker:
                 ir.async_delete_issue(self.hass, DOMAIN, issue_id)
         for issue_id, issue in wanted.items():
             device = str(issue.get("ieee") or "")
+            # Network and group issues have no single device to fix or mute.
+            network = device.startswith(("network:", "group:"))
             ir.async_create_issue(
                 self.hass,
                 DOMAIN,
                 issue_id,
                 data={"ieee": device, "kind": str(issue.get("kind") or "")},
-                is_fixable=not device.startswith("network:"),
+                is_fixable=not network,
                 is_persistent=False,
                 severity=ir.IssueSeverity.WARNING,
-                translation_key="network_issue" if device.startswith("network:") else "device_issue",
+                translation_key="network_issue" if network else "device_issue",
                 translation_placeholders={
                     "name": str(issue.get("name") or issue.get("ieee") or ""),
                     "title": str(issue.get("label") or issue.get("title") or ""),
@@ -281,6 +293,33 @@ class Z2MTracker:
         events = self.data["events"]
         return events[-1] if events else None
 
+    async def async_card_strings(self, language: str) -> dict[str, Any]:
+        """The app's translations the cards use, in the closest language the app has.
+
+        Cached for an hour per requested language. An older app without a language,
+        or without the card keys, leaves the cards on their built-in English.
+        """
+        cached = self._strings.get(language)
+        if cached and time.monotonic() - cached[0] < STRINGS_TTL:
+            return cached[1]
+        index = await self._request("GET", "/i18n/index.json")
+        codes = [str(lang.get("code")) for lang in (index or {}).get("languages") or [] if isinstance(lang, dict)]
+        low = language.lower()
+        base = low.split("-")[0]
+        code = (
+            next((c for c in codes if c.lower() == low), None)
+            or next((c for c in codes if c.lower() == base), None)
+            or next((c for c in codes if c.split("-")[0].lower() == base), None)
+        )
+        strings: dict[str, Any] = {}
+        if code and code != "en":
+            payload = await self._request("GET", f"/i18n/{code}.json")
+            if isinstance(payload, dict):
+                strings = {k: v for k, v in payload.items() if k.startswith(CARD_STRING_PREFIXES)}
+        result = {"language": code or "en", "strings": strings}
+        self._strings[language] = (time.monotonic(), result)
+        return result
+
     # ------------------------------------------------------------------ edits
 
     async def async_set_note(self, ieee: str, note: str) -> None:
@@ -339,6 +378,15 @@ class Z2MTracker:
 
     async def async_network_scan(self, base_topic: str | None = None) -> None:
         await self._request("POST", "/api/networkmap", {"instance": base_topic} if base_topic else {})
+
+    async def async_pause_alerts(self, minutes: int | None = None) -> None:
+        """Pause every alert for some minutes; None pauses until resumed."""
+        await self._request("POST", "/api/alerts/pause", {"minutes": minutes})
+        await self.async_refresh_now()
+
+    async def async_resume_alerts(self) -> None:
+        await self._request("POST", "/api/alerts/resume", {})
+        await self.async_refresh_now()
 
     # ---------------------------------------------------------- repair fixes
 

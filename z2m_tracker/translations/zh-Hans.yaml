@@ -1,0 +1,64 @@
+configuration:
+  base_topics:
+    name: Zigbee2MQTT 基础主题
+    description: 要追踪的每个 Zigbee2MQTT 实例的 MQTT 基础主题。
+  z2m_panels:
+    name: Zigbee2MQTT 应用链接
+    description: "指向每个 Zigbee2MQTT 应用的链接，格式为 base_topic=app_slug，例如 zigbee2mqtt=45df7312_zigbee2mqtt。slug 可在应用的 URL 中找到。"
+  alerts_enabled:
+    name: 警报
+    description: 警报总开关。
+  persistent_notifications:
+    name: Home Assistant 通知
+    description: 以 Home Assistant 通知的形式显示警报。
+  fire_events:
+    name: 触发事件
+    description: 触发 z2m_tracker_alert 事件，供自动化使用。
+  notify_service:
+    name: 通知服务
+    description: 同时将警报发送到通知服务，例如 notify.mobile_app_phone。
+  alert_on_join:
+    name: 加入时警报
+    description: 有新设备加入时发出警报。
+  disabled_checks:
+    name: 停用的检查项
+    description: 要完全关闭的健康检查。
+  notify_checks:
+    name: 发出警报的检查项
+    description: 会发送警报的健康检查。
+  offline_alert_minutes:
+    name: 离线警报延迟（分钟）
+    description: 设备离线多久后发出警报。
+  frozen_alert_hours:
+    name: 读数冻结延迟（小时）
+    description: 传感器读数保持不变多久后视为冻结。
+  battery_alert_percent:
+    name: 低电量阈值（%）
+    description: 触发低电量警报的电量。
+  networkmap_hour:
+    name: 路由扫描时间
+    description: 每晚路由扫描的小时，设为 -1 则关闭。
+  ha_entities:
+    name: 追踪器传感器
+    description: 通过 MQTT 发现为每个 Zigbee2MQTT 设备添加追踪器传感器。
+  weekly_summary:
+    name: 每周摘要
+    description: 发送每周摘要通知。
+  summary_day:
+    name: 摘要日
+    description: 发送每周摘要的星期（0 = 星期一）。
+  summary_hour:
+    name: 摘要时间
+    description: 发送每周摘要的小时。
+  wifi_channels:
+    name: Wi-Fi 信道
+    description: 你的 2.4 GHz Wi-Fi 信道，例如 1、6，用于无线信道检查。
+  chatty_per_hour:
+    name: 消息过多阈值（每小时消息数）
+    description: 每小时消息数（6 小时平均），超过后设备被标记为消息过多。
+  ota_window:
+    name: 自动更新时段
+    description: 自动固件更新的时间段，例如 02:00-05:00（本地时间，可跨越午夜）。留空则关闭自动更新。失败的更新会在第二天晚上重试一次。
+  ota_min_battery:
+    name: 更新所需最低电量（%）
+    description: 低于此电量的电池设备在自动更新和批量更新时会被跳过。“仍然更新”可对单个设备忽略此限制。

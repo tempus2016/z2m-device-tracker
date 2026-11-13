@@ -1,0 +1,241 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Z2M Device Tracker",
+        "description": "连接到 Z2M Device Tracker 应用，该应用会记录每个 Zigbee2MQTT 设备的历史。添加摘要传感器和 z2m-tracker-card 卡片。安装应用后，应用 URL 会自动填写。",
+        "data": {
+          "app_url": "应用 URL"
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Z2M Device Tracker 已设置。"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Z2M Device Tracker",
+        "data": {
+          "app_url": "应用 URL",
+          "repairs": "在“设置 > 修复”中显示问题"
+        },
+        "data_description": {
+          "repairs": "同步显示应用的警告以及设为通知的检查项。问题解决后会自动清除。"
+        }
+      }
+    }
+  },
+  "services": {
+    "import_history": {
+      "name": "导入历史",
+      "description": "让应用重新扫描 Z2M 数据库、配置备份、日志和 Home Assistant 注册表中的设备和名称，并合并到历史中。"
+    },
+    "battery_replaced": {
+      "name": "已更换电池",
+      "description": "为 Zigbee 设备记录一次电池更换。如果 Battery Notes 在追踪该设备，也会同步更新。",
+      "fields": {
+        "device_id": {
+          "name": "设备",
+          "description": "Zigbee2MQTT 设备。按名称选择。"
+        },
+        "ieee": {
+          "name": "IEEE 地址",
+          "description": "代替设备使用，例如 0x00158d0001a2b3c4。"
+        },
+        "date": {
+          "name": "日期",
+          "description": "更换电池的日期。留空表示今天。"
+        },
+        "battery_type": {
+          "name": "电池类型",
+          "description": "保存此设备的电池类型，例如 CR2032。留空则保留当前类型。"
+        }
+      }
+    },
+    "mute_device": {
+      "name": "静音设备",
+      "description": "让追踪器不再标记某个 Zigbee 设备的问题。",
+      "fields": {
+        "device_id": {
+          "name": "设备",
+          "description": "Zigbee2MQTT 设备。按名称选择。"
+        },
+        "ieee": {
+          "name": "IEEE 地址",
+          "description": "代替设备使用，例如 0x00158d0001a2b3c4。"
+        },
+        "checks": {
+          "name": "检查项",
+          "description": "要静音的检查项。留空则全部静音。"
+        },
+        "duration": {
+          "name": "时长",
+          "description": "静音多长时间。留空则一直静音，直到你在应用中取消。"
+        }
+      }
+    },
+    "run_network_scan": {
+      "name": "运行网络扫描",
+      "description": "在 Zigbee2MQTT 中启动路由扫描（网络地图）。扫描在后台运行，可能需要几分钟。",
+      "fields": {
+        "base_topic": {
+          "name": "基础主题",
+          "description": "要扫描的 Zigbee2MQTT 网络，例如 zigbee2mqtt。留空则扫描所有网络。"
+        }
+      }
+    },
+    "reconfigure": {
+      "name": "重新配置",
+      "description": "让 Zigbee2MQTT 重新配置设备，这会重新创建它的上报绑定。请先唤醒电池设备。",
+      "fields": {
+        "device_id": {
+          "name": "设备",
+          "description": "Zigbee2MQTT 设备。按名称选择。"
+        },
+        "ieee": {
+          "name": "IEEE 地址",
+          "description": "代替设备使用，例如 0x00158d0001a2b3c4。"
+        }
+      }
+    },
+    "ota_update": {
+      "name": "固件更新",
+      "description": "启动固件（OTA）更新。设备留空则更新所有有可用更新的设备。",
+      "fields": {
+        "device_id": {
+          "name": "设备",
+          "description": "Zigbee2MQTT 设备。留空则更新所有有可用更新的设备。"
+        },
+        "ieee": {
+          "name": "IEEE 地址",
+          "description": "代替设备使用，例如 0x00158d0001a2b3c4。"
+        }
+      }
+    },
+    "add_note": {
+      "name": "添加备注",
+      "description": "在追踪器中为 Zigbee 设备的备注添加一行。",
+      "fields": {
+        "device_id": {
+          "name": "设备",
+          "description": "Zigbee2MQTT 设备。按名称选择。"
+        },
+        "ieee": {
+          "name": "IEEE 地址",
+          "description": "代替设备使用，例如 0x00158d0001a2b3c4。"
+        },
+        "text": {
+          "name": "文本",
+          "description": "要添加的文本。会另起一行添加在现有备注之后。"
+        }
+      }
+    }
+  },
+  "issues": {
+    "device_issue": {
+      "title": "Zigbee：{name} - {title}",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "{name}：{title}",
+            "description": "{detail}\n\n请选择修复方式。静音只会让追踪器不再标记此设备的这项检查。\n\n[在 Zigbee 追踪器中打开]({panel})",
+            "menu_options": {
+              "restore_binding": "恢复绑定",
+              "bindings_removed": "绑定是有意移除的",
+              "battery_replaced": "今天已更换电池",
+              "reconfigure": "重新配置设备",
+              "install_update": "安装固件更新",
+              "mute_day": "静音此检查 24 小时",
+              "mute_forever": "静音此检查，直到我取消"
+            }
+          },
+          "restore_binding": {
+            "title": "恢复绑定",
+            "description": "请求 Zigbee2MQTT 在 {name} 上重新创建以下绑定：\n\n{bindings}\n\n如果它使用电池供电，请先唤醒它（例如按一下它的按钮），然后选择“提交”。每个绑定最多可能需要一分钟。"
+          }
+        },
+        "abort": {
+          "not_loaded": "Z2M Device Tracker 未加载。",
+          "app_error": "修复未成功：{error}"
+        }
+      }
+    },
+    "network_issue": {
+      "title": "Zigbee：{name} - {title}",
+      "description": "{detail}\n\n[打开 Zigbee 追踪器]({panel})"
+    }
+  },
+  "entity": {
+    "calendar": {
+      "batteries": {
+        "name": "Zigbee 电池"
+      }
+    },
+    "todo": {
+      "batteries": {
+        "name": "Zigbee 电池"
+      }
+    }
+  },
+  "selector": {
+    "check": {
+      "options": {
+        "offline": "离线",
+        "silent": "长时间无消息",
+        "frozen": "读数冻结",
+        "battery_low": "电量低",
+        "battery_soon": "电量即将耗尽",
+        "battery_drain": "耗电过快",
+        "weak_signal": "信号弱",
+        "signal_drop": "信号下降",
+        "unidentified": "未识别",
+        "update": "固件更新",
+        "replacement": "可能是替换设备",
+        "flapping": "频繁掉线",
+        "chatty": "消息过多",
+        "binding_lost": "绑定丢失",
+        "single_point": "单点故障"
+      }
+    }
+  },
+  "exceptions": {
+    "not_loaded": {
+      "message": "Z2M Device Tracker 未加载。"
+    },
+    "app_unreachable": {
+      "message": "无法连接 Z2M Device Tracker 应用。"
+    },
+    "app_error": {
+      "message": "Z2M Device Tracker 应用返回错误：{error}"
+    },
+    "no_device": {
+      "message": "请选择设备或输入 IEEE 地址。"
+    },
+    "unknown_device_id": {
+      "message": "Home Assistant 中没有 ID 为 {device} 的设备。"
+    },
+    "not_zigbee": {
+      "message": "{device} 不是 Zigbee2MQTT 设备。"
+    },
+    "bad_ieee": {
+      "message": "{ieee} 不是 IEEE 地址。格式应类似 0x00158d0001a2b3c4。"
+    },
+    "unknown_ieee": {
+      "message": "追踪器中没有设备 {ieee}。"
+    },
+    "not_active": {
+      "message": "{name} 已不在 Zigbee2MQTT 中。"
+    },
+    "no_update": {
+      "message": "{name} 没有可用的固件更新。"
+    },
+    "unknown_base_topic": {
+      "message": "没有基础主题为 {base_topic} 的 Zigbee2MQTT 网络。已知：{known}。"
+    },
+    "note_too_long": {
+      "message": "备注将超过 {limit} 个字符。请先在应用中缩短。"
+    }
+  }
+}

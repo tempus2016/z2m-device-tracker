@@ -1,0 +1,241 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Z2M Device Tracker",
+        "description": "Conecta ao app Z2M Device Tracker, que registra o histórico de todos os dispositivos do Zigbee2MQTT. Adiciona sensores de resumo e o z2m-tracker-card. A URL do app é preenchida automaticamente quando o app está instalado.",
+        "data": {
+          "app_url": "URL do app"
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "O Z2M Device Tracker já está configurado."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Z2M Device Tracker",
+        "data": {
+          "app_url": "URL do app",
+          "repairs": "Mostrar problemas em Configurações > Reparos"
+        },
+        "data_description": {
+          "repairs": "Espelha os avisos do app e as verificações configuradas para notificar. Cada um some sozinho quando o problema é resolvido."
+        }
+      }
+    }
+  },
+  "services": {
+    "import_history": {
+      "name": "Importar histórico",
+      "description": "Pede ao app para varrer de novo bancos de dados do Z2M, backups de configuração, logs e registros do Home Assistant em busca de dispositivos e nomes, e mesclá-los ao histórico."
+    },
+    "battery_replaced": {
+      "name": "Bateria trocada",
+      "description": "Registra uma troca de bateria de um dispositivo Zigbee. Também atualiza o Battery Notes quando ele acompanha o dispositivo.",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo",
+          "description": "O dispositivo do Zigbee2MQTT. Escolha pelo nome."
+        },
+        "ieee": {
+          "name": "Endereço IEEE",
+          "description": "Use em vez de um dispositivo, por exemplo 0x00158d0001a2b3c4."
+        },
+        "date": {
+          "name": "Data",
+          "description": "Quando a bateria foi trocada. Deixe vazio para hoje."
+        },
+        "battery_type": {
+          "name": "Tipo de bateria",
+          "description": "Salva o tipo de bateria deste dispositivo, por exemplo CR2032. Deixe vazio para manter o atual."
+        }
+      }
+    },
+    "mute_device": {
+      "name": "Silenciar dispositivo",
+      "description": "Faz o tracker parar de sinalizar problemas de um dispositivo Zigbee.",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo",
+          "description": "O dispositivo do Zigbee2MQTT. Escolha pelo nome."
+        },
+        "ieee": {
+          "name": "Endereço IEEE",
+          "description": "Use em vez de um dispositivo, por exemplo 0x00158d0001a2b3c4."
+        },
+        "checks": {
+          "name": "Verificações",
+          "description": "Quais verificações silenciar. Deixe vazio para silenciar todas."
+        },
+        "duration": {
+          "name": "Duração",
+          "description": "Por quanto tempo silenciar. Deixe vazio para silenciar até você reativar no app."
+        }
+      }
+    },
+    "run_network_scan": {
+      "name": "Executar varredura da rede",
+      "description": "Inicia uma varredura de rotas (mapa da rede) no Zigbee2MQTT. Ela roda em segundo plano e pode levar alguns minutos.",
+      "fields": {
+        "base_topic": {
+          "name": "Tópico base",
+          "description": "A rede Zigbee2MQTT a varrer, por exemplo zigbee2mqtt. Deixe vazio para varrer todas as redes."
+        }
+      }
+    },
+    "reconfigure": {
+      "name": "Reconfigurar",
+      "description": "Pede ao Zigbee2MQTT para reconfigurar um dispositivo. Isso recria os vínculos de relatório dele. Acorde os dispositivos a bateria antes.",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo",
+          "description": "O dispositivo do Zigbee2MQTT. Escolha pelo nome."
+        },
+        "ieee": {
+          "name": "Endereço IEEE",
+          "description": "Use em vez de um dispositivo, por exemplo 0x00158d0001a2b3c4."
+        }
+      }
+    },
+    "ota_update": {
+      "name": "Atualização de firmware",
+      "description": "Inicia uma atualização de firmware (OTA). Deixe o dispositivo vazio para atualizar todos os dispositivos que têm atualização disponível.",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo",
+          "description": "O dispositivo do Zigbee2MQTT. Deixe vazio para atualizar todos os dispositivos com atualização."
+        },
+        "ieee": {
+          "name": "Endereço IEEE",
+          "description": "Use em vez de um dispositivo, por exemplo 0x00158d0001a2b3c4."
+        }
+      }
+    },
+    "add_note": {
+      "name": "Adicionar nota",
+      "description": "Adiciona uma linha à nota de um dispositivo Zigbee no tracker.",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo",
+          "description": "O dispositivo do Zigbee2MQTT. Escolha pelo nome."
+        },
+        "ieee": {
+          "name": "Endereço IEEE",
+          "description": "Use em vez de um dispositivo, por exemplo 0x00158d0001a2b3c4."
+        },
+        "text": {
+          "name": "Texto",
+          "description": "O texto a adicionar. Ele vai em uma nova linha depois da nota existente."
+        }
+      }
+    }
+  },
+  "issues": {
+    "device_issue": {
+      "title": "Zigbee: {name} - {title}",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "{name}: {title}",
+            "description": "{detail}\n\nEscolha uma correção. Silenciar faz o tracker parar de sinalizar esta verificação apenas para este dispositivo.\n\n[Abrir no Zigbee Tracker]({panel})",
+            "menu_options": {
+              "restore_binding": "Restaurar o vínculo",
+              "bindings_removed": "O vínculo foi removido de propósito",
+              "battery_replaced": "Bateria trocada hoje",
+              "reconfigure": "Reconfigurar o dispositivo",
+              "install_update": "Instalar a atualização de firmware",
+              "mute_day": "Silenciar esta verificação por 24 horas",
+              "mute_forever": "Silenciar esta verificação até eu reativar"
+            }
+          },
+          "restore_binding": {
+            "title": "Restaurar o vínculo",
+            "description": "Pede ao Zigbee2MQTT para recriar estes vínculos em {name}:\n\n{bindings}\n\nSe ele funciona a bateria, acorde-o antes, por exemplo apertando o botão dele, e depois selecione Enviar. Isso pode levar até um minuto por vínculo."
+          }
+        },
+        "abort": {
+          "not_loaded": "O Z2M Device Tracker não está carregado.",
+          "app_error": "A correção não funcionou: {error}"
+        }
+      }
+    },
+    "network_issue": {
+      "title": "Zigbee: {name} - {title}",
+      "description": "{detail}\n\n[Abrir o Zigbee Tracker]({panel})"
+    }
+  },
+  "entity": {
+    "calendar": {
+      "batteries": {
+        "name": "Baterias Zigbee"
+      }
+    },
+    "todo": {
+      "batteries": {
+        "name": "Baterias Zigbee"
+      }
+    }
+  },
+  "selector": {
+    "check": {
+      "options": {
+        "offline": "Offline",
+        "silent": "Sem notícias",
+        "frozen": "Leitura congelada",
+        "battery_low": "Bateria baixa",
+        "battery_soon": "Bateria acabando",
+        "battery_drain": "Bateria descarregando rápido",
+        "weak_signal": "Sinal fraco",
+        "signal_drop": "Sinal caindo",
+        "unidentified": "Não identificado",
+        "update": "Atualização de firmware",
+        "replacement": "Possível substituto",
+        "flapping": "Instável",
+        "chatty": "Dispositivo tagarela",
+        "binding_lost": "Vínculo perdido",
+        "single_point": "Ponto único de falha"
+      }
+    }
+  },
+  "exceptions": {
+    "not_loaded": {
+      "message": "O Z2M Device Tracker não está carregado."
+    },
+    "app_unreachable": {
+      "message": "O app Z2M Device Tracker não está acessível."
+    },
+    "app_error": {
+      "message": "O app Z2M Device Tracker retornou um erro: {error}"
+    },
+    "no_device": {
+      "message": "Escolha um dispositivo ou informe um endereço IEEE."
+    },
+    "unknown_device_id": {
+      "message": "Nenhum dispositivo com ID {device} no Home Assistant."
+    },
+    "not_zigbee": {
+      "message": "{device} não é um dispositivo do Zigbee2MQTT."
+    },
+    "bad_ieee": {
+      "message": "{ieee} não é um endereço IEEE. Ele deve ser parecido com 0x00158d0001a2b3c4."
+    },
+    "unknown_ieee": {
+      "message": "O tracker não tem o dispositivo {ieee}."
+    },
+    "not_active": {
+      "message": "{name} não está mais no Zigbee2MQTT."
+    },
+    "no_update": {
+      "message": "{name} não tem atualização de firmware disponível."
+    },
+    "unknown_base_topic": {
+      "message": "Nenhuma rede Zigbee2MQTT com o tópico base {base_topic}. Conhecidos: {known}."
+    },
+    "note_too_long": {
+      "message": "A nota ficaria com mais de {limit} caracteres. Encurte-a no app primeiro."
+    }
+  }
+}

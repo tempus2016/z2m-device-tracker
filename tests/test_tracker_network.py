@@ -6,6 +6,7 @@ import json
 import os
 
 import pytest
+import tracker as tracker_module
 from conftest import COORD, ROUTER_A, ROUTER_B, SENSOR, coordinator, events_of, send, z2m_device
 
 # ------------------------------------------------------------------ bridge state / health / info
@@ -272,6 +273,81 @@ def test_single_point_of_failure(tracker, clock):
 def test_redundant_path_removes_single_point(tracker):
     mesh(tracker, [*CHAIN, link(ROUTER_B, COORD, 40)])
     assert tracker.single_points("zigbee2mqtt") == []
+
+
+# ------------------------------------------------------------------ router hopping
+
+
+def scan_with_parent(tracker, clock, parent, lqi, *, days=1):
+    """One nightly scan a day later in which SENSOR hangs off `parent` (None: SENSOR not in the scan)."""
+    clock.advance(days=days)
+    links = [link(ROUTER_A, COORD, 200, 1), link(ROUTER_B, COORD, 150, 1)]
+    if parent:
+        links.append(link(SENSOR, parent, lqi, 1))
+    mesh(tracker, links)
+
+
+def test_parent_rows_skips_missing_scans_and_compares_across_the_window():
+    scans = [
+        {"at": "2026-06-01T00:00:00+00:00", "parents": {SENSOR: [ROUTER_A, 40]}},
+        {"at": "2026-06-02T00:00:00+00:00", "parents": {SENSOR: [ROUTER_B, 60]}},
+        {"at": "2026-06-03T00:00:00+00:00", "parents": {}},
+        {"at": "2026-06-04T00:00:00+00:00", "parents": {SENSOR: [ROUTER_B, 65]}},
+        {"at": "2026-06-05T00:00:00+00:00", "parents": {SENSOR: [ROUTER_A]}},
+    ]
+    rows = tracker_module.parent_rows(scans, SENSOR, "2026-06-02T00:00:00+00:00")
+    assert [(r["ieee"], r["lqi"], r["changed"]) for r in rows] == [
+        (ROUTER_B, 60, True),  # changed against the scan just before the window
+        (ROUTER_B, 65, False),  # the scan it was missing from in between doesn't count
+        (ROUTER_A, None, True),
+    ]
+    summary = tracker_module.hop_summary(rows)
+    assert summary == {
+        "changes": 2,
+        "parents": 2,
+        "lqi_min": 60,
+        "lqi_max": 65,
+        "best": {"ieee": ROUTER_B, "lqi": 65},
+    }
+    assert tracker_module.hop_summary([])["best"] is None
+
+
+def test_router_hopping_end_to_end(tracker, clock, tmp_path):
+    tracker.load_scans(str(tmp_path / "scans.json"))
+    for parent, lqi in [(ROUTER_A, 40), (ROUTER_B, 71), (None, 0), (ROUTER_A, 38)]:
+        scan_with_parent(tracker, clock, parent, lqi)
+    assert tracker.evaluate_health()[0] == []  # 2 changes; the scan it was missing from isn't one
+    scan_with_parent(tracker, clock, ROUTER_B, 68)
+    scan_with_parent(tracker, clock, COORD, 22)
+    issues, _ = tracker.evaluate_health()
+    assert [(i["kind"], i["name"]) for i in issues] == [("router_hopping", "Shed sensor")]
+    assert issues[0]["detail"] == "Changed router 4 times in 7 days · link quality 22 to 71."
+
+    history = tracker.parent_history(SENSOR)
+    assert history["days"] == 7 and history["threshold"] == 3
+    assert [(r["name"], r["lqi"], r["changed"]) for r in history["scans"]] == [
+        ("Coordinator", 22, True),
+        ("Shed plug", 68, True),
+        ("Hall plug", 38, True),
+        ("Shed plug", 71, True),
+        ("Hall plug", 40, False),
+    ]
+    assert history["best"] == {"ieee": ROUTER_B, "lqi": 71, "name": "Shed plug"}
+    assert tracker.parent_history("0xdeadbeef") is None
+
+    # A week of steady routing later the old changes have aged out.
+    for _ in range(7):
+        scan_with_parent(tracker, clock, ROUTER_B, 70)
+    assert tracker.evaluate_health()[0] == []
+
+
+def test_routers_are_not_checked_for_hopping(tracker, clock):
+    for i in range(5):
+        clock.advance(days=1)
+        parent = COORD if i % 2 else ROUTER_A
+        mesh(tracker, [link(ROUTER_A, COORD, 200, 1), link(ROUTER_B, parent, 100, 1), link(SENSOR, ROUTER_A, 90, 1)])
+    assert tracker.parent_history(ROUTER_B)["changes"] == 4
+    assert "router_hopping" not in {i["kind"] for i in tracker.evaluate_health()[0]}
 
 
 # ------------------------------------------------------------------ evaluate_health end to end

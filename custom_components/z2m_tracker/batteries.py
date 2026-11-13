@@ -37,15 +37,36 @@ def shopping_groups(data: dict, today: date, hidden: set[str] | frozenset[str] =
         if not members:
             continue
         days = [d["days"] for d in members if isinstance(d.get("days"), (int, float))]
+        count = sum(int(d.get("quantity") or 1) for d in members)
+        stock = group.get("stock")
+        stock = int(stock) if isinstance(stock, (int, float)) and not isinstance(stock, bool) else None
         groups.append(
             {
                 "type": str(group.get("type") or "Unknown type"),
-                "count": sum(int(d.get("quantity") or 1) for d in members),
+                "count": count,
+                "stock": stock,
+                "to_buy": max(0, count - stock) if stock is not None else None,
                 "devices": members,
                 "due": today + timedelta(days=max(0, round(min(days)))) if days else today,
             }
         )
     return groups
+
+
+def group_summary(group: dict) -> str:
+    """To-do item title: what to buy when the stock of this type is known, else how many are needed."""
+    if group.get("stock") is None:
+        return f"{group['type']} × {group['count']}"
+    if group["to_buy"]:
+        return f"{group['type']} × {group['to_buy']} to buy"
+    return f"{group['type']} × {group['count']}, in stock"
+
+
+def stock_line(group: dict) -> str:
+    """Start of the to-do item description, comparing need with stock. Empty when stock is unknown."""
+    if group.get("stock") is None:
+        return ""
+    return f"{group['count']} needed, {group['stock']} in stock. "
 
 
 def describe_member(member: dict) -> str:

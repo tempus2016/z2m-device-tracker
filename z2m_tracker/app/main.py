@@ -23,10 +23,10 @@ from battery_library import BatteryLibrary
 from discovery import AVAILABILITY, Discovery
 from discovery import BASE as DISCOVERY_BASE
 from ha import HomeAssistant
-from health import CHECKS, DEFAULT_NOTIFY, mutes_of
+from health import CHECKS, DEFAULT_NOTIFY, alert_title, mutes_of, nested, notify_kinds, offer_new_kinds
 from metrics import Metrics
 from ota import OtaManager, parse_window
-from tracker import Tracker
+from tracker import Tracker, shopping_text
 from tracker import _display_name as tracker_display_name
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
@@ -65,6 +65,7 @@ DEFAULT_OPTIONS = {
     "notify_service": "",
     "alert_on_join": True,
     "offline_alert_minutes": 60,
+    "critical_offline_minutes": 5,
     "frozen_alert_hours": 24,
     "battery_alert_percent": 15,
     "networkmap_hour": 3,
@@ -80,9 +81,15 @@ DEFAULT_OPTIONS = {
     "chatty_per_hour": 1200,
     "ota_window": "",
     "ota_min_battery": 30,
+    "quiet_hours": False,
+    "quiet_start": "23:00",
+    "quiet_end": "07:00",
 }
 
 CHECK_KEYS = {key for key, _, _, _ in CHECKS}
+# Companion app data for a critical device's alert: Android delivers it at once (high priority,
+# no time to live), iOS shows it as time-sensitive, which breaks through Focus modes.
+CRITICAL_PUSH = {"priority": "high", "ttl": 0, "push": {"interruption-level": "time-sensitive"}}
 EVENT_KEYS = {"joined": "joined", "left": "left", "interview failed": "interview_failed"}
 
 
@@ -123,6 +130,13 @@ def _ota_window(value):
     return value
 
 
+def _clock(value):
+    value = str(value or "").strip()
+    if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", value):
+        raise ValueError("enter a time like 23:00")
+    return value
+
+
 def _kinds(value):
     if not isinstance(value, list) or any(item not in CHECK_KEYS for item in value):
         raise ValueError("unknown check")
@@ -135,6 +149,7 @@ SETTINGS = {
     "fire_events": _bool,
     "notify_service": _service,
     "offline_alert_minutes": _int(0, 10080),
+    "critical_offline_minutes": _int(0, 1440),
     "frozen_alert_hours": _int(0, 720),
     "battery_alert_percent": _int(0, 100),
     "networkmap_hour": _int(-1, 23),
@@ -148,6 +163,9 @@ SETTINGS = {
     "notify_checks": _kinds,
     "ota_window": _ota_window,
     "ota_min_battery": _int(0, 100),
+    "quiet_hours": _bool,
+    "quiet_start": _clock,
+    "quiet_end": _clock,
 }
 
 
@@ -167,6 +185,24 @@ def load_options() -> dict:
     if not options.get("alert_on_join", True) and "joined" in options["notify_checks"]:
         options["notify_checks"] = [k for k in options["notify_checks"] if k != "joined"]
     return options
+
+
+def offer_new_notify_kinds() -> None:
+    with tracker.lock:
+        checks, offered, added = offer_new_kinds(
+            list(options.get("notify_checks") or []), list(tracker.data.get("notify_offered") or [])
+        )
+        if offered == sorted(tracker.data.get("notify_offered") or []):
+            return
+        tracker.data["notify_offered"] = offered
+        tracker.dirty = True
+    if not added:
+        return
+    options["notify_checks"] = checks
+    _LOGGER.info("Alerts now notify for new check(s): %s", ", ".join(added))
+    persisted = home_assistant.save_app_options({k: v for k, v in options.items() if not k.startswith("_")})
+    if not persisted:
+        _LOGGER.warning("Couldn't save the updated alert list to the app configuration")
 
 
 def local_timezone():
@@ -201,6 +237,7 @@ def ha_registry_changed() -> None:
 
 
 scan_lock = threading.Lock()
+ping_lock = threading.Lock()
 ota_manager = OtaManager(tracker, options, home_assistant.logbook)
 
 
@@ -222,7 +259,17 @@ class Alerts:
             except Exception:  # noqa: BLE001 - never let a notification failure kill the worker
                 _LOGGER.exception("Sending alert failed")
 
-    def _send(self, key: str, kind: str, ieee: str, name: str, title: str, message: str, instance: str | None) -> None:
+    def _send(
+        self,
+        key: str,
+        kind: str,
+        ieee: str,
+        name: str,
+        title: str,
+        message: str,
+        instance: str | None,
+        critical: bool = False,
+    ) -> None:
         data = {
             "key": key,
             "kind": kind,
@@ -232,6 +279,10 @@ class Alerts:
             "message": message,
             "network": instance,
         }
+        push = None
+        if critical:
+            data["critical"] = True
+            push = CRITICAL_PUSH
         _LOGGER.info("Alert: %s - %s", title, message)
 
         def job() -> None:
@@ -240,7 +291,7 @@ class Alerts:
             if options.get("persistent_notifications"):
                 home_assistant.persistent_notification(title, message, f"z2m_tracker_{key.replace(':', '_')}")
             if options.get("notify_service"):
-                home_assistant.notify(options["notify_service"], title, message)
+                home_assistant.notify(options["notify_service"], title, message, push)
 
         self.queue.put(job)
 
@@ -250,9 +301,7 @@ class Alerts:
 
     @staticmethod
     def notify_set() -> set[str]:
-        if not options.get("alerts_enabled", True):
-            return set()
-        return set(options.get("notify_checks") or []) - set(options.get("disabled_checks") or [])
+        return notify_kinds(options)
 
     def rebaseline(self) -> None:
         """Treat issues that already exist as notified, so enabling a type doesn't flood."""
@@ -300,42 +349,53 @@ class Alerts:
             "left": "Zigbee device left",
             "interview failed": "Zigbee interview failed",
         }.get(kind, f"Zigbee: {kind}")
+        if tracker.alerts_paused():
+            # Events happen once, so there is nothing to send when the pause ends: drop it.
+            _LOGGER.info("Alerts paused, not sent: %s - %s", title, messages.get(kind, ""))
+            return
+        critical = tracker.is_critical(event["ieee"])
+        message = messages.get(kind, event.get("detail") or "")
+        if not critical and tracker.hold_event(title, message):
+            _LOGGER.info("Quiet hours, held for the digest: %s - %s", title, message)
+            return
         self._send(
             f"event:{kind}:{event['ieee']}:{event['time']}",
             kind,
             event["ieee"],
             name,
-            title,
-            messages.get(kind, event.get("detail") or ""),
+            f"Critical: {title}" if critical else title,
+            message,
             event.get("instance"),
+            critical,
         )
 
     def check(self) -> None:
         issues, _ = tracker.evaluate_health()
-        enabled = self.notify_set()
-        current = {issue["key"]: issue for issue in issues if issue["kind"] in enabled}
-        with tracker.lock:
-            initialised = tracker.data.get("alerts_initialised")
-            sent = set(tracker.data.get("alerted") or [])
-            tracker.data["alerted"] = sorted(current)
-            tracker.data["alerts_initialised"] = True
-            tracker.dirty = True
-        if not initialised:
-            _LOGGER.info("Alerts initialised with %d existing issues (not notified)", len(current))
+        if tracker.alerts_paused():
+            # Leave "alerted" alone, so issues found during the pause still count as new when it ends.
+            # Issues that clear before then are never sent; notifications already shown stay up.
             return
-        for key in sorted(set(current) - sent):
-            issue = current[key]
+        plan = tracker.plan_alerts(issues, self.notify_set())
+        if plan["first"]:
+            _LOGGER.info("Alerts initialised with existing issues (not notified)")
+            return
+        for issue in plan["send"]:
+            critical = bool(issue.get("critical"))
             self._send(
-                key,
+                issue["key"],
                 issue["kind"],
                 issue["ieee"],
                 issue["name"],
-                f"Zigbee: {issue['name']} - {issue['label']}",
-                issue["detail"],
+                issue.get("notify_title") or alert_title(issue),
+                issue.get("notify_message") or issue["detail"],
                 issue.get("instance"),
+                critical,
             )
-        for key in sent - set(current):
+        for key in plan["dismiss"]:
             self._dismiss(key)
+        if plan["digest"]:
+            title, message = plan["digest"]
+            self._send("digest", "digest", "", "Zigbee Tracker", title, message, None)
 
 
 alerts = Alerts()
@@ -425,6 +485,28 @@ def run_networkmap(instance: str | None = None) -> bool:
             scan_lock.release()
 
     threading.Thread(target=job, name="networkmap", daemon=True).start()
+    return True
+
+
+def run_router_pings() -> bool:
+    if not ping_lock.acquire(blocking=False):
+        return False
+
+    def job() -> None:
+        try:
+            # Don't overlap a routing scan that's still running.
+            if scan_lock.acquire(timeout=900):
+                scan_lock.release()
+            _LOGGER.info("Nightly router ping started")
+            result = tracker.ping_routers(stop_event.wait)
+            metrics.save()
+            _LOGGER.info("Nightly router ping finished: %s", result)
+        except Exception:  # noqa: BLE001 - pings are best effort
+            _LOGGER.exception("Nightly router ping failed")
+        finally:
+            ping_lock.release()
+
+    threading.Thread(target=job, name="router-ping", daemon=True).start()
     return True
 
 
@@ -611,6 +693,7 @@ def apply_settings(changes: dict) -> dict:
     if {
         "disabled_checks",
         "offline_alert_minutes",
+        "critical_offline_minutes",
         "frozen_alert_hours",
         "battery_alert_percent",
         "chatty_per_hour",
@@ -644,10 +727,21 @@ def refresh_home_assistant() -> None:
         _LOGGER.exception("Reading Home Assistant registries failed")
 
 
+def refresh_leftovers(usage: bool = False) -> list[dict] | None:
+    """Re-read Zigbee2MQTT devices left behind in HA. None until it can be answered."""
+    ready, known = tracker.leftover_context()
+    if not ready or not home_assistant.available:
+        return None
+    found = home_assistant.leftovers(known, usage=usage)
+    tracker.set_ha_leftovers(found)
+    return found
+
+
 def scheduler() -> None:
     global ha_changed_at
     last_save = last_metrics = last_ha = last_health = 0.0
-    last_scan_day = None
+    leftovers_due = False
+    last_scan_day = last_ping_day = None
     while not stop_event.wait(5):
         now = time.time()
         try:
@@ -661,8 +755,16 @@ def scheduler() -> None:
             if changed or now - last_ha >= HA_REFRESH_INTERVAL:
                 ha_changed_at = 0.0
                 refresh_home_assistant()
+                leftovers_due = True
                 last_ha = now
-            if now - last_health >= HEALTH_INTERVAL:
+            # Waits for every network's device list; until then all devices look unknown.
+            if leftovers_due and tracker.lists_ready.is_set():
+                leftovers_due = False
+                try:
+                    refresh_leftovers()
+                except Exception as err:  # noqa: BLE001 - optional, try again next refresh
+                    _LOGGER.warning("Checking for leftover devices in Home Assistant failed: %s", err)
+            if now - last_health >= HEALTH_INTERVAL or tracker.late_due(now):
                 alerts.check()
                 discovery.sync()
                 last_health = now
@@ -671,6 +773,11 @@ def scheduler() -> None:
             if hour >= 0 and local.hour == hour and last_scan_day != local.date():
                 last_scan_day = local.date()
                 run_networkmap()
+            # Nightly router pings run the hour after the routing scan (04:00 when scans are off).
+            ping_hour = (hour if hour >= 0 else 3) + 1
+            if local.hour == ping_hour % 24 and last_ping_day != local.date():
+                last_ping_day = local.date()
+                run_router_pings()
             if (
                 options.get("weekly_summary")
                 and local.weekday() == int(options.get("summary_day", 0))
@@ -689,7 +796,8 @@ def weekly_summary_text() -> tuple[str, str]:
     now = time.time()
     week_ago = datetime.fromtimestamp(now - 7 * 86400, tz=timezone.utc).isoformat(timespec="seconds")
     with tracker.lock:
-        issues = [i for i in tracker.issues if i["severity"] == "warning"]
+        keys = {i["key"] for i in tracker.issues}
+        issues = [i for i in tracker.issues if i["severity"] == "warning" and not nested(i, keys)]
         events = [e for e in tracker.data["events"] if (e.get("time") or "") >= week_ago]
         active = sum(
             1 for r in tracker.data["devices"].values() if r["status"] == "active" and r.get("type") != "Coordinator"
@@ -707,9 +815,7 @@ def weekly_summary_text() -> tuple[str, str]:
     else:
         lines.append("Nothing needs attention.")
     if shopping:
-        lines.append(
-            "Batteries for the next 60 days: " + ", ".join(f"{g['count']}× {g['type']}" for g in shopping) + "."
-        )
+        lines.append(shopping_text(shopping, 60))
     if joined:
         lines.append("New this week: " + ", ".join(joined[:6]) + ".")
     if removed:
@@ -837,6 +943,17 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(400, {"error": "Unknown network"})
             else:
                 self._json(200, {"scans": tracker.scan_history(net)})
+        elif path == "/api/parents":
+            query = dict(
+                part.split("=", 1)
+                for part in (self.path.split("?", 1)[1] if "?" in self.path else "").split("&")
+                if "=" in part
+            )
+            result = tracker.parent_history(unquote(query.get("ieee", "")))
+            if result is None:
+                self._json(400, {"error": "Unknown device"})
+            else:
+                self._json(200, result)
         elif path == "/api/metrics":
             query = dict(
                 part.split("=", 1)
@@ -862,6 +979,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, {"areas": home_assistant.list_areas(), "floors": home_assistant.list_floors()})
             except Exception as err:  # noqa: BLE001 - report HA errors to the caller
                 self._json(502, {"error": str(err)})
+        elif path == "/api/ha/leftovers":
+            try:
+                found = refresh_leftovers(usage=True)
+            except Exception as err:  # noqa: BLE001 - report HA errors to the caller
+                self._json(502, {"error": str(err)})
+            else:
+                self._json(200, {"ready": found is not None, "leftovers": found or []})
         elif path == "/api/export.csv":
             stamp = datetime.now().strftime("%Y-%m-%d")
             self._send(
@@ -906,6 +1030,23 @@ class Handler(BaseHTTPRequestHandler):
                     float(days) if isinstance(days, (int, float)) and days > 0 else None,
                 )
                 self._json(200 if ok else 404, {"ok": ok})
+            elif path == "/api/report_every":
+                # One device ({ieee, seconds}) or many ({items: [{ieee, seconds}, ...]}).
+                items = body.get("items") if "items" in body else [{"ieee": ieee, "seconds": body.get("seconds")}]
+                if not isinstance(items, list):
+                    self._json(400, {"ok": False, "error": "items must be a list"})
+                    return
+                result = tracker.set_report_every_many(items)
+                if result["errors"]:
+                    result["error"] = result["errors"][0]["error"]
+                self._json(200 if result["applied"] or not result["errors"] else 400, result)
+            elif path == "/api/critical":
+                ok = tracker.set_critical(ieee, bool(body.get("critical")))
+                self._json(200 if ok else 404, {"ok": ok})
+            elif path == "/api/limits":
+                changes = {k: body[k] for k in ("battery_percent", "frozen_hours") if k in body}
+                result = tracker.set_limits(ieee, changes)
+                self._json(200 if result["ok"] else (404 if result["error"] == "Unknown device" else 400), result)
             elif path == "/api/bindings/ack":
                 ok = tracker.acknowledge_bindings(ieee)
                 self._json(200 if ok else 404, {"ok": ok})
@@ -931,12 +1072,28 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(
                     200 if started else 409, {"ok": started, "error": None if started else "A scan is already running"}
                 )
+            elif path == "/api/ping":
+                result = tracker.ping(ieee)
+                self._json(200 if result["ok"] or result.get("timeout") else 400, result)
             elif path == "/api/forget":
                 ok = tracker.forget(ieee)
                 self._json(200 if ok else 404, {"ok": ok})
             elif path == "/api/settings":
                 result = apply_settings(body.get("changes") if isinstance(body.get("changes"), dict) else {})
                 self._json(200 if result["ok"] else 400, result)
+            elif path == "/api/alerts/pause":
+                try:
+                    state = tracker.pause_alerts(body.get("minutes"), body.get("until"), body.get("at"))
+                except ValueError as err:
+                    self._json(400, {"ok": False, "error": str(err)})
+                else:
+                    self._json(200, {"ok": True, "alerts_paused": state})
+            elif path == "/api/alerts/resume":
+                resumed = tracker.resume_alerts()
+                if resumed:
+                    # Send what is still wrong now rather than at the next health check.
+                    threading.Thread(target=alerts.check, name="alerts-resume", daemon=True).start()
+                self._json(200, {"ok": True, "resumed": resumed})
             elif path == "/api/test-notification":
                 self._json(200, {"ok": True, "channels": alerts.test()})
             elif path == "/api/battery":
@@ -950,6 +1107,9 @@ class Handler(BaseHTTPRequestHandler):
                     200 if entry else 400,
                     {"ok": bool(entry), "entry": entry, "error": None if entry else "Invalid device or date"},
                 )
+            elif path == "/api/battery_stock":
+                result = tracker.set_battery_stock(str(body.get("type") or ""), body.get("count"), body.get("delta"))
+                self._json(200 if result["ok"] else 400, result)
             elif path == "/api/battery/remove":
                 ok = tracker.remove_battery_replacement(ieee, int(body.get("index", -1)))
                 threading.Thread(target=discovery.sync, daemon=True).start()
@@ -988,6 +1148,8 @@ class Handler(BaseHTTPRequestHandler):
                     str(body.get("via") or "") or None,
                     str(body.get("target") or "") or None,
                 )
+                if result["ok"] and not body.get("seconds"):
+                    alerts.check()
                 self._json(200 if result["ok"] else 502, result)
             elif path == "/api/ota":
                 if body.get("action") == "update":
@@ -1012,6 +1174,20 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/ota/cancel":
                 result = ota_manager.cancel(ieee)
                 self._json(200 if result["ok"] else 404, result)
+            elif path == "/api/ha/remove_leftovers":
+                ids = body.get("device_ids")
+                ready, known = tracker.leftover_context()
+                if not isinstance(ids, list) or not ids:
+                    self._json(400, {"ok": False, "error": "No devices chosen"})
+                elif not ready or not home_assistant.available:
+                    self._json(409, {"ok": False, "error": "Not ready yet, try again in a minute"})
+                else:
+                    result = home_assistant.remove_leftovers([str(x) for x in ids[:500]], known)
+                    try:
+                        refresh_leftovers()
+                    except Exception:  # noqa: BLE001 - the next refresh catches up
+                        pass
+                    self._json(200, result)
             elif path == "/api/summary":
                 self._json(200, {"ok": True, **send_weekly_summary()})
             elif path == "/api/import":
@@ -1032,6 +1208,7 @@ def main() -> None:
     _LOGGER.info("Z2M Device Tracker %s: %d devices loaded (%s), base topics: %s", VERSION, count, source, base_topics)
     if source == "migrated":
         tracker.save(force=True)
+    threading.Thread(target=offer_new_notify_kinds, name="notify-kinds", daemon=True).start()
 
     client = start_mqtt()
     threading.Thread(target=scheduler, name="scheduler", daemon=True).start()

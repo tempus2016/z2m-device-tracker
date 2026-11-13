@@ -37,7 +37,7 @@ It has two parts, both in this repository:
 ## Features
 
 - **Device history**: names, renames, model, firmware, area, joins, leaves and removals, with notes and asset details.
-- **Health checks and alerts**: offline, silent, frozen readings, weak or dropping signal, low battery, failed interviews, unidentified devices. Alerts go to HA notifications, events or a notify service.
+- **Health checks and alerts**: offline, silent, frozen readings, weak or dropping signal, low battery, failed interviews, unidentified devices. Alerts go to HA notifications, events or a notify service. Pause them all during planned work.
 - **More checks**: flapping devices, chatty devices, fast battery drain, lost bindings, single points of failure (routers), and a missing, stale or mismatched coordinator backup. They show in Health and only notify once you turn them on.
 - **Bindings and traffic**: each device's current and lost bindings with a history of changes and a Restore button for each lost one, its message rates, and Zigbee2MQTT's own message, leave and address-change counters.
 - **Coordinator health**: Zigbee2MQTT version, coordinator firmware, uptime, restarts, outages and coordinator backup, and an alert when a network goes offline.
@@ -46,11 +46,11 @@ It has two parts, both in this repository:
 - **Device actions**: pair through a chosen router, move a device to another router, reconfigure, rename, set area, OTA updates. Names and areas stay in step with Home Assistant: a change made there shows in the app within seconds.
 - **Firmware updates**: one list of every device with an update, installed and available versions, update all one device at a time, an optional overnight window that skips low batteries, and a log of past updates.
 - **Replace a device**: swap a dead device for a new one in three steps. The new device takes over its name, area, bindings, notes and, if you want, battery record, the old one is removed from Zigbee2MQTT, and both histories are linked.
-- **Batteries**: battery type and count (built-in library from Battery Notes), replacement records, estimates and a shopping list. With the integration, the shopping list is a Home Assistant to-do list (tick an item to mark those batteries replaced) and a calendar shows each predicted replacement date.
+- **Batteries**: battery type and count (built-in library from Battery Notes), replacement records, estimates and a shopping list that counts the spares you have in stock. With the integration, the shopping list is a Home Assistant to-do list (tick an item to mark those batteries replaced) and a calendar shows each predicted replacement date.
 - **Long-range trends**: each device's link quality and battery over 24 hours, 7, 30 or 90 days, with a daily min–max band, battery changes and a projection to when the battery runs low.
 - **Home Assistant entities**: MQTT discovery sensors attached to each Zigbee2MQTT device for use in automations.
-- **Actions for automations** (integration): record a battery change, mute a device, run a network scan, reconfigure, start a firmware update, add to a device's note. Pick devices by name.
-- **Your language**: the sidebar follows the language in your Home Assistant profile, or one you pick in Settings. English ships today; [CONTRIBUTING.md](CONTRIBUTING.md) explains how to add a translation.
+- **Actions for automations** (integration): record a battery change, mute a device, run a network scan, reconfigure, start a firmware update, add to a device's note, pause and resume alerts. Pick devices by name.
+- **Your language**: the sidebar, the dashboard cards and the setup screens follow the language in your Home Assistant profile, or one you pick in Settings. Available in English, German, Dutch, French, Spanish, Italian, Polish, Brazilian Portuguese, Swedish, Czech, Russian and Simplified Chinese. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to add or fix a translation.
 - Weekly summary, temporary ignore, backup and restore, CSV export.
 
 ## Screenshots
@@ -96,7 +96,7 @@ If your Zigbee2MQTT uses a different base topic, or you run more than one instan
 
 The integration also lists the app's problems in **Settings → Repairs**, and clears each one when it's fixed. Device problems have a **Fix** button with the actions that suit them: restore or accept a lost binding, record a battery change, reconfigure, install a firmware update, or mute the check for 24 hours or until you unmute it. Turn Repairs off in the integration's options.
 
-It also adds actions you can use in automations and scripts: `z2m_tracker.battery_replaced`, `z2m_tracker.mute_device`, `z2m_tracker.run_network_scan`, `z2m_tracker.reconfigure`, `z2m_tracker.ota_update` and `z2m_tracker.add_note`. For example, record a battery change when you scan an NFC tag stuck on the device:
+It also adds actions you can use in automations and scripts: `z2m_tracker.battery_replaced`, `z2m_tracker.mute_device`, `z2m_tracker.run_network_scan`, `z2m_tracker.reconfigure`, `z2m_tracker.ota_update`, `z2m_tracker.add_note`, `z2m_tracker.pause_alerts` and `z2m_tracker.resume_alerts`. For example, record a battery change when you scan an NFC tag stuck on the device:
 
 ```yaml
 triggers:
@@ -118,7 +118,7 @@ max_items: 5
 
 Three more cards read the same data. Each has a visual editor, and tapping a device opens it in the Zigbee Tracker sidebar.
 
-Battery devices, lowest first. Bars turn red at the app's low-battery threshold (`battery_alert_percent`). `show_all: true` ignores `max_items`.
+Battery devices, lowest first. Bars turn red at the app's low-battery threshold (`battery_alert_percent`, or the device's own limit). `show_all: true` ignores `max_items`.
 
 ```yaml
 type: custom:z2m-tracker-battery-card

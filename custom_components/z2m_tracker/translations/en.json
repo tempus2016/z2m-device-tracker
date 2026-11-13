@@ -114,6 +114,20 @@
         }
       }
     },
+    "pause_alerts": {
+      "name": "Pause alerts",
+      "description": "Stop the tracker sending alerts for a while, for example during Zigbee2MQTT work. Health still lists issues. When the pause ends, issues that are still there are sent once.",
+      "fields": {
+        "minutes": {
+          "name": "Minutes",
+          "description": "How long to pause for. Leave empty to pause until you resume."
+        }
+      }
+    },
+    "resume_alerts": {
+      "name": "Resume alerts",
+      "description": "End a pause now. Issues found during the pause that are still there are sent."
+    },
     "add_note": {
       "name": "Add note",
       "description": "Add a line to a Zigbee device's note in the tracker.",
@@ -184,6 +198,7 @@
       "options": {
         "offline": "Offline",
         "silent": "Not heard from",
+        "late": "Stopped reporting",
         "frozen": "Frozen reading",
         "battery_low": "Low battery",
         "battery_soon": "Battery running down",
@@ -196,7 +211,9 @@
         "flapping": "Flapping",
         "chatty": "Chatty device",
         "binding_lost": "Binding lost",
-        "single_point": "Single point of failure"
+        "single_point": "Single point of failure",
+        "router_hopping": "Changes router often",
+        "slow_router": "Router getting slower"
       }
     }
   },

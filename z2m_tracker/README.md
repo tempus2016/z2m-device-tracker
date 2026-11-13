@@ -14,10 +14,10 @@ Ever had a device show up as `0x30eb5affff5cf5ca` and had no idea what it used t
 - **Network map**: which router each device uses and how strong the link is, as a graph or a floor plan by Home Assistant floor and area, with advice on better routers and nightly routing scans.
 - **Trends**: each device's link quality and battery over up to 90 days, with a projection of when the battery runs low.
 - **Device actions**: pair through a chosen router, move a device to a closer router, rename, set area, reconfigure, restore lost bindings, and replace a dead device with a new one.
-- **Batteries**: battery types from a built-in library, replacement records, estimates and a shopping list.
+- **Batteries**: battery types from a built-in library, replacement records, estimates and a shopping list that counts your spares.
 - **Coordinator and radio**: Zigbee2MQTT and coordinator versions, uptime, outages and backups, and your Zigbee channels checked against your Wi-Fi.
 - **Home Assistant entities**: tracker sensors added to each Zigbee2MQTT device, for automations.
-- Names and areas stay in step with Home Assistant. The sidebar follows your profile language.
+- Names and areas stay in step with Home Assistant. The sidebar follows your profile language, in 12 languages.
 
 | Firmware updates | Floor plan |
 | --- | --- |

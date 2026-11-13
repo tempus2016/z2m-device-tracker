@@ -33,6 +33,7 @@ mute_device:
           options:
             - offline
             - silent
+            - late
             - frozen
             - battery_low
             - battery_soon
@@ -46,6 +47,8 @@ mute_device:
             - chatty
             - binding_lost
             - single_point
+            - router_hopping
+            - slow_router
     duration:
       selector:
         duration:
@@ -67,6 +70,20 @@ ota_update:
   fields:
     device_id: *zigbee_device
     ieee: *ieee
+
+pause_alerts:
+  fields:
+    minutes:
+      example: 60
+      selector:
+        number:
+          min: 1
+          max: 43200
+          mode: box
+          unit_of_measurement: min
+
+resume_alerts:
+  fields: {}
 
 add_note:
   fields:

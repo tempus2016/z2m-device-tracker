@@ -18,6 +18,96 @@ WEBSOCKET = "ws://supervisor/core/websocket"
 # Registry changes that can alter a device's link, name, area or Battery Notes entities.
 REGISTRY_EVENTS = ("device_registry_updated", "area_registry_updated", "entity_registry_updated")
 IDENT_RE = re.compile(r"zigbee2mqtt_(0x[0-9a-f]{16})$")
+# Entity states that mean nothing is providing the entity any more.
+DEAD_STATES = (None, "unavailable", "unknown")
+
+
+def _device_ieee(device: dict) -> str | None:
+    """IEEE address from a Zigbee2MQTT device identifier. The bridge device
+    ("zigbee2mqtt_bridge_<ieee>") and groups don't match."""
+    for identifier in device.get("identifiers") or []:
+        if len(identifier) > 1:
+            match = IDENT_RE.search(str(identifier[1]))
+            if match:
+                return match.group(1)
+    return None
+
+
+def find_leftovers(
+    devices: list[dict],
+    entities: list[dict],
+    states: dict[str, str | None],
+    mqtt_entries: set[str],
+    known: dict[str, dict],
+) -> list[dict]:
+    """HA devices from Zigbee2MQTT's MQTT discovery whose IEEE address is not an
+    active device in any tracked Zigbee2MQTT network.
+
+    known maps IEEE -> {"active", "name", "removed_at", "successor"} from the
+    tracker's records. A device is only listed when the MQTT config entry owns it
+    and none of its MQTT entities still has a live state (so a device of a
+    Zigbee2MQTT network the tracker doesn't watch is never listed).
+    """
+    by_device: dict[str, list[dict]] = {}
+    for entity in entities:
+        if entity.get("device_id"):
+            by_device.setdefault(entity["device_id"], []).append(entity)
+    out = []
+    for device in devices:
+        ieee = _device_ieee(device)
+        if not ieee or not device.get("id"):
+            continue
+        record = known.get(ieee)
+        if record and record.get("active"):
+            continue
+        owners = set(device.get("config_entries") or [])
+        if device.get("config_entry_id"):
+            owners.add(device["config_entry_id"])
+        entry = next((e for e in sorted(owners) if e in mqtt_entries), None)
+        if entry is None:
+            continue
+        own = by_device.get(device["id"], [])
+        if any(
+            e.get("platform") == "mqtt"
+            and not e.get("disabled_by")
+            and states.get(e.get("entity_id")) not in DEAD_STATES
+            for e in own
+        ):
+            continue
+        name = device.get("name_by_user") or device.get("name")
+        if not name or str(name).lower() == ieee:
+            name = (record or {}).get("name") or ieee
+        out.append(
+            {
+                "device_id": device["id"],
+                "config_entry_id": entry,
+                # HA 2025+ registries name one owning entry; only then may the plain
+                # remove command be used as a fallback.
+                "sole_owner": device.get("config_entry_id") == entry,
+                "ieee": ieee,
+                "name": str(name),
+                "entities": len(own),
+                "known": record is not None,
+                "removed_at": (record or {}).get("removed_at"),
+                "successor": (record or {}).get("successor"),
+                "automations": None,
+                "scripts": None,
+            }
+        )
+    out.sort(key=lambda d: d["name"].lower())
+    return out
+
+
+def plan_removal(requested: list[str], leftovers: list[dict]) -> tuple[list[dict], list[str]]:
+    """Split requested HA device ids into still-leftover devices and refused ids."""
+    allowed = {d["device_id"]: d for d in leftovers}
+    go, refused = [], []
+    for device_id in dict.fromkeys(str(x) for x in requested):
+        if device_id in allowed:
+            go.append(allowed[device_id])
+        else:
+            refused.append(device_id)
+    return go, refused
 
 
 class HomeAssistant:
@@ -136,6 +226,73 @@ class HomeAssistant:
                         return device["id"]
         return None
 
+    def leftovers(self, known: dict[str, dict], usage: bool = False) -> list[dict]:
+        """Zigbee2MQTT devices left behind in HA (see find_leftovers), read live.
+        With usage, also count the automations and scripts that refer to each one."""
+        devices, entities, entries = self._ws_call(
+            [
+                {"type": "config/device_registry/list"},
+                {"type": "config/entity_registry/list"},
+                {"type": "config_entries/get", "domain": "mqtt"},
+            ]
+        )
+        states = self._request("GET", "/states")
+        if not isinstance(states, list):
+            # Without states every entity would look dead, so list nothing.
+            raise RuntimeError("Couldn't read Home Assistant's entity states")
+        found = find_leftovers(
+            devices or [],
+            entities or [],
+            {s.get("entity_id"): s.get("state") for s in states},
+            {e["entry_id"] for e in entries or [] if e.get("domain", "mqtt") == "mqtt" and e.get("entry_id")},
+            known,
+        )
+        if usage and found:
+            try:
+                related = self._ws_call(
+                    [{"type": "search/related", "item_type": "device", "item_id": d["device_id"]} for d in found]
+                )
+                for device, hits in zip(found, related, strict=True):
+                    device["automations"] = len((hits or {}).get("automation") or [])
+                    device["scripts"] = len((hits or {}).get("script") or [])
+            except Exception as err:  # noqa: BLE001 - usage is extra info, unknown is shown as such
+                _LOGGER.warning("Looking up automations for leftover devices failed: %s", err)
+        return found
+
+    def remove_leftovers(self, device_ids: list[str], known: dict[str, dict]) -> dict:
+        """Remove the given HA devices, but only those that are still leftovers now.
+        Each is removed from the MQTT config entry that owns it, nothing else."""
+        go, refused = plan_removal(device_ids, self.leftovers(known))
+        removed, failed = [], []
+        for device in go:
+            try:
+                self._remove_from_mqtt(device)
+                removed.append(device["device_id"])
+                _LOGGER.info("Removed leftover device %s (%s) from Home Assistant", device["name"], device["ieee"])
+            except Exception as err:  # noqa: BLE001 - report per device
+                _LOGGER.warning("Removing leftover device %s failed: %s", device["name"], err)
+                failed.append({"device_id": device["device_id"], "name": device["name"], "error": str(err)})
+        return {"ok": not failed and not refused, "removed": removed, "refused": refused, "failed": failed}
+
+    def _remove_from_mqtt(self, device: dict) -> None:
+        try:
+            self._ws_call(
+                [
+                    {
+                        "type": "config/device_registry/remove_config_entry",
+                        "device_id": device["device_id"],
+                        "config_entry_id": device["config_entry_id"],
+                    }
+                ]
+            )
+        except RuntimeError as err:
+            # HA 2027.9 drops that command for config/device_registry/remove, which
+            # removes the device from the one config entry that owns it. Only use it
+            # when that owner is the MQTT entry.
+            if "unknown command" not in str(err).lower() or not device.get("sole_owner"):
+                raise
+            self._ws_call([{"type": "config/device_registry/remove", "device_id": device["device_id"]}])
+
     def set_device_area(self, device_id: str, area_id: str | None) -> None:
         self._ws_call([{"type": "config/device_registry/update", "device_id": device_id, "area_id": area_id}])
 
@@ -154,7 +311,7 @@ class HomeAssistant:
     def dismiss_notification(self, notification_id: str) -> None:
         self._request("POST", "/services/persistent_notification/dismiss", {"notification_id": notification_id})
 
-    def notify(self, service: str, title: str, message: str) -> None:
+    def notify(self, service: str, title: str, message: str, data: dict | None = None) -> None:
         service = service.strip()
         if not service:
             return
@@ -162,7 +319,10 @@ class HomeAssistant:
             domain, name = service.split(".", 1)
         else:
             domain, name = "notify", service
-        self._request("POST", f"/services/{domain}/{name}", {"title": title, "message": message})
+        payload: dict = {"title": title, "message": message}
+        if data:
+            payload["data"] = data
+        self._request("POST", f"/services/{domain}/{name}", payload)
 
     def logbook(self, device_id: str, name: str, message: str) -> None:
         """Add a logbook entry tied to one of the device's entities, so it shows on the device page."""

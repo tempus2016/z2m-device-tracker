@@ -1,0 +1,241 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Z2M Device Tracker",
+        "description": "Připojí se k aplikaci Z2M Device Tracker, která zaznamenává historii každého zařízení Zigbee2MQTT. Přidá souhrnné senzory a kartu z2m-tracker-card. URL aplikace se vyplní automaticky, pokud je aplikace nainstalovaná.",
+        "data": {
+          "app_url": "URL aplikace"
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Z2M Device Tracker už je nastavený."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Z2M Device Tracker",
+        "data": {
+          "app_url": "URL aplikace",
+          "repairs": "Zobrazovat problémy v Nastavení > Opravy"
+        },
+        "data_description": {
+          "repairs": "Zrcadlí varování aplikace a kontroly nastavené na oznámení. Každý problém zmizí sám, jakmile je vyřešen."
+        }
+      }
+    }
+  },
+  "services": {
+    "import_history": {
+      "name": "Importovat historii",
+      "description": "Požádá aplikaci o nové prohledání databází Z2M, záloh konfigurace, logů a registrů Home Assistant kvůli zařízením a názvům a jejich sloučení do historie."
+    },
+    "battery_replaced": {
+      "name": "Baterie vyměněna",
+      "description": "Zaznamená výměnu baterie u zařízení Zigbee. Aktualizuje také Battery Notes, pokud zařízení sleduje.",
+      "fields": {
+        "device_id": {
+          "name": "Zařízení",
+          "description": "Zařízení Zigbee2MQTT. Vyberte ho podle názvu."
+        },
+        "ieee": {
+          "name": "Adresa IEEE",
+          "description": "Použijte místo zařízení, například 0x00158d0001a2b3c4."
+        },
+        "date": {
+          "name": "Datum",
+          "description": "Kdy byla baterie vyměněna. Nechte prázdné pro dnešek."
+        },
+        "battery_type": {
+          "name": "Typ baterie",
+          "description": "Uloží typ baterie pro toto zařízení, například CR2032. Nechte prázdné pro zachování současného."
+        }
+      }
+    },
+    "mute_device": {
+      "name": "Ztlumit zařízení",
+      "description": "Tracker přestane hlásit problémy se zařízením Zigbee.",
+      "fields": {
+        "device_id": {
+          "name": "Zařízení",
+          "description": "Zařízení Zigbee2MQTT. Vyberte ho podle názvu."
+        },
+        "ieee": {
+          "name": "Adresa IEEE",
+          "description": "Použijte místo zařízení, například 0x00158d0001a2b3c4."
+        },
+        "checks": {
+          "name": "Kontroly",
+          "description": "Které kontroly ztlumit. Nechte prázdné pro ztlumení všech."
+        },
+        "duration": {
+          "name": "Doba trvání",
+          "description": "Na jak dlouho ztlumit. Nechte prázdné pro ztlumení, dokud ho v aplikaci nezrušíte."
+        }
+      }
+    },
+    "run_network_scan": {
+      "name": "Spustit skenování sítě",
+      "description": "Spustí skenování směrování (mapu sítě) v Zigbee2MQTT. Běží na pozadí a může trvat několik minut.",
+      "fields": {
+        "base_topic": {
+          "name": "Základní téma",
+          "description": "Síť Zigbee2MQTT ke skenování, například zigbee2mqtt. Nechte prázdné pro skenování všech sítí."
+        }
+      }
+    },
+    "reconfigure": {
+      "name": "Překonfigurovat",
+      "description": "Požádá Zigbee2MQTT o překonfigurování zařízení. Tím se znovu vytvoří jeho vazby pro hlášení. Bateriová zařízení nejdřív probuďte.",
+      "fields": {
+        "device_id": {
+          "name": "Zařízení",
+          "description": "Zařízení Zigbee2MQTT. Vyberte ho podle názvu."
+        },
+        "ieee": {
+          "name": "Adresa IEEE",
+          "description": "Použijte místo zařízení, například 0x00158d0001a2b3c4."
+        }
+      }
+    },
+    "ota_update": {
+      "name": "Aktualizace firmwaru",
+      "description": "Spustí aktualizaci firmwaru (OTA). Nechte zařízení prázdné pro aktualizaci všech zařízení, která mají dostupnou aktualizaci.",
+      "fields": {
+        "device_id": {
+          "name": "Zařízení",
+          "description": "Zařízení Zigbee2MQTT. Nechte prázdné pro aktualizaci všech zařízení s aktualizací."
+        },
+        "ieee": {
+          "name": "Adresa IEEE",
+          "description": "Použijte místo zařízení, například 0x00158d0001a2b3c4."
+        }
+      }
+    },
+    "add_note": {
+      "name": "Přidat poznámku",
+      "description": "Přidá řádek do poznámky zařízení Zigbee v trackeru.",
+      "fields": {
+        "device_id": {
+          "name": "Zařízení",
+          "description": "Zařízení Zigbee2MQTT. Vyberte ho podle názvu."
+        },
+        "ieee": {
+          "name": "Adresa IEEE",
+          "description": "Použijte místo zařízení, například 0x00158d0001a2b3c4."
+        },
+        "text": {
+          "name": "Text",
+          "description": "Text k přidání. Vloží se na nový řádek za stávající poznámku."
+        }
+      }
+    }
+  },
+  "issues": {
+    "device_issue": {
+      "title": "Zigbee: {name} – {title}",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "{name}: {title}",
+            "description": "{detail}\n\nVyberte opravu. Ztlumení zastaví hlášení této kontroly jen pro toto zařízení.\n\n[Otevřít v Zigbee Trackeru]({panel})",
+            "menu_options": {
+              "restore_binding": "Obnovit vazbu",
+              "bindings_removed": "Vazba byla odebrána záměrně",
+              "battery_replaced": "Baterie vyměněna dnes",
+              "reconfigure": "Překonfigurovat zařízení",
+              "install_update": "Nainstalovat aktualizaci firmwaru",
+              "mute_day": "Ztlumit tuto kontrolu na 24 hodin",
+              "mute_forever": "Ztlumit tuto kontrolu, dokud ji nezruším"
+            }
+          },
+          "restore_binding": {
+            "title": "Obnovit vazbu",
+            "description": "Požádá Zigbee2MQTT o opětovné vytvoření těchto vazeb na {name}:\n\n{bindings}\n\nPokud běží na baterii, nejdřív ho probuďte, například stisknutím tlačítka, a pak zvolte Odeslat. U každé vazby to může trvat až minutu."
+          }
+        },
+        "abort": {
+          "not_loaded": "Z2M Device Tracker není načtený.",
+          "app_error": "Oprava se nezdařila: {error}"
+        }
+      }
+    },
+    "network_issue": {
+      "title": "Zigbee: {name} – {title}",
+      "description": "{detail}\n\n[Otevřít Zigbee Tracker]({panel})"
+    }
+  },
+  "entity": {
+    "calendar": {
+      "batteries": {
+        "name": "Baterie Zigbee"
+      }
+    },
+    "todo": {
+      "batteries": {
+        "name": "Baterie Zigbee"
+      }
+    }
+  },
+  "selector": {
+    "check": {
+      "options": {
+        "offline": "Offline",
+        "silent": "Bez zpráv",
+        "frozen": "Zamrzlá hodnota",
+        "battery_low": "Slabá baterie",
+        "battery_soon": "Baterie dochází",
+        "battery_drain": "Baterie se rychle vybíjí",
+        "weak_signal": "Slabý signál",
+        "signal_drop": "Signál klesá",
+        "unidentified": "Neidentifikováno",
+        "update": "Aktualizace firmwaru",
+        "replacement": "Možná výměna",
+        "flapping": "Kolísání",
+        "chatty": "Upovídané zařízení",
+        "binding_lost": "Ztracená vazba",
+        "single_point": "Jediný bod selhání"
+      }
+    }
+  },
+  "exceptions": {
+    "not_loaded": {
+      "message": "Z2M Device Tracker není načtený."
+    },
+    "app_unreachable": {
+      "message": "Aplikace Z2M Device Tracker není dostupná."
+    },
+    "app_error": {
+      "message": "Aplikace Z2M Device Tracker vrátila chybu: {error}"
+    },
+    "no_device": {
+      "message": "Vyberte zařízení nebo zadejte adresu IEEE."
+    },
+    "unknown_device_id": {
+      "message": "V Home Assistant není žádné zařízení s ID {device}."
+    },
+    "not_zigbee": {
+      "message": "{device} není zařízení Zigbee2MQTT."
+    },
+    "bad_ieee": {
+      "message": "{ieee} není adresa IEEE. Měla by vypadat jako 0x00158d0001a2b3c4."
+    },
+    "unknown_ieee": {
+      "message": "Tracker nezná žádné zařízení {ieee}."
+    },
+    "not_active": {
+      "message": "{name} už není v Zigbee2MQTT."
+    },
+    "no_update": {
+      "message": "{name} nemá dostupnou aktualizaci firmwaru."
+    },
+    "unknown_base_topic": {
+      "message": "Žádná síť Zigbee2MQTT se základním tématem {base_topic}. Známé: {known}."
+    },
+    "note_too_long": {
+      "message": "Poznámka by byla delší než {limit} znaků. Nejdřív ji zkraťte v aplikaci."
+    }
+  }
+}

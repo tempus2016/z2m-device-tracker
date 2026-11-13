@@ -1,0 +1,241 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Z2M Device Tracker",
+        "description": "Ansluter till appen Z2M Device Tracker, som registrerar historiken för varje Zigbee2MQTT-enhet. Lägger till sammanfattningssensorer och z2m-tracker-card. Appens URL fylls i automatiskt när appen är installerad.",
+        "data": {
+          "app_url": "Appens URL"
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Z2M Device Tracker är redan konfigurerad."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Z2M Device Tracker",
+        "data": {
+          "app_url": "Appens URL",
+          "repairs": "Visa problem i Inställningar > Reparationer"
+        },
+        "data_description": {
+          "repairs": "Speglar appens varningar och de kontroller som är inställda på att avisera. Var och en försvinner av sig själv när problemet är löst."
+        }
+      }
+    }
+  },
+  "services": {
+    "import_history": {
+      "name": "Importera historik",
+      "description": "Be appen att skanna Z2M-databaser, konfigurationsbackuper, loggar och Home Assistant-register igen efter enheter och namn och slå ihop dem med historiken."
+    },
+    "battery_replaced": {
+      "name": "Batteri bytt",
+      "description": "Registrera ett batteribyte för en Zigbee-enhet. Uppdaterar även Battery Notes när den följer enheten.",
+      "fields": {
+        "device_id": {
+          "name": "Enhet",
+          "description": "Zigbee2MQTT-enheten. Välj den efter namn."
+        },
+        "ieee": {
+          "name": "IEEE-adress",
+          "description": "Använd i stället för en enhet, till exempel 0x00158d0001a2b3c4."
+        },
+        "date": {
+          "name": "Datum",
+          "description": "När batteriet byttes. Lämna tomt för i dag."
+        },
+        "battery_type": {
+          "name": "Batterityp",
+          "description": "Sparar batteritypen för den här enheten, till exempel CR2032. Lämna tomt för att behålla den nuvarande."
+        }
+      }
+    },
+    "mute_device": {
+      "name": "Tysta enhet",
+      "description": "Få trackern att sluta flagga problem med en Zigbee-enhet.",
+      "fields": {
+        "device_id": {
+          "name": "Enhet",
+          "description": "Zigbee2MQTT-enheten. Välj den efter namn."
+        },
+        "ieee": {
+          "name": "IEEE-adress",
+          "description": "Använd i stället för en enhet, till exempel 0x00158d0001a2b3c4."
+        },
+        "checks": {
+          "name": "Kontroller",
+          "description": "Vilka kontroller som ska tystas. Lämna tomt för att tysta alla."
+        },
+        "duration": {
+          "name": "Varaktighet",
+          "description": "Hur länge den ska tystas. Lämna tomt för att tysta tills du slår på den igen i appen."
+        }
+      }
+    },
+    "run_network_scan": {
+      "name": "Kör nätverksskanning",
+      "description": "Starta en routingskanning (nätverkskarta) i Zigbee2MQTT. Den körs i bakgrunden och kan ta några minuter.",
+      "fields": {
+        "base_topic": {
+          "name": "Bastopic",
+          "description": "Zigbee2MQTT-nätverket som ska skannas, till exempel zigbee2mqtt. Lämna tomt för att skanna alla nätverk."
+        }
+      }
+    },
+    "reconfigure": {
+      "name": "Konfigurera om",
+      "description": "Be Zigbee2MQTT att konfigurera om en enhet. Det skapar dess rapporteringsbindningar igen. Väck batterienheter först.",
+      "fields": {
+        "device_id": {
+          "name": "Enhet",
+          "description": "Zigbee2MQTT-enheten. Välj den efter namn."
+        },
+        "ieee": {
+          "name": "IEEE-adress",
+          "description": "Använd i stället för en enhet, till exempel 0x00158d0001a2b3c4."
+        }
+      }
+    },
+    "ota_update": {
+      "name": "Firmwareuppdatering",
+      "description": "Starta en firmwareuppdatering (OTA). Lämna enheten tom för att uppdatera alla enheter som har en uppdatering tillgänglig.",
+      "fields": {
+        "device_id": {
+          "name": "Enhet",
+          "description": "Zigbee2MQTT-enheten. Lämna tomt för att uppdatera alla enheter med en uppdatering."
+        },
+        "ieee": {
+          "name": "IEEE-adress",
+          "description": "Använd i stället för en enhet, till exempel 0x00158d0001a2b3c4."
+        }
+      }
+    },
+    "add_note": {
+      "name": "Lägg till anteckning",
+      "description": "Lägg till en rad i en Zigbee-enhets anteckning i trackern.",
+      "fields": {
+        "device_id": {
+          "name": "Enhet",
+          "description": "Zigbee2MQTT-enheten. Välj den efter namn."
+        },
+        "ieee": {
+          "name": "IEEE-adress",
+          "description": "Använd i stället för en enhet, till exempel 0x00158d0001a2b3c4."
+        },
+        "text": {
+          "name": "Text",
+          "description": "Texten som ska läggas till. Den hamnar på en ny rad efter den befintliga anteckningen."
+        }
+      }
+    }
+  },
+  "issues": {
+    "device_issue": {
+      "title": "Zigbee: {name} - {title}",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "{name}: {title}",
+            "description": "{detail}\n\nVälj en åtgärd. Att tysta gör att trackern slutar flagga den här kontrollen, bara för den här enheten.\n\n[Öppna i Zigbee Tracker]({panel})",
+            "menu_options": {
+              "restore_binding": "Återställ bindningen",
+              "bindings_removed": "Bindningen togs bort avsiktligt",
+              "battery_replaced": "Batteriet byttes i dag",
+              "reconfigure": "Konfigurera om enheten",
+              "install_update": "Installera firmwareuppdateringen",
+              "mute_day": "Tysta den här kontrollen i 24 timmar",
+              "mute_forever": "Tysta den här kontrollen tills jag slår på den igen"
+            }
+          },
+          "restore_binding": {
+            "title": "Återställ bindningen",
+            "description": "Ber Zigbee2MQTT att skapa de här bindningarna igen på {name}:\n\n{bindings}\n\nOm den drivs med batteri, väck den först, till exempel genom att trycka på dess knapp, och välj sedan Skicka. Det kan ta upp till en minut per bindning."
+          }
+        },
+        "abort": {
+          "not_loaded": "Z2M Device Tracker är inte inläst.",
+          "app_error": "Åtgärden fungerade inte: {error}"
+        }
+      }
+    },
+    "network_issue": {
+      "title": "Zigbee: {name} - {title}",
+      "description": "{detail}\n\n[Öppna Zigbee Tracker]({panel})"
+    }
+  },
+  "entity": {
+    "calendar": {
+      "batteries": {
+        "name": "Zigbee-batterier"
+      }
+    },
+    "todo": {
+      "batteries": {
+        "name": "Zigbee-batterier"
+      }
+    }
+  },
+  "selector": {
+    "check": {
+      "options": {
+        "offline": "Offline",
+        "silent": "Inte hörts av",
+        "frozen": "Fryst värde",
+        "battery_low": "Låg batterinivå",
+        "battery_soon": "Batteriet tar slut",
+        "battery_drain": "Batteriet laddas ur snabbt",
+        "weak_signal": "Svag signal",
+        "signal_drop": "Signalen sjunker",
+        "unidentified": "Oidentifierad",
+        "update": "Firmwareuppdatering",
+        "replacement": "Möjlig ersättare",
+        "flapping": "Fladdrar",
+        "chatty": "Pratsam enhet",
+        "binding_lost": "Bindning förlorad",
+        "single_point": "Enskild felpunkt"
+      }
+    }
+  },
+  "exceptions": {
+    "not_loaded": {
+      "message": "Z2M Device Tracker är inte inläst."
+    },
+    "app_unreachable": {
+      "message": "Appen Z2M Device Tracker går inte att nå."
+    },
+    "app_error": {
+      "message": "Appen Z2M Device Tracker returnerade ett fel: {error}"
+    },
+    "no_device": {
+      "message": "Välj en enhet eller ange en IEEE-adress."
+    },
+    "unknown_device_id": {
+      "message": "Ingen enhet med ID {device} i Home Assistant."
+    },
+    "not_zigbee": {
+      "message": "{device} är inte en Zigbee2MQTT-enhet."
+    },
+    "bad_ieee": {
+      "message": "{ieee} är inte en IEEE-adress. Den ska se ut som 0x00158d0001a2b3c4."
+    },
+    "unknown_ieee": {
+      "message": "Trackern har ingen enhet {ieee}."
+    },
+    "not_active": {
+      "message": "{name} finns inte längre i Zigbee2MQTT."
+    },
+    "no_update": {
+      "message": "{name} har ingen firmwareuppdatering tillgänglig."
+    },
+    "unknown_base_topic": {
+      "message": "Inget Zigbee2MQTT-nätverk med bastopic {base_topic}. Kända: {known}."
+    },
+    "note_too_long": {
+      "message": "Anteckningen skulle bli längre än {limit} tecken. Korta den i appen först."
+    }
+  }
+}
