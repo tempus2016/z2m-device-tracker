@@ -249,6 +249,16 @@
   .more-hero .sub { color: var(--text-2); }
   .more-actions { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; padding: 8px 16px 12px; }
   .alerts { display: grid; gap: 8px; padding: 0 16px 8px; }
+  .ping-result { display: flex; justify-content: center; padding: 0 16px 8px; }
+  .ping-pill { display: inline-flex; align-items: center; gap: 4px; min-height: 22px; padding: 2px 10px; border-radius: 11px; font-size: 12px; font-weight: 500; background: var(--chip-on); color: var(--primary-text); }
+  .ping-pill.ok { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
+  .ping-pill.bad { background: color-mix(in srgb, var(--error) 14%, transparent); color: var(--error); }
+  .ping-bars { display: flex; align-items: flex-end; gap: 3px; height: 90px; padding: 8px 16px 0; }
+  .ping-bars i { flex: 1; min-height: 2px; background: var(--primary); opacity: .75; border-radius: 2px 2px 0 0; }
+  .ping-bars i.lo { background: var(--warning); opacity: 1; }
+  .ping-bars i.bad { background: var(--error); opacity: .85; }
+  .ping-bars i.none { height: 100%; background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--error) 30%, transparent) 0 4px, transparent 4px 8px); opacity: 1; }
+  .ping-bars i.gap { background: none; }
   .kv { display: grid; padding: 0 4px 8px; }
   .kv > div { display: flex; justify-content: space-between; gap: 16px; padding: 12px; border-radius: 12px; }
   .kv > div:hover { background: var(--hover); }
@@ -534,7 +544,7 @@
     removed: { get label() { return t("status.removed"); }, c: "var(--disabled)" },
   };
   const KIND_ICON = { offline: "wifi-off", silent: "wifi-off", frozen: "thermometer", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
-    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", coordinator_backup: "download" };
+    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", slow_router: "router-wireless", coordinator_backup: "download" };
   const EVENT_ICON = (k) => {
     if (k.startsWith("interview")) return k.endsWith("successful") ? ["check", "var(--success)"] : ["alert-circle", "var(--error)"];
     return ({ joined: ["plus", "var(--success)"], added: ["plus", "var(--success)"], rejoined: ["plus", "var(--success)"], online: ["wifi", "var(--success)"], offline: ["wifi-off", "var(--error)"],
@@ -1524,6 +1534,37 @@
   const kv = (rows) => `<div class="kv">${rows.filter(([, v]) => v !== null && v !== undefined && v !== "").map(([k, v, mono]) => `<div><span>${k}</span><b ${mono ? 'class="mono"' : ""}>${esc(v)}</b></div>`).join("")}</div>`;
   const devLink = (ieee) => { const d = state.byIeee.get(ieee); return d ? `<a href="#${esc(ieee)}" data-open="${esc(ieee)}">${esc(nameOf(d) || ieee)}</a>` : esc(ieee); };
 
+  // ------------------------------------------------------------ ping (mains devices)
+  const PING = new Map();
+  const pingResult = (d) => {
+    const p = PING.get(d.ieee);
+    if (!p) return "";
+    const [cls, text] = p.busy ? ["", t("ping.running")] : p.ms !== undefined ? ["ok", t("ping.replied", { ms: p.ms })] : p.timeout ? ["bad", t("ping.no_reply", { s: p.seconds || 10 })] : ["bad", p.error];
+    return `<div class="ping-result"><span class="ping-pill ${cls}" role="status"${p.detail ? ` title="${esc(p.detail)}"` : ""}>${esc(text)}</span></div>`;
+  };
+  const pingMedian = (xs) => { const o = [...xs].sort((a, b) => a - b), m = o.length >> 1; return o.length % 2 ? o[m] : (o[m - 1] + o[m]) / 2; };
+  const pingChart = (d) => {
+    const pts = d.metrics?.ping_daily || [];
+    if (!pts.length) return d.can_ping && d.type === "Router" ? `<div class="sub-h">${th("ping.chart_title")}</div><div class="card-content muted">${th("ping.chart_empty")}</div>` : "";
+    const byDay = new Map(pts.map((p) => [p[0], p[1]]));
+    const last = pts[pts.length - 1][0], days = Array.from({ length: 14 }, (_, i) => last - (13 - i) * 86400);
+    const vals = pts.map((p) => p[1]).filter((v) => v !== null);
+    const hi = Math.max(200, ...vals), base = vals.length ? pingMedian(vals.slice(0, Math.max(1, Math.ceil(vals.length / 2)))) : 0;
+    const bars = days.map((day) => {
+      if (!byDay.has(day)) return `<i class="gap"></i>`;
+      const v = byDay.get(day), when = fmtTick(day, 14 * 86400);
+      if (v === null) return `<i class="none" title="${esc(`${when}: ${t("ping.bar_none")}`)}"></i>`;
+      const cls = v > 3 * base && v > 150 ? "bad" : v > 2 * base ? "lo" : "";
+      return `<i class="${cls}" style="height:${Math.max(2, (v / hi) * 100).toFixed(1)}%" title="${esc(`${when}: ${v} ms`)}"></i>`;
+    }).join("");
+    const lab = (day) => { const v = byDay.get(day); return v === undefined ? "" : v === null ? t("ping.bar_none") : `${v} ms`; };
+    const first = days.find((day) => byDay.has(day));
+    const slow = (d.issues || []).find((i) => i.kind === "slow_router");
+    return `<div class="sub-h">${th("ping.chart_title")}</div><div class="ping-bars" role="img" aria-label="${esc(t("ping.chart_title"))}">${bars}</div>
+      <div class="chart-axis"><span>${esc(`${fmtTick(first, 14 * 86400)} · ${lab(first)}`)}</span><span>${esc(`${fmtTick(last, 14 * 86400)} · ${lab(last)}`)}</span></div>
+      ${slow ? `<div class="alerts"><div class="alert" style="--a:${slow.severity === "warning" ? "var(--warning)" : "var(--info)"}">${ic("router-wireless")}<div class="body">${esc(issueDetail(slow))}</div></div></div>` : ""}`;
+  };
+
   const tabInfo = (d) => {
     const st = statusOf(d);
     const u = d.update || {};
@@ -1534,12 +1575,14 @@
       <div class="more-hero">${stateIc(d)}<div class="big">${esc(bigState)}</div><div class="sub">${th("more.last_seen", { when: esc(relTime(d.last_seen, true)) })}</div></div>
       <div class="more-actions">
         ${d.status !== "removed" ? `<button class="btn outlined" data-act="reconfigure" data-ieee="${esc(d.ieee)}">${ic("refresh", "s18")}${th("common.reconfigure")}</button><button class="btn outlined" data-act="rename">${ic("pencil", "s18")}${th("more.rename")}</button>` : ""}
+        ${d.can_ping ? `<button class="btn outlined" data-act="ping" data-ieee="${esc(d.ieee)}" ${PING.get(d.ieee)?.busy ? "disabled" : ""}>${ic("refresh", "s18")}${th("ping.button")}</button>` : ""}
         ${canReplace(d) ? `<button class="btn outlined" data-act="replace" data-ieee="${esc(d.ieee)}">${ic("swap-horizontal", "s18")}${th("replace.button")}</button>` : ""}
         ${d.status !== "removed" && d.type === "EndDevice" ? `<button class="btn outlined" data-act="move" data-ieee="${esc(d.ieee)}">${ic("swap-horizontal", "s18")}${th("more.change_router")}</button>` : ""}
         ${d.model && d.supported !== false ? `<a class="btn outlined" href="https://www.zigbee2mqtt.io/devices/${encodeURIComponent(String(d.model).replace(/\//g, "_"))}.html" target="_blank" rel="noopener">${ic("information-outline", "s18")}${th("more.docs")}</a>` : ""}
         ${d.ha_device_id ? `<a class="btn outlined" href="/config/devices/device/${esc(d.ha_device_id)}" target="_top">${ic("home-assistant", "s18")}${th("more.device_page")}</a>` : ""}
         ${state.data.panels?.[d.instance] && d.status !== "removed" ? `<a class="btn outlined" href="${esc(state.data.panels[d.instance])}" target="_top">${ic("zigbee", "s18")}Zigbee2MQTT</a>` : ""}
       </div>
+      ${pingResult(d)}
       ${u.state === "updating" ? `<div class="alerts"><div class="alert" style="--a:var(--info)">${ic("chip")}<div class="body"><b>${th("more.updating")}${u.progress !== undefined && u.progress !== null ? ` · ${Math.round(u.progress)} %` : ""}</b>${u.remaining ? ` · ${th("more.time_left", { duration: esc(span(u.remaining)) })}` : ""}. ${th("more.keep_powered")}<div class="bar"><i style="width:${Math.max(2, Math.min(100, u.progress || 0))}%"></i></div></div></div></div>` : ""}
       ${u.state === "available" && d.status !== "removed" ? `<div class="alerts"><div class="alert" style="--a:var(--info)">${ic("chip")}<div class="body"><b>${th("issue.update.title")}</b> · ${esc(u.installed_version)} → ${esc(u.latest_version)}</div><button class="btn" data-act="ota-update">${th("common.update")}</button></div></div>` : ""}
       <div class="alerts">${(d.issues || []).map((i) => `<div class="alert" style="--a:${i.severity === "warning" ? "var(--warning)" : "var(--info)"}">${ic(KIND_ICON[i.kind] || "alert")}<div class="body"><b>${esc(issueTitle(i))}.</b> ${esc(issueDetail(i))}</div><div class="alert-acts">${issueActions(i)}</div></div>`).join("")}
@@ -1734,6 +1777,7 @@
       <div class="sub-h">${th("trends.lqi_title")}</div>
       ${lqiChart(h)}
       ${trendLegend([["var(--primary)", th(h.range === "24h" || h.range === "7d" ? "trends.hourly_avg" : "trends.daily_avg")], ["var(--primary)", th("trends.daily_range"), "opacity:.3;height:8px;vertical-align:0"], ["var(--warning)", th("trends.weak")]])}
+      ${pingChart(d)}
       ${isBat ? `<div class="sub-h">${batLabel}</div>${batteryChart(h, d)}${trendLegend([["var(--success)", th("trends.battery_pct")], ["var(--text-2)", th("trends.projection")], ["var(--state-icon)", th("trends.replaced")]])}` : ""}
       <div class="trend-stats-wrap"><div class="trend-stats" style="--n:${stats.length}">${stats.map(([k, v, color]) => `<div><small>${esc(k)}</small><b${color ? ` style="color:${color}"` : ""}>${esc(v)}</b></div>`).join("")}</div></div>
       ${isBat && (b.estimate_days === null || b.estimate_days === undefined) ? `<div class="card-content muted" style="font-size:13px">${th("trends.estimate_needs")}</div>` : ""}`;
@@ -1906,6 +1950,12 @@
         if (state.areas && area !== null && area !== currentArea) { await api("api/area", { ieee, area_id: area || null }); }
         snack(t("common.saved")); load();
       } catch (err) { snack(err.message, 5000); }
+    },
+    async ping(b) {
+      const ieee = b.dataset.ieee || state.open;
+      PING.set(ieee, { busy: true }); renderMore();
+      try { PING.set(ieee, await api("api/ping", { ieee })); } catch (err) { PING.set(ieee, { error: err.message }); }
+      if (state.open === ieee) renderMore();
     },
     async "ota-check"(b) {
       b.disabled = true; b.classList.add("busy"); snack(t("ota.checking"), 6000);

@@ -80,6 +80,12 @@ CHECKS = [
         False,
     ),
     (
+        "slow_router",
+        "Router getting slower",
+        "A router's nightly reply time over the last 3 days is more than 3 times its usual and above 150 ms.",
+        False,
+    ),
+    (
         "coordinator_backup",
         "Coordinator backup",
         "Zigbee2MQTT's coordinator_backup.json is missing, more than 3 days old, or doesn't match the running network.",
@@ -107,6 +113,7 @@ KIND_LABELS = {
     "battery_drain": "Battery draining fast",
     "binding_lost": "Binding lost",
     "single_point": "Single point of failure",
+    "slow_router": "Router getting slower",
     "coordinator_backup": "Coordinator backup",
 }
 
@@ -365,6 +372,18 @@ def device_issues(
             n=len(routers),
             names=shown,
             devices=devices,
+        )
+
+    slow = summary.get("ping_slow")
+    if slow:
+        add(
+            "slow_router",
+            INFO,
+            "Router getting slower",
+            f"Getting slower: {slow['from']} ms to {slow['to']} ms in 2 weeks. Often a failing plug or too many devices on one router.",
+            "slow_router",
+            from_ms=slow["from"],
+            to_ms=slow["to"],
         )
 
     for suggestion in suggestions:

@@ -1,4 +1,4 @@
-"""Time-series for link quality (hourly and daily) and battery (daily), kept in a separate file."""
+"""Time-series for link quality (hourly and daily), battery (daily) and router reply time (daily), kept in a separate file."""
 
 from __future__ import annotations
 
@@ -14,6 +14,21 @@ MSG_KEEP_HOURS = 24 * 14
 BATTERY_KEEP_DAYS = 400
 DRAIN_RECENT_DAYS = 14
 HISTORY_RANGES = {"24h": 1, "7d": 7, "30d": 30, "90d": 90}
+PING_KEEP_DAYS = 30
+PING_CHART_DAYS = 14
+# slow_router: the median reply time over the last few days against the median of the two weeks before.
+SLOW_RECENT_DAYS = 3
+SLOW_BASE_DAYS = 14
+SLOW_FACTOR = 3
+SLOW_MIN_MS = 150
+SLOW_MIN_RECENT = 2
+SLOW_MIN_BASE = 5
+
+
+def _median(values: list[float]) -> float:
+    ordered = sorted(values)
+    mid = len(ordered) // 2
+    return ordered[mid] if len(ordered) % 2 else (ordered[mid - 1] + ordered[mid]) / 2
 
 
 class Metrics:
@@ -23,7 +38,8 @@ class Metrics:
         self.path = path
         self.lock = threading.RLock()
         # {ieee: {"lqi": [[hour_ts, sum, count], ...], "msg": [[hour_ts, count], ...], "bat": [[day_ts, value], ...],
-        #         "lqid": [[day_ts, min, sum, count, max], ...]}}
+        #         "lqid": [[day_ts, min, sum, count, max], ...], "ping": [[day_ts, ms or None], ...]}}
+        # "ping" holds one nightly reply time per router per day; None means it didn't reply.
         # "lqid" (daily LQI rollups) was added later. Older files lack it; it's rebuilt from the hourly series.
         self.series: dict[str, dict[str, list]] = {}
         self.dirty = False
@@ -152,6 +168,43 @@ class Metrics:
             self.dirty = True
         return replaced_from
 
+    def add_ping(self, ieee: str, ms: float | None, now: float | None = None) -> None:
+        """Record tonight's reply time for a router (None for no reply). One value per day; a rerun replaces it."""
+        if ms is not None and (not isinstance(ms, (int, float)) or isinstance(ms, bool) or ms < 0):
+            return
+        now = now or time.time()
+        day = int(now // 86400 * 86400)
+        value = None if ms is None else round(float(ms))
+        with self.lock:
+            points = self.series.setdefault(ieee, {}).setdefault("ping", [])
+            if points and points[-1][0] == day:
+                points[-1][1] = value
+            else:
+                points.append([day, value])
+                cutoff = day - PING_KEEP_DAYS * 86400
+                while points and points[0][0] <= cutoff:
+                    points.pop(0)
+            self.dirty = True
+
+    @staticmethod
+    def ping_slowdown(points: list[list], now: float) -> dict | None:
+        """Median reply time over the last SLOW_RECENT_DAYS days against the SLOW_BASE_DAYS days before.
+
+        Returns {"from": ms, "to": ms} when the router got more than SLOW_FACTOR times slower and is
+        above SLOW_MIN_MS, else None. Nights without a reply are left out (the offline check covers those).
+        """
+        today = int(now // 86400 * 86400)
+        recent_start = today - (SLOW_RECENT_DAYS - 1) * 86400
+        base_start = recent_start - SLOW_BASE_DAYS * 86400
+        recent = [ms for day, ms in points if ms is not None and day >= recent_start and day <= today]
+        base = [ms for day, ms in points if ms is not None and base_start <= day < recent_start]
+        if len(recent) < SLOW_MIN_RECENT or len(base) < SLOW_MIN_BASE:
+            return None
+        now_ms, usual_ms = _median(recent), _median(base)
+        if now_ms <= SLOW_MIN_MS or now_ms <= SLOW_FACTOR * usual_ms:
+            return None
+        return {"from": round(usual_ms), "to": round(now_ms)}
+
     # ---------------------------------------------------------------- summary
 
     def summary(self, ieee: str, now: float | None = None) -> dict[str, Any]:
@@ -161,7 +214,15 @@ class Metrics:
             lqi = [list(p) for p in data.get("lqi", [])]
             msg = [list(p) for p in data.get("msg", [])]
             bat = [list(p) for p in data.get("bat", [])]
+            ping = [list(p) for p in data.get("ping", [])]
         out: dict[str, Any] = {}
+
+        if ping:
+            today = int(now // 86400 * 86400)
+            out["ping_daily"] = [p for p in ping if p[0] > today - PING_CHART_DAYS * 86400]
+            slow = self.ping_slowdown(ping, now)
+            if slow:
+                out["ping_slow"] = slow
 
         if lqi:
 

@@ -10,7 +10,7 @@ const nameOf = (d) => {
   return named.length ? named[named.length - 1].name : d.ha_name || d.ieee;
 };
 const statusOf = (d) => (d.status === "removed" ? "removed" : d.interview_state && d.interview_state !== "SUCCESSFUL" && d.type !== "Coordinator" ? "ghost" : d.availability === "offline" ? "offline" : "active");
-const KIND_ICON = { offline: "mdi:wifi-off", silent: "mdi:wifi-off", frozen: "mdi:thermometer-alert", weak_signal: "mdi:signal-cellular-1", signal_drop: "mdi:signal-cellular-2", battery_low: "mdi:battery-alert-variant-outline", battery_soon: "mdi:battery-clock-outline", update: "mdi:chip", unidentified: "mdi:help-circle-outline", replacement: "mdi:link-variant" };
+const KIND_ICON = { offline: "mdi:wifi-off", silent: "mdi:wifi-off", frozen: "mdi:thermometer-alert", weak_signal: "mdi:signal-cellular-1", signal_drop: "mdi:signal-cellular-2", battery_low: "mdi:battery-alert-variant-outline", battery_soon: "mdi:battery-clock-outline", update: "mdi:chip", unidentified: "mdi:help-circle-outline", replacement: "mdi:link-variant", slow_router: "mdi:router-wireless" };
 
 class Z2MTrackerCard extends HTMLElement {
   setConfig(config) {
