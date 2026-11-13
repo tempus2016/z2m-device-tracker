@@ -32,7 +32,7 @@ from tracker import _display_name as tracker_display_name
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
 _LOGGER = logging.getLogger("z2m_tracker")
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 PORT = 8099
 DATA_PATH = "/data/history.json"
 METRICS_PATH = "/data/metrics.json"

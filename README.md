@@ -37,13 +37,13 @@ It has two parts, both in this repository:
 ## Features
 
 - **Device history**: names, renames, model, firmware, area, joins, leaves and removals, with notes and asset details.
-- **Health checks and alerts**: offline, silent, frozen readings, weak or dropping signal, low battery, failed interviews, unidentified devices. Alerts go to HA notifications, events or a notify service. Pause them all during planned work.
-- **More checks**: flapping devices, chatty devices, fast battery drain, lost bindings, single points of failure (routers), and a missing, stale or mismatched coordinator backup. They show in Health and only notify once you turn them on.
+- **Health checks and alerts**: offline, silent, frozen readings, weak or dropping signal, low battery, failed interviews, unidentified devices. Alerts go to HA notifications, events or a notify service. Set how often each device should report, mark smoke and leak sensors as critical so they alert within minutes, hold alerts overnight for one morning summary, and pause them all during planned work. Devices behind a router that goes offline arrive as one alert, not dozens.
+- **More checks**: flapping devices, chatty devices, fast battery drain, lost bindings, single points of failure (routers), end devices that keep changing router, routers getting slower, Zigbee group members offline, a daily network-wide signal dip, pairing left open, Zigbee2MQTT memory growth, and a missing, stale or mismatched coordinator backup. They show in Health and only notify once you turn them on.
 - **Bindings and traffic**: each device's current and lost bindings with a history of changes and a Restore button for each lost one, its message rates, and Zigbee2MQTT's own message, leave and address-change counters.
-- **Coordinator health**: Zigbee2MQTT version, coordinator firmware, uptime, restarts, outages and coordinator backup, and an alert when a network goes offline.
+- **Coordinator health**: Zigbee2MQTT version, coordinator firmware, uptime, restarts, outages and coordinator backup, how Zigbee2MQTT reaches the coordinator, Zigbee2MQTT's own memory and MQTT traffic, and an alert when a network goes offline.
 - **Radio channels**: shows your Zigbee channels against your 2.4 GHz Wi-Fi channels and warns about overlap.
-- **Network map**: interactive map with advice on which router a device should use and which routers are a single point of failure, nightly routing scans, a before/after comparison between scans, and a floor-plan layout that groups devices by Home Assistant floor and area. Click a group in the legend (routers, battery devices, needs attention) to show only those devices.
-- **Device actions**: pair through a chosen router, move a device to another router, reconfigure, rename, set area, OTA updates. Names and areas stay in step with Home Assistant: a change made there shows in the app within seconds.
+- **Network map**: interactive map with advice on which router a device should use and which routers are a single point of failure, nightly routing scans, a before/after comparison between scans, and a floor-plan layout that groups devices by Home Assistant floor and area. Click a group in the legend (routers, battery devices, needs attention) to show only those devices, hide names you don't need, and show only the problem links on the floor plan.
+- **Device actions**: pair through a chosen router, move a device to another router, ping a mains device, reconfigure, rename, set area, OTA updates. Find and remove Zigbee2MQTT devices left behind in Home Assistant. Names and areas stay in step with Home Assistant: a change made there shows in the app within seconds.
 - **Firmware updates**: one list of every device with an update, installed and available versions, update all one device at a time, an optional overnight window that skips low batteries, and a log of past updates.
 - **Replace a device**: swap a dead device for a new one in three steps. The new device takes over its name, area, bindings, notes and, if you want, battery record, the old one is removed from Zigbee2MQTT, and both histories are linked.
 - **Batteries**: battery type and count (built-in library from Battery Notes), replacement records, estimates and a shopping list that counts the spares you have in stock. With the integration, the shopping list is a Home Assistant to-do list (tick an item to mark those batteries replaced) and a calendar shows each predicted replacement date.
@@ -51,6 +51,7 @@ It has two parts, both in this repository:
 - **Home Assistant entities**: MQTT discovery sensors attached to each Zigbee2MQTT device for use in automations.
 - **Actions for automations** (integration): record a battery change, mute a device, run a network scan, reconfigure, start a firmware update, add to a device's note, pause and resume alerts. Pick devices by name.
 - **Your language**: the sidebar, the dashboard cards and the setup screens follow the language in your Home Assistant profile, or one you pick in Settings. Available in English, German, Dutch, French, Spanish, Italian, Polish, Brazilian Portuguese, Swedish, Czech, Russian and Simplified Chinese. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to add or fix a translation.
+- **Works on a phone**: a bottom tab bar, problems first, pinch zoom on the map, and keyboard and screen reader support on every screen.
 - Weekly summary, temporary ignore, backup and restore, CSV export.
 
 ## Screenshots
@@ -71,6 +72,14 @@ It has two parts, both in this repository:
   <tr>
     <td width="50%" valign="top"><img src="https://raw.githubusercontent.com/tempus2016/z2m-device-tracker/main/docs/images/trends.png" alt="A device's link quality and battery over 30 days"><br><b>Trends</b>: link quality and battery over up to 90 days</td>
     <td width="50%" valign="top"><img src="https://raw.githubusercontent.com/tempus2016/z2m-device-tracker/main/docs/images/replace-wizard.png" alt="Choosing what a new device takes over from the one it replaces"><br><b>Replace a device</b>: the new one takes over name, area and setup</td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top"><img src="https://raw.githubusercontent.com/tempus2016/z2m-device-tracker/main/docs/images/device-health.png" alt="A device's Health tab: when it alerts, expected reporting and its own limits"><br><b>When a device alerts</b>: expected reporting and per-device limits</td>
+    <td width="50%" valign="top"><img src="https://raw.githubusercontent.com/tempus2016/z2m-device-tracker/main/docs/images/alert-settings.png" alt="Quiet hours, critical devices and a pause banner in Settings"><br><b>Quiet hours and pause</b>: hold alerts overnight, pause during planned work</td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top"><img src="https://raw.githubusercontent.com/tempus2016/z2m-device-tracker/main/docs/images/health-phone.png" alt="The Health tab on a phone, problems first, with a bottom tab bar"><br><b>On a phone</b>: problems first, tabs at the bottom</td>
+    <td width="50%" valign="top"><img src="https://raw.githubusercontent.com/tempus2016/z2m-device-tracker/main/docs/images/coordinators.png" alt="Coordinator connection, versions and Zigbee2MQTT memory"><br><b>Coordinators</b>: connection, versions and Zigbee2MQTT memory</td>
   </tr>
 </table>
 
