@@ -37,7 +37,11 @@ class BatteryTodoList(TodoListEntity):
 
     def __init__(self, entry, tracker: Z2MTracker) -> None:
         self._tracker = tracker
+        self.entity_id = "todo.z2m_tracker_batteries"
         self._attr_unique_id = f"{entry.entry_id}_battery_todo"
+        # Devices ticked here, hidden until the integration next reads the app (which by then leaves them out).
+        self._ticked: set[str] = set()
+        self._ticked_data: dict | None = None
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name="Z2M Device Tracker",
@@ -59,7 +63,9 @@ class BatteryTodoList(TodoListEntity):
 
     def _open_groups(self) -> dict[str, dict]:
         today = dt_util.now().date()
-        return {f"buy_{_slug(g['type'])}": g for g in shopping_groups(self._tracker.data, today)}
+        if self._ticked and self._tracker.data is not self._ticked_data:
+            self._ticked.clear()
+        return {f"buy_{_slug(g['type'])}": g for g in shopping_groups(self._tracker.data, today, self._ticked)}
 
     @property
     def todo_items(self) -> list[TodoItem]:
@@ -97,7 +103,13 @@ class BatteryTodoList(TodoListEntity):
             raise HomeAssistantError("That item is no longer on the list. It may already be done.")
         if item.status != TodoItemStatus.COMPLETED:
             return
+        ieees = [d["ieee"] for d in group["devices"]]
+        self._ticked_data = self._tracker.data
+        self._ticked.update(ieees)
         try:
-            await self._tracker.async_battery_replaced([d["ieee"] for d in group["devices"]], DONE_NOTE)
+            await self._tracker.async_battery_replaced(ieees, DONE_NOTE)
         except TrackerAppError as err:
+            self._ticked.difference_update(ieees)
             raise HomeAssistantError(f"Z2M Device Tracker app error: {err}") from err
+        finally:
+            self.async_write_ha_state()

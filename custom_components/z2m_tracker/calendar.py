@@ -33,6 +33,7 @@ class BatteryCalendar(CalendarEntity):
 
     def __init__(self, entry, tracker: Z2MTracker) -> None:
         self._tracker = tracker
+        self.entity_id = "calendar.z2m_tracker_batteries"
         self._attr_unique_id = f"{entry.entry_id}_battery_calendar"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},

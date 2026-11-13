@@ -5,14 +5,13 @@ Plain functions with no Home Assistant imports, so the todo and calendar platfor
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Any
 
 from .const import STATUS_ACTIVE
 
 RECENT_DAYS = 30
 MAX_ESTIMATE_DAYS = 3650
-NO_READINGS_GRACE_DAYS = 14
 
 
 def device_name(record: dict) -> str:
@@ -26,41 +25,15 @@ def _parse_date(value: Any) -> date | None:
         return None
 
 
-def _last_reading_day(record: dict) -> date | None:
-    spark = (record.get("metrics") or {}).get("battery_spark") or []
-    if not spark:
-        return None
-    try:
-        return datetime.fromtimestamp(float(spark[-1][0]), UTC).date()
-    except (TypeError, ValueError, IndexError, OverflowError):
-        return None
+def shopping_groups(data: dict, today: date, hidden: set[str] | frozenset[str] = frozenset()) -> list[dict]:
+    """The app's shopping list with a due date per group, leaving out the devices in `hidden`.
 
-
-def replaced_since_last_reading(record: dict | None, today: date) -> bool:
-    """True when the battery was marked replaced after the device last reported its level.
-
-    The app keeps a device on the list until it reports a fresh level, which can take a day.
-    Hiding it here stops a ticked item coming straight back.
+    The app drops a device from its list once it's marked replaced. `hidden` covers the
+    moment between ticking an item and the integration's next read of the app.
     """
-    if not record:
-        return False
-    last = _parse_date((record.get("battery_record") or {}).get("last_replaced"))
-    if last is None:
-        return False
-    reading = _last_reading_day(record)
-    if reading is None:
-        return (today - last).days <= NO_READINGS_GRACE_DAYS
-    return last >= reading
-
-
-def shopping_groups(data: dict, today: date) -> list[dict]:
-    """The app's shopping list, minus devices already marked replaced, with a due date per group."""
-    devices = data.get("devices") or {}
     groups = []
     for group in data.get("battery_shopping") or []:
-        members = [
-            d for d in group.get("devices") or [] if not replaced_since_last_reading(devices.get(d.get("ieee")), today)
-        ]
+        members = [d for d in group.get("devices") or [] if d.get("ieee") not in hidden]
         if not members:
             continue
         days = [d["days"] for d in members if isinstance(d.get("days"), (int, float))]
