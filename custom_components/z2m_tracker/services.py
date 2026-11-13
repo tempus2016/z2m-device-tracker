@@ -44,6 +44,7 @@ DEVICE_CHECKS = [
     "chatty",
     "binding_lost",
     "single_point",
+    "router_hopping",
 ]
 
 DEVICE_FIELDS = {

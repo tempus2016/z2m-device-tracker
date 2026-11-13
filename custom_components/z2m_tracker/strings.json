@@ -210,7 +210,8 @@
         "flapping": "Flapping",
         "chatty": "Chatty device",
         "binding_lost": "Binding lost",
-        "single_point": "Single point of failure"
+        "single_point": "Single point of failure",
+        "router_hopping": "Changes router often"
       }
     }
   },

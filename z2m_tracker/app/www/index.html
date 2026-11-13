@@ -303,6 +303,12 @@
   .rep-list { padding: 0 4px 8px; }
   .rep-list > div { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 12px; }
   .rep-list > div:hover { background: var(--hover); }
+  .hop { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--divider); }
+  .hop:last-child { border-bottom: 0; }
+  .hop .d { color: var(--text-2); font-size: 13px; }
+  .hop .p { display: flex; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
+  .hop .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex: none; }
+  .hop .chg { font-size: 12px; color: var(--warning-text); font-weight: 500; }
   .rep-list .lost-act { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .lost-all { display: flex; justify-content: flex-end; padding: 0 16px 8px; }
   dialog.confirm { width: min(420px, calc(100vw - 32px)); }
@@ -568,7 +574,7 @@
     removed: { get label() { return t("status.removed"); }, c: "var(--disabled)" },
   };
   const KIND_ICON = { offline: "wifi-off", silent: "wifi-off", late: "history", frozen: "thermometer", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
-    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", coordinator_backup: "download" };
+    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download" };
   const EVENT_ICON = (k) => {
     if (k.startsWith("interview")) return k.endsWith("successful") ? ["check", "var(--success)"] : ["alert-circle", "var(--error)"];
     return ({ joined: ["plus", "var(--success)"], added: ["plus", "var(--success)"], rejoined: ["plus", "var(--success)"], online: ["wifi", "var(--success)"], offline: ["wifi-off", "var(--error)"],
@@ -689,6 +695,7 @@
     single_point: (p) => { p.extra = p.devices ? t("issue.single_point.extra", { n: p.devices }) : ""; },
     late: (p) => { p.every = span(p.every); },
     router_offline: (p) => { p.names = listOf([...(p.names || []), ...(p.more ? [t("issue.router_offline.more", { n: p.more })] : [])]); },
+    router_hopping: (p) => { p.quality = p.lqi_min === null || p.lqi_min === undefined ? "" : p.lqi_min === p.lqi_max ? t("issue.router_hopping.lqi", { lqi: p.lqi_min }) : t("issue.router_hopping.lqi_range", { min: p.lqi_min, max: p.lqi_max }); },
   };
   // Offline devices behind an offline router are shown inside the router's issue, not on their own.
   const nestedIssue = (i, keys) => Boolean(i.behind) && keys.has(`offline:${i.behind}`);
@@ -897,6 +904,7 @@
       return out.join("");
     }
     if (i.kind === "single_point") out.push(`<button class="btn" data-view="map">${th("common.map")}</button>`);
+    if (i.kind === "router_hopping" && !(state.open === i.ieee && state.moreTab === "history")) out.push(`<button class="btn" data-act="open-history" data-ieee="${esc(i.ieee)}">${th("more.tab.history")}</button>`);
     if (i.kind === "replacement" && d?.suggestions?.[0]) out.push(`<button class="btn" data-act="link" data-old="${esc(d.suggestions[0].ieee)}" data-new="${esc(i.ieee)}">${th("common.link")}</button>`);
     out.push(`<button class="btn" data-act="mute" data-ieee="${esc(i.ieee)}" data-kind="${esc(i.kind)}">${th("common.ignore")}</button>`);
     return out.join("");
@@ -1721,6 +1729,34 @@
         : `<div class="card-content muted">${rec.last_replaced ? th("battery.last_replaced_bn", { date: esc(fmtDate(rec.last_replaced, false)) }) : th("battery.no_replacements")}</div>`}`;
   };
 
+  // Parent per routing scan (end devices only), fetched when the History tab opens; refreshed after a new scan.
+  const HOPS = { cache: new Map(), pending: new Set() };
+  const HOP_COLORS = ["#26a69a", "#7e57c2", "#ef6c00", "#1e88e5", "#d81b60", "#7cb342", "#8d6e63"];
+  const loadHops = async (ieee, last) => {
+    if (HOPS.pending.has(ieee)) return;
+    HOPS.pending.add(ieee);
+    try { HOPS.cache.set(ieee, { at: Date.now(), last, data: await api(`api/parents?ieee=${encodeURIComponent(ieee)}`) }); }
+    catch (err) { HOPS.cache.set(ieee, { at: Date.now(), last, error: err.message }); }
+    HOPS.pending.delete(ieee);
+    if (state.open === ieee && state.moreTab === "history") renderMore();
+  };
+  const hopsHtml = (d) => {
+    if (d.type !== "EndDevice") return "";
+    const last = (state.data.scan_times?.[d.instance] || []).slice(-1)[0] || "";
+    const c = HOPS.cache.get(d.ieee);
+    if (!c || c.last !== last || Date.now() - c.at > 5 * 60_000) loadHops(d.ieee, last);
+    if (!c) return `<div class="sub-h">${th("hops.title_plain")}</div><div class="card-content muted">${th("common.loading")}</div>`;
+    if (c.error) return `<div class="sub-h">${th("hops.title_plain")}</div><div class="card-content muted">${th("hops.load_failed", { error: esc(c.error) })}</div>`;
+    const h = c.data;
+    if (!h.scans.length) return `<div class="sub-h">${th("hops.title_plain")}</div><div class="card-content muted">${th("hops.none", { n: h.days })}</div>`;
+    const colors = new Map();
+    h.scans.slice().reverse().forEach((r) => { if (!colors.has(r.ieee)) colors.set(r.ieee, HOP_COLORS[colors.size % HOP_COLORS.length]); });
+    const day = (iso) => intl((l) => new Date(iso).toLocaleDateString(l, { weekday: "short", day: "numeric", month: "short" }));
+    const rows = h.scans.map((r) => `<div class="hop"><span class="d" title="${esc(fmtDate(r.at))}">${esc(day(r.at))}</span><span class="p"><span class="dot" style="--c:${colors.get(r.ieee)}"></span><span>${esc(r.name)}${r.lqi !== null && r.lqi !== undefined ? ` · LQI ${esc(r.lqi)}` : ""}</span></span><span class="chg">${r.changed ? th("hops.changed") : ""}</span></div>`).join("");
+    const best = h.best && h.parents > 1 ? th("hops.best", { name: `<b>${esc(h.best.name)}</b>`, lqi: esc(h.best.lqi) }) + (h.changes >= h.threshold ? ` ${th("hops.advice")}` : "") : "";
+    return `<div class="sub-h">${th("hops.title", { n: h.scans.length })}</div><div>${rows}</div>${best ? `<div class="card-content muted" style="font-size:13px">${best}</div>` : ""}`;
+  };
+
   const tabHistory = (d) => {
     const names = (d.names || []).filter((n) => n.name && !IEEE_RE.test(n.name)).slice().reverse();
     const events = (state.data.events || []).filter((e) => e.ieee === d.ieee).slice(-30).reverse();
@@ -1736,6 +1772,7 @@
       ${sugg ? `<div class="alerts">${sugg}</div>` : ""}
       ${lineage ? `<div class="rep-list">${lineage}</div>` : !sugg ? `<div class="card-content muted">${th("history.not_linked")}</div>` : ""}
       ${d.status !== "removed" && removed.length ? `<div class="row-actions"><select class="field" id="linkSel" style="flex:1;min-width:0"><option value="">${th("history.link_removed")}</option>${removed.map((x) => `<option value="${esc(x.ieee)}">${esc(nameOf(x) || x.ieee)}${x.removed_at ? ` · ${th("history.removed_on", { date: esc(fmtDate(x.removed_at, false)) })}` : ""}</option>`).join("")}</select><button class="btn" data-act="link-sel">${th("common.link")}</button></div>` : ""}
+      ${hopsHtml(d)}
       <div class="sub-h">${th("history.logbook")}</div>
       ${events.length ? events.map((e) => { const [icon, color] = EVENT_ICON(e.kind); return `<div class="log" style="cursor:default"><span class="state-ic" style="color:${color}">${ic(icon)}</span><div class="text">${logLine(e)}</div></div>`; }).join("") : `<div class="card-content muted">${th("history.nothing_logged")}</div>`}`;
   };
@@ -2438,6 +2475,7 @@
     "rep-close"() { $("#replaceDlg").close(); },
     "rep-back"() { const r = state.replace; if (r && r.step > 1 && !r.busy) { r.step -= 1; renderReplace(); } },
     "rep-next"() { const r = state.replace; if (!r || (r.step === 1 && !r.new)) return; r.step = Math.min(3, r.step + 1); renderReplace(); },
+    "open-history"(b) { state.moreTab = "history"; openDevice(b.dataset.ieee, "history"); },
     "rep-open"(b) { $("#replaceDlg").close(); openDevice(b.dataset.ieee, "history"); },
     async "rep-apply"() {
       const r = state.replace; if (!r || r.busy) return;

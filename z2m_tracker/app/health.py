@@ -30,6 +30,9 @@ REPORT_EVERY_MIN = 30
 REPORT_EVERY_MAX = 7 * 86400
 # After a router comes back, the devices behind it get this long to rejoin before they alert on their own.
 ROUTER_BACK_GRACE = 300
+# Router hopping: an end device whose parent changes this many times across the routing scans of the last HOP_DAYS.
+HOP_CHANGES = 3
+HOP_DAYS = 7
 
 # Everything the Settings page can switch: (key, label, description, is_event)
 CHECKS = [
@@ -97,6 +100,12 @@ CHECKS = [
         False,
     ),
     (
+        "router_hopping",
+        "Changes router often",
+        "An end device whose parent router changed 3 or more times in the routing scans of the last 7 days. Usually a weak link or a router that keeps dropping.",
+        False,
+    ),
+    (
         "coordinator_backup",
         "Coordinator backup",
         "Zigbee2MQTT's coordinator_backup.json is missing, more than 3 days old, or doesn't match the running network.",
@@ -133,6 +142,7 @@ KIND_LABELS = {
     "battery_drain": "Battery draining fast",
     "binding_lost": "Binding lost",
     "single_point": "Single point of failure",
+    "router_hopping": "Changes router often",
     "coordinator_backup": "Coordinator backup",
 }
 
@@ -566,6 +576,22 @@ def device_issues(
             n=len(routers),
             names=shown,
             devices=devices,
+        )
+
+    hops = summary.get("router_hops") or {}
+    if hops.get("changes", 0) >= HOP_CHANGES:
+        lo, hi = hops.get("lqi_min"), hops.get("lqi_max")
+        quality = "" if lo is None else f" · link quality {lo}" if lo == hi else f" · link quality {lo} to {hi}"
+        add(
+            "router_hopping",
+            INFO,
+            "Changes router often",
+            f"Changed router {hops['changes']} times in {HOP_DAYS} days{quality}.",
+            "router_hopping",
+            n=hops["changes"],
+            days=HOP_DAYS,
+            lqi_min=lo,
+            lqi_max=hi,
         )
 
     for suggestion in suggestions:

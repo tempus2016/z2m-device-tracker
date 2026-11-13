@@ -17,6 +17,8 @@ from datetime import time as dtime
 from typing import Any
 
 from health import (
+    HOP_CHANGES,
+    HOP_DAYS,
     REPORT_EVERY_MAX,
     REPORT_EVERY_MIN,
     device_issues,
@@ -192,6 +194,39 @@ def friendly_z2m_error(raw: str | None) -> str:
     if "delivery failed" in low or "mac_no_ack" in low or "no ack" in low:
         return "The message couldn't be delivered to the device. Check that it has power and is in range."
     return text[:300] or "Zigbee2MQTT reported an error."
+
+
+def parent_rows(scans: list, ieee: str, since: str) -> list[dict]:
+    """The device's parent in each stored scan from `since` on, oldest first.
+
+    Scans where the device has no parent are skipped, not counted as a change. `changed` compares
+    with the previous scan that had one, even when that scan is older than `since`.
+    """
+    rows: list[dict] = []
+    previous = None
+    for scan in scans:
+        entry = (scan.get("parents") or {}).get(ieee)
+        if not entry:
+            continue
+        parent = entry[0]
+        lqi = entry[1] if len(entry) > 1 else None
+        if (scan.get("at") or "") >= since:
+            rows.append({"at": scan.get("at"), "ieee": parent, "lqi": lqi, "changed": previous not in (None, parent)})
+        previous = parent
+    return rows
+
+
+def hop_summary(rows: list[dict]) -> dict:
+    """Changes, link-quality range and best-link parent for parent_rows() output."""
+    lqis = [r["lqi"] for r in rows if isinstance(r.get("lqi"), (int, float))]
+    best = max((r for r in rows if isinstance(r.get("lqi"), (int, float))), key=lambda r: r["lqi"], default=None)
+    return {
+        "changes": sum(1 for r in rows if r["changed"]),
+        "parents": len({r["ieee"] for r in rows}),
+        "lqi_min": min(lqis) if lqis else None,
+        "lqi_max": max(lqis) if lqis else None,
+        "best": {"ieee": best["ieee"], "lqi": best["lqi"]} if best else None,
+    }
 
 
 def _display_name(record: dict) -> str | None:
@@ -910,6 +945,31 @@ class Tracker:
         with self.lock:
             return list(self.scans.get(base_topic) or [])
 
+    def _hop_rows(self, record: dict, now: float, days: int = HOP_DAYS) -> list[dict]:
+        since = datetime.fromtimestamp(now - days * 86400, tz=timezone.utc).isoformat(timespec="seconds")
+        return parent_rows(self.scans.get(record.get("instance") or "") or [], record["ieee"], since)
+
+    def parent_history(self, ieee: str, days: int = HOP_DAYS) -> dict | None:
+        """Parent per routing scan over the last `days`, newest first, for the device panel's History tab."""
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            if record is None:
+                return None
+            rows = self._hop_rows(record, time.time(), days)
+
+            def name(parent: str) -> str:
+                return _display_name(self.data["devices"].get(parent) or {}) or parent
+
+            summary = hop_summary(rows)
+            if summary["best"]:
+                summary["best"]["name"] = name(summary["best"]["ieee"])
+            return {
+                "days": days,
+                "threshold": HOP_CHANGES,
+                "scans": [{**r, "name": name(r["ieee"])} for r in reversed(rows)],
+                **summary,
+            }
+
     def _to_utc_iso(self, value: Any) -> str | None:
         if value in (None, ""):
             return None
@@ -1386,6 +1446,10 @@ class Tracker:
                 }
             if ieee in spof:
                 extra["single_point"] = spof[ieee]
+            # Only end devices pick a parent to route through; a router's tree parent is just
+            # whoever let it join and says little about how its traffic flows.
+            if record.get("type") == "EndDevice":
+                extra["router_hops"] = hop_summary(self._hop_rows(record, now))
             out[ieee] = extra
         return out
 

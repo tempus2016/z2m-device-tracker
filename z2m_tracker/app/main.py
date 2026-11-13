@@ -866,6 +866,17 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(400, {"error": "Unknown network"})
             else:
                 self._json(200, {"scans": tracker.scan_history(net)})
+        elif path == "/api/parents":
+            query = dict(
+                part.split("=", 1)
+                for part in (self.path.split("?", 1)[1] if "?" in self.path else "").split("&")
+                if "=" in part
+            )
+            result = tracker.parent_history(unquote(query.get("ieee", "")))
+            if result is None:
+                self._json(400, {"error": "Unknown device"})
+            else:
+                self._json(200, result)
         elif path == "/api/metrics":
             query = dict(
                 part.split("=", 1)
