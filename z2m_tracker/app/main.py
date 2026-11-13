@@ -704,9 +704,20 @@ def refresh_home_assistant() -> None:
         _LOGGER.exception("Reading Home Assistant registries failed")
 
 
+def refresh_leftovers(usage: bool = False) -> list[dict] | None:
+    """Re-read Zigbee2MQTT devices left behind in HA. None until it can be answered."""
+    ready, known = tracker.leftover_context()
+    if not ready or not home_assistant.available:
+        return None
+    found = home_assistant.leftovers(known, usage=usage)
+    tracker.set_ha_leftovers(found)
+    return found
+
+
 def scheduler() -> None:
     global ha_changed_at
     last_save = last_metrics = last_ha = last_health = 0.0
+    leftovers_due = False
     last_scan_day = None
     while not stop_event.wait(5):
         now = time.time()
@@ -721,7 +732,15 @@ def scheduler() -> None:
             if changed or now - last_ha >= HA_REFRESH_INTERVAL:
                 ha_changed_at = 0.0
                 refresh_home_assistant()
+                leftovers_due = True
                 last_ha = now
+            # Waits for every network's device list; until then all devices look unknown.
+            if leftovers_due and tracker.lists_ready.is_set():
+                leftovers_due = False
+                try:
+                    refresh_leftovers()
+                except Exception as err:  # noqa: BLE001 - optional, try again next refresh
+                    _LOGGER.warning("Checking for leftover devices in Home Assistant failed: %s", err)
             if now - last_health >= HEALTH_INTERVAL or tracker.late_due(now):
                 alerts.check()
                 discovery.sync()
@@ -934,6 +953,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, {"areas": home_assistant.list_areas(), "floors": home_assistant.list_floors()})
             except Exception as err:  # noqa: BLE001 - report HA errors to the caller
                 self._json(502, {"error": str(err)})
+        elif path == "/api/ha/leftovers":
+            try:
+                found = refresh_leftovers(usage=True)
+            except Exception as err:  # noqa: BLE001 - report HA errors to the caller
+                self._json(502, {"error": str(err)})
+            else:
+                self._json(200, {"ready": found is not None, "leftovers": found or []})
         elif path == "/api/export.csv":
             stamp = datetime.now().strftime("%Y-%m-%d")
             self._send(
@@ -1116,6 +1142,20 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/ota/cancel":
                 result = ota_manager.cancel(ieee)
                 self._json(200 if result["ok"] else 404, result)
+            elif path == "/api/ha/remove_leftovers":
+                ids = body.get("device_ids")
+                ready, known = tracker.leftover_context()
+                if not isinstance(ids, list) or not ids:
+                    self._json(400, {"ok": False, "error": "No devices chosen"})
+                elif not ready or not home_assistant.available:
+                    self._json(409, {"ok": False, "error": "Not ready yet, try again in a minute"})
+                else:
+                    result = home_assistant.remove_leftovers([str(x) for x in ids[:500]], known)
+                    try:
+                        refresh_leftovers()
+                    except Exception:  # noqa: BLE001 - the next refresh catches up
+                        pass
+                    self._json(200, result)
             elif path == "/api/summary":
                 self._json(200, {"ok": True, **send_weekly_summary()})
             elif path == "/api/import":
