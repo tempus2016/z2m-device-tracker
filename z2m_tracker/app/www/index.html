@@ -876,6 +876,7 @@
   // Offline devices behind an offline router are shown inside the router's issue, not on their own.
   const nestedIssue = (i, keys) => Boolean(i.behind) && keys.has(`offline:${i.behind}`);
   const ownIssues = (issues) => { const keys = new Set(issues.map((i) => i.key)); return issues.filter((i) => !nestedIssue(i, keys)); };
+  const healthIssues = (issues) => ownIssues(issues).filter((i) => i.kind !== "update");
   const issueVars = (i) => {
     const p = { ...(i.params || {}) };
     if (p.seconds !== undefined) p.duration = span(p.seconds);
@@ -1136,7 +1137,8 @@
         ${open ? `<div class="group-list">${kids.map(kid).join("")}</div>` : ""}`;
     };
     const keys = new Set(issues.map((i) => i.key));
-    const own = ownIssues(issues);
+    // Firmware updates live on the Updates tab; listing them here too counted them twice.
+    const own = healthIssues(issues);
     const warn = own.filter((i) => i.severity === "warning"), info = own.filter((i) => i.severity !== "warning");
     // Problems come first: on a phone the status cards below would push them several screens down.
     // Severe warnings (offline, battery nearly flat) lead the list.
@@ -2661,8 +2663,9 @@
   const render = () => {
     if (!state.data) return;
     const issues = ownIssues(state.data.issues || []);
-    const warn = issues.filter((i) => i.severity === "warning").length;
-    const badge = $("#issueBadge"); badge.textContent = issues.length; badge.classList.toggle("warn", warn > 0);
+    // The badge is the "Needs attention" count Health opens on, so the two always match.
+    const warn = healthIssues(issues).filter((i) => i.severity === "warning").length;
+    const badge = $("#issueBadge"); badge.textContent = warn; badge.classList.toggle("warn", warn > 0);
     const otaCount = otaList().filter((d) => d.update?.state === "available" || d.update?.state === "updating").length;
     $("#otaBadge").textContent = otaCount; $("#otaBadge").hidden = !otaCount;
     renderPause();
