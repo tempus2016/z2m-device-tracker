@@ -469,7 +469,7 @@
   <nav class="tabs" role="tablist" aria-label="Sections" data-ta="aria-label=tabs.sections">
     <button class="tab" role="tab" data-view="devices" aria-selected="true"><span data-i="zigbee"></span><span data-t="tabs.devices">Devices</span></button>
     <button class="tab" role="tab" data-view="health" aria-selected="false"><span data-i="heart-pulse"></span><span data-t="tabs.health">Health</span> <span class="badge" id="issueBadge">0</span></button>
-    <button class="tab" role="tab" data-view="updates" aria-selected="false"><span data-i="update"></span>Updates <span class="badge info" id="otaBadge" hidden>0</span></button>
+    <button class="tab" role="tab" data-view="updates" aria-selected="false"><span data-i="update"></span><span data-t="tabs.updates">Updates</span> <span class="badge info" id="otaBadge" hidden>0</span></button>
     <button class="tab" role="tab" data-view="activity" aria-selected="false"><span data-i="history"></span><span data-t="tabs.activity">Activity</span></button>
     <button class="tab" role="tab" data-view="map" aria-selected="false"><span data-i="sitemap"></span><span data-t="tabs.map">Map</span></button>
     <button class="tab" role="tab" data-view="settings" aria-selected="false"><span data-i="cog"></span><span data-t="tabs.settings">Settings</span></button>
@@ -832,7 +832,7 @@
     q.addEventListener("input", () => { state.query = q.value; clearTimeout(q._t); q._t = setTimeout(() => { const pos = q.selectionStart; renderDevices(); const n = $("#q"); n.focus(); n.setSelectionRange(pos, pos); }, 120); });
   };
 
-  const restoreBindingsBtn = (ieee, lost) => `<button class="btn" data-act="restore-bindings" data-ieee="${esc(ieee)}">${ic("refresh", "s18")}${lost.length > 1 ? "Restore all" : "Restore"}</button>`;
+  const restoreBindingsBtn = (ieee, lost) => `<button class="btn" data-act="restore-bindings" data-ieee="${esc(ieee)}">${ic("refresh", "s18")}${th(lost.length > 1 ? "bindings.restore_all" : "common.restore")}</button>`;
 
   const issueActions = (i) => {
     const d = state.byIeee.get(i.ieee);
@@ -1075,7 +1075,7 @@
     if (MAP.layout === "floor") loadFloors();
     const running = Object.values(nm).some((x) => x.running_since);
     $("#view").innerHTML = `
-      <div class="alert" style="--a:var(--info)">${ic("information-outline")}<div class="body">${MAP.layout === "floor" ? "Devices are grouped by Home Assistant floor and area. Solid lines show which router each battery device uses, dashed lines show each router's strongest link towards the coordinator. Colour shows link quality. Select a device to highlight its links." : th("map.help")}</div>
+      <div class="alert" style="--a:var(--info)">${ic("information-outline")}<div class="body">${th(MAP.layout === "floor" ? "map.help_floor" : "map.help")}</div>
         <button class="btn ${running ? "busy" : ""}" data-act="scan" ${running ? "disabled" : ""}>${ic(running ? "refresh" : "sitemap", "s18")}${running ? th("common.scanning") : th("menu.run_scan")}</button></div>
       ${state.data.instances.map((bt) => {
         const info = nm[bt] || {};
@@ -1101,8 +1101,8 @@
             <button class="btn" data-mapreset="${esc(bt)}">${ic("refresh", "s18")}${th("map.reset")}</button>
             <button class="chip toggle" data-maplinks aria-pressed="${MAP.allLinks}">${ic("link-variant", "s18")}${th("map.all_links")}</button>`}
             <span class="spacer"></span>
-            <div class="map-legend"><span><i style="background:var(--text)"></i>${th("map.coordinator")}</span><span><i style="background:var(--primary)"></i>${th("map.router")}</span><span><i style="background:var(--state-icon)"></i>${th("map.battery_device")}</span><span><i style="background:var(--warning)"></i>${th("map.needs_attention")}</span><span><b style="background:var(--success)"></b>${th("signal.strong")}</span><span><b style="background:var(--warning)"></b>${th("signal.fair")}</span><span><b style="background:var(--error)"></b>${th("signal.weak")}</span>${MAP.layout === "floor" ? `<span title="Inferred from the scan: the router's strongest link towards the coordinator"><b class="dashed"></b>Likely route</span>` : ""}</div></div>
-          ${MAP.layout === "floor" ? `<div class="map-stage fp-mode"><div class="map-info" id="mapinfo-${esc(bt)}" hidden></div>${FP.floors ? fpHtml(bt) : `<div class="card-content muted">Loading floors and areas…</div>`}</div>` : `<div class="map-stage"><svg class="map" id="map-${esc(bt)}" role="img" aria-label="${esc(t("map.aria", { name: netLabel(bt) }))}"><g class="vp"><g class="links"></g><g class="nodes"></g></g></svg>
+            <div class="map-legend"><span><i style="background:var(--text)"></i>${th("map.coordinator")}</span><span><i style="background:var(--primary)"></i>${th("map.router")}</span><span><i style="background:var(--state-icon)"></i>${th("map.battery_device")}</span><span><i style="background:var(--warning)"></i>${th("map.needs_attention")}</span><span><b style="background:var(--success)"></b>${th("signal.strong")}</span><span><b style="background:var(--warning)"></b>${th("signal.fair")}</span><span><b style="background:var(--error)"></b>${th("signal.weak")}</span>${MAP.layout === "floor" ? `<span title="${esc(t("map.likely_route_tip"))}"><b class="dashed"></b>${th("map.likely_route")}</span>` : ""}</div></div>
+          ${MAP.layout === "floor" ? `<div class="map-stage fp-mode"><div class="map-info" id="mapinfo-${esc(bt)}" hidden></div>${FP.floors ? fpHtml(bt) : `<div class="card-content muted">${th("map.loading_floors")}</div>`}</div>` : `<div class="map-stage"><svg class="map" id="map-${esc(bt)}" role="img" aria-label="${esc(t("map.aria", { name: netLabel(bt) }))}"><g class="vp"><g class="links"></g><g class="nodes"></g></g></svg>
             <div class="map-info" id="mapinfo-${esc(bt)}" hidden></div></div>`}
           ${diff ? `<div class="map-legend" style="padding:8px 16px 0"><span><b style="background:var(--info);height:4px"></b>${th("map.changed_router")}</span><span><b style="background:var(--success);height:4px"></b>${th("map.stronger")}</span><span><b style="background:var(--error);height:4px"></b>${th("map.weaker")}</span><span><b style="background:var(--disabled)"></b>${th("map.unchanged")}</span></div>` : ""}
           ${changes}
@@ -1245,7 +1245,7 @@
     FP.loading = false;
     if (state.view === "map" && MAP.layout === "floor") renderMap(true);
   };
-  const layoutToggle = () => `<div class="chips" role="group" aria-label="Map layout">${[["graph", "Graph"], ["floor", "Floor plan"]].map(([k, l]) => `<button class="chip" data-maplayout="${k}" aria-pressed="${MAP.layout === k}">${ic("check", "s18")}${l}</button>`).join("")}</div>`;
+  const layoutToggle = () => `<div class="chips" role="group" aria-label="${esc(t("map.layout"))}">${[["graph", "map.layout_graph"], ["floor", "map.layout_floor"]].map(([k, l]) => `<button class="chip" data-maplayout="${k}" aria-pressed="${MAP.layout === k}">${ic("check", "s18")}${th(l)}</button>`).join("")}</div>`;
   document.addEventListener("click", (e) => {
     const b = e.target.closest("[data-maplayout]");
     if (!b || b.dataset.maplayout === MAP.layout) return;
@@ -1276,6 +1276,7 @@
     const areaByName = new Map((FP.areas || []).map((a) => [a.name, a]));
     const floorById = new Map((FP.floors || []).map((f) => [f.id, f]));
     const coord = devs.find((d) => d.type === "Coordinator");
+    const noArea = t("map.no_area");
     // floor key -> area name -> devices
     const groups = new Map();
     devs.forEach((d) => {
@@ -1283,7 +1284,7 @@
       const a = d.area ? areaByName.get(d.area) : null;
       const fk = !d.area ? "~none" : a?.floor_id && floorById.has(a.floor_id) ? a.floor_id : "~other";
       const areas = groups.get(fk) || groups.set(fk, new Map()).get(fk);
-      const key = d.area || "No area";
+      const key = d.area || noArea;
       (areas.get(key) || areas.set(key, []).get(key)).push(d);
     });
     const floorOrder = [...groups.keys()].sort((x, y) => {
@@ -1295,21 +1296,21 @@
     const kindOrder = { Coordinator: 0, Router: 1, EndDevice: 2 };
     const devBtn = (d) => {
       const u = up.get(d.ieee);
-      const name = d.type === "Coordinator" ? "Coordinator" : nameOf(d) || d.ieee;
-      const tip = [name, d.type === "EndDevice" ? "Battery device" : d.type, u ? `via ${nameOf(state.byIeee.get(u.to)) || (state.byIeee.get(u.to)?.type === "Coordinator" ? "Coordinator" : u.to)} (LQI ${u.lqi ?? "?"})` : d.type !== "Coordinator" ? "not in the scan" : ""].filter(Boolean).join(" · ");
+      const name = d.type === "Coordinator" ? t("map.coordinator") : nameOf(d) || d.ieee;
+      const tip = [name, d.type === "EndDevice" ? t("map.battery_device") : typeLabel(d.type), u ? t("map.fp_via", { name: nameOf(state.byIeee.get(u.to)) || (state.byIeee.get(u.to)?.type === "Coordinator" ? t("map.coordinator") : u.to), lqi: u.lqi ?? "?" }) : d.type !== "Coordinator" ? t("map.fp_not_scanned") : ""].filter(Boolean).join(" · ");
       return `<button class="fp-dev ${d.type === "Coordinator" ? "coord" : d.type === "Router" ? "router" : ""} ${!u && d.type !== "Coordinator" ? "noscan" : ""}" data-fpdev="${esc(d.ieee)}" title="${esc(tip)}"><i style="background:${mapNodeCol(d)}"></i><span>${esc(name)}</span></button>`;
     };
     const areaBox = (area, list) => {
       const linked = list.map((d) => up.get(d.ieee)).filter((u) => u && u.lqi !== null && u.lqi !== undefined);
       const weak = linked.length && linked.every((u) => u.lqi < 50);
       const via = weak && new Set(linked.map((u) => u.to)).size === 1 ? state.byIeee.get(linked[0].to) : null;
-      const viaName = via ? (via.type === "Coordinator" ? "the coordinator" : nameOf(via) || via.ieee) : "";
+      const viaName = via ? (via.type === "Coordinator" ? t("map.fp_the_coordinator") : nameOf(via) || via.ieee) : "";
       list.sort((a, b) => (kindOrder[a.type] ?? 3) - (kindOrder[b.type] ?? 3) || collator.compare(nameOf(a) || "~", nameOf(b) || "~"));
-      return `<div class="fp-area ${weak ? "weak" : ""} ${area === "No area" ? "none" : ""}"><div class="fp-area-h">${esc(area)}<span class="n">${list.length}</span></div>
-        ${weak ? `<div class="fp-flag">${ic("alert", "s18")}${linked.length === 1 ? "Its only link is weak" : `All ${linked.length} links are weak`}${via ? `, via ${esc(viaName)}` : ""}</div>` : ""}
+      return `<div class="fp-area ${weak ? "weak" : ""} ${area === noArea ? "none" : ""}"><div class="fp-area-h">${esc(area)}<span class="n">${list.length}</span></div>
+        ${weak ? `<div class="fp-flag">${ic("alert", "s18")}${via ? th("map.fp_weak_via", { n: linked.length, name: esc(viaName) }) : th("map.fp_weak", { n: linked.length })}</div>` : ""}
         <div class="fp-devs">${list.map(devBtn).join("")}</div></div>`;
     };
-    const floorLabel = (k) => (k === "~none" ? "Devices without an area" : k === "~other" ? (FP.floors?.length ? "Other areas" : "Areas") : floorById.get(k).name);
+    const floorLabel = (k) => (k === "~none" ? t("map.fp_no_area") : k === "~other" ? t(FP.floors?.length ? "map.fp_other_areas" : "map.fp_areas") : floorById.get(k).name);
     return `<div class="fp" id="fp-${esc(bt)}"><svg class="fp-lines" aria-hidden="true"></svg>
       ${coord && !coord.area ? `<section class="fp-floor"><div class="fp-areas"><div class="fp-area coord-box"><div class="fp-devs">${devBtn(coord)}</div></div></div></section>` : ""}
       ${floorOrder.map((fk) => `<section class="fp-floor"><div class="fp-floor-h">${esc(floorLabel(fk))}</div><div class="fp-areas">${[...groups.get(fk).entries()].sort((a, b) => collator.compare(a[0], b[0])).map(([a, list]) => areaBox(a, list)).join("")}</div></section>`).join("")}
@@ -1326,7 +1327,7 @@
       const box = root.getBoundingClientRect();
       const at = (ieee) => { const r = els.get(ieee).querySelector("i").getBoundingClientRect(); return [r.left + r.width / 2 - box.left, r.top + r.height / 2 - box.top]; };
       svg.setAttribute("width", root.scrollWidth); svg.setAttribute("height", root.scrollHeight);
-      svg.innerHTML = lines.map((l, i) => { const [x1, y1] = at(l.a), [x2, y2] = at(l.b); const bend = Math.max(-60, Math.min(60, (x2 - x1) * 0.15)); return `<path data-i="${i}" d="M${x1.toFixed(1)},${y1.toFixed(1)} Q${((x1 + x2) / 2 + bend).toFixed(1)},${((y1 + y2) / 2 - Math.abs(bend)).toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}" stroke="${lqiCol(l.lqi)}" ${l.parent ? "" : 'stroke-dasharray="5 4"'}><title>${l.parent ? "" : "Likely route, inferred from the scan · "}LQI ${esc(l.lqi ?? "?")}</title></path>`; }).join("");
+      svg.innerHTML = lines.map((l, i) => { const [x1, y1] = at(l.a), [x2, y2] = at(l.b); const bend = Math.max(-60, Math.min(60, (x2 - x1) * 0.15)); return `<path data-i="${i}" d="M${x1.toFixed(1)},${y1.toFixed(1)} Q${((x1 + x2) / 2 + bend).toFixed(1)},${((y1 + y2) / 2 - Math.abs(bend)).toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}" stroke="${lqiCol(l.lqi)}" ${l.parent ? "" : 'stroke-dasharray="5 4"'}><title>${esc(l.parent ? t("map.fp_lqi", { lqi: l.lqi ?? "?" }) : t("map.fp_likely_lqi", { lqi: l.lqi ?? "?" }))}</title></path>`; }).join("");
       highlight();
     };
     const highlight = () => {
@@ -1473,7 +1474,7 @@
       <div class="more-hero">${stateIc(d)}<div class="big">${esc(bigState)}</div><div class="sub">${th("more.last_seen", { when: esc(relTime(d.last_seen, true)) })}</div></div>
       <div class="more-actions">
         ${d.status !== "removed" ? `<button class="btn outlined" data-act="reconfigure" data-ieee="${esc(d.ieee)}">${ic("refresh", "s18")}${th("common.reconfigure")}</button><button class="btn outlined" data-act="rename">${ic("pencil", "s18")}${th("more.rename")}</button>` : ""}
-        ${canReplace(d) ? `<button class="btn outlined" data-act="replace" data-ieee="${esc(d.ieee)}">${ic("swap-horizontal", "s18")}Replace…</button>` : ""}
+        ${canReplace(d) ? `<button class="btn outlined" data-act="replace" data-ieee="${esc(d.ieee)}">${ic("swap-horizontal", "s18")}${th("replace.button")}</button>` : ""}
         ${d.status !== "removed" && d.type === "EndDevice" ? `<button class="btn outlined" data-act="move" data-ieee="${esc(d.ieee)}">${ic("swap-horizontal", "s18")}${th("more.change_router")}</button>` : ""}
         ${d.model && d.supported !== false ? `<a class="btn outlined" href="https://www.zigbee2mqtt.io/devices/${encodeURIComponent(String(d.model).replace(/\//g, "_"))}.html" target="_blank" rel="noopener">${ic("information-outline", "s18")}${th("more.docs")}</a>` : ""}
         ${d.ha_device_id ? `<a class="btn outlined" href="/config/devices/device/${esc(d.ha_device_id)}" target="_top">${ic("home-assistant", "s18")}${th("more.device_page")}</a>` : ""}
@@ -1511,7 +1512,7 @@
     const label = (b) => { const tgt = b.target || ""; if (tgt.startsWith("group:")) { const g = tgt.slice(6); return th("bindings.group", { name: esc(state.data.groups?.[d.instance]?.[g] || g) }); } const [ieee, ep] = tgt.split("/"); const o = state.byIeee.get(ieee); return o?.type === "Coordinator" ? th("map.coordinator") : `${devLink(ieee)}${ep && ep !== "1" && ep !== "None" ? ` (${th("bindings.endpoint", { ep: esc(ep) })})` : ""}`; };
     const list = bindings === null || bindings === undefined ? `<div class="card-content muted">${th("bindings.not_reported")}</div>`
       : !bindings.length && !lost.length ? `<div class="card-content muted">${th("bindings.none")}</div>`
-      : `<div class="rep-list">${bindings.map((b) => `<div><span>${esc(b.cluster)} → ${label(b)}</span><span class="muted">${th("bindings.endpoint", { ep: esc(b.ep) })}</span></div>`).join("")}${lost.map((b) => `<div><span style="color:var(--error)">${esc(b.cluster)} → ${label(b)}</span><span class="lost-act"><span class="muted">${th("bindings.lost", { when: esc(relTime(b.lost_at, true)) })}</span>${d.status === "active" ? `<button class="btn" data-act="restore-bindings" data-ieee="${esc(d.ieee)}" data-key="${esc(b.key)}">${ic("refresh", "s18")}Restore</button>` : ""}</span></div>`).join("")}</div>`;
+      : `<div class="rep-list">${bindings.map((b) => `<div><span>${esc(b.cluster)} → ${label(b)}</span><span class="muted">${th("bindings.endpoint", { ep: esc(b.ep) })}</span></div>`).join("")}${lost.map((b) => `<div><span style="color:var(--error)">${esc(b.cluster)} → ${label(b)}</span><span class="lost-act"><span class="muted">${th("bindings.lost", { when: esc(relTime(b.lost_at, true)) })}</span>${d.status === "active" ? `<button class="btn" data-act="restore-bindings" data-ieee="${esc(d.ieee)}" data-key="${esc(b.key)}">${ic("refresh", "s18")}${th("common.restore")}</button>` : ""}</span></div>`).join("")}</div>`;
     const restoreAll = lost.length > 1 && d.status === "active" ? `<div class="lost-all">${restoreBindingsBtn(d.ieee, lost)}</div>` : "";
     return `<div class="sub-h">${th("traffic.title")}</div>${traffic}<div class="sub-h">${th("bindings.title")}</div>${list}${restoreAll}`;
   };
@@ -1569,11 +1570,11 @@
       ${lineage ? `<div class="rep-list">${lineage}</div>` : !sugg ? `<div class="card-content muted">${th("history.not_linked")}</div>` : ""}
       ${d.status !== "removed" && removed.length ? `<div class="row-actions"><select class="field" id="linkSel" style="flex:1;min-width:0"><option value="">${th("history.link_removed")}</option>${removed.map((x) => `<option value="${esc(x.ieee)}">${esc(nameOf(x) || x.ieee)}${x.removed_at ? ` · ${th("history.removed_on", { date: esc(fmtDate(x.removed_at, false)) })}` : ""}</option>`).join("")}</select><button class="btn" data-act="link-sel">${th("common.link")}</button></div>` : ""}
       <div class="sub-h">${th("history.logbook")}</div>
-      ${events.length ? events.map((e) => { const [icon, color] = EVENT_ICON(e.kind); return `<div class="log" style="cursor:default"><span class="state-ic" style="color:${color}">${ic(icon)}</span><div class="text">${logLine(e)}</div></div>`; }).join("") : `<div class="card-content muted">Nothing logged yet.</div>`}`;
+      ${events.length ? events.map((e) => { const [icon, color] = EVENT_ICON(e.kind); return `<div class="log" style="cursor:default"><span class="state-ic" style="color:${color}">${ic(icon)}</span><div class="text">${logLine(e)}</div></div>`; }).join("") : `<div class="card-content muted">${th("history.nothing_logged")}</div>`}`;
   };
 
   // ------------------------------------------------------------ long-range charts (Trends tab)
-  const TREND_RANGES = [["24h", "24 h"], ["7d", "7 d"], ["30d", "30 d"], ["90d", "90 d"]];
+  const TREND_RANGES = [["24h", "trends.range.24h"], ["7d", "trends.range.7d"], ["30d", "trends.range.30d"], ["90d", "trends.range.90d"]];
   const TREND = { range: TREND_RANGES.some((r) => r[0] === store.get("z2mt.trendRange")) ? store.get("z2mt.trendRange") : "30d", cache: new Map(), pending: new Set() };
   const loadTrend = async (ieee, range) => {
     const key = `${ieee}|${range}`;
@@ -1601,15 +1602,15 @@
     const pct = (x) => Math.max(0, Math.min(100, (sx(x) / CH.W) * 100));
     return `<div class="bigchart-wrap"><svg class="bigchart" viewBox="0 0 ${CH.W} ${CH.H}" preserveAspectRatio="none" aria-hidden="true">${grid}${body(sx, sy)}</svg>
       ${yTicks.map((v) => `<span class="bigchart-y" style="top:${(4 + sy(v)).toFixed(0)}px">${v}</span>`).join("")}</div>
-      <div class="bigchart-x">${xTicks.map((x, i) => `<span class="${i === 0 ? "first" : i === xTicks.length - 1 ? "last" : ""}" style="left:${pct(x).toFixed(1)}%">${esc(x === "now" ? "Now" : fmtTick(x, x1 - x0))}</span>`).join("")}</div>`;
+      <div class="bigchart-x">${xTicks.map((x, i) => `<span class="${i === 0 ? "first" : i === xTicks.length - 1 ? "last" : ""}" style="left:${pct(x).toFixed(1)}%">${esc(x === "now" ? t("trends.now") : fmtTick(x, x1 - x0))}</span>`).join("")}</div>`;
   };
-  const fmtTick = (t, spanS) => new Date(t * 1000).toLocaleString(undefined, spanS <= 2 * 86400 ? { hour: "2-digit", minute: "2-digit" } : { day: "numeric", month: "short" });
+  const fmtTick = (ts, spanS) => intl((l) => new Date(ts * 1000).toLocaleString(l, spanS <= 2 * 86400 ? { hour: "2-digit", minute: "2-digit" } : { day: "numeric", month: "short" }));
   const evenTicks = (x0, x1, n = 5) => Array.from({ length: n }, (_, i) => x0 + ((x1 - x0) * i) / (n - 1));
   const trendLegend = (items) => `<div class="trend-legend">${items.map(([c, l, extra = ""]) => `<span><i style="background:${c};${extra}"></i>${l}</span>`).join("")}</div>`;
 
   const lqiChart = (h) => {
     const { line, band } = h.lqi;
-    if (line.length < 2) return `<div class="card-content muted">Not enough link quality readings in this range yet.</div>`;
+    if (line.length < 2) return `<div class="card-content muted">${th("trends.lqi_empty")}</div>`;
     const top = Math.max(...band.map((b) => b[2]), ...line.map((p) => p[1]));
     const hi = Math.min(255, Math.max(100, Math.ceil(top / 50) * 50));
     const yTicks = []; for (let v = 0; v <= hi; v += hi > 150 ? 100 : 50) yTicks.push(v);
@@ -1634,11 +1635,11 @@
 
   const batteryChart = (h, d) => {
     const b = h.battery, pts = b.points;
-    if (pts.length < 2) return `<div class="card-content muted">Not enough battery readings in this range yet. The device reports battery about once a day.</div>`;
+    if (pts.length < 2) return `<div class="card-content muted">${th("trends.battery_empty")}</div>`;
     const x0 = b.start, histSpan = h.end - x0, last = pts[pts.length - 1];
     // The projection may run past "now" by up to half the history span, so the history stays readable.
     const x1 = b.empty_at ? Math.max(h.end, Math.min(b.empty_at, h.end + histSpan / 2)) : h.end;
-    const reps = ((d.battery_record || {}).replacements || []).map((r) => Date.parse(`${r.date}T12:00:00Z`) / 1000).filter((t) => t >= x0 && t <= h.end);
+    const reps = ((d.battery_record || {}).replacements || []).map((r) => Date.parse(`${r.date}T12:00:00Z`) / 1000).filter((at) => at >= x0 && at <= h.end);
     return bigChart({ x0, x1, lo: 0, hi: 100, yTicks: [0, 25, 50, 75, 100], xTicks: x1 > h.end ? [...evenTicks(x0, h.end, 4), x1] : evenTicks(x0, h.end),
       body: (sx, sy) => {
         let proj = "";
@@ -1646,10 +1647,10 @@
           const endX = Math.min(b.empty_at, x1);
           const endY = last[1] - ((last[1] - 10) * (endX - last[0])) / (b.empty_at - last[0]);
           proj = `<line x1="${sx(last[0]).toFixed(1)}" y1="${sy(last[1]).toFixed(1)}" x2="${sx(endX).toFixed(1)}" y2="${sy(endY).toFixed(1)}" stroke="var(--text-2)" stroke-width="2" stroke-dasharray="6 5" vector-effect="non-scaling-stroke"/>`;
-          if (b.empty_at <= x1) proj += `<line x1="${sx(b.empty_at).toFixed(1)}" x2="${sx(b.empty_at).toFixed(1)}" y1="0" y2="${CH.H}" stroke="var(--text-2)" stroke-dasharray="2 4" vector-effect="non-scaling-stroke"><title>Reaches 10 % around ${esc(fmtDate(b.empty_at, false))}</title></line>`;
+          if (b.empty_at <= x1) proj += `<line x1="${sx(b.empty_at).toFixed(1)}" x2="${sx(b.empty_at).toFixed(1)}" y1="0" y2="${CH.H}" stroke="var(--text-2)" stroke-dasharray="2 4" vector-effect="non-scaling-stroke"><title>${th("trends.reaches_10_on", { date: esc(fmtDate(b.empty_at, false)) })}</title></line>`;
         }
         const now = x1 > h.end ? `<line x1="${sx(h.end).toFixed(1)}" x2="${sx(h.end).toFixed(1)}" y1="0" y2="${CH.H}" stroke="var(--divider)" stroke-width="2" vector-effect="non-scaling-stroke"/>` : "";
-        const marks = reps.map((t) => `<line x1="${sx(t).toFixed(1)}" x2="${sx(t).toFixed(1)}" y1="0" y2="${CH.H}" stroke="var(--state-icon)" stroke-width="2" vector-effect="non-scaling-stroke"><title>Battery replaced ${esc(fmtDate(t, false))}</title></line>`).join("");
+        const marks = reps.map((at) => `<line x1="${sx(at).toFixed(1)}" x2="${sx(at).toFixed(1)}" y1="0" y2="${CH.H}" stroke="var(--state-icon)" stroke-width="2" vector-effect="non-scaling-stroke"><title>${th("trends.replaced_on", { date: esc(fmtDate(at, false)) })}</title></line>`).join("");
         return `${now}${marks}${proj}<path d="${gapPath(pts, sx, sy, 3 * 86400)}" fill="none" stroke="var(--success)" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>`;
       } });
   };
@@ -1658,24 +1659,24 @@
     const key = `${d.ieee}|${TREND.range}`;
     const c = TREND.cache.get(key);
     if (!c || Date.now() - c.at > 5 * 60_000) loadTrend(d.ieee, TREND.range);
-    const label = TREND_RANGES.find((r) => r[0] === TREND.range)[1];
-    const chips = `<div class="trend-head"><div class="chips">${TREND_RANGES.map(([k, l]) => `<button class="chip" data-trend-range="${k}" aria-pressed="${TREND.range === k}">${l}</button>`).join("")}</div></div>`;
-    if (!c) return `${chips}<div class="card-content muted">Loading…</div>`;
-    if (c.error) return `${chips}<div class="card-content muted">Couldn't load history: ${esc(c.error)}</div>`;
+    const label = t(TREND_RANGES.find((r) => r[0] === TREND.range)[1]);
+    const chips = `<div class="trend-head"><div class="chips">${TREND_RANGES.map(([k, l]) => `<button class="chip" data-trend-range="${k}" aria-pressed="${TREND.range === k}">${th(l)}</button>`).join("")}</div></div>`;
+    if (!c) return `${chips}<div class="card-content muted">${th("common.loading")}</div>`;
+    if (c.error) return `${chips}<div class="card-content muted">${th("trends.load_failed", { error: esc(c.error) })}</div>`;
     const h = c.data, isBat = !!d.battery_record || typeof d.battery === "number";
-    const t = h.lqi.trend_month, b = h.battery;
-    const trend = t === null || t === undefined ? "—" : Math.abs(t) < 1 ? "Steady" : `${t > 0 ? "+" : "−"}${Math.abs(Math.round(t))} / month`;
-    const empty = b.estimate_days === null || b.estimate_days === undefined ? "—" : b.estimate_days <= 0 ? "Now" : new Date(b.empty_at * 1000).toLocaleDateString(undefined, { month: "short", year: "numeric" });
-    const stats = [[`LQI avg, ${label}`, h.lqi.avg === null ? "—" : Math.round(h.lqi.avg)], ["LQI trend", trend, t !== null && t <= -5 ? "var(--warning-text)" : ""],
-      ...(isBat ? [["Battery drain", b.drain_month === null ? "—" : `${b.drain_month < 1 ? b.drain_month.toFixed(1) : Math.round(b.drain_month)} % / month`], ["Reaches 10 %", empty, b.estimate_days !== null && b.estimate_days <= 30 ? "var(--error)" : ""]] : [])];
-    const batLabel = TREND.range === "24h" ? "Battery, last 7 days" : "Battery";
+    const tm = h.lqi.trend_month, b = h.battery;
+    const trend = tm === null || tm === undefined ? "—" : Math.abs(tm) < 1 ? t("trends.steady") : t("trends.per_month", { value: `${tm > 0 ? "+" : "−"}${Math.abs(Math.round(tm))}` });
+    const empty = b.estimate_days === null || b.estimate_days === undefined ? "—" : b.estimate_days <= 0 ? t("trends.now") : intl((l) => new Date(b.empty_at * 1000).toLocaleDateString(l, { month: "short", year: "numeric" }));
+    const stats = [[t("trends.lqi_avg", { range: label }), h.lqi.avg === null ? "—" : Math.round(h.lqi.avg)], [t("trends.lqi_trend"), trend, tm !== null && tm <= -5 ? "var(--warning-text)" : ""],
+      ...(isBat ? [[t("trends.battery_drain"), b.drain_month === null ? "—" : t("trends.percent_per_month", { value: b.drain_month < 1 ? b.drain_month.toFixed(1) : Math.round(b.drain_month) })], [t("trends.reaches_10"), empty, b.estimate_days !== null && b.estimate_days <= 30 ? "var(--error)" : ""]] : [])];
+    const batLabel = th(TREND.range === "24h" ? "trends.battery_7d" : "trends.battery");
     return `${chips}
-      <div class="sub-h">Link quality (LQI)</div>
+      <div class="sub-h">${th("trends.lqi_title")}</div>
       ${lqiChart(h)}
-      ${trendLegend([["var(--primary)", h.range === "24h" || h.range === "7d" ? "Hourly average" : "Daily average"], ["var(--primary)", "Daily min–max", "opacity:.3;height:8px;vertical-align:0"], ["var(--warning)", "Weak (below 50)"]])}
-      ${isBat ? `<div class="sub-h">${batLabel}</div>${batteryChart(h, d)}${trendLegend([["var(--success)", "Battery %"], ["var(--text-2)", "Projection to 10 %"], ["var(--state-icon)", "Replaced"]])}` : ""}
+      ${trendLegend([["var(--primary)", th(h.range === "24h" || h.range === "7d" ? "trends.hourly_avg" : "trends.daily_avg")], ["var(--primary)", th("trends.daily_range"), "opacity:.3;height:8px;vertical-align:0"], ["var(--warning)", th("trends.weak")]])}
+      ${isBat ? `<div class="sub-h">${batLabel}</div>${batteryChart(h, d)}${trendLegend([["var(--success)", th("trends.battery_pct")], ["var(--text-2)", th("trends.projection")], ["var(--state-icon)", th("trends.replaced")]])}` : ""}
       <div class="trend-stats-wrap"><div class="trend-stats" style="--n:${stats.length}">${stats.map(([k, v, color]) => `<div><small>${esc(k)}</small><b${color ? ` style="color:${color}"` : ""}>${esc(v)}</b></div>`).join("")}</div></div>
-      ${isBat && (b.estimate_days === null || b.estimate_days === undefined) ? `<div class="card-content muted" style="font-size:13px">The battery estimate needs at least two weeks of falling readings since the last battery change.</div>` : ""}`;
+      ${isBat && (b.estimate_days === null || b.estimate_days === undefined) ? `<div class="card-content muted" style="font-size:13px">${th("trends.estimate_needs")}</div>` : ""}`;
   };
 
   const tabAsset = (d) => {
@@ -1809,18 +1810,17 @@
     async "restore-bindings"(b) {
       const ieee = b.dataset.ieee, key = b.dataset.key || null, d = state.byIeee.get(ieee);
       const lost = (d?.lost_bindings || []).filter((x) => !key || x.key === key);
-      if (!lost.length) { snack("Nothing to restore"); return; }
+      if (!lost.length) { snack(t("bindings.restore_nothing")); return; }
       const battery = d?.power_source === "Battery" || typeof d?.battery === "number";
-      const many = lost.length > 1;
-      const ok = await confirmDialog({ title: many ? `Restore ${lost.length} bindings?` : "Restore this binding?", ok: "Restore",
-        html: `<p>Asks Zigbee2MQTT to re-create ${many ? "these bindings" : "this binding"} on ${esc(nameOf(d) || ieee)}:</p><div class="facts">${lost.map((x) => esc(x.label || `${x.cluster} → ${x.target}`)).join("<br>")}</div><p>It can take up to a minute per binding.</p>${statusOf(d) === "offline" ? `<div class="alert" style="--a:var(--error)">${ic("wifi-off")}<div class="body">This device is offline (last heard ${esc(relTime(d.last_seen).toLowerCase())}), so it probably won't respond. Check it has power first.</div></div>` : ""}${battery ? `<div class="alert" style="--a:var(--warning)">${ic("alert")}<div class="body">This device runs on battery and may be asleep. Press a button on the device to wake it first, then confirm.</div></div>` : ""}` });
+      const ok = await confirmDialog({ title: t("bindings.restore_title", { n: lost.length }), ok: t("common.restore"),
+        html: `<p>${th("bindings.restore_text", { n: lost.length, name: esc(nameOf(d) || ieee) })}</p><div class="facts">${lost.map((x) => esc(x.label || `${x.cluster} → ${x.target}`)).join("<br>")}</div><p>${th("bindings.restore_time")}</p>${statusOf(d) === "offline" ? `<div class="alert" style="--a:var(--error)">${ic("wifi-off")}<div class="body">${th("reconfigure.offline", { when: esc(relTime(d.last_seen, true)) })}</div></div>` : ""}${battery ? `<div class="alert" style="--a:var(--warning)">${ic("alert")}<div class="body">${th("bindings.restore_battery")}</div></div>` : ""}` });
       if (!ok) return;
       b.disabled = true; b.classList.add("busy");
-      snack(`Restoring ${many ? `${lost.length} bindings` : "binding"} on ${nameOf(d) || ieee}…`, 60000);
+      snack(t("bindings.restoring", { n: lost.length, name: nameOf(d) || ieee }), 60000);
       try {
         const r = await api("api/bindings/restore", key ? { ieee, keys: [key] } : { ieee });
-        snack(r.restored === 1 ? "Binding restored" : `${r.restored} bindings restored`, 4000);
-      } catch (err) { snack(`Restore failed: ${err.message}`, 6000); }
+        snack(t("bindings.restored", { n: r.restored }), 4000);
+      } catch (err) { snack(t("bindings.restore_failed", { error: err.message }), 6000); }
       b.disabled = false; b.classList.remove("busy"); load();
     },
     async mute(b) {
@@ -1931,6 +1931,14 @@
   const otaList = () => visible().filter((d) => d.status !== "removed" && (["available", "updating"].includes(d.update?.state) || ["queued", "updating"].includes(state.ota?.status?.[d.ieee]?.state)));
   const otaVer = (v) => (v === null || v === undefined || v === -1 || v === "" ? "—" : String(v));
   const otaWin = (w) => String(w || "").replace("-", "–");
+  // The app sends English reasons; translate the ones it can send, keep anything else as it came.
+  const OTA_REASONS = [[/^Battery below (\d+)%$/, "battery_below", "limit"], [/^Battery is low$/, "battery_low"], [/^Device is not active in Zigbee2MQTT$/, "not_active"],
+    [/^Device is offline$/, "offline"], [/^No update available$/, "no_update"], [/^Already queued$/i, "already_queued"]];
+  const otaReason = (text) => {
+    const s = String(text || "");
+    for (const [re, key, name] of OTA_REASONS) { const m = s.match(re); if (m) return t(`ota.reason.${key}`, name ? { [name]: m[1] } : undefined); }
+    return s;
+  };
   const loadOta = async () => {
     state.otaAt = Date.now();
     try { state.ota = await api("api/ota"); } catch (err) { snack(err.message, 4000); }
@@ -1940,44 +1948,44 @@
     const O = state.ota || {}, s = O.status?.[d.ieee], u = d.update || {};
     if (u.state === "updating") {
       const p = typeof u.progress === "number" ? Math.round(u.progress) : null;
-      return [`<span class="st" style="--c:var(--primary)">Updating${p !== null ? ` · ${p}%` : ""}</span>${u.remaining ? `<div class="muted" style="font-size:12px">About ${esc(span(u.remaining))} left</div>` : ""}<div class="bar"><i style="width:${Math.max(2, Math.min(100, p || 0))}%"></i></div>`, ""];
+      return [`<span class="st" style="--c:var(--primary)">${p !== null ? th("ota.updating_pct", { p }) : th("ota.updating")}</span>${u.remaining ? `<div class="muted" style="font-size:12px">${th("ota.time_left", { time: esc(span(u.remaining)) })}</div>` : ""}<div class="bar"><i style="width:${Math.max(2, Math.min(100, p || 0))}%"></i></div>`, ""];
     }
-    if (s?.state === "queued") return [`<span class="st" style="--c:var(--text-2)">Queued</span>`, `<button class="btn" data-act="ota-cancel" data-ieee="${esc(d.ieee)}">Cancel</button>`];
-    if (s?.state === "updating") return [`<span class="st" style="--c:var(--primary)">Starting…</span>`, ""];
-    if (u.state !== "available") return [`<span class="st" style="--c:var(--success)">Up to date</span>`, ""];
+    if (s?.state === "queued") return [`<span class="st" style="--c:var(--text-2)">${th("ota.queued")}</span>`, `<button class="btn" data-act="ota-cancel" data-ieee="${esc(d.ieee)}">${th("common.cancel")}</button>`];
+    if (s?.state === "updating") return [`<span class="st" style="--c:var(--primary)">${th("ota.starting")}</span>`, ""];
+    if (u.state !== "available") return [`<span class="st" style="--c:var(--success)">${th("ota.up_to_date")}</span>`, ""];
     const fails = O.failures?.[d.ieee] || 0;
     if (s?.state === "failed" || (fails && !s)) {
       const reason = s?.reason || (O.history || []).find((h) => h.ieee === d.ieee && h.result !== "ok")?.error;
       const auto = O.window && O.window_valid;
-      const label = fails > (O.auto_retries ?? 1) ? "Failed twice: retry by hand" : auto ? "Failed: tries again tonight" : "Failed";
-      return [`<span class="st" style="--c:var(--error)">${label}</span>${reason ? `<div class="muted" style="font-size:12px">${esc(reason)}</div>` : ""}`, `<button class="btn" data-act="ota-now" data-ieee="${esc(d.ieee)}" data-force="1">Retry</button>`];
+      const label = th(fails > (O.auto_retries ?? 1) ? "ota.failed_twice" : auto ? "ota.failed_tonight" : "ota.failed");
+      return [`<span class="st" style="--c:var(--error)">${label}</span>${reason ? `<div class="muted" style="font-size:12px">${esc(otaReason(reason))}</div>` : ""}`, `<button class="btn" data-act="ota-now" data-ieee="${esc(d.ieee)}" data-force="1">${th("ota.retry")}</button>`];
     }
     const block = s?.state === "skipped" ? s.reason : O.battery_blocked?.[d.ieee];
     if (block) {
       const force = /battery/i.test(block);
-      return [`<span class="st" style="--c:var(--warning)">Skipped: ${esc(block.charAt(0).toLowerCase() + block.slice(1))}</span>`, force || s?.state === "skipped" ? `<button class="btn" data-act="ota-now" data-ieee="${esc(d.ieee)}" data-force="1">${force ? "Update anyway" : "Try again"}</button>` : ""];
+      return [`<span class="st" style="--c:var(--warning)">${th("ota.skipped", { reason: esc(otaReason(block)) })}</span>`, force || s?.state === "skipped" ? `<button class="btn" data-act="ota-now" data-ieee="${esc(d.ieee)}" data-force="1">${th(force ? "ota.update_anyway" : "ota.try_again")}</button>` : ""];
     }
-    const label = O.window && O.window_valid ? (O.window_open ? "Next in tonight's run" : "Queued for tonight") : "Ready";
-    return [`<span class="st" style="--c:var(--text-2)">${label}</span>`, `<button class="btn" data-act="ota-now" data-ieee="${esc(d.ieee)}">Update now</button>`];
+    const label = th(O.window && O.window_valid ? (O.window_open ? "ota.next_tonight" : "ota.queued_tonight") : "ota.ready");
+    return [`<span class="st" style="--c:var(--text-2)">${label}</span>`, `<button class="btn" data-act="ota-now" data-ieee="${esc(d.ieee)}">${th("ota.update_now")}</button>`];
   };
   const renderUpdates = () => {
     const O = state.ota;
-    if (!O) { $("#view").innerHTML = `<div class="card">${emptyState("update", "Loading", "Reading firmware status…")}</div>`; loadOta(); return; }
+    if (!O) { $("#view").innerHTML = `<div class="card">${emptyState("update", th("ota.loading"), th("ota.loading_text"))}</div>`; loadOta(); return; }
     if (Date.now() - (state.otaAt || 0) > 30000) loadOta();
     const list = otaList().sort((a, b) => { const r = (d) => (d.update?.state === "updating" ? 0 : O.status?.[d.ieee]?.state === "queued" ? 1 : 2); return r(a) - r(b) || collator.compare(nameOf(a) || a.ieee, nameOf(b) || b.ieee); });
     const avail = list.filter((d) => ["available", "updating"].includes(d.update?.state)).length;
     const ready = list.filter((d) => d.update?.state === "available" && !O.status?.[d.ieee] && !O.battery_blocked?.[d.ieee]).length;
     const chk = O.check || {};
     const nextWin = O.next_window ? new Date(O.next_window) : null;
-    const when = !nextWin ? "" : nextWin.getHours() < 6 || nextWin.getHours() >= 20 ? "tonight" : nextWin.toDateString() === new Date().toDateString() ? "today" : "tomorrow";
-    const sched = !O.window ? "Overnight updates are off" : !O.window_valid ? `Overnight window "${esc(O.window)}" isn't valid` : O.window_open ? `Overnight run in progress until ${esc(O.window.split("-")[1])}` : `Next overnight run ${when} ${esc(otaWin(O.window))}`;
-    const checked = chk.running ? `Checking ${chk.done} of ${chk.total}…` : O.last_check ? `Last checked ${relTime(O.last_check).toLowerCase()}` : "Not checked by the tracker yet";
-    const power = (d) => (typeof d.battery === "number" ? `<span class="bat" style="--c:${batColor(d.battery)}">${Math.round(d.battery)} %</span>` : powerOf(d) ? `<span class="muted" title="${esc(powerOf(d))}">${ic("power-plug", "s18")}</span>` : d.power_source === "Battery" ? '<span class="muted">Battery</span>' : '<span class="muted">—</span>');
+    const when = !nextWin ? "" : nextWin.getHours() < 6 || nextWin.getHours() >= 20 ? "ota.next_run_tonight" : nextWin.toDateString() === new Date().toDateString() ? "ota.next_run_today" : "ota.next_run_tomorrow";
+    const sched = !O.window ? th("ota.window_off") : !O.window_valid ? th("ota.window_invalid", { window: esc(O.window) }) : O.window_open ? th("ota.window_running", { time: esc(O.window.split("-")[1]) }) : th(when || "ota.next_run", { window: esc(otaWin(O.window)) });
+    const checked = chk.running ? th("ota.checking_progress", { done: chk.done, total: chk.total }) : O.last_check ? th("ota.last_checked", { when: esc(relTime(O.last_check, true)) }) : th("ota.never_checked");
+    const power = (d) => (typeof d.battery === "number" ? `<span class="bat" style="--c:${batColor(d.battery)}">${Math.round(d.battery)} %</span>` : powerOf(d) ? `<span class="muted" title="${esc(powerOf(d))}">${ic("power-plug", "s18")}</span>` : d.power_source === "Battery" ? `<span class="muted">${th("devices.chip.battery")}</span>` : '<span class="muted">—</span>');
     const rows = list.map((d) => {
       const u = d.update || {}, [st, act] = otaStatus(d);
       return `<tr><td class="ic-cell">${stateIc(d)}</td>
         <td class="row-open dev" data-open="${esc(d.ieee)}" style="cursor:pointer"><div class="name">${esc(nameOf(d) || d.ieee)}</div><div class="name-2">${esc(deviceLine(d) || d.ieee)}</div></td>
-        <td class="nw"><span class="mono">${esc(otaVer(u.installed_version))}</span>${d.software_build_id ? `<div class="name-2">Build ${esc(d.software_build_id)}</div>` : ""}</td>
+        <td class="nw"><span class="mono">${esc(otaVer(u.installed_version))}</span>${d.software_build_id ? `<div class="name-2">${th("ota.build", { build: esc(d.software_build_id) })}</div>` : ""}</td>
         <td class="mono nw">${esc(otaVer(u.latest_version))}</td>
         <td class="nw">${power(d)}</td>
         <td class="wrap">${st}</td>
@@ -1986,35 +1994,35 @@
     const hist = (O.history || []).slice(0, 20).map((h) => {
       const d = state.byIeee.get(h.ieee), ok = h.result === "ok";
       const from = h.from_build && h.to_build ? h.from_build : otaVer(h.from), to = h.from_build && h.to_build ? h.to_build : otaVer(h.to);
-      const retry = !ok && d?.update?.state === "available" && !O.status?.[h.ieee] ? `<button class="btn" data-act="ota-now" data-ieee="${esc(h.ieee)}" data-force="1">Retry</button>` : "";
+      const retry = !ok && d?.update?.state === "available" && !O.status?.[h.ieee] ? `<button class="btn" data-act="ota-now" data-ieee="${esc(h.ieee)}" data-force="1">${th("ota.retry")}</button>` : "";
       const dur = h.duration ? ` · ${span(h.duration)}` : "";
       return `<div class="row" style="min-height:52px"><span style="color:${ok ? "var(--success)" : "var(--error)"}">${ic(ok ? "check" : "alert-circle")}</span>
-        <div class="text row-open" data-open="${esc(h.ieee)}" style="cursor:pointer"><div>${esc((d && nameOf(d)) || h.name || h.ieee)} <span class="mono muted">${esc(from)} → ${esc(to)}</span></div>${ok ? "" : `<div class="muted" style="font-size:14px">Failed: ${esc(h.error || "unknown error")}</div>`}</div>
+        <div class="text row-open" data-open="${esc(h.ieee)}" style="cursor:pointer"><div>${esc((d && nameOf(d)) || h.name || h.ieee)} <span class="mono muted">${esc(from)} → ${esc(to)}</span></div>${ok ? "" : `<div class="muted" style="font-size:14px">${th("ota.failed_error", { error: esc(h.error ? otaReason(h.error) : t("ota.unknown_error")) })}</div>`}</div>
         <span class="muted" style="white-space:nowrap">${esc(fmtDate(h.start))}${ok ? esc(dur) : ""}</span>${retry}</div>`;
     }).join("");
     const [wFrom, wTo] = (O.window_valid && O.window ? O.window : "02:00-05:00").split("-");
     $("#view").innerHTML = `
       <div class="card">
-        <div class="ota-head"><div class="text"><div class="t1">${avail ? `${avail} update${avail === 1 ? "" : "s"} available` : "All firmware is up to date"}</div><div class="t2">${checked} · ${sched}</div></div>
-          <button class="btn outlined ${chk.running ? "busy" : ""}" data-act="ota-check-all" ${chk.running ? "disabled" : ""}>${ic("refresh", "s18")}${chk.running ? "Checking…" : "Check now"}</button>
-          <button class="btn filled" data-act="ota-update-all" ${ready ? "" : "disabled"}>${ic("download", "s18")}Update all</button></div>
-        ${list.length ? `<div class="table-wrap"><table class="dt ota" style="min-width:760px"><thead><tr><th class="ic-cell"></th><th>Device</th><th>Installed</th><th>Available</th><th>Power</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
-          : emptyState("check", "Nothing to update", "Zigbee2MQTT hasn't reported any firmware updates. Use Check now to ask every device.")}
+        <div class="ota-head"><div class="text"><div class="t1">${avail ? th("ota.available_n", { n: avail }) : th("ota.all_up_to_date")}</div><div class="t2">${checked} · ${sched}</div></div>
+          <button class="btn outlined ${chk.running ? "busy" : ""}" data-act="ota-check-all" ${chk.running ? "disabled" : ""}>${ic("refresh", "s18")}${th(chk.running ? "ota.checking_short" : "ota.check_now")}</button>
+          <button class="btn filled" data-act="ota-update-all" ${ready ? "" : "disabled"}>${ic("download", "s18")}${th("ota.update_all")}</button></div>
+        ${list.length ? `<div class="table-wrap"><table class="dt ota" style="min-width:760px"><thead><tr><th class="ic-cell"></th><th>${th("ota.col.device")}</th><th>${th("ota.col.installed")}</th><th>${th("ota.col.available")}</th><th>${th("ota.col.power")}</th><th>${th("ota.col.status")}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+          : emptyState("check", th("ota.nothing"), th("ota.nothing_text"))}
       </div>
-      <div class="section-title">Recent updates <span>${(O.history || []).length}</span></div>
-      <div class="card">${hist || `<div class="card-content muted" style="padding-top:16px">No firmware updates recorded yet.</div>`}</div>
-      <div class="section-title">Schedule</div>
+      <div class="section-title">${th("ota.recent")} <span>${(O.history || []).length}</span></div>
+      <div class="card">${hist || `<div class="card-content muted" style="padding-top:16px">${th("ota.no_history")}</div>`}</div>
+      <div class="section-title">${th("settings.schedule")}</div>
       <div class="card">
-        <div class="set-row ota-row"><div class="text"><div class="t1">Overnight updates</div><div class="t2">Installs available updates in this window, one device at a time. A failed update is tried once more the next night.</div></div>
-          <div class="ctl"><span class="ota-time"><input class="field" type="time" id="otaFrom" value="${esc(wFrom)}" ${O.window ? "" : "disabled"} aria-label="Start"><span class="muted">to</span><input class="field" type="time" id="otaTo" value="${esc(wTo)}" ${O.window ? "" : "disabled"} aria-label="End"></span>
-          <label class="switch"><input type="checkbox" id="otaOn" ${O.window ? "checked" : ""} aria-label="Overnight updates"><span class="track"></span><span class="thumb"></span></label></div></div>
-        <div class="set-row ota-row"><div class="text"><div class="t1">Minimum battery</div><div class="t2">Battery devices below this level are skipped. Use Update anyway to override.</div></div>
-          <div class="ctl"><input class="field" type="number" id="otaBat" min="0" max="100" value="${esc(O.min_battery)}" style="width:80px" aria-label="Minimum battery percent"><span class="muted">%</span></div></div>
+        <div class="set-row ota-row"><div class="text"><div class="t1">${th("ota.overnight")}</div><div class="t2">${th("ota.overnight_desc")}</div></div>
+          <div class="ctl"><span class="ota-time"><input class="field" type="time" id="otaFrom" value="${esc(wFrom)}" ${O.window ? "" : "disabled"} aria-label="${esc(t("ota.start"))}"><span class="muted">${th("ota.to")}</span><input class="field" type="time" id="otaTo" value="${esc(wTo)}" ${O.window ? "" : "disabled"} aria-label="${esc(t("ota.end"))}"></span>
+          <label class="switch"><input type="checkbox" id="otaOn" ${O.window ? "checked" : ""} aria-label="${esc(t("ota.overnight"))}"><span class="track"></span><span class="thumb"></span></label></div></div>
+        <div class="set-row ota-row"><div class="text"><div class="t1">${th("ota.min_battery")}</div><div class="t2">${th("ota.min_battery_desc")}</div></div>
+          <div class="ctl"><input class="field" type="number" id="otaBat" min="0" max="100" value="${esc(O.min_battery)}" style="width:80px" aria-label="${esc(t("ota.min_battery_aria"))}"><span class="muted">%</span></div></div>
       </div>`;
   };
   const otaSave = async (changes) => {
-    try { const r = await api("api/settings", { changes }); snack(r.persisted ? "Saved" : "Applied, but couldn't save to the app configuration. It resets on restart.", r.persisted ? 1600 : 5000); }
-    catch (err) { snack(`Couldn't save: ${err.message}`, 4000); }
+    try { const r = await api("api/settings", { changes }); snack(t(r.persisted ? "common.saved" : "settings.not_persisted"), r.persisted ? 1600 : 5000); }
+    catch (err) { snack(t("settings.save_failed", { error: err.message }), 4000); }
     loadOta();
   };
   $("#view").addEventListener("change", (e) => {
@@ -2022,38 +2030,38 @@
     const id = e.target.id;
     if (id === "otaOn" || id === "otaFrom" || id === "otaTo") {
       const on = $("#otaOn").checked, from = $("#otaFrom").value, to = $("#otaTo").value;
-      if (on && (!from || !to || from === to)) { snack("Choose a start and end time"); return; }
+      if (on && (!from || !to || from === to)) { snack(t("ota.choose_times")); return; }
       otaSave({ ota_window: on ? `${from}-${to}` : "" });
     } else if (id === "otaBat") {
       const v = Number(e.target.value);
-      if (!Number.isFinite(v) || v < 0 || v > 100) { snack("Enter a number from 0 to 100"); return; }
+      if (!Number.isFinite(v) || v < 0 || v > 100) { snack(t("settings.number_range", { min: 0, max: 100 })); return; }
       otaSave({ ota_min_battery: Math.round(v) });
     }
   });
   Object.assign(actions, {
     async "ota-check-all"(b) {
       b.disabled = true; b.classList.add("busy");
-      try { const r = await api("api/ota/check", {}); snack(`Checking ${r.total} device${r.total === 1 ? "" : "s"}. Sleeping battery devices may not answer.`, 5000); } catch (err) { snack(err.message, 5000); }
+      try { const r = await api("api/ota/check", {}); snack(t("ota.checking_n", { n: r.total }), 5000); } catch (err) { snack(err.message, 5000); }
       loadOta();
     },
     async "ota-update-all"() {
       const n = otaList().filter((d) => d.update?.state === "available" && !state.ota?.status?.[d.ieee] && !state.ota?.battery_blocked?.[d.ieee]).length;
-      const ok = await confirmDialog({ title: `Update ${n} device${n === 1 ? "" : "s"}?`, ok: "Update all",
-        html: `<p>Devices are updated one at a time. Each usually takes 10 to 60 minutes and may not respond while it updates.</p><p>Battery devices below ${esc(state.ota?.min_battery ?? 30)}% are skipped.</p>` });
+      const ok = await confirmDialog({ title: t("ota.update_n_title", { n }), ok: t("ota.update_all"),
+        html: `<p>${th("ota.update_all_text")}</p><p>${th("ota.update_all_battery", { pct: esc(state.ota?.min_battery ?? 30) })}</p>` });
       if (!ok) return;
-      try { const r = await api("api/ota/queue", { all: true }); snack(`${r.queued.length} queued${r.skipped.length ? `, ${r.skipped.length} skipped` : ""}`); } catch (err) { snack(err.message, 5000); }
+      try { const r = await api("api/ota/queue", { all: true }); snack(r.skipped.length ? t("ota.queued_skipped", { queued: r.queued.length, skipped: r.skipped.length }) : t("ota.queued_n", { queued: r.queued.length })); } catch (err) { snack(err.message, 5000); }
       load();
     },
     async "ota-now"(b) {
       const d = state.byIeee.get(b.dataset.ieee), u = d?.update || {}, force = b.dataset.force === "1";
       const low = force && state.ota?.battery_blocked?.[d.ieee];
-      const ok = await confirmDialog({ title: `Update ${nameOf(d) || b.dataset.ieee}?`, ok: force && low ? "Update anyway" : "Update",
-        html: `<p>Installs firmware ${esc(otaVer(u.latest_version))} (currently ${esc(otaVer(u.installed_version))}). It usually takes 10 to 60 minutes, and the device may not respond while it updates.</p>${low ? `<div class="alert" style="--a:var(--warning)">${ic("battery-alert-variant-outline")}<div class="body">${esc(low)}. If the battery runs out during the update, the device may need to be paired again.</div></div>` : ""}` });
+      const ok = await confirmDialog({ title: t("ota.title", { name: nameOf(d) || b.dataset.ieee }), ok: t(force && low ? "ota.update_anyway" : "common.update"),
+        html: `<p>${th("ota.text1", { latest: esc(otaVer(u.latest_version)), installed: esc(otaVer(u.installed_version)) })}</p>${low ? `<div class="alert" style="--a:var(--warning)">${ic("battery-alert-variant-outline")}<div class="body">${th("ota.low_battery_warn", { reason: esc(otaReason(low)) })}</div></div>` : ""}` });
       if (!ok) return;
-      try { const r = await api("api/ota/queue", { ieees: [d.ieee], force: force || undefined }); snack(r.queued.length ? (state.ota?.current ? "Queued. It starts after the current update." : "Firmware update starting") : `Not queued: ${r.skipped[0]?.reason || "already queued"}`, 4000); } catch (err) { snack(err.message, 5000); }
+      try { const r = await api("api/ota/queue", { ieees: [d.ieee], force: force || undefined }); snack(r.queued.length ? t(state.ota?.current ? "ota.queued_after" : "ota.starting_now") : t("ota.not_queued", { reason: r.skipped[0]?.reason ? otaReason(r.skipped[0].reason) : t("ota.reason.already_queued") }), 4000); } catch (err) { snack(err.message, 5000); }
       load();
     },
-    async "ota-cancel"(b) { try { await api("api/ota/cancel", { ieee: b.dataset.ieee }); snack("Removed from the queue"); } catch (err) { snack(err.message); } load(); },
+    async "ota-cancel"(b) { try { await api("api/ota/cancel", { ieee: b.dataset.ieee }); snack(t("ota.removed_from_queue")); } catch (err) { snack(err.message); } load(); },
   });
 
   // ------------------------------------------------------------ pairing assistant
@@ -2135,35 +2143,36 @@
   const canReplace = (d) => d.type !== "Coordinator" && !d.successor && (["offline", "removed", "ghost"].includes(statusOf(d)) || (d.issues || []).some((i) => i.kind === "silent"));
   const logLine = (e) => {
     const ref = e.ref && state.byIeee.get(e.ref);
-    if (!ref) return `<div class="t1">${esc(cap(e.kind))}${e.detail ? ` · ${esc(e.detail)}` : ""}</div><div class="t2">${esc(fmtDate(e.time))}</div>`;
+    if (!ref) return `<div class="t1">${esc(cap(eventKind(e.kind)))}${e.detail ? ` · ${esc(eventDetail(e))}` : ""}</div><div class="t2">${esc(fmtDate(e.time))}</div>`;
     const extra = (e.detail || "").split(". Carried over: ")[1];
-    return `<div class="t1">${esc(cap(e.kind))} ${devLink(e.ref)}</div><div class="t2">${esc(fmtDate(e.time))}${extra ? ` · carried over ${esc(extra)}` : ""}</div>`;
+    const carried = extra ? listOf(extra.split(", ").map((x) => tx(`replace.carried.${x.replace(/\W+/g, "_")}`, null, x))) : "";
+    return `<div class="t1">${esc(cap(eventKind(e.kind)))} ${devLink(e.ref)}</div><div class="t2">${esc(fmtDate(e.time))}${carried ? ` · ${th("history.carried_over", { items: esc(carried) })}` : ""}</div>`;
   };
   const repBindings = (d) => {
     const all = [...(d.bindings || [])], keys = new Set(all.map((b) => b.key));
     (d.lost_bindings || []).forEach((b) => { if (!keys.has(b.key)) all.push(b); });
     return all.filter((b) => state.byIeee.get((b.target || "").split("/")[0])?.type !== "Coordinator");
   };
-  const repBindLabel = (d, b) => { const t = b.target || ""; if (t.startsWith("group:")) { const g = t.slice(6); return `${state.data.groups?.[d.instance]?.[g] || `group ${g}`} group`; } return nameOf(state.byIeee.get(t.split("/")[0])) || t.split("/")[0]; };
+  const repBindLabel = (d, b) => { const tgt = b.target || ""; if (tgt.startsWith("group:")) { const g = tgt.slice(6), gn = state.data.groups?.[d.instance]?.[g]; return gn ? t("replace.group_named", { name: gn }) : t("bindings.group", { name: g }); } return nameOf(state.byIeee.get(tgt.split("/")[0])) || tgt.split("/")[0]; };
   const repRecent = (d) => IEEE_RE.test(d.friendly_name || "") && (ago(d.first_seen) ?? Infinity) < 7 * 86400;
   const repCandidates = (old, all) => state.data.devices
     .filter((d) => d.ieee !== old.ieee && d.status !== "removed" && d.type !== "Coordinator" && (all || repRecent(d)))
     .sort((a, b) => (!!(b.model && b.model === old.model) - !!(a.model && a.model === old.model)) || ((b.instance === old.instance) - (a.instance === old.instance)) || (repRecent(b) - repRecent(a)) || String(b.first_seen || "").localeCompare(String(a.first_seen || "")));
-  const repStatus = (d) => { const st = statusOf(d); return st === "removed" ? `removed ${relTime(d.removed_at).toLowerCase()}` : st === "offline" ? `offline since ${fmtDate(d.availability_since || d.last_seen, false) || "unknown"}` : `last seen ${relTime(d.last_seen).toLowerCase()}`; };
-  const repStepper = (n) => `<div class="stepper">${["Pick new device", "What carries over", "Apply"].map((l, i) => `<span class="s ${i + 1 < n ? "done" : i + 1 === n ? "cur" : ""}"><i>${i + 1 < n ? ic("check") : i + 1}</i><span>${l}</span></span>`).join("<hr>")}</div>`;
+  const repStatus = (d) => { const st = statusOf(d); return st === "removed" ? t("replace.removed", { when: relTime(d.removed_at, true) }) : st === "offline" ? t("replace.offline_since", { date: fmtDate(d.availability_since || d.last_seen, false) || t("history.unknown_lower") }) : t("replace.last_seen", { when: relTime(d.last_seen, true) }); };
+  const repStepper = (n) => `<div class="stepper">${["replace.stepper.pick", "replace.stepper.carry", "replace.stepper.apply"].map((l, i) => `<span class="s ${i + 1 < n ? "done" : i + 1 === n ? "cur" : ""}"><i>${i + 1 < n ? ic("check") : i + 1}</i><span>${th(l)}</span></span>`).join("<hr>")}</div>`;
   const repBox = (d, sub, isNew) => `<div class="devbox ${isNew ? "new" : ""}">${stateIc(d)}<div><div class="t1">${esc(nameOf(d) || d.ieee)}</div><div class="t2">${esc(sub)}</div><div class="t2 mono">${esc(d.ieee)}</div></div></div>`;
   const repItems = (old, neu) => {
     const a = old.asset || {}, rec = old.battery_record, binds = repBindings(old);
     const sameNet = !neu || neu.instance === old.instance;
-    const assetBits = [a.purchase_date ? `bought ${a.purchase_date.slice(0, 7)}` : "", a.shop, a.location, old.note ? "a note" : ""].filter(Boolean);
+    const assetBits = [a.purchase_date ? t("replace.bought", { date: a.purchase_date.slice(0, 7) }) : "", a.shop, a.location, old.note ? t("replace.a_note") : ""].filter(Boolean);
     const bindNames = [...new Set(binds.map((b) => repBindLabel(old, b)))];
     return [
-      ["name", "Name", nameOf(old), "Renamed in Zigbee2MQTT. Home Assistant entity IDs follow the name, so they stay the same once the old entities are gone.", !nameOf(old)],
-      ["area", "Area", old.area, old.area ? "" : "The old device had no area.", !old.area],
-      ["bindings", "Bindings", binds.length ? `${binds.length} · to ${bindNames.slice(0, 2).join(", ")}${bindNames.length > 2 ? "…" : ""}` : "", !sameNet ? "The new device is on another network, so bindings can't be copied." : binds.length ? "Re-created on the new device. Links to the coordinator are set up by Zigbee2MQTT itself." : "No bindings recorded.", !binds.length || !sameNet],
-      ["notes", "Notes and asset details", assetBits.join(", "), assetBits.length ? "The serial number isn't copied." : "Nothing recorded.", !assetBits.length],
-      ["battery", "Battery record", rec?.type ? [rec.label || rec.type, rec.last_replaced ? `replaced ${rec.last_replaced}` : ""].filter(Boolean).join(", ") : "", "Off by default: a new device comes with a fresh battery.", !old.battery_info || !Object.keys(old.battery_info).length],
-      ["remove", "Remove the old device", "", old.status === "removed" ? "Already gone from Zigbee2MQTT." : "Force remove from Zigbee2MQTT. Its history here is kept.", old.status === "removed"],
+      ["name", t("replace.step.name"), nameOf(old), t("replace.hint.name"), !nameOf(old)],
+      ["area", t("replace.step.area"), old.area, old.area ? "" : t("replace.hint.no_area"), !old.area],
+      ["bindings", t("replace.step.bindings"), binds.length ? t("replace.bindings_value", { n: binds.length, names: `${bindNames.slice(0, 2).join(", ")}${bindNames.length > 2 ? "…" : ""}` }) : "", t(!sameNet ? "replace.hint.other_network" : binds.length ? "replace.hint.bindings" : "replace.hint.no_bindings"), !binds.length || !sameNet],
+      ["notes", t("replace.step.notes"), assetBits.join(", "), t(assetBits.length ? "replace.hint.notes" : "replace.hint.nothing"), !assetBits.length],
+      ["battery", t("replace.step.battery"), rec?.type ? [rec.label || rec.type, rec.last_replaced ? t("replace.battery_replaced", { date: rec.last_replaced }) : ""].filter(Boolean).join(", ") : "", t("replace.hint.battery"), !old.battery_info || !Object.keys(old.battery_info).length],
+      ["remove", t("replace.step.remove"), "", t(old.status === "removed" ? "replace.hint.already_gone" : "replace.hint.remove"), old.status === "removed"],
     ];
   };
   const renderReplace = () => {
@@ -2176,40 +2185,40 @@
     if (r.step === 1) {
       const list = repCandidates(old, r.showAll);
       if (r.new && !list.some((d) => d.ieee === r.new)) r.new = null;
-      body = `<p class="rep-intro">Pair the new device first, then choose it here. The new device takes over ${esc(oldName)}'s name, area and setup. Its history starts where this one ended.</p>${repStepper(1)}
-        ${list.length ? `<div class="picks" role="radiogroup" aria-label="New device">${list.map((d) => `<label class="pick"><input type="radio" name="repNew" value="${esc(d.ieee)}" ${d.ieee === r.new ? "checked" : ""}>${stateIc(d)}<div class="text"><div class="t1">${esc(nameOf(d) || d.ieee)}</div><div class="t2">${esc([deviceLine(d) || "Unknown model", d.first_seen ? `joined ${relTime(d.first_seen).toLowerCase()}` : "", d.instance !== old.instance ? `${netLabel(d.instance)} network` : ""].filter(Boolean).join(" · "))}</div></div>${d.model && d.model === old.model ? `<span class="tag">Same model</span>` : ""}</label>`).join("")}</div>`
-          : `<div class="card-content muted">${r.showAll ? "There are no other devices to choose from." : "No new unnamed devices joined in the last 7 days. Pair the new device, or show all devices."}</div>${r.showAll ? "" : `<div class="more-actions"><button class="btn outlined" data-act="pair">${ic("plus", "s18")}Pair a device</button></div>`}`}`;
-      foot = `<label class="opt"><input type="checkbox" id="repAll" ${r.showAll ? "checked" : ""}>Show all devices</label><button class="btn" data-act="rep-close">Cancel</button><button class="btn filled" data-act="rep-next" ${r.new ? "" : "disabled"}>Next</button>`;
+      body = `<p class="rep-intro">${th("replace.intro", { name: esc(oldName) })}</p>${repStepper(1)}
+        ${list.length ? `<div class="picks" role="radiogroup" aria-label="${esc(t("replace.new_device"))}">${list.map((d) => `<label class="pick"><input type="radio" name="repNew" value="${esc(d.ieee)}" ${d.ieee === r.new ? "checked" : ""}>${stateIc(d)}<div class="text"><div class="t1">${esc(nameOf(d) || d.ieee)}</div><div class="t2">${esc([deviceLine(d) || t("replace.unknown_model"), d.first_seen ? t("replace.joined", { when: relTime(d.first_seen, true) }) : "", d.instance !== old.instance ? t("net.network", { name: netLabel(d.instance) }) : ""].filter(Boolean).join(" · "))}</div></div>${d.model && d.model === old.model ? `<span class="tag">${th("replace.same_model")}</span>` : ""}</label>`).join("")}</div>`
+          : `<div class="card-content muted">${th(r.showAll ? "replace.no_others" : "replace.no_new")}</div>${r.showAll ? "" : `<div class="more-actions"><button class="btn outlined" data-act="pair">${ic("plus", "s18")}${th("replace.pair")}</button></div>`}`}`;
+      foot = `<label class="opt"><input type="checkbox" id="repAll" ${r.showAll ? "checked" : ""}>${th("replace.show_all")}</label><button class="btn" data-act="rep-close">${th("common.cancel")}</button><button class="btn filled" data-act="rep-next" ${r.new ? "" : "disabled"}>${th("replace.next")}</button>`;
     } else if (r.step === 2) {
       const items = repItems(old, neu);
       const clash = r.carry.name && nameOf(old) && old.status !== "removed" && !r.carry.remove;
-      body = `<p class="rep-intro">Choose what the new device takes over from ${esc(oldName)}.</p>${repStepper(2)}
-        <div class="swap">${repBox(old, [deviceLine(old), repStatus(old)].filter(Boolean).join(" · "), false)}${ic("swap-horizontal")}${repBox(neu, [deviceLine(neu), neu.first_seen ? `joined ${relTime(neu.first_seen).toLowerCase()}` : ""].filter(Boolean).join(" · "), true)}</div>
+      body = `<p class="rep-intro">${th("replace.choose", { name: esc(oldName) })}</p>${repStepper(2)}
+        <div class="swap">${repBox(old, [deviceLine(old), repStatus(old)].filter(Boolean).join(" · "), false)}${ic("swap-horizontal")}${repBox(neu, [deviceLine(neu), neu.first_seen ? t("replace.joined", { when: relTime(neu.first_seen, true) }) : ""].filter(Boolean).join(" · "), true)}</div>
         <div class="carry">${items.map(([k, title, value, hint, dis]) => `<label class="ln ${dis ? "dis" : ""}"><input type="checkbox" data-carry="${k}" ${r.carry[k] && !dis ? "checked" : ""} ${dis ? "disabled" : ""}><div class="text"><b>${esc(title)}</b>${value ? ` <span class="muted">${esc(value)}</span>` : ""}${hint ? `<div class="t2">${esc(hint)}</div>` : ""}</div></label>`).join("")}</div>
-        ${clash ? `<div class="alerts"><div class="alert" style="--a:var(--warning)">${ic("alert")}<div class="body">${esc(oldName)} is still in Zigbee2MQTT, which won't allow two devices with the same name. Also remove the old device, or the rename will fail.</div></div></div>` : ""}
-        <div class="card-content muted" style="font-size:13px">Both histories are linked either way, so each logbook points to the other.</div>`;
-      foot = `<button class="btn" data-act="rep-back">Back</button><button class="btn filled" data-act="rep-next">Next</button>`;
+        ${clash ? `<div class="alerts"><div class="alert" style="--a:var(--warning)">${ic("alert")}<div class="body">${th("replace.clash", { name: esc(oldName) })}</div></div></div>` : ""}
+        <div class="card-content muted" style="font-size:13px">${th("replace.linked_note")}</div>`;
+      foot = `<button class="btn" data-act="rep-back">${th("replace.back")}</button><button class="btn filled" data-act="rep-next">${th("replace.next")}</button>`;
     } else {
       const items = repItems(old, neu).filter(([k, , , , dis]) => r.carry[k] && !dis);
       const bat = neu && (neu.power_source === "Battery" || typeof neu.battery === "number");
       if (r.busy) {
-        body = `${repStepper(3)}<div class="more-hero"><span class="state-ic" style="color:var(--primary)">${ic("refresh")}</span><div class="big">Applying…</div><div class="sub">This can take up to a minute. Keep this window open.</div></div>`;
+        body = `${repStepper(3)}<div class="more-hero"><span class="state-ic" style="color:var(--primary)">${ic("refresh")}</span><div class="big">${th("replace.applying")}</div><div class="sub">${th("replace.applying_text")}</div></div>`;
       } else if (r.result) {
         const steps = r.result.steps || [];
         const ok = r.result.ok;
-        body = `${repStepper(4)}<div class="more-hero"><span class="state-ic" style="color:${ok ? "var(--success)" : "var(--warning)"}">${ic(ok ? "check" : "alert")}</span><div class="big">${ok ? "Replaced" : "Partly done"}</div><div class="sub">${ok ? `${esc(nameOf(neu) || neu.ieee)} now takes over from ${esc(oldName)}.` : "Some steps didn't work. The rest were applied."}</div></div>
-          <div class="carry rep-steps">${steps.map((s) => `<div class="ln"><span style="color:${s.ok ? "var(--success)" : "var(--error)"}">${ic(s.ok ? "check" : "alert-circle", "s20")}</span><div class="text"><b>${esc(s.label)}</b>${s.detail ? `<div class="t2">${esc(s.detail)}</div>` : ""}</div></div>`).join("")}</div>`;
-        foot = `<button class="btn" data-act="rep-close">Done</button><button class="btn filled" data-act="rep-open" data-ieee="${esc(r.new)}">Open new device</button>`;
+        body = `${repStepper(4)}<div class="more-hero"><span class="state-ic" style="color:${ok ? "var(--success)" : "var(--warning)"}">${ic(ok ? "check" : "alert")}</span><div class="big">${th(ok ? "replace.done" : "replace.partly")}</div><div class="sub">${ok ? th("replace.done_text", { new: esc(nameOf(neu) || neu.ieee), old: esc(oldName) }) : th("replace.partly_text")}</div></div>
+          <div class="carry rep-steps">${steps.map((s) => `<div class="ln"><span style="color:${s.ok ? "var(--success)" : "var(--error)"}">${ic(s.ok ? "check" : "alert-circle", "s20")}</span><div class="text"><b>${esc(tx(`replace.step.${s.key}`, null, s.label))}</b>${s.detail ? `<div class="t2">${esc(s.detail)}</div>` : ""}</div></div>`).join("")}</div>`;
+        foot = `<button class="btn" data-act="rep-close">${th("common.done")}</button><button class="btn filled" data-act="rep-open" data-ieee="${esc(r.new)}">${th("replace.open_new")}</button>`;
       } else {
-        body = `<p class="rep-intro">Ready to replace ${esc(oldName)} with ${esc(nameOf(neu) || neu.ieee)}.</p>${repStepper(3)}
-          <div class="carry rep-steps">${items.length ? items.map(([, title, value]) => `<div class="ln"><span class="muted">${ic("check", "s20")}</span><div class="text"><b>${esc(title)}</b>${value ? ` <span class="muted">${esc(value)}</span>` : ""}</div></div>`).join("") : ""}<div class="ln"><span class="muted">${ic("link-variant", "s20")}</span><div class="text"><b>Link both histories</b></div></div></div>
-          ${r.carry.bindings && bat && items.some(([k]) => k === "bindings") ? `<div class="alerts"><div class="alert" style="--a:var(--warning)">${ic("alert")}<div class="body">${esc(nameOf(neu) || "The new device")} runs on battery and may be asleep. Press its button just before you apply, or the bindings may fail.</div></div></div>` : ""}`;
-        foot = `<button class="btn" data-act="rep-back">Back</button><button class="btn filled" data-act="rep-apply">${ic("swap-horizontal", "s18")}Apply</button>`;
+        body = `<p class="rep-intro">${th("replace.ready", { old: esc(oldName), new: esc(nameOf(neu) || neu.ieee) })}</p>${repStepper(3)}
+          <div class="carry rep-steps">${items.length ? items.map(([, title, value]) => `<div class="ln"><span class="muted">${ic("check", "s20")}</span><div class="text"><b>${esc(title)}</b>${value ? ` <span class="muted">${esc(value)}</span>` : ""}</div></div>`).join("") : ""}<div class="ln"><span class="muted">${ic("link-variant", "s20")}</span><div class="text"><b>${th("replace.step.link")}</b></div></div></div>
+          ${r.carry.bindings && bat && items.some(([k]) => k === "bindings") ? `<div class="alerts"><div class="alert" style="--a:var(--warning)">${ic("alert")}<div class="body">${th("replace.battery_warn", { name: esc(nameOf(neu) || t("replace.the_new_device")) })}</div></div></div>` : ""}`;
+        foot = `<button class="btn" data-act="rep-back">${th("replace.back")}</button><button class="btn filled" data-act="rep-apply">${ic("swap-horizontal", "s18")}${th("replace.apply")}</button>`;
       }
     }
     const scroll = dlg.querySelector(".more-body")?.scrollTop || 0;
     dlg.innerHTML = `
-      <div class="more-head"><button class="icon-btn" data-act="rep-close" aria-label="Close">${ic("close")}</button><div class="titles"><h2 id="repTitle">Replace ${esc(oldName)}</h2><small>${esc([deviceLine(old), `${netLabel(old.instance)} network`].filter(Boolean).join(" · "))}</small></div></div>
+      <div class="more-head"><button class="icon-btn" data-act="rep-close" aria-label="${esc(t("common.close"))}">${ic("close")}</button><div class="titles"><h2 id="repTitle">${th("replace.title", { name: esc(oldName) })}</h2><small>${esc([deviceLine(old), t("net.network", { name: netLabel(old.instance) })].filter(Boolean).join(" · "))}</small></div></div>
       <div class="more-body">${body}</div>${foot ? `<div class="rep-foot">${foot}</div>` : ""}`;
     dlg.querySelector(".more-body").scrollTop = r.step === 1 ? scroll : 0;
   };
@@ -2233,7 +2242,7 @@
       r.busy = true; renderReplace();
       const carry = Object.fromEntries(repItems(state.byIeee.get(r.old), state.byIeee.get(r.new)).map(([k, , , , dis]) => [k, !!r.carry[k] && !dis]));
       try { r.result = await api("api/replace", { old: r.old, new: r.new, carry }); }
-      catch (err) { r.result = { ok: false, steps: [{ label: "Replace", ok: false, detail: err.message }] }; }
+      catch (err) { r.result = { ok: false, steps: [{ key: "replace", label: t("replace.step.replace"), ok: false, detail: err.message }] }; }
       r.busy = false;
       await load();
       if (state.replace === r) renderReplace();
