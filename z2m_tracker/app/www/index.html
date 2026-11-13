@@ -570,7 +570,8 @@
   .fp-dev.offline:is([aria-pressed="true"], .onroute) i { box-shadow: inset 0 0 0 2.5px var(--c), 0 0 0 2px var(--card), 0 0 0 4px var(--primary); }
   .fp-area { transition: border-color 0.15s, box-shadow 0.15s; }
   .fp-area.hot { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
-  .fp-lines path.prob:not(.dim) { opacity: 0.85; }
+  .fp-lines path.prob:not(.dim):not(.faint) { opacity: 0.85; }
+  .fp-lines path.faint { opacity: 0.25; }
   .fp-lines path.route { stroke-width: 3.2; opacity: 1; stroke-linecap: round; }
   .fp-tip { position: absolute; z-index: 6; pointer-events: none; max-width: min(360px, calc(100% - 8px)); padding: 4px 8px; border: 1px solid var(--divider); border-radius: 8px; background: var(--card); color: var(--text-2); box-shadow: var(--shadow); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .fp-tip b { color: var(--text); font-weight: 500; }
@@ -1862,8 +1863,9 @@
       const kids = new Set(sel ? lines.filter((l) => l.b === sel).map((l) => l.a) : []);
       let out = "";
       // Base lines from the Links switch: all of them, only the problems, or none.
-      if (MAP.links === "all") lines.forEach((l) => (out += plain(l, sel ? "dim" : "")));
-      else if (MAP.links === "problems") lines.filter((l) => l.weak || l.cross).forEach((l) => (out += path(l, l.weak ? "var(--error)" : "var(--text-2)", `prob ${sel ? "dim" : ""}`, l.cross, l.cross && !l.weak ? t("map.fp_other_floor_lqi", { lqi: l.lqi ?? "?" }) : lqiTitle(l))));
+      const fade = sel ? "dim" : hover !== null ? "faint" : "";
+      if (MAP.links === "all") lines.forEach((l) => (out += plain(l, fade)));
+      else if (MAP.links === "problems") lines.filter((l) => l.weak || l.cross).forEach((l) => (out += path(l, l.weak ? "var(--error)" : "var(--text-2)", `prob ${fade}`, l.cross, l.cross && !l.weak ? t("map.fp_other_floor_lqi", { lqi: l.lqi ?? "?" }) : lqiTitle(l))));
       // Hovered room: the links leaving it.
       if (hover !== null) lines.filter((l) => areaOf(l.a) === hover && areaOf(l.b) !== hover).forEach((l) => (out += plain(l, "hot")));
       // Selected device: the devices that connect through it, then its whole route on top.
