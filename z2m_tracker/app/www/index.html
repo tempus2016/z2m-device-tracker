@@ -234,6 +234,13 @@
   .row .t1 { font-size: 16px; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
   .row .t2 { font-size: 14px; color: var(--text-2); }
   .row .acts { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+  .also-list { padding: 0 16px 8px 72px; border-bottom: 1px solid var(--divider); }
+  .row:has(+ .also-list) { padding-bottom: 0; min-height: 0; }
+  .also-list:last-child { border-bottom: 0; }
+  .also { display: flex; align-items: center; gap: 8px; min-height: 40px; font-size: 14px; color: var(--text-2); }
+  .also-t { flex: 1; min-width: 0; }
+  .also .acts { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+  .row .t2.cause { display: block; color: var(--text); }
   .group-list { margin: 0 0 8px 72px; border-left: 2px solid var(--divider); }
   .group-list .row { min-height: 48px; padding: 6px 12px; border-bottom: 0; }
   .group-list .state-ic { width: 32px; height: 32px; }
@@ -680,6 +687,8 @@
     /* Row actions go under the text instead of squeezing it into a narrow column. */
     .row:has(> .acts:not(:empty)) { flex-wrap: wrap; row-gap: 0; }
     .row > .acts:not(:empty) { flex: 1 1 100%; justify-content: flex-start; padding-left: 48px; }
+    /* Offline rows carry three text buttons; tighter spacing keeps them on one line on a phone. */
+    .row.triage > .acts { padding-left: 44px; gap: 0; }
     /* Wide controls (text fields) drop under their label rather than covering it. */
     .set-row .text { flex: 1 1 160px; }
     .set-row.wide-ctl .ctl { flex: 1 1 100%; }
@@ -909,6 +918,18 @@
   const nestedIssue = (i, keys) => Boolean(i.behind) && keys.has(`offline:${i.behind}`);
   const ownIssues = (issues) => { const keys = new Set(issues.map((i) => i.key)); return issues.filter((i) => !nestedIssue(i, keys)); };
   const healthIssues = (issues) => ownIssues(issues).filter((i) => i.kind !== "update");
+  // Health lists one row per device: its worst issue leads and the rest fold under it. Network and group issues stay one row each.
+  const issueRank = (i) => (i.severity !== "warning" ? 3 : SEVERE_KINDS.has(i.kind) ? 0 : severe(i) ? 1 : 2);
+  const healthRows = (issues) => {
+    const rows = [], byDev = new Map();
+    for (const i of healthIssues(issues)) {
+      if (isNetIssue(i)) { rows.push([i]); continue; }
+      if (!byDev.has(i.ieee)) { byDev.set(i.ieee, []); rows.push(byDev.get(i.ieee)); }
+      byDev.get(i.ieee).push(i);
+    }
+    rows.forEach((g) => g.sort((a, b) => issueRank(a) - issueRank(b)));
+    return rows;
+  };
   const issueVars = (i) => {
     const p = { ...(i.params || {}) };
     if (p.seconds !== undefined) p.duration = span(p.seconds);
@@ -1138,7 +1159,23 @@
     const nm = state.data.networkmap || {};
     const running = Object.values(nm).some((x) => x.running_since);
     const scans = scanLine(state.data.instances, nm);
-    const item = (i) => {
+    // The device's other issues, each with its own actions, so ignoring one leaves the rest.
+    // `said` holds issue kinds whose detail the cause line already gives, so it isn't repeated.
+    const alsoList = (rest, said = new Set()) => (rest.length ? `<div class="also-list">${rest.map((x) => `<div class="also"><span class="also-t">${th("health.also", { what: esc(said.has(x.kind) ? issueTitle(x) : `${issueTitle(x)} · ${issueDetail(x)}`) })}</span><span class="acts">${issueActions(x)}</span></div>`).join("")}</div>` : "");
+    // Only causes the data shows: a battery last seen nearly flat, or the router the device last talked through.
+    const nearlyFlat = (d) => isBattery(d) && typeof d.battery === "number" && d.battery <= 10;
+    const offlineCause = (d) => {
+      if (nearlyFlat(d)) return t("health.cause_battery", { n: Math.round(d.battery) });
+      const p = d.routing?.parent?.ieee && state.byIeee.get(d.routing.parent.ieee);
+      if (!p) return null;
+      return p.type === "Coordinator" ? t("health.cause_coordinator") : nameOf(p) ? t("health.cause_router", { name: nameOf(p) }) : null;
+    };
+    const offlineActs = (d) => {
+      const panel = d.status !== "removed" && state.data.panels?.[d.instance];
+      return `${canReplace(d) ? `<button class="btn" data-act="replace" data-ieee="${esc(d.ieee)}">${th("replace.button")}</button>` : ""}${panel ? `<a class="btn" href="${esc(panel)}" target="_top">${th("health.open_z2m")}</a>` : ""}`;
+    };
+    const item = (g) => {
+      const [i, ...rest] = g;
       const d = state.byIeee.get(i.ieee);
       const tone = i.severity !== "warning" ? "var(--info)" : severe(i, d) ? "var(--error)" : "var(--warning)";
       if (isNetIssue(i)) {
@@ -1150,13 +1187,15 @@
           <div class="acts">${close}${panel ? `<a class="btn" href="${esc(panel)}" target="_top">${th("health.open_z2m")}</a>` : ""}</div></div>`;
       }
       const kids = i.devices?.length ? issues.filter((x) => x.behind === i.ieee && nestedIssue(x, keys)) : [];
-      if (kids.length) return routerItem(i, d, kids);
-      return `<div class="row"><span class="state-ic" style="color:${tone}">${ic(KIND_ICON[i.kind] || "alert")}</span>
-        <button type="button" class="text row-open open-btn" data-open="${esc(i.ieee)}"><span class="t1">${esc(issueTitle(i))}: ${esc(issueName(i))}${i.critical ? ` ${critTag()}` : ""}</span><span class="t2">${esc(issueDetail(i))}${d?.area ? ` · ${esc(d.area)}` : ""}</span></button>
-        <div class="acts">${issueActions(i)}</div></div>`;
+      if (kids.length) return routerItem(i, d, kids, rest);
+      const off = i.kind === "offline" && d;
+      const cause = off ? offlineCause(d) : null;
+      return `<div class="row${rest.length ? " has-members" : ""}${off ? " triage" : ""}"><span class="state-ic" style="color:${tone}">${ic(KIND_ICON[i.kind] || "alert")}</span>
+        <button type="button" class="text row-open open-btn" data-open="${esc(i.ieee)}"><span class="t1">${esc(issueTitle(i))}: ${esc(issueName(i))}${i.critical ? ` ${critTag()}` : ""}</span><span class="t2">${esc(issueDetail(i))}${d?.area ? ` · ${esc(d.area)}` : ""}</span>${cause ? `<span class="t2 cause">${esc(cause)}</span>` : ""}</button>
+        <div class="acts">${off ? offlineActs(d) : ""}${issueActions(i)}</div></div>${alsoList(rest, off && nearlyFlat(d) ? new Set(["battery_low"]) : undefined)}`;
     };
     // A router that is offline with devices behind it: one row, and the devices listed under it on demand.
-    const routerItem = (i, d, kids) => {
+    const routerItem = (i, d, kids, rest = []) => {
       const open = state.openGroups.has(i.ieee);
       const line = [typeLabel(d?.type || "Router"), t("health.offline_for", { duration: issueVars(i).duration }), netLabel(i.instance), d?.area].filter(Boolean).join(" · ");
       const kid = (x) => {
@@ -1164,24 +1203,25 @@
         return `<button type="button" class="row click open-btn" data-open="${esc(x.ieee)}"><span class="state-ic off">${ic(k ? kindIcon(k) : "zigbee", "s20")}</span>
           <span class="text"><span class="t1">${esc(x.name)}</span><span class="t2">${esc(cap(t("health.offline_for", { duration: issueVars(x).duration })))}${k?.area ? ` · ${esc(k.area)}` : ""}</span></span></button>`;
       };
-      return `<div class="row"><span class="state-ic bad">${ic("router-wireless")}</span>
+      return `<div class="row${rest.length ? " has-members" : ""}"><span class="state-ic bad">${ic("router-wireless")}</span>
         <button type="button" class="text row-open open-btn" data-open="${esc(i.ieee)}"><span class="t1">${th("health.router_down", { n: kids.length, name: `<b style="font-weight:500">${esc(i.name)}</b>` })}</span><span class="t2">${esc(line)}</span></button>
-        <div class="acts"><button class="btn" data-act="toggle-group" data-ieee="${esc(i.ieee)}" aria-expanded="${open}">${open ? th("health.hide_devices") : th("health.show_devices", { n: kids.length })}</button>${issueActions(i)}</div></div>
+        <div class="acts"><button class="btn" data-act="toggle-group" data-ieee="${esc(i.ieee)}" aria-expanded="${open}">${open ? th("health.hide_devices") : th("health.show_devices", { n: kids.length })}</button>${issueActions(i)}</div></div>${alsoList(rest)}
         ${open ? `<div class="group-list">${kids.map(kid).join("")}</div>` : ""}`;
     };
     const keys = new Set(issues.map((i) => i.key));
     // Firmware updates live on the Updates tab; listing them here too counted them twice.
-    const own = healthIssues(issues);
-    const warn = own.filter((i) => i.severity === "warning"), info = own.filter((i) => i.severity !== "warning");
+    const own = healthRows(issues);
+    const warn = own.filter((g) => g[0].severity === "warning"), info = own.filter((g) => g[0].severity !== "warning");
+    const warnIssues = warn.reduce((n, g) => n + g.length, 0);
     // Problems come first: on a phone the status cards below would push them several screens down.
     // Severe warnings (offline, battery nearly flat) lead the list.
-    warn.sort((a, b) => Number(severe(b)) - Number(severe(a)));
+    warn.sort((a, b) => Number(severe(b[0])) - Number(severe(a[0])));
     $("#view").innerHTML = `
       ${warn.length ? `<h2 class="section-title">${th("health.needs_attention")} <span>${warn.length}</span></h2><div class="card">${warn.map(item).join("")}</div>` : ""}
       ${info.length ? `<h2 class="section-title">${th("health.worth_a_look")} <span>${info.length}</span></h2><div class="card">${info.map(item).join("")}</div>` : ""}
       ${!own.length ? `<div class="card">${emptyState("check", th("health.all_clear"), th("health.all_clear_text"))}</div>` : ""}
       <div class="card">
-        <div class="card-header">${ic("heart-pulse")}<div><h2 class="ch">${th("health.title")}</h2><small>${warn.length ? th("health.summary", { warn: warn.length, n: info.length }) : own.length ? th("health.to_review", { n: info.length }) : th("health.nothing")}</small></div></div>
+        <div class="card-header">${ic("heart-pulse")}<div><h2 class="ch">${th("health.title")}</h2><small>${warn.length ? th(warnIssues > warn.length ? "health.summary_issues" : "health.summary", { warn: warn.length, issues: warnIssues, n: info.length }) : own.length ? th("health.to_review", { n: info.length }) : th("health.nothing")}</small></div></div>
         <div class="info-grid">
           <div><small>${th("health.alerts")}</small><b>${o.alerts_enabled === false ? th("health.alerts_off") : esc([o.persistent_notifications ? t("health.ha_notifications") : null, o.notify_service || null].filter(Boolean).join(", ")) || th("health.event_only")}</b></div>
           <div><small>${th("health.thresholds")}</small><b>${th("health.thresholds_line", { offline: esc(o.offline_alert_minutes), frozen: esc(o.frozen_alert_hours), battery: esc(o.battery_alert_percent) })}</b></div>
@@ -1278,7 +1318,7 @@
     return `<div class="card"><div class="card-header">${ic("signal")}<div><h2 class="ch">${th("radio.title")}</h2><small>${th("radio.subtitle", { zigbee: esc([...new Set(r.networks.map((n) => n.channel))].join(", ")), wifi: r.wifi.length ? esc(r.wifi.join(", ")) : th("radio.not_set") })}</small></div></div>
       <div class="chart-wrap"><svg class="spectrum" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t("radio.chart"))}">${wifiBands}${ticks}<text x="10" y="118" class="axis">2400 MHz</text><text x="${W - 10}" y="118" text-anchor="end" class="axis">2485 MHz</text></svg></div>
       ${hoursChart()}
-      <div class="advice">${r.findings.map((f) => `<div class="adv"><span class="state-ic" style="color:${f.sev >= 2 ? "var(--warning)" : f.sev === 1 ? "var(--info)" : "var(--success)"}">${ic(f.sev ? "alert" : "check")}</span><div class="text">${esc(findingText(f))}</div></div>`).join("")}</div>
+      <div class="advice">${r.findings.map((f) => { const unchecked = f.msg === "clear_no_wifi"; return `<div class="adv"><span class="state-ic" style="color:${f.sev >= 2 ? "var(--warning)" : f.sev === 1 || unchecked ? "var(--info)" : "var(--success)"}">${ic(unchecked ? "information-outline" : f.sev ? "alert" : "check")}</span><div class="text">${esc(findingText(f))}</div></div>`; }).join("")}</div>
       <div class="card-actions"><button class="btn" data-view="settings">${th("radio.edit_wifi")}</button></div></div>`;
   };
 
@@ -2726,7 +2766,7 @@
     const fk = focusKey(document.activeElement);
     const issues = ownIssues(state.data.issues || []);
     // The badge is the "Needs attention" count Health opens on, so the two always match.
-    const warn = healthIssues(issues).filter((i) => i.severity === "warning").length;
+    const warn = healthRows(issues).filter((g) => g[0].severity === "warning").length;
     const badge = $("#issueBadge"); badge.textContent = warn; badge.classList.toggle("warn", warn > 0);
     const otaCount = otaList().filter((d) => d.update?.state === "available" || d.update?.state === "updating").length;
     $("#otaBadge").textContent = otaCount; $("#otaBadge").hidden = !otaCount;
