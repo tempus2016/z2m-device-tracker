@@ -85,6 +85,12 @@ CHECKS = [
         "Zigbee2MQTT's coordinator_backup.json is missing, more than 3 days old, or doesn't match the running network.",
         False,
     ),
+    (
+        "signal_dip",
+        "Daily signal dip",
+        "Link quality drops across a network at the same 1 to 4 hours on at least 4 of the last 7 days.",
+        False,
+    ),
     ("joined", "Device joined", "A device joins one of your networks.", True),
     ("left", "Device left", "A device leaves one of your networks.", True),
     ("interview_failed", "Interview failed", "A newly joined device couldn't be identified.", True),
@@ -108,6 +114,7 @@ KIND_LABELS = {
     "binding_lost": "Binding lost",
     "single_point": "Single point of failure",
     "coordinator_backup": "Coordinator backup",
+    "signal_dip": "Daily signal dip",
 }
 
 
