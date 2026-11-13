@@ -431,7 +431,15 @@
   .coord .kv > div { flex-direction: column; gap: 2px; padding: 6px 8px; }
   .coord .kv span { font-size: 12px; }
   .coord .kv b { text-align: left; }
-  @media (max-width: 600px) { .coord .kv { padding-left: 8px; } }
+  .coord-extra { padding: 0 16px 16px 72px; }
+  .coord-extra .sub-h { padding: 4px 0 0; font-size: 12px; font-weight: 400; }
+  .coord-extra .alert { margin-top: 12px; }
+  .mem-bars { display: flex; align-items: flex-end; gap: 3px; height: 70px; padding-top: 8px; }
+  .mem-bars i { flex: 1; min-width: 0; height: 2px; background: var(--primary); opacity: 0.75; border-radius: 2px 2px 0 0; }
+  .mem-bars i.none { background: var(--divider); opacity: 1; }
+  .mem-bars i.hi { background: var(--warning); opacity: 1; }
+  .mem-axis { display: flex; justify-content: space-between; padding-top: 4px; font-size: 12px; color: var(--text-2); }
+  @media (max-width: 600px) { .coord .kv { padding-left: 8px; } .coord-extra { padding-left: 16px; } }
   svg.spectrum { width: 100%; max-width: 720px; height: auto; display: block; margin: 0 auto; }
   svg.spectrum text { font-size: 11px; fill: var(--text-2); font-family: var(--font); }
   svg.spectrum text.on { fill: var(--primary-text); font-weight: 500; }
@@ -576,7 +584,7 @@
     removed: { get label() { return t("status.removed"); }, c: "var(--disabled)" },
   };
   const KIND_ICON = { offline: "wifi-off", silent: "wifi-off", late: "history", frozen: "thermometer", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
-    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download" };
+    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip" };
   const EVENT_ICON = (k) => {
     if (k.startsWith("interview")) return k.endsWith("successful") ? ["check", "var(--success)"] : ["alert-circle", "var(--error)"];
     return ({ joined: ["plus", "var(--success)"], added: ["plus", "var(--success)"], rejoined: ["plus", "var(--success)"], online: ["wifi", "var(--success)"], offline: ["wifi-off", "var(--error)"],
@@ -930,7 +938,7 @@
       const tone = i.severity === "warning" ? "var(--warning)" : "var(--info)";
       if (String(i.ieee).startsWith("network:")) {
         const panel = state.data.panels?.[i.instance];
-        const icon = { network_offline: "lan-disconnect", coordinator_backup: "download", pairing_open: "link-variant" }[i.kind] || "refresh";
+        const icon = { network_offline: "lan-disconnect", coordinator_backup: "download", pairing_open: "link-variant" }[i.kind] || KIND_ICON[i.kind] || "refresh";
         const close = i.kind === "pairing_open" ? `<button class="btn danger" data-act="pair-stop" data-net="${esc(i.instance)}">${th("health.close_now")}</button>` : "";
         return `<div class="row"><span class="state-ic" style="color:${tone}">${ic(icon)}</span>
           <div class="text"><div class="t1">${esc(issueTitle(i))}: ${esc(issueName(i))}</div><div class="t2">${esc(issueDetail(i))}</div></div>
@@ -989,6 +997,7 @@
       const last = [...(b.outages || [])].reverse()[0];
       const panel = state.data.panels?.[bt];
       const bk = (state.data.backups || {})[bt];
+      const leaves = (state.data.events || []).filter((e) => e.kind === "left" && e.instance === bt && new Date(e.time).getTime() >= week).length;
       const backup = !bk ? null : !bk.found ? t("coord.backup_not_found") : !bk.exists ? t("coord.backup_missing") : bk.error ? bk.error
         : [relTime(bk.date), t("coord.backup_devices", { n: bk.devices }), bk.has_key ? null : t("coord.backup_no_key")].filter(Boolean).join(" · ");
       return `<div class="coord">
@@ -997,12 +1006,34 @@
           ${panel ? `<a class="btn" href="${esc(panel)}" target="_top">${th("common.open")}${ic("open-in-new", "s18")}</a>` : ""}</div>
         ${kv([["Zigbee2MQTT", info.version], [th("coord.coordinator"), [info.coordinator_type, info.firmware ? t("coord.firmware", { version: info.firmware }) : null].filter(Boolean).join(" · ")], [th("coord.channel_pan"), info.channel ? `${info.channel} / ${info.pan_id ?? "?"}` : null],
           [th("coord.running_for"), h.uptime_sec ? span(h.uptime_sec) : null], [th("coord.memory"), h.memory_mb ? t("coord.memory_mb", { n: Math.round(h.memory_mb) }) : null],
+          [th("coord.mqtt"), h.mqtt_published != null ? t("coord.mqtt_value", { sent: compactNum(h.mqtt_published), received: compactNum(h.mqtt_received ?? 0) }) : null], [th("coord.leaves_week"), String(leaves)],
           [th("coord.last_7_days"), [t("coord.outages", { n: outages.length }) + (outages.length ? ` ${t("coord.down_for", { n: downMin })}` : ""), t("coord.restarts", { n: restarts })].join(" · ")],
           [th("coord.last_outage"), last ? (last.end ? t("coord.outage_for", { date: fmtDate(last.start), duration: span((new Date(last.end) - new Date(last.start)) / 1000) }) : t("coord.outage_ongoing", { date: fmtDate(last.start) })) : t("coord.none_recorded")],
           [th("coord.backup"), backup]])}
+        ${coordHealth(bt, b)}
       </div>`;
     }).join("");
     return `<div class="card"><div class="card-header">${ic("router-wireless")}<div>${th("coord.title")}<small>${th("coord.subtitle")}</small></div></div>${nets}</div>`;
+  };
+
+  const compactNum = (n) => intl((l) => new Intl.NumberFormat(l, { notation: "compact", maximumFractionDigits: 1 }).format(n));
+  // Zigbee2MQTT's own health (bridge/health): 14-day memory bars and the memory-growth notice.
+  const coordHealth = (bt, b) => {
+    const h = b.health || {};
+    if (!h.updated) return `<div class="coord-extra"><div class="muted" style="font-size:13px">${th("coord.health_off")}</div></div>`;
+    const days = new Map((b.memory_days || []).map(([d, mb]) => [d, mb]));
+    if (!days.size) return "";
+    const issue = (state.data.issues || []).find((i) => i.kind === "z2m_memory" && i.instance === bt);
+    const key = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+    const slots = [...Array(14).keys()].map((i) => { const dt = new Date(); dt.setHours(12, 0, 0, 0); dt.setDate(dt.getDate() - 13 + i); return { dt, mb: days.get(key(dt)) }; });
+    const top = Math.max(...slots.map((x) => x.mb || 0)) * 1.1 || 1;
+    const label = (dt) => intl((l) => dt.toLocaleDateString(l, { day: "numeric", month: "short" }));
+    const bars = slots.map((x, i) => x.mb == null ? `<i class="none"></i>`
+      : `<i class="${issue && i >= 7 ? "hi" : ""}" style="height:${Math.max(3, (x.mb / top) * 100).toFixed(1)}%" title="${esc(t("coord.memory_bar", { date: label(x.dt), n: Math.round(x.mb) }))}"></i>`).join("");
+    return `<div class="coord-extra"><div class="sub-h">${th("coord.memory_chart")}</div>
+      <div class="mem-bars" role="img" aria-label="${esc(t("coord.memory_chart"))}">${bars}</div>
+      <div class="mem-axis"><span>${esc(label(slots[0].dt))}</span><span>${th("coord.today")}</span></div>
+      ${issue ? `<div class="alert" style="--a:var(--warning)">${ic("chip")}<div class="body">${esc(issueDetail(issue))}</div></div>` : ""}</div>`;
   };
 
   const radioCard = () => {

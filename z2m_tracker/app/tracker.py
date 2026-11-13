@@ -12,7 +12,7 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone, tzinfo
+from datetime import date, datetime, timedelta, timezone, tzinfo
 from datetime import time as dtime
 from typing import Any
 
@@ -50,6 +50,11 @@ MEASURE_KEYS = ("temperature", "local_temperature", "humidity", "pressure", "co2
 DIGEST_LINES = 10
 MAX_HELD_EVENTS = 50
 CLOCK_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
+# Zigbee2MQTT process memory from bridge/health: one point per local day (that day's highest reading).
+MEMORY_DAYS = 14
+MEMORY_GROWTH = 0.5  # flag growth above 50 %
+MEMORY_WINDOW_DAYS = 7  # over the last 7 days
+MEMORY_MIN_DAYS = 5  # with at least 5 days of data in that window
 
 ASSET_FIELDS = ("purchase_date", "shop", "price", "warranty_until", "location", "serial")
 
@@ -270,6 +275,36 @@ def hop_summary(rows: list[dict]) -> dict:
         "lqi_max": max(lqis) if lqis else None,
         "best": {"ieee": best["ieee"], "lqi": best["lqi"]} if best else None,
     }
+
+
+def record_memory(days: list, today: date, mb: float) -> list:
+    """Add a reading to the daily memory history ([date, max MB] pairs) and drop days older than MEMORY_DAYS."""
+    key = today.isoformat()
+    if days and days[-1][0] == key:
+        days[-1][1] = max(days[-1][1], mb)
+    else:
+        days.append([key, mb])
+    oldest = (today - timedelta(days=MEMORY_DAYS - 1)).isoformat()
+    return [d for d in days if d[0] >= oldest][-MEMORY_DAYS:]
+
+
+def memory_growth(days: list, today: date, current: float | None = None) -> dict | None:
+    """{percent, days} when Zigbee2MQTT's memory grew more than MEMORY_GROWTH over the last week, else None.
+
+    Compares the oldest day in the window with the current reading (or the latest day), so a restart that
+    frees the memory clears the flag straight away.
+    """
+    start = (today - timedelta(days=MEMORY_WINDOW_DAYS - 1)).isoformat()
+    window = [d for d in days if d[0] >= start and isinstance(d[1], (int, float))]
+    if len(window) < MEMORY_MIN_DAYS or window[0][1] <= 0:
+        return None
+    first = window[0][1]
+    last = current if isinstance(current, (int, float)) and current > 0 else window[-1][1]
+    growth = (last - first) / first
+    if growth <= MEMORY_GROWTH:
+        return None
+    span_days = (today - date.fromisoformat(window[0][0])).days
+    return {"percent": round(growth * 100), "days": max(1, span_days)}
 
 
 def _display_name(record: dict) -> str | None:
@@ -1320,6 +1355,13 @@ class Tracker:
             return "backup_old", {"n": int(age // 86400)}
         return None
 
+    def _memory_problem(self, bridge: dict) -> dict | None:
+        if bridge.get("state") == "offline":
+            return None
+        return memory_growth(
+            bridge.get("memory_days") or [], self._today(), (bridge.get("health") or {}).get("memory_mb")
+        )
+
     def _network_issues(self, now: float) -> list[dict]:
         out = []
         disabled = set(self.options.get("disabled_checks") or [])
@@ -1368,6 +1410,23 @@ class Tracker:
                 issue = self.pairing_open_issue(bt, now)
                 if issue:
                     out.append(issue)
+            growth = None if "z2m_memory" in disabled else self._memory_problem(bridge)
+            if growth:
+                out.append(
+                    {
+                        "key": f"z2m_memory:{bt}",
+                        "kind": "z2m_memory",
+                        "label": "Memory climbing",
+                        "severity": "info",
+                        "ieee": f"network:{bt}",
+                        "title": "Zigbee2MQTT memory climbing",
+                        "detail": f"Memory up {growth['percent']} % in {growth['days']} days. Restarting Zigbee2MQTT frees it; if it keeps climbing, check its log for an extension or converter that leaks.",
+                        "msg": "z2m_memory",
+                        "params": growth,
+                        "name": f"{label} network",
+                        "instance": bt,
+                    }
+                )
             if "coordinator_backup" not in disabled:
                 problem = self._backup_problem(bt, now)
                 if problem:
@@ -2170,15 +2229,23 @@ class Tracker:
                 if not isinstance(uptime, (int, float))
                 else datetime.fromtimestamp(time.time() - uptime, tz=timezone.utc).isoformat(timespec="minutes"),
             }
+        mqtt = health.get("mqtt") or {}
+        memory = process.get("memory_used_mb")
         bridge["health"] = {
             "uptime_sec": uptime,
-            "memory_mb": process.get("memory_used_mb"),
-            "mqtt_connected": (health.get("mqtt") or {}).get("connected"),
-            "mqtt_published": (health.get("mqtt") or {}).get("published"),
+            "memory_mb": memory,
+            "mqtt_connected": mqtt.get("connected"),
+            "mqtt_published": mqtt.get("published"),
+            "mqtt_received": mqtt.get("received"),
             "os_load": ((health.get("os") or {}).get("load_average") or [None])[0],
             "updated": _now(),
         }
+        if isinstance(memory, (int, float)) and not isinstance(memory, bool) and memory > 0:
+            bridge["memory_days"] = record_memory(bridge.get("memory_days") or [], self._today(), round(memory, 1))
         self.dirty = True
+
+    def _today(self) -> date:
+        return datetime.fromtimestamp(time.time(), tz=self.local_tz).date()
 
     def _handle_info(self, base_topic: str, info: dict) -> None:
         coordinator = info.get("coordinator") or {}

@@ -122,6 +122,12 @@ CHECKS = [
         "Zigbee2MQTT's coordinator_backup.json is missing, more than 3 days old, or doesn't match the running network.",
         False,
     ),
+    (
+        "z2m_memory",
+        "Zigbee2MQTT memory",
+        "Zigbee2MQTT's own memory use grew more than 50% over the last 7 days. Needs Zigbee2MQTT 2.5 or newer.",
+        False,
+    ),
     ("joined", "Device joined", "A device joins one of your networks.", True),
     ("left", "Device left", "A device leaves one of your networks.", True),
     ("interview_failed", "Interview failed", "A newly joined device couldn't be identified.", True),
@@ -155,6 +161,7 @@ KIND_LABELS = {
     "single_point": "Single point of failure",
     "router_hopping": "Changes router often",
     "coordinator_backup": "Coordinator backup",
+    "z2m_memory": "Memory climbing",
 }
 
 

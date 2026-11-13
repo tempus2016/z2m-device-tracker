@@ -1139,5 +1139,17 @@
   "settings.quiet_to": "to",
   "settings.quiet_critical": "Critical devices",
   "settings.quiet_critical_desc": "Always alert straight away",
-  "settings.quiet_not_held": "Not held"
+  "settings.quiet_not_held": "Not held",
+  "issue.label.z2m_memory": "Memory climbing",
+  "issue.z2m_memory.title": "Zigbee2MQTT memory climbing",
+  "issue.z2m_memory.detail": "Memory up {percent} % in {days} days. Restarting Zigbee2MQTT frees it; if it keeps climbing, check its log for an extension or converter that leaks.",
+  "check.z2m_memory.label": "Zigbee2MQTT memory",
+  "check.z2m_memory.description": "Zigbee2MQTT's own memory use grew more than 50% over the last 7 days. Needs Zigbee2MQTT 2.5 or newer.",
+  "coord.mqtt": "MQTT messages since start",
+  "coord.mqtt_value": "{sent} sent · {received} received",
+  "coord.leaves_week": "Leaves this week",
+  "coord.memory_chart": "Memory, last 14 days",
+  "coord.memory_bar": "{date}: {n} MB",
+  "coord.today": "today",
+  "coord.health_off": "No health data from Zigbee2MQTT yet. It needs version 2.5 or newer, and sends every 10 minutes by default (Settings → Settings → Health → Interval)."
 }
