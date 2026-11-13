@@ -451,6 +451,8 @@
   table.dt.compact { min-width: 0; }
   table.dt.compact .col-area, table.dt.compact .col-model { display: none; }
   .dt tbody tr[aria-selected="true"] { background: var(--chip-on); }
+  /* Grey text on the blue selected row falls under 4.5:1; pull it 30% toward the main text colour. */
+  .dt tbody tr[aria-selected="true"] :is(.name-2, .cell-sub, .muted) { color: color-mix(in srgb, var(--text-2) 70%, var(--text)); }
   .dt tbody tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 var(--primary); }
   @media (max-width: 1360px) { table.dt.compact th.hide-md, table.dt.compact td.hide-md { display: none; } }
   .tools-right { display: flex; gap: 8px; align-items: center; margin-left: auto; }
