@@ -121,6 +121,8 @@
   /* ------------------------------------------------------------ cards, alerts, buttons */
   .card { background: var(--card); border: 1px solid var(--divider); border-radius: 12px; overflow: hidden; }
   .card-header { padding: 20px 16px 8px; font-size: 22px; font-weight: 400; display: flex; align-items: center; gap: 12px; }
+  .card-header .ch, h2.section-title { margin: 0; font: inherit; }
+  h2.section-title { margin: 8px 4px 0; font-size: 14px; font-weight: 500; }
   .card-header small { font-size: 14px; color: var(--text-2); display: block; margin-top: 2px; }
   .card-content { padding: 0 16px 16px; }
   .card-actions { border-top: 1px solid var(--divider); padding: 8px; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
@@ -702,7 +704,7 @@
 </header>
 
 <main class="page" id="page">
-  <div class="alert conn" id="conn" style="--a: var(--error)"><span data-i="lan-disconnect"></span><div class="body" id="connText"></div></div>
+  <div class="alert conn" id="conn" role="alert" style="--a: var(--error)"><span data-i="lan-disconnect"></span><div class="body" id="connText"></div></div>
   <div class="alert" id="pauseBanner" style="--a: var(--info)" hidden></div>
   <div id="view" role="tabpanel" aria-labelledby="tab-devices"></div>
 </main>
@@ -837,7 +839,7 @@
     const n = q >= 150 ? 4 : q >= 100 ? 3 : q >= 50 ? 2 : q > 0 ? 1 : 0;
     const c = n >= 3 ? "var(--success)" : n === 2 ? "var(--warning)" : "var(--error)";
     const label = t(n >= 3 ? "signal.strong" : n === 2 ? "signal.fair" : "signal.weak");
-    return `<span class="sig" style="--c:${c}" title="${esc(t("signal.title", { label, lqi: Math.round(q) }))}" aria-label="${esc(t("signal.aria", { label, lqi: Math.round(q) }))}">${[1, 2, 3, 4].map((i) => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}</span>`;
+    return `<span class="sig" role="img" style="--c:${c}" title="${esc(t("signal.title", { label, lqi: Math.round(q) }))}" aria-label="${esc(t("signal.aria", { label, lqi: Math.round(q) }))}">${[1, 2, 3, 4].map((i) => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}</span>`;
   };
   const batColor = (v, low = 15) => (v === null || v === undefined ? "var(--text-2)" : v <= low ? "var(--error)" : v <= low + 20 ? "var(--warning)" : "var(--success)");
   const batLow = (d) => d.limits?.battery_percent ?? state.data?.options?.battery_alert_percent ?? 15;
@@ -1142,11 +1144,11 @@
     // Severe warnings (offline, battery nearly flat) lead the list.
     warn.sort((a, b) => Number(severe(b)) - Number(severe(a)));
     $("#view").innerHTML = `
-      ${warn.length ? `<div class="section-title">${th("health.needs_attention")} <span>${warn.length}</span></div><div class="card">${warn.map(item).join("")}</div>` : ""}
-      ${info.length ? `<div class="section-title">${th("health.worth_a_look")} <span>${info.length}</span></div><div class="card">${info.map(item).join("")}</div>` : ""}
+      ${warn.length ? `<h2 class="section-title">${th("health.needs_attention")} <span>${warn.length}</span></h2><div class="card">${warn.map(item).join("")}</div>` : ""}
+      ${info.length ? `<h2 class="section-title">${th("health.worth_a_look")} <span>${info.length}</span></h2><div class="card">${info.map(item).join("")}</div>` : ""}
       ${!own.length ? `<div class="card">${emptyState("check", th("health.all_clear"), th("health.all_clear_text"))}</div>` : ""}
       <div class="card">
-        <div class="card-header">${ic("heart-pulse")}<div>${th("health.title")}<small>${warn.length ? th("health.summary", { warn: warn.length, n: info.length }) : own.length ? th("health.to_review", { n: info.length }) : th("health.nothing")}</small></div></div>
+        <div class="card-header">${ic("heart-pulse")}<div><h2 class="ch">${th("health.title")}</h2><small>${warn.length ? th("health.summary", { warn: warn.length, n: info.length }) : own.length ? th("health.to_review", { n: info.length }) : th("health.nothing")}</small></div></div>
         <div class="info-grid">
           <div><small>${th("health.alerts")}</small><b>${o.alerts_enabled === false ? th("health.alerts_off") : esc([o.persistent_notifications ? t("health.ha_notifications") : null, o.notify_service || null].filter(Boolean).join(", ")) || th("health.event_only")}</b></div>
           <div><small>${th("health.thresholds")}</small><b>${th("health.thresholds_line", { offline: esc(o.offline_alert_minutes), frozen: esc(o.frozen_alert_hours), battery: esc(o.battery_alert_percent) })}</b></div>
@@ -1204,7 +1206,7 @@
         ${coordHealth(bt, b)}
       </div>`;
     }).join("");
-    return `<div class="card"><div class="card-header">${ic("router-wireless")}<div>${th("coord.title")}<small>${th("coord.subtitle")}</small></div></div>${nets}</div>`;
+    return `<div class="card"><div class="card-header">${ic("router-wireless")}<div><h2 class="ch">${th("coord.title")}</h2><small>${th("coord.subtitle")}</small></div></div>${nets}</div>`;
   };
 
   const compactNum = (n) => intl((l) => new Intl.NumberFormat(l, { notation: "compact", maximumFractionDigits: 1 }).format(n));
@@ -1235,7 +1237,7 @@
     const wf = (n) => (n === 14 ? 2484 : 2407 + 5 * n), zf = (c) => 2405 + 5 * (c - 11);
     const wifiBands = r.wifi.map((n) => `<rect x="${x(wf(n) - 11).toFixed(1)}" y="18" width="${(x(wf(n) + 11) - x(wf(n) - 11)).toFixed(1)}" height="54" rx="6" fill="var(--warning)" fill-opacity="0.18" stroke="var(--warning)" stroke-opacity="0.5"/><text x="${x(wf(n)).toFixed(1)}" y="14" text-anchor="middle">${th("radio.wifi_n", { n })}</text>`).join("");
     const ticks = [...Array(16).keys()].map((i) => { const c = 11 + i, used = r.networks.filter((n) => n.channel === c); return `<line x1="${x(zf(c)).toFixed(1)}" x2="${x(zf(c)).toFixed(1)}" y1="${used.length ? 24 : 62}" y2="72" stroke="${used.length ? "var(--primary)" : "var(--divider)"}" stroke-width="${used.length ? 4 : 2}" stroke-linecap="round"/><text x="${x(zf(c)).toFixed(1)}" y="88" text-anchor="middle" ${used.length ? 'class="on"' : ""}>${c}</text>${used.length ? `<text x="${x(zf(c)).toFixed(1)}" y="104" text-anchor="middle" class="on">${esc(used.map((n) => netLabel(n.topic)).join(" + "))}</text>` : ""}`; }).join("");
-    return `<div class="card"><div class="card-header">${ic("signal")}<div>${th("radio.title")}<small>${th("radio.subtitle", { zigbee: esc([...new Set(r.networks.map((n) => n.channel))].join(", ")), wifi: r.wifi.length ? esc(r.wifi.join(", ")) : th("radio.not_set") })}</small></div></div>
+    return `<div class="card"><div class="card-header">${ic("signal")}<div><h2 class="ch">${th("radio.title")}</h2><small>${th("radio.subtitle", { zigbee: esc([...new Set(r.networks.map((n) => n.channel))].join(", ")), wifi: r.wifi.length ? esc(r.wifi.join(", ")) : th("radio.not_set") })}</small></div></div>
       <div class="chart-wrap"><svg class="spectrum" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t("radio.chart"))}">${wifiBands}${ticks}<text x="10" y="118" class="axis">2400 MHz</text><text x="${W - 10}" y="118" text-anchor="end" class="axis">2485 MHz</text></svg></div>
       ${hoursChart()}
       <div class="advice">${r.findings.map((f) => `<div class="adv"><span class="state-ic" style="color:${f.sev >= 2 ? "var(--warning)" : f.sev === 1 ? "var(--info)" : "var(--success)"}">${ic(f.sev ? "alert" : "check")}</span><div class="text">${esc(findingText(f))}</div></div>`).join("")}</div>
@@ -1293,7 +1295,7 @@
       return `${head}<div class="members">${[...chips, ...gone].join("")}</div>`;
     };
     const problems = groups.filter((g) => g.offline || g.left.length).length;
-    return `<div class="card"><div class="card-header">${ic("lightbulb")}<div>${th("groups.title")}<small>${problems ? th("groups.subtitle_problems", { n: groups.length, bad: problems }) : th("groups.subtitle", { n: groups.length })}</small></div></div>
+    return `<div class="card"><div class="card-header">${ic("lightbulb")}<div><h2 class="ch">${th("groups.title")}</h2><small>${problems ? th("groups.subtitle_problems", { n: groups.length, bad: problems }) : th("groups.subtitle", { n: groups.length })}</small></div></div>
       ${groups.map(row).join("")}</div>`;
   };
 
@@ -1318,7 +1320,7 @@
     const stepper = (r) => (r.g && unknown(r.g) ? `<span class="t2">–</span>` : `<span class="qty-step" role="group" aria-label="${esc(t("shop.in_stock_of", { type: r.type }))}"><button data-act="stock" data-type="${esc(r.type)}" data-delta="-1" aria-label="${esc(t("shop.one_less"))}" ${r.have ? "" : "disabled"}>${ic("minus", "s18")}</button><b>${r.have}</b><button data-act="stock" data-type="${esc(r.type)}" data-delta="1" aria-label="${esc(t("shop.one_more"))}">${ic("plus", "s18")}</button></span>`);
     const devs = (g) => (g ? `<div class="name-2">${g.devices.map((x) => `<a href="#${esc(x.ieee)}" data-open="${esc(x.ieee)}">${esc(x.name)}</a> (${esc(facts(x))})`).join(" · ")}</div>` : "");
     const types = [...new Set(["CR2032", "CR2450", "CR2477", "CR1632", "CR123A", "AAA", "AA", ...state.data.devices.map((d) => d.battery_record?.type).filter(Boolean)])].filter((x) => !rows.some((r) => r.type.toLowerCase() === x.toLowerCase()));
-    return `<div class="card"><div class="card-header">${ic("battery-alert-variant-outline")}<div>${th("shop.title")}<small>${sub}</small></div></div>
+    return `<div class="card"><div class="card-header">${ic("battery-alert-variant-outline")}<div><h2 class="ch">${th("shop.title")}</h2><small>${sub}</small></div></div>
       ${rows.length ? `<div class="table-wrap"><table class="dt stock"><thead><tr><th>${th("shop.col_type")}</th><th>${th("shop.col_stock")}</th><th class="num">${th("shop.col_need")}</th><th class="num"><span class="sr">${th("shop.col_buy")}</span></th></tr></thead><tbody>
         ${rows.map((r) => `<tr><td class="type"><div>${esc(r.g ? btype(r.g) : r.type)}</div>${devs(r.g)}</td><td>${stepper(r)}</td><td class="num">${r.need}</td><td class="num">${r.buy ? `<span class="pill">${th("shop.buy", { n: r.buy })}</span>` : `<span class="pill ok">${th("shop.enough")}</span>`}</td></tr>`).join("")}
       </tbody></table></div>` : ""}
@@ -1336,7 +1338,7 @@
   const leftoverCard = () => {
     const list = state.data.ha_leftovers || [];
     if (!list.length) return "";
-    return `<div class="card"><div class="card-header">${ic("home-assistant")}<div>${th("leftover.title")}<small>${th("leftover.subtitle", { n: list.length })}</small></div></div>
+    return `<div class="card"><div class="card-header">${ic("home-assistant")}<div><h2 class="ch">${th("leftover.title")}</h2><small>${th("leftover.subtitle", { n: list.length })}</small></div></div>
       ${list.map((x) => `<div class="row">${leftoverIc(x)}<div class="text"><div class="t1">${esc(x.name)}</div><div class="t2">${esc(leftoverLine(x))}</div></div></div>`).join("")}
       <div class="card-actions"><button class="btn" data-act="leftovers">${ic("delete", "s18")}${th("leftover.review")}</button></div></div>`;
   };
@@ -1495,7 +1497,7 @@
       ${state.data.instances.map((bt) => {
         const info = nm[bt] || {};
         const g = mapGraph(bt);
-        const head = `<div class="card-header">${ic("sitemap")}<div>${th("net.network", { name: esc(netLabel(bt)) })}<small>${info.running_since ? th("map.scanning_now") : info.scanned_at ? th("map.scanned", { when: esc(relTime(info.scanned_at, true)), n: info.nodes ?? g.devs.length, links: info.links ?? "?" }) : th("map.not_scanned")}</small></div></div>`;
+        const head = `<div class="card-header">${ic("sitemap")}<div><h2 class="ch">${th("net.network", { name: esc(netLabel(bt)) })}</h2><small>${info.running_since ? th("map.scanning_now") : info.scanned_at ? th("map.scanned", { when: esc(relTime(info.scanned_at, true)), n: info.nodes ?? g.devs.length, links: info.links ?? "?" }) : th("map.not_scanned")}</small></div></div>`;
         if (g.devs.filter((d) => d.routing).length === 0) return `<div class="card map-card">${head}${emptyState("sitemap", th("map.no_data"), th("map.no_data_text"))}</div>`;
         const advice = mapAdvice(bt);
         const times = (state.data.scan_times?.[bt] || []).slice().reverse();
@@ -1517,7 +1519,7 @@
             <button class="chip toggle" data-maplinks aria-pressed="${MAP.allLinks}">${ic("link-variant", "s18")}${th("map.all_links")}</button>`}
             <span class="spacer"></span>
             ${MAP.layout === "floor" ? fpLegend() : `${mapLegend(bt, g.devs)}<div class="map-legend lines"><span><b style="background:var(--success)"></b>${th("signal.strong")}</span><span><b style="background:var(--warning)"></b>${th("signal.fair")}</span><span><b style="background:var(--error)"></b>${th("signal.weak")}</span></div>`}</div>
-          ${MAP.layout === "floor" ? `<div class="map-stage fp-mode"><div class="map-info" id="mapinfo-${esc(bt)}" hidden></div>${FP.floors ? fpHtml(bt) : `<div class="card-content muted">${th("map.loading_floors")}</div>`}</div>` : `<div class="map-stage"><svg class="map names-${MAP.names}" id="map-${esc(bt)}" role="img" aria-label="${esc(t("map.aria", { name: netLabel(bt) }))}"><g class="vp"><g class="links"></g><g class="nodes"></g></g></svg>
+          ${MAP.layout === "floor" ? `<div class="map-stage fp-mode"><div class="map-info" id="mapinfo-${esc(bt)}" hidden></div>${FP.floors ? fpHtml(bt) : `<div class="card-content muted">${th("map.loading_floors")}</div>`}</div>` : `<div class="map-stage"><svg class="map names-${MAP.names}" id="map-${esc(bt)}" role="group" aria-label="${esc(t("map.aria", { name: netLabel(bt) }))}"><g class="vp"><g class="links"></g><g class="nodes"></g></g></svg>
             <div class="map-info" id="mapinfo-${esc(bt)}" hidden></div></div>`}
           ${diff ? `<div class="map-legend" style="padding:8px 16px 0"><span><b style="background:var(--info);height:4px"></b>${th("map.changed_router")}</span><span><b style="background:var(--success);height:4px"></b>${th("map.stronger")}</span><span><b style="background:var(--error);height:4px"></b>${th("map.weaker")}</span><span><b style="background:var(--disabled)"></b>${th("map.unchanged")}</span></div>` : ""}
           ${changes}
@@ -1964,7 +1966,7 @@
     const hours = [`<option value="-1" ${s.networkmap_hour < 0 ? "selected" : ""}>${th("settings.scan_off")}</option>`].concat([...Array(24).keys()].map((h) => `<option value="${h}" ${s.networkmap_hour === h ? "selected" : ""}>${th("settings.scan_daily", { time: `${String(h).padStart(2, "0")}:00` })}</option>`)).join("");
     const weekdays = [...Array(7).keys()].map((i) => intl((l) => new Date(Date.UTC(2024, 0, 1 + i)).toLocaleDateString(l, { weekday: "long", timeZone: "UTC" })));
     $("#view").innerHTML = `
-      <div class="card"><div class="card-header">${th("settings.notifications")}</div>
+      <div class="card"><div class="card-header"><h2 class="ch">${th("settings.notifications")}</h2></div>
         ${off ? `<div class="card-content"><div class="alert" style="--a: var(--warning)">${ic("bell-off")}<div class="body"><b>${th("settings.alerts_off")}</b> ${th("settings.alerts_off_text")}</div></div></div>` : ""}
         ${sw("alerts_enabled", s.alerts_enabled, t("settings.send_alerts"), th("settings.send_alerts_desc"))}
         ${sw("persistent_notifications", s.persistent_notifications, t("settings.ha_notifications"), th("settings.ha_notifications_desc"), off)}
@@ -1978,15 +1980,15 @@
         <div class="set-row ${off || !s.quiet_hours ? "disabled" : ""}"><div class="text"><div class="t1">${th("settings.quiet_critical")}</div><div class="t2">${th("settings.quiet_critical_desc")}</div></div><span class="pill">${th("settings.quiet_not_held")}</span></div>
         <div class="card-actions"><button class="btn" data-act="test-notify" ${off ? "disabled" : ""}>${ic("bell", "s18")}${th("settings.test_notification")}</button></div>
       </div>
-      <div class="card"><div class="card-header"><div>${th("settings.weekly")}<small>${th("settings.weekly_desc")}</small></div></div>
+      <div class="card"><div class="card-header"><div><h2 class="ch">${th("settings.weekly")}</h2><small>${th("settings.weekly_desc")}</small></div></div>
         ${sw("weekly_summary", s.weekly_summary, t("settings.weekly_send"), th("settings.weekly_send_desc", { event: "z2m_tracker_summary" }))}
         <div class="set-row ${s.weekly_summary ? "" : "disabled"}"><div class="text"><div class="t1">${th("settings.when")}</div><div class="t2">${th("settings.when_desc")}</div></div><div class="ctl">
           <select class="field" id="sumDay" aria-label="${esc(t("settings.when_day"))}" ${s.weekly_summary ? "" : "disabled"}>${weekdays.map((n, i) => `<option value="${i}" ${s.summary_day === i ? "selected" : ""}>${n}</option>`).join("")}</select>
           <select class="field" id="sumHour" aria-label="${esc(t("settings.when_hour"))}" ${s.weekly_summary ? "" : "disabled"}>${[...Array(24).keys()].map((h) => `<option value="${h}" ${s.summary_hour === h ? "selected" : ""}>${String(h).padStart(2, "0")}:00</option>`).join("")}</select></div></div>
         <div class="card-actions"><button class="btn" data-act="send-summary">${th("settings.send_now")}</button></div>
       </div>
-      <div class="card"><div class="card-header"><div>${th("settings.checks")}<small>${th("settings.checks_desc")}</small></div></div>${checks}</div>
-      <div class="card"><div class="card-header">${th("settings.thresholds")}</div>
+      <div class="card"><div class="card-header"><div><h2 class="ch">${th("settings.checks")}</h2><small>${th("settings.checks_desc")}</small></div></div>${checks}</div>
+      <div class="card"><div class="card-header"><h2 class="ch">${th("settings.thresholds")}</h2></div>
         ${num("offline_alert_minutes", t("settings.offline_for"), th("settings.offline_for_desc"), 0, 10080, th("settings.unit_min"))}
         ${num("critical_offline_minutes", t("settings.critical_offline_for"), th("settings.critical_offline_for_desc"), 0, 1440, th("settings.unit_min"))}
         ${num("frozen_alert_hours", t("settings.frozen_for"), th("settings.frozen_for_desc"), 1, 720, th("settings.unit_h"))}
@@ -1994,18 +1996,18 @@
         ${num("chatty_per_hour", t("settings.chatty_above"), th("settings.chatty_above_desc"), 60, 36000, th("settings.unit_per_h"))}
         <div class="set-row"><div class="text"><div class="t1">${th("report.title")}</div><div class="t2">${th("bulk.desc", { n: state.data ? state.data.devices.filter((d) => d.report_every && d.status !== "removed").length : 0 })}</div></div><div class="ctl"><button class="btn" data-act="bulk-open" ${state.data ? "" : "disabled"}>${th("bulk.open")}</button></div></div>
       </div>
-      <div class="card"><div class="card-header"><div>${th("settings.routing_scan")}<small>${th("settings.routing_scan_desc")}</small></div></div>
+      <div class="card"><div class="card-header"><div><h2 class="ch">${th("settings.routing_scan")}</h2><small>${th("settings.routing_scan_desc")}</small></div></div>
         <div class="set-row"><div class="text"><div class="t1">${th("settings.wifi")}</div><div class="t2">${th("settings.wifi_desc")}</div></div><div class="ctl"><input class="field" id="wifiCh" aria-label="${esc(t("settings.wifi"))}" autocomplete="off" style="width:120px" value="${esc(s.wifi_channels || "")}" placeholder="${esc(t("settings.wifi_placeholder"))}" inputmode="numeric"><button class="btn" data-act="save-wifi">${th("common.save")}</button></div></div>
         <div class="set-row"><div class="text"><div class="t1">${th("settings.schedule")}</div><div class="t2">${th("settings.last_scans", { scans: esc(scans) })}</div></div><div class="ctl"><select class="field" id="scanHour" aria-label="${esc(t("settings.schedule"))}">${hours}</select></div></div>
         <div class="card-actions"><button class="btn" data-act="scan">${ic("sitemap", "s18")}${th("settings.scan_now")}</button></div>
       </div>
-      <div class="card"><div class="card-header">${th("settings.entities")}</div>
+      <div class="card"><div class="card-header"><h2 class="ch">${th("settings.entities")}</h2></div>
         ${sw("ha_entities", s.ha_entities, t("settings.entities_add"), th("settings.entities_desc", { n: S.entities }))}
       </div>
-      <div class="card"><div class="card-header">${th("settings.ignored")}</div>
+      <div class="card"><div class="card-header"><h2 class="ch">${th("settings.ignored")}</h2></div>
         ${S.muted.length ? S.muted.map((m) => { const c = S.checks.find((x) => x.key === m.kind); return `<div class="set-row"><div class="text"><div class="t1">${esc(m.name)}</div><div class="t2">${esc(c ? checkLabel(c) : m.kind)} · ${m.until ? th("settings.until", { date: esc(fmtDate(m.until)) }) : th("settings.forever")}</div></div><div class="ctl"><button class="btn" data-act="unmute" data-ieee="${esc(m.ieee)}" data-kind="${esc(m.kind)}">${th("common.stop_ignoring")}</button></div></div>`; }).join("") + `<div class="card-actions"><button class="btn" data-act="unmute-all">${th("settings.stop_ignoring_all")}</button></div>` : `<div class="set-row"><div class="text"><div class="t2">${th("settings.nothing_ignored")}</div></div></div>`}
       </div>
-      <div class="card"><div class="card-header">${th("settings.appearance")}</div>
+      <div class="card"><div class="card-header"><h2 class="ch">${th("settings.appearance")}</h2></div>
         <div class="set-row"><div class="text"><div class="t1">${th("settings.language")}</div><div class="t2">${th("settings.language_desc")}</div></div><div class="ctl"><select class="field" id="langSel" aria-label="${esc(t("settings.language"))}"><option value="auto" ${I18N.pref === "auto" ? "selected" : ""}>${th("settings.language_auto", { code: esc(I18N.auto) })}</option>${I18N.langs.map((l) => `<option value="${esc(l.code)}" ${I18N.pref === l.code ? "selected" : ""}>${esc(l.name || l.code)}</option>`).join("")}</select></div></div>
         <div class="set-row"><div class="text"><div class="t1">${th("settings.theme")}</div><div class="t2">${th("settings.theme_desc")}</div></div><div class="ctl"><select class="field" id="themeSel" aria-label="${esc(t("settings.theme"))}">${THEMES.map((x) => `<option value="${x}" ${theme === x ? "selected" : ""}>${th(`theme.${x}`)}</option>`).join("")}</select></div></div>
         <div class="set-row"><div class="text"><div class="t1">${th("menu.import_history")}</div><div class="t2">${th("settings.import_desc")}</div></div><div class="ctl"><button class="btn" data-act="import">${th("common.import")}</button></div></div>
@@ -2658,8 +2660,20 @@
   window.addEventListener("resize", () => requestAnimationFrame(fadeEdges));
   document.addEventListener("click", (e) => { const j = e.target.closest?.("[data-jump]"); const to = j && document.getElementById(j.dataset.jump); if (to) window.scrollTo({ top: to.getBoundingClientRect().top + window.scrollY - $(".toolbar").offsetHeight - 8, behavior: "smooth" }); });
 
+  // A refresh redraws the view. Remember which control had keyboard focus so it can be focused again,
+  // instead of focus dropping to the top of the page every minute.
+  const FOCUS_ATTRS = ["data-open", "data-act", "data-ieee", "data-view", "data-chip", "data-sort", "data-kind", "data-tab", "data-carry", "data-bt", "data-net", "data-type", "data-delta", "data-jump", "data-bulk", "data-n"];
+  const focusKey = (el) => {
+    if (!el || el === document.body || el === document.documentElement) return null;
+    if (el.id) return `#${CSS.escape(el.id)}`;
+    const own = (x) => FOCUS_ATTRS.filter((a) => x.hasAttribute(a)).map((a) => `[${a}="${CSS.escape(x.getAttribute(a))}"]`).join("");
+    if (own(el)) return el.tagName.toLowerCase() + own(el);
+    const host = el.parentElement?.closest(FOCUS_ATTRS.map((a) => `[${a}]`).join(","));
+    return host ? `${host.tagName.toLowerCase()}${own(host)} ${el.tagName.toLowerCase()}` : null;
+  };
   const render = () => {
     if (!state.data) return;
+    const fk = focusKey(document.activeElement);
     const issues = ownIssues(state.data.issues || []);
     const warn = issues.filter((i) => i.severity === "warning").length;
     const badge = $("#issueBadge"); badge.textContent = issues.length; badge.classList.toggle("warn", warn > 0);
@@ -2682,6 +2696,7 @@
     if ($("#pairDlg").open) renderPair();
     if ($("#replaceDlg").open && state.replace?.step === 1) renderReplace();
     if ($("#bulkDlg").open && !state.bulk?.busy) renderBulk();
+    if (fk && (document.activeElement === document.body || !document.activeElement)) document.querySelector(fk)?.focus({ preventScroll: true });
   };
   const go = (view) => { flushNote(); state.view = view; state.settingsShown = false; if (!state.open) syncHash(); render(); window.scrollTo(0, 0); };
 
@@ -2980,9 +2995,9 @@
         ${list.length ? `<div class="table-wrap"><table class="dt ota" style="min-width:760px"><thead><tr><th class="ic-cell"></th><th>${th("ota.col.device")}</th><th>${th("ota.col.installed")}</th><th>${th("ota.col.available")}</th><th>${th("ota.col.power")}</th><th>${th("ota.col.status")}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
           : emptyState("check", th("ota.nothing"), th("ota.nothing_text"))}
       </div>
-      <div class="section-title">${th("ota.recent")} <span>${(O.history || []).length}</span></div>
+      <h2 class="section-title">${th("ota.recent")} <span>${(O.history || []).length}</span></h2>
       <div class="card">${hist || `<div class="card-content muted" style="padding-top:16px">${th("ota.no_history")}</div>`}</div>
-      <div class="section-title">${th("settings.schedule")}</div>
+      <h2 class="section-title">${th("settings.schedule")}</h2>
       <div class="card">
         <div class="set-row ota-row"><div class="text"><div class="t1">${th("ota.overnight")}</div><div class="t2">${th("ota.overnight_desc")}</div></div>
           <div class="ctl"><span class="ota-time"><input class="field" type="time" id="otaFrom" value="${esc(wFrom)}" ${O.window ? "" : "disabled"} aria-label="${esc(t("ota.start"))}"><span class="muted">${th("ota.to")}</span><input class="field" type="time" id="otaTo" value="${esc(wTo)}" ${O.window ? "" : "disabled"} aria-label="${esc(t("ota.end"))}"></span>
