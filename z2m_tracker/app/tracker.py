@@ -530,14 +530,19 @@ class Tracker:
         self.evaluate_health()
         return True
 
-    def restore_bindings(self, ieee: str) -> dict:
-        """Re-create lost bindings: a bind request for device/group targets, reconfigure for the coordinator."""
+    def restore_bindings(self, ieee: str, keys: list[str] | None = None) -> dict:
+        """Re-create lost bindings: a bind request for device/group targets, reconfigure for the coordinator.
+
+        keys limits it to those lost bindings; None restores all of them.
+        """
         with self.lock:
             record = self.data["devices"].get(ieee)
             if record is None or record["status"] != STATUS_ACTIVE:
                 return {"ok": False, "error": "Device is not active in Zigbee2MQTT"}
             base_topic = record["instance"]
             lost = [dict(b) for b in record.get("lost_bindings") or []]
+            if keys is not None:
+                lost = [b for b in lost if b.get("key") in keys]
         if not lost:
             return {"ok": True, "restored": 0, "failed": []}
         failed: list[str] = []
