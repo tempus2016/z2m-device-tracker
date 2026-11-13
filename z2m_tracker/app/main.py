@@ -65,6 +65,7 @@ DEFAULT_OPTIONS = {
     "notify_service": "",
     "alert_on_join": True,
     "offline_alert_minutes": 60,
+    "critical_offline_minutes": 5,
     "frozen_alert_hours": 24,
     "battery_alert_percent": 15,
     "networkmap_hour": 3,
@@ -86,6 +87,9 @@ CHECK_KEYS = {key for key, _, _, _ in CHECKS}
 # Checks added to notify_checks after release. Existing installs get each one switched on once at
 # upgrade (their saved list predates it); removing it in Settings afterwards sticks.
 NEW_NOTIFY_KINDS = ("late",)
+# Companion app data for a critical device's alert: Android delivers it at once (high priority,
+# no time to live), iOS shows it as time-sensitive, which breaks through Focus modes.
+CRITICAL_PUSH = {"priority": "high", "ttl": 0, "push": {"interruption-level": "time-sensitive"}}
 EVENT_KEYS = {"joined": "joined", "left": "left", "interview failed": "interview_failed"}
 
 
@@ -138,6 +142,7 @@ SETTINGS = {
     "fire_events": _bool,
     "notify_service": _service,
     "offline_alert_minutes": _int(0, 10080),
+    "critical_offline_minutes": _int(0, 1440),
     "frozen_alert_hours": _int(0, 720),
     "battery_alert_percent": _int(0, 100),
     "networkmap_hour": _int(-1, 23),
@@ -243,7 +248,17 @@ class Alerts:
             except Exception:  # noqa: BLE001 - never let a notification failure kill the worker
                 _LOGGER.exception("Sending alert failed")
 
-    def _send(self, key: str, kind: str, ieee: str, name: str, title: str, message: str, instance: str | None) -> None:
+    def _send(
+        self,
+        key: str,
+        kind: str,
+        ieee: str,
+        name: str,
+        title: str,
+        message: str,
+        instance: str | None,
+        critical: bool = False,
+    ) -> None:
         data = {
             "key": key,
             "kind": kind,
@@ -253,6 +268,10 @@ class Alerts:
             "message": message,
             "network": instance,
         }
+        push = None
+        if critical:
+            data["critical"] = True
+            push = CRITICAL_PUSH
         _LOGGER.info("Alert: %s - %s", title, message)
 
         def job() -> None:
@@ -261,7 +280,7 @@ class Alerts:
             if options.get("persistent_notifications"):
                 home_assistant.persistent_notification(title, message, f"z2m_tracker_{key.replace(':', '_')}")
             if options.get("notify_service"):
-                home_assistant.notify(options["notify_service"], title, message)
+                home_assistant.notify(options["notify_service"], title, message, push)
 
         self.queue.put(job)
 
@@ -323,14 +342,16 @@ class Alerts:
             # Events happen once, so there is nothing to send when the pause ends: drop it.
             _LOGGER.info("Alerts paused, not sent: %s - %s", title, messages.get(kind, ""))
             return
+        critical = tracker.is_critical(event["ieee"])
         self._send(
             f"event:{kind}:{event['ieee']}:{event['time']}",
             kind,
             event["ieee"],
             name,
-            title,
+            f"Critical: {title}" if critical else title,
             messages.get(kind, event.get("detail") or ""),
             event.get("instance"),
+            critical,
         )
 
     def check(self) -> None:
@@ -353,6 +374,7 @@ class Alerts:
             _LOGGER.info("Alerts initialised with %d existing issues (not notified)", len(alerted))
             return
         for issue in to_send:
+            critical = bool(issue.get("critical"))
             self._send(
                 issue["key"],
                 issue["kind"],
@@ -361,6 +383,7 @@ class Alerts:
                 alert_title(issue),
                 issue["detail"],
                 issue.get("instance"),
+                critical,
             )
         for key in dismiss:
             self._dismiss(key)
@@ -639,6 +662,7 @@ def apply_settings(changes: dict) -> dict:
     if {
         "disabled_checks",
         "offline_alert_minutes",
+        "critical_offline_minutes",
         "frozen_alert_hours",
         "battery_alert_percent",
         "chatty_per_hour",
@@ -956,6 +980,9 @@ class Handler(BaseHTTPRequestHandler):
                 if result["errors"]:
                     result["error"] = result["errors"][0]["error"]
                 self._json(200 if result["applied"] or not result["errors"] else 400, result)
+            elif path == "/api/critical":
+                ok = tracker.set_critical(ieee, bool(body.get("critical")))
+                self._json(200 if ok else 404, {"ok": ok})
             elif path == "/api/bindings/ack":
                 ok = tracker.acknowledge_bindings(ieee)
                 self._json(200 if ok else 404, {"ok": ok})

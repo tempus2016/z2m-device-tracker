@@ -33,6 +33,7 @@ ROUTER_BACK_GRACE = 300
 # Router hopping: an end device whose parent changes this many times across the routing scans of the last HOP_DAYS.
 HOP_CHANGES = 3
 HOP_DAYS = 7
+DEFAULT_CRITICAL_OFFLINE_MINUTES = 5
 
 # Everything the Settings page can switch: (key, label, description, is_event)
 CHECKS = [
@@ -354,6 +355,7 @@ def device_issues(
     if record.get("type") == "Coordinator" or record.get("status") != "active":
         return issues
     muted = set(active_mutes(record, now)) | set(options.get("disabled_checks") or [])
+    critical = bool(record.get("critical"))
 
     def add(kind: str, severity: str, title: str, detail: str, msg: str = "", **params: Any) -> None:
         # title/detail stay English for notifications; msg + params let the sidebar translate them
@@ -372,9 +374,14 @@ def device_issues(
         if msg:
             issue["msg"] = msg
             issue["params"] = params
+        if critical:
+            issue["critical"] = True
         issues.append(issue)
 
     offline_minutes = max(0, int(options.get("offline_alert_minutes", 60)))
+    if critical:
+        # Critical devices use their own, usually shorter, delay.
+        offline_minutes = max(0, int(options.get("critical_offline_minutes", DEFAULT_CRITICAL_OFFLINE_MINUTES)))
     if record.get("availability") == "offline":
         age = _age(record.get("availability_since"), now) or 0
         if age >= offline_minutes * 60:
@@ -688,9 +695,10 @@ def nested(issue: dict, keys: set[str]) -> bool:
 
 
 def alert_title(issue: dict) -> str:
+    prefix = "Critical" if issue.get("critical") else "Zigbee"
     if issue.get("devices"):
-        return f"Router offline: {issue['name']}"
-    return f"Zigbee: {issue['name']} - {issue['label']}"
+        return f"{'Critical: ' if issue.get('critical') else ''}Router offline: {issue['name']}"
+    return f"{prefix}: {issue['name']} - {issue['label']}"
 
 
 def alert_plan(issues: list[dict], enabled: set[str], sent: set[str]) -> tuple[list[dict], list[str], list[str]]:

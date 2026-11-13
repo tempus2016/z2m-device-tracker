@@ -114,7 +114,12 @@ class IssuesSensor(_TrackerEntity):
         issues = self._tracker.issues()
         return {
             "warnings": [
-                {"device": i.get("name"), "issue": i.get("label"), "detail": i.get("detail")}
+                {
+                    "device": i.get("name"),
+                    "issue": i.get("label"),
+                    "detail": i.get("detail"),
+                    "critical": bool(i.get("critical")),
+                }
                 for i in issues
                 if i.get("severity") == "warning"
             ][:25],

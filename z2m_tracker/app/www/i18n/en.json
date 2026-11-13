@@ -1114,5 +1114,13 @@
   "replace.ready": "Ready to replace {old} with {new}.",
   "replace.battery_warn": "{name} runs on battery and may be asleep. Press its button just before you apply, or the bindings may fail.",
   "replace.the_new_device": "The new device",
-  "replace.apply": "Apply"
+  "replace.apply": "Apply",
+  "devices.chip.critical": "Critical",
+  "more.critical": "Critical device",
+  "more.critical_desc": "Offline alert after {minutes} min instead of {normal}. Alerts go to phones as high priority.",
+  "critical.tag": "Critical",
+  "snack.critical_on": "Marked as critical",
+  "snack.critical_off": "No longer critical",
+  "settings.critical_offline_for": "Critical device offline for",
+  "settings.critical_offline_for_desc": "The same for devices marked critical on their Info tab"
 }

@@ -106,6 +106,7 @@ def _device(record: dict) -> dict[str, Any]:
         "uptime_30d": record.get("uptime_30d"),
         "update_available": bool((record.get("update") or {}).get("state") == "available"),
         "issues": sorted({i.get("kind") for i in record.get("issues") or [] if i.get("kind")}),
+        "critical": bool(record.get("critical")),
         "has_note": bool(record.get("note")),
         "has_asset": bool(record.get("asset")),
     }

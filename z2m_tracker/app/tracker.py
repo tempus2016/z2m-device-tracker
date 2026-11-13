@@ -1565,6 +1565,7 @@ class Tracker:
             "area",
             "ha_name",
             *ASSET_FIELDS,
+            "critical",
             "note",
         ]
         writer.writerow(columns)
@@ -1613,6 +1614,7 @@ class Tracker:
                         record.get("area") or "",
                         record.get("ha_name") or "",
                         *[asset.get(field, "") for field in ASSET_FIELDS],
+                        "yes" if record.get("critical") else "",
                         record.get("note") or "",
                     ]
                 )
@@ -1888,6 +1890,24 @@ class Tracker:
                 sent = set(self.data.get("alerted") or [])
                 pending = sum(1 for i in self.issues if i["kind"] in enabled and i["key"] not in sent)
             return {"since": pause.get("since"), "until": pause.get("until"), "pending": pending}
+
+    def set_critical(self, ieee: str, critical: bool) -> bool:
+        """Mark a device as critical (shorter offline delay, high-priority alerts) or clear the mark."""
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            if record is None:
+                return False
+            if critical:
+                record["critical"] = True
+            else:
+                record.pop("critical", None)
+            self._changed(structural=True)
+        self.evaluate_health()
+        return True
+
+    def is_critical(self, ieee: str) -> bool:
+        with self.lock:
+            return bool((self.data["devices"].get(ieee) or {}).get("critical"))
 
     # ------------------------------------------------------------ Z2M actions
 
@@ -2425,7 +2445,7 @@ class Tracker:
         return {"ok": not failed, "done": done, "failed": failed, "skipped": skipped}
 
     def carry_over(self, old_ieee: str, new_ieee: str, notes: bool, battery: bool) -> list[str]:
-        """Copy notes, asset details and the battery record from the old record. Returns what was copied."""
+        """Copy notes, asset details, the battery record and the critical mark. Returns what was copied."""
         copied = []
         with self.lock:
             old = self.data["devices"].get(old_ieee)
@@ -2445,6 +2465,10 @@ class Tracker:
                 info = json.loads(json.dumps(old["battery_info"]))
                 new["battery_info"] = {**(new.get("battery_info") or {}), **info}
                 copied.append("battery")
+            if old.get("critical"):
+                # The replacement does the same job, so it stays critical.
+                new["critical"] = True
+                copied.append("critical")
             self._changed(structural=True)
         return copied
 

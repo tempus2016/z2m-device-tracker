@@ -16,6 +16,7 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `disabled_checks` | empty | Health checks to turn off completely. |
 | `notify_checks` | most checks | Health checks that send alerts. |
 | `offline_alert_minutes` | `60` | Extra wait after Zigbee2MQTT marks a device offline, before an alert. Zigbee2MQTT marks a device offline only after its own availability timeout (10 min for mains devices, 25 h for battery devices by default, or per device in its `configuration.yaml`). With the defaults, a mains device alerts about 70 min after its last message and a battery device about 26 h after. |
+| `critical_offline_minutes` | `5` | The same for devices marked **Critical device** on their Info tab. |
 | `frozen_alert_hours` | `24` | How long a sensor reading must stay the same before it counts as frozen. |
 | `battery_alert_percent` | `15` | Battery level for a low battery alert. |
 | `networkmap_hour` | `3` | Hour of the nightly routing scan, or `-1` to turn it off. |
@@ -77,6 +78,16 @@ Use **⋮ → Pause alerts** before planned work, such as a Zigbee2MQTT upgrade,
 - The weekly summary and **Send test notification** still go out.
 
 The pause survives an app restart. The integration has the actions `z2m_tracker.pause_alerts` (optional `minutes`, empty pauses until resumed) and `z2m_tracker.resume_alerts`. Changing an alert setting during a pause marks the issues already found as sent, the same as it does outside a pause.
+
+## Critical devices
+
+Turn on **Critical device** on a device's Info tab for devices that must never fail quietly: smoke and leak sensors, the freezer plug, the heating. A critical device:
+
+- gets an Offline alert after `critical_offline_minutes` (default 5) instead of `offline_alert_minutes`;
+- shows a red **Critical** tag in its panel and on the Health tab, and has its own filter in the device list;
+- sends its alerts with the title starting **Critical:**, and with `critical: true` in the `z2m_tracker_alert` event.
+
+Alerts to `notify_service` for a critical device also carry the Companion app's high-priority data: `priority: high` and `ttl: 0` (Android, delivered straight away), and `push: interruption-level: time-sensitive` (iOS, shown through Focus modes).
 
 ## Firmware updates
 

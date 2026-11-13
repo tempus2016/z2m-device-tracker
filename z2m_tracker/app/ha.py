@@ -154,7 +154,7 @@ class HomeAssistant:
     def dismiss_notification(self, notification_id: str) -> None:
         self._request("POST", "/services/persistent_notification/dismiss", {"notification_id": notification_id})
 
-    def notify(self, service: str, title: str, message: str) -> None:
+    def notify(self, service: str, title: str, message: str, data: dict | None = None) -> None:
         service = service.strip()
         if not service:
             return
@@ -162,7 +162,10 @@ class HomeAssistant:
             domain, name = service.split(".", 1)
         else:
             domain, name = "notify", service
-        self._request("POST", f"/services/{domain}/{name}", {"title": title, "message": message})
+        payload: dict = {"title": title, "message": message}
+        if data:
+            payload["data"] = data
+        self._request("POST", f"/services/{domain}/{name}", payload)
 
     def logbook(self, device_id: str, name: str, message: str) -> None:
         """Add a logbook entry tied to one of the device's entities, so it shows on the device page."""
