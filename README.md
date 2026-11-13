@@ -46,6 +46,7 @@ It has two parts, both in this repository:
 - **Device actions**: pair through a chosen router, move a device to another router, reconfigure, rename, set area, OTA updates.
 - **Batteries**: battery type and count (built-in library from Battery Notes), replacement records, estimates and a shopping list. With the integration, the shopping list is a Home Assistant to-do list (tick an item to mark those batteries replaced) and a calendar shows each predicted replacement date.
 - **Home Assistant entities**: MQTT discovery sensors attached to each Zigbee2MQTT device for use in automations.
+- **Actions for automations** (integration): record a battery change, mute a device, run a network scan, reconfigure, start a firmware update, add to a device's note. Pick devices by name.
 - Weekly summary, temporary ignore, backup and restore, CSV export.
 
 ## Screenshots
@@ -82,6 +83,18 @@ If your Zigbee2MQTT uses a different base topic, or you run more than one instan
 3. Settings → Devices & services → Add integration → **Z2M Device Tracker**. The app's address is filled in for you.
 
 The integration also lists the app's problems in **Settings → Repairs**, and clears each one when it's fixed. Turn this off in the integration's options.
+
+It also adds actions you can use in automations and scripts: `z2m_tracker.battery_replaced`, `z2m_tracker.mute_device`, `z2m_tracker.run_network_scan`, `z2m_tracker.reconfigure`, `z2m_tracker.ota_update` and `z2m_tracker.add_note`. For example, record a battery change when you scan an NFC tag stuck on the device:
+
+```yaml
+triggers:
+  - trigger: tag
+    tag_id: hall-motion
+actions:
+  - action: z2m_tracker.battery_replaced
+    data:
+      device_id: 4f1c9e0a7b2d4c6e8f01a2b3c4d5e6f7
+```
 
 Add the card to a dashboard:
 
