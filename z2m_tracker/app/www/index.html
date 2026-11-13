@@ -556,7 +556,7 @@
   .fp-devs { display: flex; flex-wrap: wrap; gap: 4px 6px; }
   .fp-dev { appearance: none; border: 1px solid transparent; background: none; color: var(--text); font: inherit; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 8px 3px 4px; border-radius: 14px; cursor: pointer; position: relative; z-index: 2; transition: opacity 0.15s; }
   .fp-dev span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .fp-dev i { flex: none; width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 2px var(--card); }
+  .fp-dev i { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px var(--card); }
   .fp-dev.router i { width: 13px; height: 13px; }
   .fp-dev.coord i { width: 16px; height: 16px; }
   .fp-dev.coord { font-weight: 500; }
@@ -564,14 +564,26 @@
   .fp-dev.noscan i { opacity: 0.5; }
   @media (hover: hover) and (pointer: fine) { .fp-dev:hover { background: var(--hover); } }
   .fp-dev[aria-pressed="true"] { border-color: var(--primary); background: var(--chip-on); }
-  .fp-dev.dim { opacity: 0.35; }
-  /* Names hidden: just the dot, with the name as a bubble on hover, focus, selection and the selected device's links. */
+  .fp-dev.dim { opacity: 0.3; }
+  .fp-dev.offline i { background: var(--card); box-shadow: inset 0 0 0 2.5px var(--c), 0 0 0 2px var(--card); }
+  .fp-dev[aria-pressed="true"] i, .fp-dev.onroute i { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--primary); }
+  .fp-dev.offline:is([aria-pressed="true"], .onroute) i { box-shadow: inset 0 0 0 2.5px var(--c), 0 0 0 2px var(--card), 0 0 0 4px var(--primary); }
+  .fp-area { transition: border-color 0.15s, box-shadow 0.15s; }
+  .fp-area.hot { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+  .fp-lines path.prob:not(.dim) { opacity: 0.85; }
+  .fp-lines path.route { stroke-width: 3.2; opacity: 1; stroke-linecap: round; }
+  .fp-tip { position: absolute; z-index: 6; pointer-events: none; max-width: min(360px, calc(100% - 8px)); padding: 4px 8px; border: 1px solid var(--divider); border-radius: 8px; background: var(--card); color: var(--text-2); box-shadow: var(--shadow); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fp-tip b { color: var(--text); font-weight: 500; }
+  .fp-route { min-height: 20px; padding: 0 4px; font-size: 13px; color: var(--text-2); overflow-wrap: anywhere; }
+  .fp-route b { color: var(--text); font-weight: 500; }
+  .map-legend i.hollow { box-shadow: inset 0 0 0 2px var(--text-2); }
+  .map-legend b.route { height: 4px; border-radius: 2px; background: var(--primary); }
+  /* Names hidden: just the dot, with the name as a bubble on focus, selection and the selected device's route. Hover shows the .fp-tip tooltip instead. */
   .fp.names-off .fp-dev, .fp.names-routers .fp-dev.end { padding: 3px; gap: 0; }
   .fp.names-off .fp-dev span, .fp.names-routers .fp-dev.end span { display: none; position: absolute; left: 50%; bottom: calc(100% + 4px); transform: translateX(-50%); max-width: 220px; padding: 3px 8px; border: 1px solid var(--divider); border-radius: 6px; background: var(--card); color: var(--text); box-shadow: var(--shadow); pointer-events: none; }
   .fp.names-off .fp-dev:is(:focus-visible, [aria-pressed="true"], .near), .fp.names-routers .fp-dev.end:is(:focus-visible, [aria-pressed="true"], .near) { z-index: 4; }
   .fp.names-off .fp-dev:is(:focus-visible, [aria-pressed="true"], .near) span, .fp.names-routers .fp-dev.end:is(:focus-visible, [aria-pressed="true"], .near) span { display: block; }
   .fp.names-off .fp-dev:focus-visible span, .fp.names-routers .fp-dev.end:focus-visible span { z-index: 1; }
-  @media (hover: hover) and (pointer: fine) { .fp.names-off .fp-dev:hover, .fp.names-routers .fp-dev.end:hover { z-index: 4; } .fp.names-off .fp-dev:hover span, .fp.names-routers .fp-dev.end:hover span { display: block; z-index: 1; } }
   .map-names { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
   .map-names > span { font-size: 13px; color: var(--text-2); }
   .map-zoom { display: inline-flex; }
@@ -1285,7 +1297,9 @@
   const MAP = { sims: {}, sel: {}, allLinks: store.get("z2mt.mapAll") === "1", rendered: null, hist: {}, scanSel: {}, cmpSel: {},
     filter: new Set((store.get("z2mt.mapFilter") || "").split(",").filter((x) => ["coord", "router", "end", "attention"].includes(x))),
     // Device names on the map: "all", "routers" (coordinator and routers only) or "off". Hover, focus and selection still show a name.
-    names: ["routers", "off"].includes(store.get("z2mt.mapNames")) ? store.get("z2mt.mapNames") : "all" };
+    names: ["routers", "off"].includes(store.get("z2mt.mapNames")) ? store.get("z2mt.mapNames") : "all",
+    // Floor plan link lines: "off", "problems" (weak links and links to another floor) or "all".
+    links: ["off", "all"].includes(store.get("z2mt.mapLinks")) ? store.get("z2mt.mapLinks") : "problems" };
   // Legend groups double as filters. Each device falls in exactly one group, matching its dot colour.
   const MAP_GROUPS = [["coord", "map.coordinator", "var(--text)"], ["router", "map.router", "var(--primary)"], ["end", "map.battery_device", "var(--state-icon)"], ["attention", "map.needs_attention", "var(--warning)"]];
   const mapGroup = (d) => (d.type === "Coordinator" ? "coord" : statusOf(d) !== "active" || warnings(d).length ? "attention" : d.type === "Router" ? "router" : "end");
@@ -1448,11 +1462,11 @@
             ${diff.worse.map((m) => `<div class="adv"><span class="state-ic" style="color:var(--error)">${ic("arrow-down")}</span><div class="text">${th("map.diff_worse", { device: `<b>${nm2(m.dev)}</b>`, parent: nm2(m.p), old: esc(m.oldQ), new: esc(m.newQ) })}</div></div>`).join("")}
             ${!diff.moved.length && !diff.better.length && !diff.worse.length ? `<div class="adv"><span class="state-ic">${ic("check")}</span><div class="text">${th("map.diff_none")}</div></div>` : ""}</div>` : "";
         return `<div class="card map-card" data-net="${esc(bt)}">${head}${history}
-          <div class="map-tools">${layoutToggle()}${namesToggle()}${MAP.layout === "floor" ? "" : `<span class="map-zoom"><button class="icon-btn" data-mapzoom="1.25" data-net="${esc(bt)}" aria-label="${esc(t("map.zoom_in"))}">${ic("plus")}</button><button class="icon-btn" data-mapzoom="0.8" data-net="${esc(bt)}" aria-label="${esc(t("map.zoom_out"))}">${ic("minus")}</button></span>
+          <div class="map-tools">${layoutToggle()}${namesToggle()}${MAP.layout === "floor" ? linksToggle() : `<span class="map-zoom"><button class="icon-btn" data-mapzoom="1.25" data-net="${esc(bt)}" aria-label="${esc(t("map.zoom_in"))}">${ic("plus")}</button><button class="icon-btn" data-mapzoom="0.8" data-net="${esc(bt)}" aria-label="${esc(t("map.zoom_out"))}">${ic("minus")}</button></span>
             <button class="btn" data-mapreset="${esc(bt)}">${ic("refresh", "s18")}${th("map.reset")}</button>
             <button class="chip toggle" data-maplinks aria-pressed="${MAP.allLinks}">${ic("link-variant", "s18")}${th("map.all_links")}</button>`}
             <span class="spacer"></span>
-            ${MAP.layout === "floor" ? `<div class="map-legend"><span><i style="background:var(--text)"></i>${th("map.coordinator")}</span><span><i style="background:var(--primary)"></i>${th("map.router")}</span><span><i style="background:var(--state-icon)"></i>${th("map.battery_device")}</span><span><i style="background:var(--warning)"></i>${th("map.needs_attention")}</span>` : `${mapLegend(bt, g.devs)}<div class="map-legend lines">`}<span><b style="background:var(--success)"></b>${th("signal.strong")}</span><span><b style="background:var(--warning)"></b>${th("signal.fair")}</span><span><b style="background:var(--error)"></b>${th("signal.weak")}</span>${MAP.layout === "floor" ? `<span title="${esc(t("map.likely_route_tip"))}"><b class="dashed"></b>${th("map.likely_route")}</span>` : ""}</div></div>
+            ${MAP.layout === "floor" ? fpLegend() : `${mapLegend(bt, g.devs)}<div class="map-legend lines"><span><b style="background:var(--success)"></b>${th("signal.strong")}</span><span><b style="background:var(--warning)"></b>${th("signal.fair")}</span><span><b style="background:var(--error)"></b>${th("signal.weak")}</span></div>`}</div>
           ${MAP.layout === "floor" ? `<div class="map-stage fp-mode"><div class="map-info" id="mapinfo-${esc(bt)}" hidden></div>${FP.floors ? fpHtml(bt) : `<div class="card-content muted">${th("map.loading_floors")}</div>`}</div>` : `<div class="map-stage"><svg class="map names-${MAP.names}" id="map-${esc(bt)}" role="img" aria-label="${esc(t("map.aria", { name: netLabel(bt) }))}"><g class="vp"><g class="links"></g><g class="nodes"></g></g></svg>
             <div class="map-info" id="mapinfo-${esc(bt)}" hidden></div></div>`}
           ${diff ? `<div class="map-legend" style="padding:8px 16px 0"><span><b style="background:var(--info);height:4px"></b>${th("map.changed_router")}</span><span><b style="background:var(--success);height:4px"></b>${th("map.stronger")}</span><span><b style="background:var(--error);height:4px"></b>${th("map.weaker")}</span><span><b style="background:var(--disabled)"></b>${th("map.unchanged")}</span></div>` : ""}
@@ -1465,7 +1479,7 @@
     state.data.instances.forEach((bt) => { const fp = document.getElementById(`fp-${bt}`); if (fp) MAP.sims[bt] = startFloorPlan(bt, fp); });
   };
 
-  const refreshMapInfo = () => Object.keys(MAP.sims).forEach((bt) => showMapInfo(bt));
+  const refreshMapInfo = () => Object.keys(MAP.sims).forEach((bt) => { MAP.sims[bt].refresh?.(); showMapInfo(bt); });
 
   const showMapInfo = (bt) => {
     const box = document.getElementById(`mapinfo-${bt}`);
@@ -1624,7 +1638,7 @@
 
   // ------------------------------------------------------------ floor-plan layout of the map
   MAP.layout = store.get("z2mt.mapLayout") === "floor" ? "floor" : "graph";
-  const FP = { floors: null, areas: null, loading: false };
+  const FP = { floors: null, areas: null, loading: false, hover: {} };
   const loadFloors = async () => {
     if (FP.loading || FP.floors) return;
     FP.loading = true;
@@ -1642,7 +1656,19 @@
     document.querySelectorAll("svg.map, .fp").forEach((el) => NAMES.forEach(([k]) => el.classList.toggle(`names-${k}`, k === MAP.names)));
     Object.values(MAP.sims).forEach((s) => s.relayout?.());
   };
+  const FP_LINKS = [["off", "map.links_off"], ["problems", "map.links_problems"], ["all", "map.links_all"]];
+  const linksToggle = () => `<div class="map-names"><span>${th("map.links")}</span><div class="chips" role="group" aria-label="${esc(t("map.links_aria"))}">${FP_LINKS.map(([k, l]) => `<button class="chip" data-fplinks="${k}" aria-pressed="${MAP.links === k}">${ic("check", "s18")}${th(l)}</button>`).join("")}</div></div>`;
+  // Dots show each device's own link quality; the line part of the legend follows the Links switch.
+  const fpLegend = () => `<div class="map-legend lines fp-legend"><span><i style="background:var(--text)"></i>${th("map.coordinator")}</span><span><i style="background:var(--success)"></i>${th("signal.strong")}</span><span><i style="background:var(--warning)"></i>${th("signal.fair")}</span><span><i style="background:var(--error)"></i>${th("signal.weak")}</span><span><i style="background:var(--disabled)"></i>${th("map.fp_no_scan")}</span><span><i class="hollow"></i>${esc(STATUS.offline.label)}</span><span>${th("map.fp_router_bigger")}</span>${MAP.links === "problems" ? `<span><b style="background:var(--error)"></b>${th("map.fp_weak_link")}</span><span><b class="dashed"></b>${th("map.fp_other_floor")}</span>` : ""}${MAP.links === "all" ? `<span title="${esc(t("map.likely_route_tip"))}"><b class="dashed"></b>${th("map.likely_route")}</span>` : ""}<span><b class="route"></b>${th("map.fp_route_line")}</span></div>`;
   document.addEventListener("click", (e) => {
+    const lb = e.target.closest("[data-fplinks]");
+    if (lb) {
+      MAP.links = lb.dataset.fplinks; store.set("z2mt.mapLinks", MAP.links);
+      document.querySelectorAll("[data-fplinks]").forEach((c) => c.setAttribute("aria-pressed", String(c.dataset.fplinks === MAP.links)));
+      document.querySelectorAll(".fp-legend").forEach((el) => (el.outerHTML = fpLegend()));
+      Object.values(MAP.sims).forEach((x) => x.paint?.());
+      return;
+    }
     const nb = e.target.closest("[data-mapnames]");
     if (nb) { MAP.names = nb.dataset.mapnames; store.set("z2mt.mapNames", MAP.names); applyMapNames(); return; }
     const b = e.target.closest("[data-maplayout]");
@@ -1667,6 +1693,7 @@
     return up;
   };
 
+  const fpName = (ieee) => { const d = state.byIeee.get(ieee); return d?.type === "Coordinator" ? t("map.coordinator") : nameOf(d) || ieee; };
   const fpHtml = (bt) => {
     const g = mapGraph(bt);
     const devs = g.historic ? g.devs : state.data.devices.filter((d) => d.instance === bt && d.status !== "removed");
@@ -1694,9 +1721,9 @@
     const kindOrder = { Coordinator: 0, Router: 1, EndDevice: 2 };
     const devBtn = (d) => {
       const u = up.get(d.ieee);
-      const name = d.type === "Coordinator" ? t("map.coordinator") : nameOf(d) || d.ieee;
-      const tip = [name, d.type === "EndDevice" ? t("map.battery_device") : typeLabel(d.type), u ? t("map.fp_via", { name: nameOf(state.byIeee.get(u.to)) || (state.byIeee.get(u.to)?.type === "Coordinator" ? t("map.coordinator") : u.to), lqi: u.lqi ?? "?" }) : d.type !== "Coordinator" ? t("map.fp_not_scanned") : ""].filter(Boolean).join(" · ");
-      return `<button class="fp-dev ${d.type === "Coordinator" ? "coord" : d.type === "Router" ? "router" : "end"} ${!u && d.type !== "Coordinator" ? "noscan" : ""}" data-fpdev="${esc(d.ieee)}" title="${esc(tip)}"><i style="background:${mapNodeCol(d)}"></i><span>${esc(name)}</span></button>`;
+      const isCoord = d.type === "Coordinator";
+      const label = [fpName(d.ieee), d.type === "EndDevice" ? t("map.battery_device") : typeLabel(d.type), u ? t("map.fp_via", { name: fpName(u.to), lqi: u.lqi ?? "?" }) : !isCoord ? t("map.fp_not_scanned") : ""].filter(Boolean).join(" · ");
+      return `<button class="fp-dev ${isCoord ? "coord" : d.type === "Router" ? "router" : "end"} ${!u && !isCoord ? "noscan" : ""} ${!isCoord && statusOf(d) !== "active" ? "offline" : ""}" data-fpdev="${esc(d.ieee)}" aria-label="${esc(label)}"><i style="--c:${isCoord ? "var(--text)" : u ? lqiCol(u.lqi) : "var(--disabled)"}"></i><span>${esc(fpName(d.ieee))}</span></button>`;
     };
     const areaBox = (area, list) => {
       const linked = list.map((d) => up.get(d.ieee)).filter((u) => u && u.lqi !== null && u.lqi !== undefined);
@@ -1704,50 +1731,132 @@
       const via = weak && new Set(linked.map((u) => u.to)).size === 1 ? state.byIeee.get(linked[0].to) : null;
       const viaName = via ? (via.type === "Coordinator" ? t("map.fp_the_coordinator") : nameOf(via) || via.ieee) : "";
       list.sort((a, b) => (kindOrder[a.type] ?? 3) - (kindOrder[b.type] ?? 3) || collator.compare(nameOf(a) || "~", nameOf(b) || "~"));
-      return `<div class="fp-area ${weak ? "weak" : ""} ${area === noArea ? "none" : ""}"><div class="fp-area-h">${esc(area)}<span class="n">${list.length}</span></div>
+      return `<div class="fp-area ${weak ? "weak" : ""} ${area === noArea ? "none" : ""}" data-fparea="${esc(area === noArea ? "" : area)}"><div class="fp-area-h">${esc(area)}<span class="n">${list.length}</span></div>
         ${weak ? `<div class="fp-flag">${ic("alert", "s18")}${via ? th("map.fp_weak_via", { n: linked.length, name: esc(viaName) }) : th("map.fp_weak", { n: linked.length })}</div>` : ""}
         <div class="fp-devs">${list.map(devBtn).join("")}</div></div>`;
     };
     const floorLabel = (k) => (k === "~none" ? t("map.fp_no_area") : k === "~other" ? t(FP.floors?.length ? "map.fp_other_areas" : "map.fp_areas") : floorById.get(k).name);
-    return `<div class="fp names-${MAP.names}" id="fp-${esc(bt)}"><svg class="fp-lines" aria-hidden="true"></svg>
+    return `<div class="fp names-${MAP.names}" id="fp-${esc(bt)}"><svg class="fp-lines" aria-hidden="true"></svg><div class="fp-tip" hidden></div>
       ${coord && !coord.area ? `<section class="fp-floor"><div class="fp-areas"><div class="fp-area coord-box"><div class="fp-devs">${devBtn(coord)}</div></div></div></section>` : ""}
       ${floorOrder.map((fk) => `<section class="fp-floor"><div class="fp-floor-h">${esc(floorLabel(fk))}</div><div class="fp-areas">${[...groups.get(fk).entries()].sort((a, b) => collator.compare(a[0], b[0])).map(([a, list]) => areaBox(a, list)).join("")}</div></section>`).join("")}
+      <div class="fp-route" aria-live="polite"></div>
     </div>`;
+  };
+
+  // Each device's route to the coordinator: its uplink, then that router's uplink, and so on.
+  // Stops at a missing uplink or a loop; done is true only when the coordinator is reached.
+  const fpRoute = (up, id) => {
+    const hops = [id], seen = new Set(hops);
+    for (let cur = id; ;) {
+      if (state.byIeee.get(cur)?.type === "Coordinator") return { hops, done: true };
+      const u = up.get(cur);
+      if (!u || seen.has(u.to)) return { hops, done: false };
+      hops.push(u.to); seen.add(u.to); cur = u.to;
+    }
   };
 
   const startFloorPlan = (bt, root) => {
     const g = mapGraph(bt);
     const up = fpUplinks(bt, g);
-    const svg = root.querySelector(".fp-lines");
+    const svg = root.querySelector(".fp-lines"), tip = root.querySelector(".fp-tip"), routeBox = root.querySelector(".fp-route");
     const els = new Map([...root.querySelectorAll("[data-fpdev]")].map((el) => [el.dataset.fpdev, el]));
-    const lines = [...up.entries()].filter(([a, u]) => els.has(a) && els.has(u.to)).map(([a, u]) => ({ a, b: u.to, lqi: u.lqi, parent: u.parent }));
-    const draw = () => {
+    const rooms = [...root.querySelectorAll("[data-fparea]")];
+    const areaByName = new Map((FP.areas || []).map((a) => [a.name, a]));
+    const areaOf = (id) => state.byIeee.get(id)?.area || "";
+    const floorOf = (id) => areaByName.get(areaOf(id))?.floor_id || null;
+    const lines = [...up.entries()].filter(([a, u]) => els.has(a) && els.has(u.to)).map(([a, u]) => {
+      const fa = floorOf(a), fb = floorOf(u.to);
+      return { a, b: u.to, lqi: u.lqi, parent: u.parent, weak: u.lqi !== null && u.lqi !== undefined && u.lqi < 50, cross: !!fa && !!fb && fa !== fb };
+    });
+    const lineFrom = new Map(lines.map((l) => [l.a, l]));
+    // Dot centres are measured once per layout change; hover and selection only repaint the lines.
+    let pos = new Map();
+    const measure = () => {
       const box = root.getBoundingClientRect();
-      const at = (ieee) => { const r = els.get(ieee).querySelector("i").getBoundingClientRect(); return [r.left + r.width / 2 - box.left, r.top + r.height / 2 - box.top]; };
+      pos = new Map([...els].map(([id, el]) => { const r = el.querySelector("i").getBoundingClientRect(); return [id, [r.left + r.width / 2 - box.left, r.top + r.height / 2 - box.top]]; }));
       svg.setAttribute("width", root.scrollWidth); svg.setAttribute("height", root.scrollHeight);
-      svg.innerHTML = lines.map((l, i) => { const [x1, y1] = at(l.a), [x2, y2] = at(l.b); const bend = Math.max(-60, Math.min(60, (x2 - x1) * 0.15)); return `<path data-i="${i}" d="M${x1.toFixed(1)},${y1.toFixed(1)} Q${((x1 + x2) / 2 + bend).toFixed(1)},${((y1 + y2) / 2 - Math.abs(bend)).toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}" stroke="${lqiCol(l.lqi)}" ${l.parent ? "" : 'stroke-dasharray="5 4"'}><title>${esc(l.parent ? t("map.fp_lqi", { lqi: l.lqi ?? "?" }) : t("map.fp_likely_lqi", { lqi: l.lqi ?? "?" }))}</title></path>`; }).join("");
-      highlight();
     };
-    const highlight = () => {
-      const sel = MAP.sel[bt];
-      const near = new Set(sel ? lines.filter((l) => l.a === sel || l.b === sel).flatMap((l) => [l.a, l.b]) : []);
-      [...svg.children].forEach((p) => { const l = lines[+p.dataset.i]; p.classList.toggle("dim", !!sel && l.a !== sel && l.b !== sel); p.classList.toggle("hot", !!sel && (l.a === sel || l.b === sel)); });
-      els.forEach((el, id) => { el.classList.toggle("dim", !!sel && !near.has(id) && id !== sel); el.classList.toggle("near", near.has(id) && id !== sel); el.setAttribute("aria-pressed", String(id === sel)); });
+    const path = (l, stroke, cls, dashed, title) => {
+      const [x1, y1] = pos.get(l.a), [x2, y2] = pos.get(l.b);
+      // Bow each line sideways by up to 60px, upwards or to the right, so links stacked in one column don't sit on top of each other.
+      const len = Math.hypot(x2 - x1, y2 - y1) || 1, off = Math.min(60, len * 0.15);
+      let nx = (y1 - y2) / len, ny = (x2 - x1) / len;
+      if (0.3 * nx - ny < 0) { nx = -nx; ny = -ny; }
+      return `<path class="${cls}" d="M${x1.toFixed(1)},${y1.toFixed(1)} Q${((x1 + x2) / 2 + nx * off).toFixed(1)},${((y1 + y2) / 2 + ny * off).toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}" stroke="${stroke}" ${dashed ? 'stroke-dasharray="5 4"' : ""}><title>${esc(title)}</title></path>`;
     };
-    const onClick = (ev) => {
+    const lqiTitle = (l) => t(l.parent ? "map.fp_lqi" : "map.fp_likely_lqi", { lqi: l.lqi ?? "?" });
+    const plain = (l, cls) => path(l, lqiCol(l.lqi), cls, !l.parent, lqiTitle(l));
+    const routeHtml = (sel) => {
+      if (!sel) return th("map.fp_route_hint");
+      if (state.byIeee.get(sel)?.type === "Coordinator") return th("map.fp_route_coord");
+      const r = fpRoute(up, sel);
+      const names = r.hops.map((id) => `<b>${esc(fpName(id))}</b>`).join(" → ");
+      return `${names} · ${r.done ? th("map.fp_route_hops", { n: r.hops.length - 1, lqi: up.get(sel)?.lqi ?? "?" }) : r.hops.length > 1 ? th("map.fp_route_unknown", { name: esc(fpName(r.hops[r.hops.length - 1])) }) : th("map.fp_route_none")}`;
+    };
+    const paint = () => {
+      const sel = els.has(MAP.sel[bt]) ? MAP.sel[bt] : null;
+      const hover = sel ? null : FP.hover[bt] ?? null;
+      const route = sel ? fpRoute(up, sel).hops : [];
+      const onRoute = new Set(route);
+      const kids = new Set(sel ? lines.filter((l) => l.b === sel).map((l) => l.a) : []);
+      let out = "";
+      // Base lines from the Links switch: all of them, only the problems, or none.
+      if (MAP.links === "all") lines.forEach((l) => (out += plain(l, sel ? "dim" : "")));
+      else if (MAP.links === "problems") lines.filter((l) => l.weak || l.cross).forEach((l) => (out += path(l, l.weak ? "var(--error)" : "var(--text-2)", `prob ${sel ? "dim" : ""}`, l.cross, l.cross && !l.weak ? t("map.fp_other_floor_lqi", { lqi: l.lqi ?? "?" }) : lqiTitle(l))));
+      // Hovered room: the links leaving it.
+      if (hover !== null) lines.filter((l) => areaOf(l.a) === hover && areaOf(l.b) !== hover).forEach((l) => (out += plain(l, "hot")));
+      // Selected device: the devices that connect through it, then its whole route on top.
+      if (sel) {
+        lines.filter((l) => l.b === sel).forEach((l) => (out += plain(l, "")));
+        route.slice(0, -1).forEach((id) => { const l = lineFrom.get(id); if (l) out += path(l, "var(--primary)", "route", !l.parent, lqiTitle(l)); });
+      }
+      svg.innerHTML = out;
+      els.forEach((el, id) => {
+        el.classList.toggle("dim", !!sel && !onRoute.has(id) && !kids.has(id));
+        el.classList.toggle("near", !!sel && id !== sel && onRoute.has(id));
+        el.classList.toggle("onroute", !!sel && id !== sel && onRoute.has(id));
+        el.setAttribute("aria-pressed", String(id === sel));
+      });
+      rooms.forEach((el) => el.classList.toggle("hot", hover !== null && el.dataset.fparea === hover));
+      const html = routeHtml(sel);
+      if (routeBox.innerHTML !== html) routeBox.innerHTML = html;
+    };
+    const draw = () => { measure(); paint(); };
+    const showTip = (el) => {
+      const id = el.dataset.fpdev, u = up.get(id), p = pos.get(id);
+      if (!p) return;
+      tip.innerHTML = `<b>${esc(fpName(id))}</b>${u ? ` · ${th("map.fp_tip_via", { name: esc(fpName(u.to)), lqi: esc(u.lqi ?? "?") })}` : state.byIeee.get(id)?.type !== "Coordinator" ? ` · ${th("map.fp_not_scanned")}` : ""}`;
+      tip.hidden = false;
+      const w = tip.offsetWidth, h = tip.offsetHeight;
+      tip.style.left = `${Math.max(4, Math.min(p[0] - w / 2, root.clientWidth - w - 4))}px`;
+      tip.style.top = `${p[1] - h - 12 < 0 ? p[1] + 14 : p[1] - h - 12}px`;
+    };
+    const mouse = (ev) => ev.pointerType === "mouse" || ev.pointerType === "pen";
+    root.addEventListener("pointerover", (ev) => {
+      if (!mouse(ev)) return;
+      const dev = ev.target.closest("[data-fpdev]");
+      if (dev) showTip(dev);
+      const room = ev.target.closest("[data-fparea]");
+      const area = room ? room.dataset.fparea : null;
+      if (area !== (FP.hover[bt] ?? null)) { FP.hover[bt] = area; paint(); }
+    });
+    root.addEventListener("pointerout", (ev) => { const dev = ev.target.closest("[data-fpdev]"); if (dev && !dev.contains(ev.relatedTarget)) tip.hidden = true; });
+    root.addEventListener("pointerleave", () => { tip.hidden = true; if ((FP.hover[bt] ?? null) !== null) { FP.hover[bt] = null; paint(); } });
+    root.addEventListener("click", (ev) => {
       const b = ev.target.closest("[data-fpdev]");
       MAP.sel[bt] = b && MAP.sel[bt] !== b.dataset.fpdev ? b.dataset.fpdev : null;
-      highlight(); showMapInfo(bt);
-    };
-    root.addEventListener("click", onClick);
+      paint(); showMapInfo(bt);
+    });
     const ro = typeof ResizeObserver === "function" ? new ResizeObserver(() => draw()) : null;
     if (ro) ro.observe(root); else window.addEventListener("resize", draw);
     draw();
     showMapInfo(bt);
     return {
       stop() { if (ro) ro.disconnect(); else window.removeEventListener("resize", draw); },
-      zoom() {}, reset() {}, relayout: draw,
-      select(id) { MAP.sel[bt] = id; highlight(); showMapInfo(bt); els.get(id)?.scrollIntoView({ block: "nearest" }); },
+      zoom() {}, reset() {}, relayout: draw, paint,
+      // Live updates between scans: only online/offline can change, so the dots are patched in place.
+      refresh() { els.forEach((el, id) => { const d = state.byIeee.get(id); if (d && d.type !== "Coordinator") el.classList.toggle("offline", statusOf(d) !== "active"); }); },
+      select(id) { MAP.sel[bt] = id; paint(); showMapInfo(bt); els.get(id)?.scrollIntoView({ block: "nearest" }); },
     };
   };
 
