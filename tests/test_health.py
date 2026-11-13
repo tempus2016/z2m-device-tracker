@@ -55,6 +55,9 @@ def test_issue_shape():
             "ieee": IEEE,
             "title": "Low battery",
             "detail": "Battery at 5%.",
+            # msg and params let the sidebar translate the title and detail.
+            "msg": "battery_low",
+            "params": {"percent": 5},
         }
     ]
 
@@ -84,9 +87,14 @@ def test_offline_threshold_option():
     assert kinds(rec, options={"offline_alert_minutes": 0}) == ["offline"]
 
 
-def test_offline_without_since_never_alerts():
-    # No availability_since means age 0, which is below any non-zero threshold.
+def test_offline_without_since_is_left_to_the_tracker():
+    # The check can't age a device with no availability_since, so it doesn't flag it here.
+    # The tracker stamps the time it first sees such a device offline, and the alert counts
+    # from there (test_tracker_offline_since.py).
     assert kinds(record(availability="offline", availability_since=None)) == []
+    assert kinds(
+        record(availability="offline", availability_since=iso(3600)), options={"offline_alert_minutes": 30}
+    ) == ["offline"]
 
 
 def test_silent_only_without_availability_reporting():

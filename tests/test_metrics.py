@@ -85,7 +85,9 @@ def test_save_load_round_trip(m, tmp_path):
     assert not (tmp_path / "metrics.json.tmp").exists()
     other = Metrics(m.path)
     other.load()
-    assert other.series == {IEEE: {"lqi": [[HOUR_NOW, 77.0, 1]]}}
+    day = int(START // DAY * DAY)
+    # "lqid" is the daily rollup for long-range charts: [day, min, sum, count, max].
+    assert other.series == {IEEE: {"lqi": [[HOUR_NOW, 77.0, 1]], "lqid": [[day, 77.0, 77.0, 1, 77.0]]}}
 
 
 def test_save_skips_when_clean(m, tmp_path):
