@@ -16,7 +16,10 @@
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --primary: #03a9f4;
     --primary-ink: #ffffff;
-    --primary-text: #0288d1;
+    /* HA's blue, darkened just enough to pass WCAG AA: text 4.5:1 on white and on every tint, white on fills 4.5:1. */
+    --primary-text: #026aa7;
+    --primary-fill: #0277bd;
+    --error-text: #c62828;
     --bg: #fafafa;
     --card: #ffffff;
     --sec-bg: #f0f0f0;
@@ -41,7 +44,7 @@
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --primary-text: #4fc3f7; --bg: #111111; --card: #1c1c1c; --sec-bg: #282828; --text: #e1e1e1; --text-2: #9b9b9b; --disabled: #6f6f6f;
-      --divider: rgba(225, 225, 225, 0.12); --hover: rgba(255, 255, 255, 0.05); --state-icon: #6b9ac4; --warning-text: #ffc163;
+      --divider: rgba(225, 225, 225, 0.12); --hover: rgba(255, 255, 255, 0.05); --state-icon: #6b9ac4; --warning-text: #ffc163; --error-text: #f28b82;
       --chip-on: rgba(3, 169, 244, 0.22); --scrim: rgba(0, 0, 0, 0.55); --snackbar: #e1e1e1; --shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
       --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1.5 1.75l4.5 4.5 4.5-4.5' fill='none' stroke='%239b9b9b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
       color-scheme: dark;
@@ -49,7 +52,7 @@
   }
   :root[data-theme="dark"] {
     --primary-text: #4fc3f7; --bg: #111111; --card: #1c1c1c; --sec-bg: #282828; --text: #e1e1e1; --text-2: #9b9b9b; --disabled: #6f6f6f;
-    --divider: rgba(225, 225, 225, 0.12); --hover: rgba(255, 255, 255, 0.05); --state-icon: #6b9ac4; --warning-text: #ffc163;
+    --divider: rgba(225, 225, 225, 0.12); --hover: rgba(255, 255, 255, 0.05); --state-icon: #6b9ac4; --warning-text: #ffc163; --error-text: #f28b82;
     --chip-on: rgba(3, 169, 244, 0.22); --scrim: rgba(0, 0, 0, 0.55); --snackbar: #e1e1e1; --shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
     --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1.5 1.75l4.5 4.5 4.5-4.5' fill='none' stroke='%239b9b9b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     color-scheme: dark;
@@ -93,9 +96,9 @@
   .open-btn .t1, .open-btn .t2, .open-btn .name, .open-btn .name-2, .open-btn .ln { display: block; }
   button.log { appearance: none; border: 0; background: none; margin: 0; font: inherit; color: inherit; text-align: left; width: 100%; }
   .sort-btn { appearance: none; border: 0; background: none; margin: 0 -6px; padding: 4px 6px; font: inherit; font-weight: 500; color: inherit; cursor: pointer; border-radius: 6px; }
-  .badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--sec-bg); color: var(--text-2); font-size: 12px; font-weight: 500; display: inline-grid; place-items: center; }
+  .badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--sec-bg); color: var(--text); font-size: 12px; font-weight: 500; display: inline-grid; place-items: center; }
   .badge.warn { background: var(--warning); color: #000; }
-  .badge.info { background: var(--info); color: #fff; }
+  .badge.info { background: var(--primary-fill); color: #fff; }
   .ota-head { display: flex; align-items: center; gap: 12px; padding: 16px; flex-wrap: wrap; }
   .ota-head .text { flex: 1; min-width: 220px; }
   .ota-head .t1 { font-size: 16px; }
@@ -137,10 +140,10 @@
   .alert-acts { display: flex; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
   .btn { appearance: none; border: 0; background: none; height: 36px; padding: 0 12px; border-radius: 18px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500; font-size: 14px; color: var(--primary-text); text-decoration: none; white-space: nowrap; }
   @media (hover: hover) and (pointer: fine) { .btn:hover { background: color-mix(in srgb, var(--primary) 10%, transparent); } }
-  .btn.filled { background: var(--primary); color: var(--primary-ink); padding: 0 20px; }
+  .btn.filled { background: var(--primary-fill); color: var(--primary-ink); padding: 0 20px; }
   @media (hover: hover) and (pointer: fine) { .btn.filled:hover { filter: brightness(1.06); } }
   .btn.outlined { border: 1px solid var(--divider); padding: 0 16px; }
-  .btn.danger { color: var(--error); }
+  .btn.danger { color: var(--error-text); }
   @media (hover: hover) and (pointer: fine) { .btn.danger:hover { background: color-mix(in srgb, var(--error) 10%, transparent); } }
   .btn.filled.danger { background: var(--error); color: #fff; }
   .btn:disabled { opacity: 0.4; cursor: default; background: none; }
@@ -196,7 +199,7 @@
   @media (hover: hover) and (pointer: fine) { .qty-step button:hover { background: var(--hover); } }
   .qty-step button:disabled { color: var(--disabled); cursor: default; background: none; }
   .qty-step b { min-width: 28px; text-align: center; font-weight: 500; }
-  .pill { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 11px; font-size: 12px; font-weight: 500; white-space: nowrap; background: color-mix(in srgb, var(--error) 14%, transparent); color: var(--error); }
+  .pill { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 11px; font-size: 12px; font-weight: 500; white-space: nowrap; background: color-mix(in srgb, var(--error) 14%, transparent); color: var(--error-text); }
   .pill.ok { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
   .stock-add { display: flex; gap: 8px; align-items: center; padding: 12px 16px; border-top: 1px solid var(--divider); flex-wrap: wrap; }
   .stock-add #stockType { flex: 1; min-width: 140px; max-width: 240px; }
@@ -248,7 +251,7 @@
   .set-row .t2 { font-size: 14px; color: var(--text-2); }
   .set-row .ctl { flex: none; display: flex; gap: 8px; align-items: center; }
   .set-row.disabled { opacity: 0.45; }
-  .pill { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 11px; font-size: 12px; font-weight: 500; line-height: 1; white-space: nowrap; vertical-align: middle; flex: none; background: color-mix(in srgb, var(--error) 14%, transparent); color: var(--error); }
+  .pill { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 11px; font-size: 12px; font-weight: 500; line-height: 1; white-space: nowrap; vertical-align: middle; flex: none; background: color-mix(in srgb, var(--error) 14%, transparent); color: var(--error-text); }
   .pill .mdi { width: 14px; height: 14px; }
   .set-row.links .text { min-width: 160px; }
   .switch { position: relative; width: 36px; height: 20px; flex: none; }
@@ -298,7 +301,7 @@
   .ping-result { display: flex; justify-content: center; padding: 0 16px 8px; }
   .ping-pill { display: inline-flex; align-items: center; gap: 4px; min-height: 22px; padding: 2px 10px; border-radius: 11px; font-size: 12px; font-weight: 500; background: var(--chip-on); color: var(--primary-text); }
   .ping-pill.ok { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
-  .ping-pill.bad { background: color-mix(in srgb, var(--error) 14%, transparent); color: var(--error); }
+  .ping-pill.bad { background: color-mix(in srgb, var(--error) 14%, transparent); color: var(--error-text); }
   .ping-bars { display: flex; align-items: flex-end; gap: 3px; height: 90px; padding: 8px 16px 0; }
   .ping-bars i { flex: 1; min-height: 2px; background: var(--primary); opacity: .75; border-radius: 2px 2px 0 0; }
   .ping-bars i.lo { background: var(--warning); opacity: 1; }
@@ -390,7 +393,7 @@
   .stepper .s i { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 12px; font-weight: 500; background: var(--sec-bg); }
   .stepper .s i .mdi { width: 16px; height: 16px; }
   .stepper .s.done i { background: var(--success); color: #fff; }
-  .stepper .s.cur { color: var(--text); font-weight: 500; } .stepper .s.cur i { background: var(--primary); color: #fff; }
+  .stepper .s.cur { color: var(--text); font-weight: 500; } .stepper .s.cur i { background: var(--primary-fill); color: #fff; }
   .more-body > .stepper:first-child { padding-top: 16px; }
   .stepper hr { flex: 1; border: 0; border-top: 1px solid var(--divider); margin: 0; min-width: 12px; }
   .swap { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; align-items: center; padding: 0 24px 16px; }
