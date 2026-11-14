@@ -224,6 +224,10 @@
   .empty { padding: 48px 16px; text-align: center; color: var(--text-2); }
   .empty .mdi { width: 48px; height: 48px; margin: 0 auto 8px; color: var(--disabled); }
   .empty b { display: block; color: var(--text); font-size: 16px; font-weight: 500; margin-bottom: 4px; }
+  .empty p { margin: 0 auto 16px; max-width: 40ch; }
+  .empty .btn .mdi { width: 18px; height: 18px; margin: 0; color: inherit; }
+  .empty .err-detail { margin: 16px auto 0; font-size: 12px; font-family: var(--mono); overflow-wrap: anywhere; }
+  .field-err { margin-top: 4px; font-size: 13px; color: var(--error-text); }
 
   /* ------------------------------------------------------------ list rows (repairs, logbook, settings) */
   .row { display: flex; align-items: center; gap: 16px; padding: 8px 16px; min-height: 72px; border-bottom: 1px solid var(--divider); }
@@ -234,6 +238,13 @@
   .row .t1 { font-size: 16px; color: var(--text); overflow: hidden; text-overflow: ellipsis; }
   .row .t2 { font-size: 14px; color: var(--text-2); }
   .row .acts { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+  .also-list { padding: 0 16px 8px 72px; border-bottom: 1px solid var(--divider); }
+  .row:has(+ .also-list) { padding-bottom: 0; min-height: 0; }
+  .also-list:last-child { border-bottom: 0; }
+  .also { display: flex; align-items: center; gap: 8px; min-height: 40px; font-size: 14px; color: var(--text-2); }
+  .also-t { flex: 1; min-width: 0; }
+  .also .acts { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+  .row .t2.cause { display: block; color: var(--text); }
   .group-list { margin: 0 0 8px 72px; border-left: 2px solid var(--divider); }
   .group-list .row { min-height: 48px; padding: 6px 12px; border-bottom: 0; }
   .group-list .state-ic { width: 32px; height: 32px; }
@@ -302,6 +313,8 @@
   .more-hero .sub { color: var(--text-2); }
   .more-actions { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; padding: 8px 16px 12px; }
   .alerts { display: grid; gap: 8px; padding: 0 16px 8px; }
+  .dev-more { position: relative; }
+  .dev-more .menu { top: calc(100% + 4px); right: 0; }
   .ping-result { display: flex; justify-content: center; padding: 0 16px 8px; }
   .ping-pill { display: inline-flex; align-items: center; gap: 4px; min-height: 22px; padding: 2px 10px; border-radius: 11px; font-size: 12px; font-weight: 500; background: var(--chip-on); color: var(--primary-text); }
   .ping-pill.ok { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
@@ -461,6 +474,15 @@
   .dt tbody tr[aria-selected="true"] :is(.name-2, .cell-sub, .muted) { color: color-mix(in srgb, var(--text-2) 70%, var(--text)); }
   .dt tbody tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 var(--primary); }
   @media (max-width: 1360px) { table.dt.compact th.hide-md, table.dt.compact td.hide-md { display: none; } }
+  /* Last seen joins the status cell wherever its own column is hidden (phones put it in the second line instead). */
+  .st-seen { display: none; }
+  .st-seen::before { content: "·"; margin: 0 6px; }
+  @media (max-width: 1360px) { table.dt.compact .st-seen { display: inline; } }
+  /* When the side pane leaves the list narrow, stack the time under the status so the table doesn't scroll sideways. */
+  .table-wrap { container-type: inline-size; }
+  @container (max-width: 720px) { table.dt.compact .st-seen { display: block; padding-left: 16px; font-size: 12px; } table.dt.compact .st-seen::before { content: none; } }
+  /* Tablet widths have no room beside the status, so the time goes under it, lined up with the status word. */
+  @media (min-width: 601px) and (max-width: 870px) { .dt .st-seen { display: block; padding-left: 16px; font-size: 12px; } .dt .st-seen::before { content: none; } }
   .tools-right { display: flex; gap: 8px; align-items: center; margin-left: auto; }
   .chip.toggle .mdi { display: block; }
   .dt tr.grp td { height: 40px; background: var(--sec-bg); color: var(--text-2); font-weight: 500; cursor: default; }
@@ -680,6 +702,8 @@
     /* Row actions go under the text instead of squeezing it into a narrow column. */
     .row:has(> .acts:not(:empty)) { flex-wrap: wrap; row-gap: 0; }
     .row > .acts:not(:empty) { flex: 1 1 100%; justify-content: flex-start; padding-left: 48px; }
+    /* Offline rows carry three text buttons; tighter spacing keeps them on one line on a phone. */
+    .row.triage > .acts { padding-left: 44px; gap: 0; }
     /* Wide controls (text fields) drop under their label rather than covering it. */
     .set-row .text { flex: 1 1 160px; }
     .set-row.wide-ctl .ctl { flex: 1 1 100%; }
@@ -909,6 +933,18 @@
   const nestedIssue = (i, keys) => Boolean(i.behind) && keys.has(`offline:${i.behind}`);
   const ownIssues = (issues) => { const keys = new Set(issues.map((i) => i.key)); return issues.filter((i) => !nestedIssue(i, keys)); };
   const healthIssues = (issues) => ownIssues(issues).filter((i) => i.kind !== "update");
+  // Health lists one row per device: its worst issue leads and the rest fold under it. Network and group issues stay one row each.
+  const issueRank = (i) => (i.severity !== "warning" ? 3 : SEVERE_KINDS.has(i.kind) ? 0 : severe(i) ? 1 : 2);
+  const healthRows = (issues) => {
+    const rows = [], byDev = new Map();
+    for (const i of healthIssues(issues)) {
+      if (isNetIssue(i)) { rows.push([i]); continue; }
+      if (!byDev.has(i.ieee)) { byDev.set(i.ieee, []); rows.push(byDev.get(i.ieee)); }
+      byDev.get(i.ieee).push(i);
+    }
+    rows.forEach((g) => g.sort((a, b) => issueRank(a) - issueRank(b)));
+    return rows;
+  };
   const issueVars = (i) => {
     const p = { ...(i.params || {}) };
     if (p.seconds !== undefined) p.duration = span(p.seconds);
@@ -1079,17 +1115,18 @@
         : d.status !== "removed" && power ? `<span class="muted">${power}</span>` : `<span class="muted">—</span>`;
       const prev = former.length ? t("devices.previously", { names: former.join(", ") }) : null;
       const second = pane ? [d.area, prev || deviceLine(d)].filter(Boolean).join(" · ") : prev || d.ieee;
-      // Phones hide the battery and signal columns, so they move into the second line instead of the IEEE address.
-      const phoneLine = d.status === "removed" ? esc(second) : [typeof d.battery === "number" ? bat : power ? esc(power) : null, lqi === null ? null : sigBars(lqi), st !== "active" || ["silent", "late"].includes(w?.kind) ? esc(relTime(d.last_seen)) : null].filter(Boolean).join('<span class="sep"></span>');
+      const seen = esc(relTime(d.last_seen)), seenTitle = esc(fmtDate(d.last_seen));
+      // Phones hide the battery, signal and last seen columns, so they move into the second line instead of the IEEE address.
+      const phoneLine = d.status === "removed" ? esc(second) : [typeof d.battery === "number" ? bat : power ? esc(power) : null, lqi === null ? null : sigBars(lqi), `<span title="${seenTitle}">${seen}</span>`].filter(Boolean).join('<span class="sep"></span>');
       return `<tr class="${st === "removed" ? "removed" : ""}" data-open="${esc(d.ieee)}" tabindex="0" aria-selected="${state.open === d.ieee}">
         <td class="ic-cell">${stateIc(d)}</td>
         <td><div class="name">${esc(nameOf(d) || t("devices.unnamed"))}${d.critical && d.status !== "removed" ? ` ${critTag()}` : ""}</div><div class="name-2 lg-only">${esc(second)}</div>${phoneLine ? `<div class="name-2 sm-only phone-line">${phoneLine}</div>` : ""}</td>
         <td class="cell-sub hide-sm col-area">${esc(d.area || "—")}</td>
         <td class="cell-sub hide-md col-model">${esc(deviceLine(d) || (d.oui_vendor ? t("devices.radio_of", { vendor: d.oui_vendor }) : t("common.unknown")))}</td>
-        <td><span class="st" style="--c:${statusC}">${esc(statusTxt)}</span></td>
+        <td><span class="st" style="--c:${statusC}">${esc(statusTxt)}</span><span class="st-seen muted" title="${seenTitle}">${seen}</span></td>
         <td class="num hide-sm">${bat}</td>
         <td class="num hide-md">${lqi === null ? '<span class="muted">—</span>' : sigBars(lqi)}</td>
-        <td class="cell-sub hide-md" title="${esc(fmtDate(d.last_seen))}">${esc(relTime(d.last_seen))}</td>
+        <td class="cell-sub hide-md" title="${seenTitle}">${seen}</td>
       </tr>`;
     }
     $("#view").innerHTML = `
@@ -1138,7 +1175,23 @@
     const nm = state.data.networkmap || {};
     const running = Object.values(nm).some((x) => x.running_since);
     const scans = scanLine(state.data.instances, nm);
-    const item = (i) => {
+    // The device's other issues, each with its own actions, so ignoring one leaves the rest.
+    // `said` holds issue kinds whose detail the cause line already gives, so it isn't repeated.
+    const alsoList = (rest, said = new Set()) => (rest.length ? `<div class="also-list">${rest.map((x) => `<div class="also"><span class="also-t">${th("health.also", { what: esc(said.has(x.kind) ? issueTitle(x) : `${issueTitle(x)} · ${issueDetail(x)}`) })}</span><span class="acts">${issueActions(x)}</span></div>`).join("")}</div>` : "");
+    // Only causes the data shows: a battery last seen nearly flat, or the router the device last talked through.
+    const nearlyFlat = (d) => isBattery(d) && typeof d.battery === "number" && d.battery <= 10;
+    const offlineCause = (d) => {
+      if (nearlyFlat(d)) return t("health.cause_battery", { n: Math.round(d.battery) });
+      const p = d.routing?.parent?.ieee && state.byIeee.get(d.routing.parent.ieee);
+      if (!p) return null;
+      return p.type === "Coordinator" ? t("health.cause_coordinator") : nameOf(p) ? t("health.cause_router", { name: nameOf(p) }) : null;
+    };
+    const offlineActs = (d) => {
+      const panel = d.status !== "removed" && state.data.panels?.[d.instance];
+      return `${canReplace(d) ? `<button class="btn" data-act="replace" data-ieee="${esc(d.ieee)}">${th("replace.button")}</button>` : ""}${panel ? `<a class="btn" href="${esc(panel)}" target="_top">${th("health.open_z2m")}</a>` : ""}`;
+    };
+    const item = (g) => {
+      const [i, ...rest] = g;
       const d = state.byIeee.get(i.ieee);
       const tone = i.severity !== "warning" ? "var(--info)" : severe(i, d) ? "var(--error)" : "var(--warning)";
       if (isNetIssue(i)) {
@@ -1150,13 +1203,15 @@
           <div class="acts">${close}${panel ? `<a class="btn" href="${esc(panel)}" target="_top">${th("health.open_z2m")}</a>` : ""}</div></div>`;
       }
       const kids = i.devices?.length ? issues.filter((x) => x.behind === i.ieee && nestedIssue(x, keys)) : [];
-      if (kids.length) return routerItem(i, d, kids);
-      return `<div class="row"><span class="state-ic" style="color:${tone}">${ic(KIND_ICON[i.kind] || "alert")}</span>
-        <button type="button" class="text row-open open-btn" data-open="${esc(i.ieee)}"><span class="t1">${esc(issueTitle(i))}: ${esc(issueName(i))}${i.critical ? ` ${critTag()}` : ""}</span><span class="t2">${esc(issueDetail(i))}${d?.area ? ` · ${esc(d.area)}` : ""}</span></button>
-        <div class="acts">${issueActions(i)}</div></div>`;
+      if (kids.length) return routerItem(i, d, kids, rest);
+      const off = i.kind === "offline" && d;
+      const cause = off ? offlineCause(d) : null;
+      return `<div class="row${rest.length ? " has-members" : ""}${off ? " triage" : ""}"><span class="state-ic" style="color:${tone}">${ic(KIND_ICON[i.kind] || "alert")}</span>
+        <button type="button" class="text row-open open-btn" data-open="${esc(i.ieee)}"><span class="t1">${esc(issueTitle(i))}: ${esc(issueName(i))}${i.critical ? ` ${critTag()}` : ""}</span><span class="t2">${esc(issueDetail(i))}${d?.area ? ` · ${esc(d.area)}` : ""}</span>${cause ? `<span class="t2 cause">${esc(cause)}</span>` : ""}</button>
+        <div class="acts">${off ? offlineActs(d) : ""}${issueActions(i)}</div></div>${alsoList(rest, off && nearlyFlat(d) ? new Set(["battery_low"]) : undefined)}`;
     };
     // A router that is offline with devices behind it: one row, and the devices listed under it on demand.
-    const routerItem = (i, d, kids) => {
+    const routerItem = (i, d, kids, rest = []) => {
       const open = state.openGroups.has(i.ieee);
       const line = [typeLabel(d?.type || "Router"), t("health.offline_for", { duration: issueVars(i).duration }), netLabel(i.instance), d?.area].filter(Boolean).join(" · ");
       const kid = (x) => {
@@ -1164,24 +1219,25 @@
         return `<button type="button" class="row click open-btn" data-open="${esc(x.ieee)}"><span class="state-ic off">${ic(k ? kindIcon(k) : "zigbee", "s20")}</span>
           <span class="text"><span class="t1">${esc(x.name)}</span><span class="t2">${esc(cap(t("health.offline_for", { duration: issueVars(x).duration })))}${k?.area ? ` · ${esc(k.area)}` : ""}</span></span></button>`;
       };
-      return `<div class="row"><span class="state-ic bad">${ic("router-wireless")}</span>
+      return `<div class="row${rest.length ? " has-members" : ""}"><span class="state-ic bad">${ic("router-wireless")}</span>
         <button type="button" class="text row-open open-btn" data-open="${esc(i.ieee)}"><span class="t1">${th("health.router_down", { n: kids.length, name: `<b style="font-weight:500">${esc(i.name)}</b>` })}</span><span class="t2">${esc(line)}</span></button>
-        <div class="acts"><button class="btn" data-act="toggle-group" data-ieee="${esc(i.ieee)}" aria-expanded="${open}">${open ? th("health.hide_devices") : th("health.show_devices", { n: kids.length })}</button>${issueActions(i)}</div></div>
+        <div class="acts"><button class="btn" data-act="toggle-group" data-ieee="${esc(i.ieee)}" aria-expanded="${open}">${open ? th("health.hide_devices") : th("health.show_devices", { n: kids.length })}</button>${issueActions(i)}</div></div>${alsoList(rest)}
         ${open ? `<div class="group-list">${kids.map(kid).join("")}</div>` : ""}`;
     };
     const keys = new Set(issues.map((i) => i.key));
     // Firmware updates live on the Updates tab; listing them here too counted them twice.
-    const own = healthIssues(issues);
-    const warn = own.filter((i) => i.severity === "warning"), info = own.filter((i) => i.severity !== "warning");
+    const own = healthRows(issues);
+    const warn = own.filter((g) => g[0].severity === "warning"), info = own.filter((g) => g[0].severity !== "warning");
+    const warnIssues = warn.reduce((n, g) => n + g.length, 0);
     // Problems come first: on a phone the status cards below would push them several screens down.
     // Severe warnings (offline, battery nearly flat) lead the list.
-    warn.sort((a, b) => Number(severe(b)) - Number(severe(a)));
+    warn.sort((a, b) => Number(severe(b[0])) - Number(severe(a[0])));
     $("#view").innerHTML = `
       ${warn.length ? `<h2 class="section-title">${th("health.needs_attention")} <span>${warn.length}</span></h2><div class="card">${warn.map(item).join("")}</div>` : ""}
       ${info.length ? `<h2 class="section-title">${th("health.worth_a_look")} <span>${info.length}</span></h2><div class="card">${info.map(item).join("")}</div>` : ""}
       ${!own.length ? `<div class="card">${emptyState("check", th("health.all_clear"), th("health.all_clear_text"))}</div>` : ""}
       <div class="card">
-        <div class="card-header">${ic("heart-pulse")}<div><h2 class="ch">${th("health.title")}</h2><small>${warn.length ? th("health.summary", { warn: warn.length, n: info.length }) : own.length ? th("health.to_review", { n: info.length }) : th("health.nothing")}</small></div></div>
+        <div class="card-header">${ic("heart-pulse")}<div><h2 class="ch">${th("health.title")}</h2><small>${warn.length ? th(warnIssues > warn.length ? "health.summary_issues" : "health.summary", { warn: warn.length, issues: warnIssues, n: info.length }) : own.length ? th("health.to_review", { n: info.length }) : th("health.nothing")}</small></div></div>
         <div class="info-grid">
           <div><small>${th("health.alerts")}</small><b>${o.alerts_enabled === false ? th("health.alerts_off") : esc([o.persistent_notifications ? t("health.ha_notifications") : null, o.notify_service || null].filter(Boolean).join(", ")) || th("health.event_only")}</b></div>
           <div><small>${th("health.thresholds")}</small><b>${th("health.thresholds_line", { offline: esc(o.offline_alert_minutes), frozen: esc(o.frozen_alert_hours), battery: esc(o.battery_alert_percent) })}</b></div>
@@ -1278,7 +1334,7 @@
     return `<div class="card"><div class="card-header">${ic("signal")}<div><h2 class="ch">${th("radio.title")}</h2><small>${th("radio.subtitle", { zigbee: esc([...new Set(r.networks.map((n) => n.channel))].join(", ")), wifi: r.wifi.length ? esc(r.wifi.join(", ")) : th("radio.not_set") })}</small></div></div>
       <div class="chart-wrap"><svg class="spectrum" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t("radio.chart"))}">${wifiBands}${ticks}<text x="10" y="118" class="axis">2400 MHz</text><text x="${W - 10}" y="118" text-anchor="end" class="axis">2485 MHz</text></svg></div>
       ${hoursChart()}
-      <div class="advice">${r.findings.map((f) => `<div class="adv"><span class="state-ic" style="color:${f.sev >= 2 ? "var(--warning)" : f.sev === 1 ? "var(--info)" : "var(--success)"}">${ic(f.sev ? "alert" : "check")}</span><div class="text">${esc(findingText(f))}</div></div>`).join("")}</div>
+      <div class="advice">${r.findings.map((f) => { const unchecked = f.msg === "clear_no_wifi"; return `<div class="adv"><span class="state-ic" style="color:${f.sev >= 2 ? "var(--warning)" : f.sev === 1 || unchecked ? "var(--info)" : "var(--success)"}">${ic(unchecked ? "information-outline" : f.sev ? "alert" : "check")}</span><div class="text">${esc(findingText(f))}</div></div>`; }).join("")}</div>
       <div class="card-actions"><button class="btn" data-view="settings">${th("radio.edit_wifi")}</button></div></div>`;
   };
 
@@ -1997,7 +2053,11 @@
   const renderSettings = async (refetch = true) => {
     if (refetch || !state.settings) {
       if (!state.settings) $("#view").innerHTML = `<div class="card">${emptyState("cog", th("settings.loading"), "")}</div>`;
-      try { state.settings = await api("api/settings"); } catch (err) { $("#view").innerHTML = `<div class="card">${emptyState("alert-circle", th("settings.load_failed"), esc(err.message))}</div>`; return; }
+      try { state.settings = await api("api/settings"); } catch (err) {
+        if (state.view !== "settings") return;
+        $("#view").innerHTML = `<div class="card">${emptyState("alert-circle", th("settings.load_failed"), `<p>${th("settings.load_failed_text")}</p><button class="btn filled" data-act="settings-retry">${ic("refresh", "s18")}${th("ota.retry")}</button><p class="err-detail">${esc(err.message)}</p>`)}</div>`;
+        return;
+      }
     }
     if (state.view !== "settings") return;
     const S = state.settings, s = S.settings;
@@ -2082,6 +2142,16 @@
     });
     $("#view").prepend(nav);
     fadeEdges();
+  };
+  // An out-of-range number goes back to the saved value, with a note under the field saying why.
+  // The note stays until the next save re-renders the view, so it can't be missed like a snackbar.
+  const rangeError = (el, old) => {
+    el.value = old;
+    const row = el.closest(".set-row"), id = `${el.dataset.num || el.id}-err`;
+    let msg = row.querySelector(".field-err");
+    if (!msg) { msg = document.createElement("div"); msg.className = "field-err"; msg.id = id; msg.setAttribute("role", "alert"); row.querySelector(".text").append(msg); }
+    msg.textContent = t("settings.number_reverted", { min: el.min, max: el.max, old });
+    el.setAttribute("aria-describedby", id); el.setAttribute("aria-invalid", "true");
   };
   const saveSettings = async (changes) => {
     try {
@@ -2229,6 +2299,33 @@
       ${slow ? `<div class="alerts"><div class="alert" style="--a:${slow.severity === "warning" ? "var(--warning)" : "var(--info)"}">${ic("router-wireless")}<div class="body">${esc(issueDetail(slow))}</div></div></div>` : ""}`;
   };
 
+  // The Info tab shows the one action that fixes the device's current state as the filled button,
+  // a second fitting action if there is one, and puts every other action in the More menu.
+  const infoActions = (d) => {
+    const gone = d.status === "removed", id = esc(d.ieee);
+    const lowBat = typeof d.battery === "number" && (d.issues || []).some((i) => i.kind === "battery_low");
+    const z2m = state.data.panels?.[d.instance];
+    const all = [
+      !gone && statusOf(d) !== "offline" && { k: "reconfigure", a: `data-act="reconfigure" data-ieee="${id}"`, i: "refresh", l: th("common.reconfigure") },
+      !gone && { k: "rename", a: 'data-act="rename"', i: "pencil", l: th("more.rename") },
+      lowBat && { k: "battery", a: 'data-act="battery-replaced"', i: "battery-sync", l: th("battery.replaced") },
+      d.can_ping && { k: "ping", a: `data-act="ping" data-ieee="${id}" ${PING.get(d.ieee)?.busy ? "disabled" : ""}`, i: "refresh", l: th("ping.button") },
+      canReplace(d) && { k: "replace", a: `data-act="replace" data-ieee="${id}"`, i: "swap-horizontal", l: th("replace.button") },
+      !gone && d.type === "EndDevice" && { k: "move", a: `data-act="move" data-ieee="${id}"`, i: "swap-horizontal", l: th("more.change_router") },
+      d.model && d.supported !== false && { href: `https://www.zigbee2mqtt.io/devices/${encodeURIComponent(String(d.model).replace(/\//g, "_"))}.html" target="_blank" rel="noopener`, i: "information-outline", l: th("more.docs") },
+      d.ha_device_id && { href: `/config/devices/device/${esc(d.ha_device_id)}" target="_top`, i: "home-assistant", l: th("more.device_page") },
+      z2m && !gone && { href: `${esc(z2m)}" target="_top`, i: "zigbee", l: "Zigbee2MQTT" },
+    ].filter(Boolean);
+    const lead = ["replace", "battery", "rename"].map((k) => all.find((x) => x.k === k)).filter(Boolean);
+    const shown = lead.slice(0, 2), rest = all.filter((x) => !shown.includes(x));
+    if (rest.length === 1) shown.push(rest.pop());
+    const el = (x, cls, extra = "") => x.href ? `<a class="${cls}" href="${x.href}" ${extra}>${ic(x.i, "s18")}${x.l}</a>` : `<button class="${cls}" ${x.a} ${extra}>${ic(x.i, "s18")}${x.l}</button>`;
+    if (!shown.length && !rest.length) return "";
+    return `<div class="more-actions">${shown.map((x, n) => el(x, !n && lead.includes(x) ? "btn filled" : "btn outlined")).join("")}
+      ${rest.length ? `<span class="dev-more"><button class="btn" data-act="dev-more" aria-haspopup="menu" aria-expanded="false">${ic("dots-vertical", "s18")}${th("more.more")}</button>
+        <span class="menu" role="menu" hidden>${rest.map((x) => el(x, "", 'role="menuitem" tabindex="-1"')).join("")}</span></span>` : ""}</div>`;
+  };
+
   const tabInfo = (d) => {
     const st = statusOf(d);
     const u = d.update || {};
@@ -2236,24 +2333,17 @@
     const lqi = lqiOf(d), power = powerOf(d);
     const bigState = st !== "active" ? STATUS[st].label : warnings(d)[0] ? issueLabel(warnings(d)[0]) : STATUS.active.label;
     const o = state.data.options || {};
+    const alerts = (d.issues || []).map((i) => `<div class="alert" style="--a:${i.severity !== "warning" ? "var(--info)" : severe(i, d) ? "var(--error)" : "var(--warning)"}">${ic(KIND_ICON[i.kind] || "alert")}<div class="body"><b>${esc(issueTitle(i))}.</b> ${esc(issueDetail(i))}</div><div class="alert-acts">${issueActions(i)}</div></div>`).join("")
+      + (st === "removed" ? `<div class="alert" style="--a:var(--text-2)">${ic("information-outline")}<div class="body"><b>${th("more.removed")}</b> ${d.removed_at ? th("more.removed_on", { date: esc(fmtDate(d.removed_at)) }) : th("more.removed_no_date")}.${d.successor ? ` ${th("more.replaced_by", { device: devLink(d.successor) })}.` : ""}</div></div>` : "");
     return `
       <div class="more-hero">${stateIc(d)}<div class="big">${esc(bigState)}</div><div class="sub">${th("more.last_seen", { when: esc(relTime(d.last_seen, true)) })}</div></div>
-      <div class="more-actions">
-        ${d.status !== "removed" ? `<button class="btn outlined" data-act="reconfigure" data-ieee="${esc(d.ieee)}">${ic("refresh", "s18")}${th("common.reconfigure")}</button><button class="btn outlined" data-act="rename">${ic("pencil", "s18")}${th("more.rename")}</button>` : ""}
-        ${d.can_ping ? `<button class="btn outlined" data-act="ping" data-ieee="${esc(d.ieee)}" ${PING.get(d.ieee)?.busy ? "disabled" : ""}>${ic("refresh", "s18")}${th("ping.button")}</button>` : ""}
-        ${canReplace(d) ? `<button class="btn outlined" data-act="replace" data-ieee="${esc(d.ieee)}">${ic("swap-horizontal", "s18")}${th("replace.button")}</button>` : ""}
-        ${d.status !== "removed" && d.type === "EndDevice" ? `<button class="btn outlined" data-act="move" data-ieee="${esc(d.ieee)}">${ic("swap-horizontal", "s18")}${th("more.change_router")}</button>` : ""}
-        ${d.model && d.supported !== false ? `<a class="btn outlined" href="https://www.zigbee2mqtt.io/devices/${encodeURIComponent(String(d.model).replace(/\//g, "_"))}.html" target="_blank" rel="noopener">${ic("information-outline", "s18")}${th("more.docs")}</a>` : ""}
-        ${d.ha_device_id ? `<a class="btn outlined" href="/config/devices/device/${esc(d.ha_device_id)}" target="_top">${ic("home-assistant", "s18")}${th("more.device_page")}</a>` : ""}
-        ${state.data.panels?.[d.instance] && d.status !== "removed" ? `<a class="btn outlined" href="${esc(state.data.panels[d.instance])}" target="_top">${ic("zigbee", "s18")}Zigbee2MQTT</a>` : ""}
-      </div>
+      ${alerts ? `<div class="alerts">${alerts}</div>` : ""}
+      ${infoActions(d)}
       ${d.status !== "removed" ? `<div class="set-row"><div class="text"><div class="t1">${th("more.critical")}</div><div class="t2">${th("more.critical_desc", { minutes: esc(o.critical_offline_minutes ?? 5), normal: esc(o.offline_alert_minutes ?? 60) })}</div></div>
         <label class="switch"><input type="checkbox" id="critSw" data-ieee="${esc(d.ieee)}" ${d.critical ? "checked" : ""} aria-label="${esc(t("more.critical"))}"><span class="track"></span><span class="thumb"></span></label></div>` : ""}
       ${pingResult(d)}
       ${u.state === "updating" ? `<div class="alerts"><div class="alert" style="--a:var(--info)">${ic("chip")}<div class="body"><b>${th("more.updating")}${u.progress !== undefined && u.progress !== null ? ` · ${Math.round(u.progress)} %` : ""}</b>${u.remaining ? ` · ${th("more.time_left", { duration: esc(span(u.remaining)) })}` : ""}. ${th("more.keep_powered")}<div class="bar"><i style="width:${Math.max(2, Math.min(100, u.progress || 0))}%"></i></div></div></div></div>` : ""}
       ${u.state === "available" && d.status !== "removed" ? `<div class="alerts"><div class="alert" style="--a:var(--info)">${ic("chip")}<div class="body"><b>${th("issue.update.title")}</b> · ${esc(u.installed_version)} → ${esc(u.latest_version)}</div><button class="btn" data-act="ota-update">${th("common.update")}</button></div></div>` : ""}
-      <div class="alerts">${(d.issues || []).map((i) => `<div class="alert" style="--a:${i.severity === "warning" ? "var(--warning)" : "var(--info)"}">${ic(KIND_ICON[i.kind] || "alert")}<div class="body"><b>${esc(issueTitle(i))}.</b> ${esc(issueDetail(i))}</div><div class="alert-acts">${issueActions(i)}</div></div>`).join("")}
-        ${st === "removed" ? `<div class="alert" style="--a:var(--text-2)">${ic("information-outline")}<div class="body"><b>${th("more.removed")}</b> ${d.removed_at ? th("more.removed_on", { date: esc(fmtDate(d.removed_at)) }) : th("more.removed_no_date")}.${d.successor ? ` ${th("more.replaced_by", { device: devLink(d.successor) })}.` : ""}</div></div>` : ""}</div>
       ${kv([[th("devices.col.model"), deviceLine(d) || t("common.unknown")], [th("more.description"), d.description], [th("devices.col.area"), d.area], [th("more.network"), netLabel(d.instance)], [th("more.signal_24h"), lqi === null ? null : Math.round(lqi)],
         [th("devices.col.battery"), typeof d.battery === "number" ? `${Math.round(d.battery)} %` : power], [th("more.first_seen"), fmtDate(d.first_seen) || t("common.unknown")], [th("devices.col.last_seen"), fmtDate(d.last_seen) || t("time.never")],
         [th("more.availability"), d.availability ? t("more.availability_since", { state: tx(`more.availability.${d.availability}`, null, cap(d.availability)), date: fmtDate(d.availability_since) }) : null], [th("more.ieee"), d.ieee, true], [th("more.model_id"), d.model_id, true], [th("more.manufacturer"), d.manufacturer, true],
@@ -2726,7 +2816,7 @@
     const fk = focusKey(document.activeElement);
     const issues = ownIssues(state.data.issues || []);
     // The badge is the "Needs attention" count Health opens on, so the two always match.
-    const warn = healthIssues(issues).filter((i) => i.severity === "warning").length;
+    const warn = healthRows(issues).filter((g) => g[0].severity === "warning").length;
     const badge = $("#issueBadge"); badge.textContent = warn; badge.classList.toggle("warn", warn > 0);
     const otaCount = otaList().filter((d) => d.update?.state === "available" || d.update?.state === "updating").length;
     $("#otaBadge").textContent = otaCount; $("#otaBadge").hidden = !otaCount;
@@ -2885,6 +2975,7 @@
     async "save-wifi"() { await saveSettings({ wifi_channels: $("#wifiCh").value.trim() }); },
     async "send-summary"() { try { const r = await api("api/summary", {}); snack(r.title, 4000); } catch (err) { snack(err.message); } },
     restore() { $("#restoreFile").click(); },
+    "settings-retry"(b) { b.disabled = true; renderSettings(); },
     async unmute(b) { try { await api("api/mute", { ieee: b.dataset.ieee, kind: b.dataset.kind, muted: false }); snack(t("snack.unmuted")); if (state.view === "settings") await renderSettings(); load(); } catch (err) { snack(err.message); } },
     async "unmute-all"() { for (const m of state.settings?.muted || []) { try { await api("api/mute", { ieee: m.ieee, kind: m.kind, muted: false }); } catch (e) { /* keep going */ } } snack(t("snack.unmuted_all")); await renderSettings(); load(); },
     async "bindings-ack"(b) { try { await api("api/bindings/ack", { ieee: b.dataset.ieee }); snack(t("snack.bindings_dismissed")); load(); } catch (err) { snack(err.message); } },
@@ -2921,6 +3012,13 @@
       try { await api("api/limits", { ieee: state.open, battery_percent: null, frozen_hours: null }); state.editing = false; snack(t("common.saved")); load(); } catch (err) { snack(err.message); }
     },
     async "save-battery"() { const info = Object.fromEntries(new FormData($("#batForm")).entries()); try { await api("api/battery", { ieee: state.open, info }); flash("#savedBat"); state.editing = false; load(); } catch (err) { snack(err.message); } },
+    "dev-more"(b) {
+      const m = b.nextElementSibling;
+      if (!m.hidden) { closeDevMenu(true); return; }
+      m.hidden = false; b.setAttribute("aria-expanded", "true"); state.editing = true;
+      devMenuItems(m)[0]?.focus();
+      m.scrollIntoView({ block: "nearest" });
+    },
     async "battery-replaced"() {
       const ieee = state.open, d = state.byIeee.get(ieee);
       const ok = await confirmDialog({ title: t("battery.replaced"), ok: t("common.save"),
@@ -3071,7 +3169,7 @@
       otaSave({ ota_window: on ? `${from}-${to}` : "" });
     } else if (id === "otaBat") {
       const v = Number(e.target.value);
-      if (!Number.isFinite(v) || v < 0 || v > 100) { snack(t("settings.number_range", { min: 0, max: 100 })); return; }
+      if (!Number.isFinite(v) || v < 0 || v > 100) { rangeError(e.target, state.ota?.min_battery ?? 30); return; }
       otaSave({ ota_min_battery: Math.round(v) });
     }
   });
@@ -3082,9 +3180,15 @@
       loadOta();
     },
     async "ota-update-all"() {
-      const n = otaList().filter((d) => d.update?.state === "available" && !state.ota?.status?.[d.ieee] && !state.ota?.battery_blocked?.[d.ieee]).length;
+      const avail = otaList().filter((d) => d.update?.state === "available" && !state.ota?.status?.[d.ieee]);
+      const go = avail.filter((d) => !state.ota?.battery_blocked?.[d.ieee]), low = avail.filter((d) => state.ota?.battery_blocked?.[d.ieee]);
+      const n = go.length, name = (d) => esc(nameOf(d) || d.ieee);
+      // Each update takes 10 to 60 minutes and they run one at a time, so the total is n times that.
+      const total = n === 1 ? t("ota.total_one") : n < 6 ? t("ota.total_mixed", { from: n * 10, to: n }) : t("ota.total_hours", { from: Math.round(n / 6), to: n });
       const ok = await confirmDialog({ title: t("ota.update_n_title", { n }), ok: t("ota.update_all"),
-        html: `<p>${th("ota.update_all_text")}</p><p>${th("ota.update_all_battery", { pct: esc(state.ota?.min_battery ?? 30) })}</p>` });
+        html: `<div class="facts">${go.slice(0, 8).map(name).join("<br>")}${n > 8 ? `<br><span class="muted">${th("ota.and_more", { n: n - 8 })}</span>` : ""}</div>
+          <p>${th("ota.update_all_total", { total: esc(total) })} ${th("ota.update_all_text")}</p>
+          <p>${low.length ? th("ota.update_all_skipped", { n: low.length, pct: esc(state.ota?.min_battery ?? 30), names: esc(listFmt.format(low.map((d) => nameOf(d) || d.ieee))) }) : th("ota.update_all_battery", { pct: esc(state.ota?.min_battery ?? 30) })}</p>` });
       if (!ok) return;
       try { const r = await api("api/ota/queue", { all: true }); snack(r.skipped.length ? t("ota.queued_skipped", { queued: r.queued.length, skipped: r.skipped.length }) : t("ota.queued_n", { queued: r.queued.length })); } catch (err) { snack(err.message, 5000); }
       load();
@@ -3379,8 +3483,30 @@
     e.preventDefault();
     items[(next + items.length) % items.length].focus();
   });
+  // The device panel's More menu. Picking an item, clicking elsewhere, Tab or Escape closes it.
+  const closeDevMenu = (refocus = false) => {
+    const m = document.querySelector(".dev-more .menu:not([hidden])");
+    if (!m) return;
+    const b = m.previousElementSibling;
+    m.hidden = true; b.setAttribute("aria-expanded", "false"); state.editing = false;
+    if (refocus) b.focus();
+  };
+  const devMenuItems = (m) => [...m.querySelectorAll('[role="menuitem"]:not(:disabled)')];
+  document.addEventListener("keydown", (e) => {
+    const m = e.target.closest?.(".dev-more")?.querySelector(".menu:not([hidden])");
+    if (!m) return;
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeDevMenu(true); return; }
+    if (e.key === "Tab") { closeDevMenu(); return; }
+    const items = devMenuItems(m), i = items.indexOf(document.activeElement);
+    const next = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: items.length - 1 }[e.key];
+    if (next === undefined) return;
+    e.preventDefault(); e.stopPropagation();
+    items[(next + items.length) % items.length]?.focus();
+  }, true);
   document.addEventListener("click", (e) => {
     if (!menu.hidden && !e.target.closest("#menu")) closeMenu();
+    if (!e.target.closest(".dev-more")) closeDevMenu();
+    else if (e.target.closest('.dev-more [role="menuitem"]')) closeDevMenu(true);
     const mz = e.target.closest("[data-mapzoom]"); if (mz) { MAP.sims[mz.dataset.net]?.zoom(Number(mz.dataset.mapzoom)); return; }
     const mr = e.target.closest("[data-mapreset]"); if (mr) { MAP.sims[mr.dataset.mapreset]?.reset(); return; }
     const mo = e.target.closest("[data-mapopts]"); if (mo) { const bt = mo.dataset.mapopts; MAP.opts[bt] = mo.getAttribute("aria-expanded") !== "true"; renderMap(true); return; }
@@ -3448,7 +3574,7 @@
     if (el.dataset.set) saveSettings({ [el.dataset.set]: el.checked });
     else if (el.dataset.num) {
       const v = Number(el.value);
-      if (!Number.isFinite(v) || v < Number(el.min) || v > Number(el.max)) { snack(t("settings.number_range", { min: el.min, max: el.max })); el.value = state.settings.settings[el.dataset.num]; return; }
+      if (!Number.isFinite(v) || v < Number(el.min) || v > Number(el.max)) { rangeError(el, state.settings.settings[el.dataset.num]); return; }
       saveSettings({ [el.dataset.num]: Math.round(v) });
     } else if (el.id === "scanHour") saveSettings({ networkmap_hour: Number(el.value) });
     else if (el.id === "themeSel") { theme = el.value; store.set("z2mt.theme", theme); applyTheme(); }
@@ -3459,7 +3585,7 @@
     else if (el.id === "restoreFile" && el.files?.[0]) {
       const file = el.files[0];
       el.value = "";
-      confirmDialog({ title: t("restore.title"), ok: t("common.restore"), danger: true, html: `<p>${th("restore.text", { file: `<b>${esc(file.name)}</b>` })}</p>` }).then(async (ok) => {
+      confirmDialog({ title: t("restore.title"), ok: t("common.restore"), danger: true, html: `<p>${th("restore.text", { file: `<b>${esc(file.name)}</b>` })}</p><p>${th("restore.save_first")}</p><a class="btn outlined" href="api/backup" download>${ic("download", "s18")}${th("restore.download_current")}</a>` }).then(async (ok) => {
         if (!ok) return;
         try { const body = JSON.parse(await file.text()); const r = await api("api/restore", body); snack(t("restore.done", { devices: r.devices, events: r.events }), 4000); load(); }
         catch (err) { snack(err instanceof SyntaxError ? t("restore.bad_json") : err.message, 5000); }
