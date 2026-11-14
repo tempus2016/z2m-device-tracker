@@ -1,7 +1,8 @@
 #!/usr/bin/with-contenv bashio
 set -e
 
-if bashio::services.available "mqtt"; then
+# Asked directly: bashio::services.available logs "Service not enabled" as an error when there is no broker.
+if curl -fs -o /dev/null -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" http://supervisor/services/mqtt; then
     export MQTT_HOST="$(bashio::services mqtt 'host')"
     export MQTT_PORT="$(bashio::services mqtt 'port')"
     export MQTT_USER="$(bashio::services mqtt 'username')"
