@@ -25,6 +25,7 @@ from discovery import BASE as DISCOVERY_BASE
 from ha import HomeAssistant
 from health import CHECKS, DEFAULT_NOTIFY, alert_title, mutes_of, nested, notify_kinds, offer_new_kinds
 from metrics import Metrics
+from mqtt_status import NOTIFICATION_ID, NOTIFICATION_TITLE, MqttStatus, explain_error, explain_refusal, probe
 from ota import OtaManager, parse_window
 from tracker import Tracker, shopping_text
 from tracker import _display_name as tracker_display_name
@@ -405,10 +406,19 @@ tracker.on_event = alerts.on_event
 # ---------------------------------------------------------------------- MQTT
 
 
+MQTT_HOST = os.environ.get("MQTT_HOST") or "core-mosquitto"
+MQTT_PORT = int(os.environ.get("MQTT_PORT") or 1883)
+mqtt_status = MqttStatus(MQTT_HOST, MQTT_PORT, configured=bool(os.environ.get("MQTT_HOST")))
+
+
 def on_connect(client, userdata, flags, reason_code, properties):
     if reason_code.is_failure:
-        _LOGGER.error("MQTT connect failed: %s", reason_code)
+        line = mqtt_status.failed(explain_refusal(str(reason_code)), refused=True)
+        if line:
+            _LOGGER.error("MQTT: %s", line)
         return
+    if mqtt_status.up():
+        alerts.queue.put(lambda: home_assistant.dismiss_notification(NOTIFICATION_ID))
     _LOGGER.info("Connected to MQTT, subscribing to %s", ", ".join(f"{topic}/#" for topic in base_topics))
     client.subscribe(
         [(f"{topic}/#", 0) for topic in base_topics]
@@ -419,8 +429,32 @@ def on_connect(client, userdata, flags, reason_code, properties):
 
 
 def on_disconnect(client, userdata, flags, reason_code, properties):
-    if not stop_event.is_set():
-        _LOGGER.warning("MQTT disconnected (%s), reconnecting", reason_code)
+    if stop_event.is_set():
+        return
+    if not mqtt_status.connected:
+        # Dropped before the broker accepted us: a failed attempt, not a lost connection.
+        # After a refusal, on_connect has already said why.
+        if not mqtt_status.refused:
+            on_connect_fail(client, userdata)
+        return
+    mqtt_status.lost()
+    _LOGGER.warning("MQTT disconnected (%s), reconnecting", reason_code)
+
+
+def on_connect_fail(client, userdata):
+    """paho retries on its own but doesn't say why; probe the broker to find out."""
+    if stop_event.is_set():
+        return
+    line = mqtt_status.failed(explain_error(probe(MQTT_HOST, MQTT_PORT), MQTT_HOST, MQTT_PORT))
+    if line:
+        _LOGGER.error("MQTT: %s Retrying.", line)
+
+
+def check_mqtt() -> None:
+    """Tell Home Assistant when the broker has been unreachable for a while."""
+    message = mqtt_status.notification_due()
+    if message and options.get("persistent_notifications"):
+        alerts.queue.put(lambda: home_assistant.persistent_notification(NOTIFICATION_TITLE, message, NOTIFICATION_ID))
 
 
 def on_message(client, userdata, message):
@@ -455,13 +489,14 @@ def start_mqtt() -> mqtt.Client:
         client.tls_insecure_set(True)
     client.on_connect = on_connect
     client.on_disconnect = on_disconnect
+    client.on_connect_fail = on_connect_fail
     client.on_message = on_message
     client.reconnect_delay_set(min_delay=1, max_delay=60)
     client.will_set(AVAILABILITY, "offline", qos=1, retain=True)
     discovery.publish = lambda topic, payload, retain: client.publish(topic, payload, qos=1, retain=retain)
-    host = os.environ.get("MQTT_HOST") or "core-mosquitto"
-    port = int(os.environ.get("MQTT_PORT") or 1883)
-    client.connect_async(host, port, keepalive=60)
+    if not mqtt_status.configured:
+        _LOGGER.error("MQTT: %s", mqtt_status.failed(""))
+    client.connect_async(MQTT_HOST, MQTT_PORT, keepalive=60)
     client.loop_start()
     tracker.publish = lambda topic, payload: client.publish(topic, json.dumps(payload), qos=0)
     return client
@@ -745,6 +780,7 @@ def scheduler() -> None:
     while not stop_event.wait(5):
         now = time.time()
         try:
+            check_mqtt()
             if now - last_save >= SAVE_INTERVAL:
                 tracker.save()
                 last_save = now
@@ -1234,11 +1270,16 @@ def main() -> None:
     try:
         server.serve_forever()
     finally:
-        client.publish(AVAILABILITY, "offline", qos=1, retain=True).wait_for_publish(2)
-        client.loop_stop()
-        client.disconnect()
+        # Save first: nothing below may stop the history reaching disk.
         tracker.save(force=True)
         metrics.save(force=True)
+        if client.is_connected():
+            try:
+                client.publish(AVAILABILITY, "offline", qos=1, retain=True).wait_for_publish(2)
+            except (RuntimeError, ValueError) as err:
+                _LOGGER.warning("Couldn't mark the tracker offline in MQTT: %s", err)
+        client.loop_stop()
+        client.disconnect()
         time.sleep(0.2)
 
 
