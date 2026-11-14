@@ -28,6 +28,9 @@ def test_unknown_host_points_at_mosquitto_app():
     text = explain_error(socket.gaierror(-2, "Name or service not known"), "core-mosquitto", 1883)
     assert "Can't find the MQTT broker 'core-mosquitto'" in text
     assert "Mosquitto broker app" in text
+    # The broker was set up when the app started, so it reconnects on its own: no restart needed.
+    assert "restart" not in text.lower()
+    assert "reconnects by itself" in text
 
 
 def test_refused_and_timeout_name_the_address():

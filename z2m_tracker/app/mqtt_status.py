@@ -32,8 +32,8 @@ def explain_error(err: Exception | None, host: str, port: int) -> str:
     where = f"{host}:{port}"
     if isinstance(err, socket.gaierror):
         return (
-            f"Can't find the MQTT broker '{host}'. Check the Mosquitto broker app is installed and started, "
-            "then restart this app."
+            f"Can't find the MQTT broker '{host}'. Check the Mosquitto broker app is installed and started. "
+            "This app reconnects by itself once it is."
         )
     if isinstance(err, ConnectionRefusedError):
         return f"Nothing is accepting connections at {where}. Check the Mosquitto broker app is started."
