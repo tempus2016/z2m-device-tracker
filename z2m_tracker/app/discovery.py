@@ -1,7 +1,9 @@
 """Publishes per-device entities to Home Assistant via MQTT discovery.
 
 Entities attach to the device Zigbee2MQTT already created (shared identifier
-"zigbee2mqtt_<ieee>"), so they show up on that device's page in HA.
+"zigbee2mqtt_<ieee>"), so they show up on that device's page in HA. They also
+carry the device's name, so the device is still named when Zigbee2MQTT's own
+HA discovery is off.
 """
 
 from __future__ import annotations
@@ -34,9 +36,14 @@ class Discovery:
     def _entities(self, record: dict, summary: dict, issues: list[dict]) -> dict[str, dict]:
         ieee = record["ieee"]
         state_topic = f"{BASE}/{ieee}"
+        device = {"identifiers": [f"zigbee2mqtt_{ieee}"]}
+        if record.get("friendly_name"):
+            # Same name Zigbee2MQTT gives the device. Without it, when Zigbee2MQTT's own HA discovery
+            # is off, HA creates a nameless device and names every entity after the MQTT broker.
+            device["name"] = record["friendly_name"]
         base = {
             "availability_topic": AVAILABILITY,
-            "device": {"identifiers": [f"zigbee2mqtt_{ieee}"]},
+            "device": device,
             "origin": {"name": "Z2M Device Tracker", "sw_version": self.version},
         }
 
