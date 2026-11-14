@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.3.0
+
+### Changed
+- Health shows one row per device, headed by its worst problem. Other problems sit under it ("Also: Low battery") with their own Ignore; Ignore on the row hides only the headline. Offline rows say the likely cause when the data shows it (a flat battery, or the router it last used) and offer Replace… and Open Zigbee2MQTT. The Health badge, the Needs attention count and the summary count rows.
+- The device panel puts the problem first: issue alerts under the status in their severity colour, then one main fix action and a More menu with the rest. Reconfigure is hidden while the device is offline.
+- Last seen stays visible: when its column is hidden (side pane open, tablet widths) the time joins the status cell, and every phone row ends with it.
+- The map is on the first screen on phones. Its help is a one-line "How the map works", the map options sit behind an Options button, and zoom controls are on the map's corner.
+- MQTT discovery includes each device's name, so the tracker's entities stay on properly named devices when Zigbee2MQTT's own Home Assistant discovery is off.
+
+### Fixed
+- The app explains MQTT connection problems in plain words (no broker set up, broker not found, nothing listening, no answer, login refused) and says what to do. Each problem is logged once, then at most every 10 minutes. After 2 minutes without a connection Home Assistant gets a notification, which clears when the app connects.
+- Stopping the app while it had no MQTT connection crashed before the final save, losing anything recorded since the last 30-second save. It now saves first.
+- No more "Service not enabled" errors in the log when the app starts without an MQTT broker.
+- With Zigbee2MQTT's Home Assistant discovery off, the tracker's entities were named after the MQTT broker (`binary_sensor.mosquitto_broker_needs_attention_6`).
+- The tab bar no longer sits about 34 px high inside the Home Assistant phone app.
+- Radio channels shows "not checked yet" instead of a green "No overlap" when no Wi-Fi channels are set.
+- Recovery steps at risky moments: a failed settings load offers Retry, the restore confirm offers to download the current data first, Update all lists the devices and the time it will take, and out-of-range settings show a note under the field.
+- Devices with no name are labelled "Unnamed device" on the routing map instead of a bare dot.
+
 ## 1.2.0
 
 ### Added
