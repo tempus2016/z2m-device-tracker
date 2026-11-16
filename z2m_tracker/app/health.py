@@ -201,6 +201,12 @@ CHECKS = [
         "Retained MQTT messages under an old device name, of a removed device, or Home Assistant discovery for a device no longer in Zigbee2MQTT.",
         False,
     ),
+    (
+        "retained_command",
+        "Retained command",
+        "A command (<name>/set) is retained on the broker, so the device repeats it every time the broker or Zigbee2MQTT restarts.",
+        False,
+    ),
     ("joined", "Device joined", "A device joins one of your networks.", True),
     ("left", "Device left", "A device leaves one of your networks.", True),
     ("interview_failed", "Interview failed", "A newly joined device couldn't be identified.", True),
@@ -250,6 +256,7 @@ KIND_LABELS = {
     "naming": "Naming",
     "firmware_note": "Firmware you noted",
     "stale_retained": "Stale retained messages",
+    "retained_command": "Retained command",
 }
 
 
@@ -951,6 +958,25 @@ def device_issues(
             ieee=suggestion["ieee"],
         )
         break
+
+    retained = summary.get("retained_commands") or []
+    if retained:
+        first = retained[0]
+        more = len(retained) - 1
+        add(
+            "retained_command",
+            WARNING,
+            "Retained command",
+            f"{first['topic']} holds {first['payload']}"
+            + (f" (and {more} more)" if more else "")
+            + ". The broker sends it again after every restart, so the device repeats it."
+            " Usually an automation or Node-RED flow that publishes with retain on.",
+            "retained_command",
+            topic=first["topic"],
+            payload=first["payload"],
+            n=len(retained),
+            topics=[r["topic"] for r in retained],
+        )
 
     return issues
 

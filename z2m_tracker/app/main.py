@@ -937,6 +937,21 @@ def clear_retained(topics: list[str]) -> dict:
     return {"ok": bool(cleared) or not refused, "cleared": cleared, "refused": refused}
 
 
+def clear_retained_commands(ieee: str) -> dict:
+    """Delete a device's retained /set topics from the broker with an empty retained message.
+    Only topics the broker replayed as retained commands for this device are touched."""
+    topics = tracker.retained_commands_of(ieee)
+    if not topics:
+        return {"ok": False, "error": "No retained command for this device", "cleared": []}
+    cleared = [topic for topic in topics if publish_retained is not None and publish_retained(topic)]
+    tracker.forget_retained_commands(cleared)
+    if cleared:
+        _LOGGER.info("Cleared retained command(s): %s", ", ".join(cleared))
+        tracker.evaluate_health()
+    ok = len(cleared) == len(topics)
+    return {"ok": ok, "topics": topics, "cleared": cleared, "error": None if ok else "MQTT is not connected"}
+
+
 # ------------------------------------------------------------------ threads
 
 
@@ -1881,6 +1896,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(
                     200 if started else 409, {"ok": started, "error": None if started else "A scan is already running"}
                 )
+            elif path == "/api/retained_command/clear":
+                result = clear_retained_commands(ieee)
+                self._json(200 if result["ok"] else 404 if "topics" not in result else 502, result)
             elif path == "/api/summary":
                 self._json(200, {"ok": True, **send_weekly_summary()})
             elif path == "/api/import":

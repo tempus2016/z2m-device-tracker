@@ -52,6 +52,7 @@ DEVICE_CHECKS = [
     "reporting_config",
     "naming",
     "firmware_note",
+    "retained_command",
 ]
 
 DEVICE_FIELDS = {

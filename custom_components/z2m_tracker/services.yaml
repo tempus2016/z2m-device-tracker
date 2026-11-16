@@ -59,6 +59,7 @@ mute_device:
             - reporting_config
             - naming
             - firmware_note
+            - retained_command
     duration:
       selector:
         duration:

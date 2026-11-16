@@ -261,7 +261,8 @@
         "missed_commands": "Misses commands",
         "reporting_config": "Reporting settings",
         "naming": "Name doesn't follow the pattern",
-        "firmware_note": "Firmware you noted"
+        "firmware_note": "Firmware you noted",
+        "retained_command": "Retained command"
       }
     }
   },

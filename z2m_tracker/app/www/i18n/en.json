@@ -2052,5 +2052,23 @@
   "leftover.none_text": "No Zigbee2MQTT devices are left behind in Home Assistant.",
   "settings.broker": "Broker",
   "settings.retained_autoclear": "Clear a device's old retained topics after a rename",
-  "settings.retained_autoclear_desc": "Otherwise they are listed on Network → Broker for you to clear."
+  "settings.retained_autoclear_desc": "Otherwise they are listed on Network → Broker for you to clear.",
+  "issue.label.retained_command": "Retained command",
+  "issue.retained_command.title": "Retained command",
+  "issue.retained_command.detail": {
+    "one": "{topic} holds {payload}. The broker sends it again after every restart, so the device repeats it. Usually an automation or Node-RED flow that publishes with retain on.",
+    "other": "{topic} holds {payload}, and {n} topics in all. The broker sends them again after every restart, so the device repeats them. Usually an automation or Node-RED flow that publishes with retain on."
+  },
+  "check.retained_command.label": "Retained command",
+  "check.retained_command.description": "A command (<name>/set) is retained on the broker, so the device repeats it every time the broker or Zigbee2MQTT restarts.",
+  "retcmd.clear": "Clear",
+  "retcmd.confirm_title": {
+    "one": "Clear the retained command?",
+    "other": "Clear {n} retained commands?"
+  },
+  "retcmd.confirm_text": "Publishes an empty retained message to each topic below, which deletes it from the broker. Nothing is sent to the device. If an automation keeps publishing it with retain on, it comes back: turn retain off there.",
+  "retcmd.cleared": {
+    "one": "Retained command cleared",
+    "other": "{n} retained commands cleared"
+  }
 }
