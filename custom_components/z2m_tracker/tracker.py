@@ -407,11 +407,15 @@ class Z2MTracker:
         await self.async_refresh_now()
 
     async def async_battery_replaced(
-        self, ieee: str | list[str], date: str | None = None, note: str = ""
+        self, ieee: str | list[str], date: str | None = None, note: str = "", brand: str = ""
     ) -> dict[str, Any]:
         """Record a battery change for one device or several; no date means today in the app's time zone."""
         ieees = [ieee] if isinstance(ieee, str) else ieee
-        extra = {**({"date": date} if date else {}), **({"note": note} if note else {})}
+        extra = {
+            **({"date": date} if date else {}),
+            **({"note": note} if note else {}),
+            **({"brand": brand} if brand else {}),
+        }
         result: dict[str, Any] = {}
         try:
             for one in ieees:

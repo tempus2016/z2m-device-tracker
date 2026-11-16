@@ -386,6 +386,19 @@
   .saved { color: var(--success); font-size: 13px; opacity: 0; transition: opacity 0.2s; }
   .saved.show { opacity: 1; }
   .rep-list { padding: 0 4px 8px; }
+  .rep-list .rep-acts { display: flex; flex-shrink: 0; }
+  .link-btn.manage-brands { margin: -4px 0 8px; }
+  .link-btn { background: none; border: 0; padding: 4px 0; font: inherit; font-size: 14px; color: var(--primary); cursor: pointer; text-decoration: underline; align-self: flex-start; }
+  .set-row.compact { min-height: 52px; padding-top: 4px; padding-bottom: 4px; }
+  .brand-type { padding: 12px 16px 0; font-size: 14px; font-weight: 500; color: var(--text-2); }
+  .brand-row { padding: 8px 16px; }
+  .brand-row:last-child { padding-bottom: 16px; }
+  .brand-row .top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .brand-row .top span { min-width: 0; overflow-wrap: anywhere; }
+  .brand-row .top b { white-space: nowrap; font-weight: 500; }
+  .brand-row .bar { height: 6px; border-radius: 3px; background: var(--divider); margin: 6px 0 4px; overflow: hidden; }
+  .brand-row .bar > i { display: block; height: 100%; border-radius: 3px; background: var(--primary); }
+  .brand-row .t2 { font-size: 13px; color: var(--text-2); }
   .rep-list > div { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 12px; }
   @media (hover: hover) and (pointer: fine) { .rep-list > div:hover { background: var(--hover); } }
   .hop { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--divider); }
@@ -1263,6 +1276,7 @@
       </div>
       ${coordinatorsCard()}
       ${shoppingCard()}
+      ${brandCard()}
       ${leftoverCard()}
       ${radioCard()}
       ${groupsCard()}
@@ -1491,6 +1505,39 @@
       </tbody></table></div>` : ""}
       <div class="stock-add"><input class="field" id="stockType" list="stockTypes" placeholder="${esc(t("shop.add_placeholder"))}" aria-label="${esc(t("battery.type"))}" maxlength="40" autocomplete="off"><input class="field num" id="stockN" type="number" min="1" max="999" value="1" aria-label="${esc(t("shop.add_count"))}"><button class="btn" data-act="stock-add">${ic("plus", "s18")}${th("shop.add")}</button>
         <datalist id="stockTypes">${types.map((x) => `<option value="${esc(x)}"></option>`).join("")}</datalist></div>
+    </div>`;
+  };
+
+  // Battery brands: the saved list (Settings > Battery brands) and the last one used per battery type (to prefill).
+  const brandList = () => state.data?.battery_brand_list || [];
+  const lastBrandFor = (type) => {
+    const last = state.data.battery_brands?.last_brand || {}, want = String(type || "Unknown type").toLowerCase();
+    const k = Object.keys(last).find((x) => x.toLowerCase() === want);
+    return k === undefined ? "" : last[k];
+  };
+  // keep: a brand already on the record stays selectable even when it has left the list, so saving doesn't clear it.
+  const brandField = (value, keep = false) => {
+    const list = brandList(), match = list.find((x) => x.toLowerCase() === String(value || "").toLowerCase());
+    const opts = [...list];
+    if (!match && value && keep) opts.unshift(value);
+    const sel = match || (keep ? value : "");
+    return `<label>${th("battery.brand")}<select class="field" id="cBrand"><option value="">${th("battery.no_brand")}</option>${opts.map((x) => `<option value="${esc(x)}" ${x === sel ? "selected" : ""}>${esc(x)}</option>`).join("")}</select></label>
+    <button class="link-btn manage-brands" type="button" data-act="manage-brands">${th("battery.manage_brands")}</button>`;
+  };
+  // Average life per brand and battery type, from batteries that ran out (change to next change on one device).
+  const brandCard = () => {
+    const types = state.data.battery_brands?.types || [];
+    if (!types.length) return "";
+    const row = (b, top) => {
+      const facts = [b.intervals ? t("brands.used_up", { n: b.intervals }) : null, b.in_use ? t("brands.in_use", { n: b.in_use }) : null];
+      if (b.average_days !== null && b.average_days !== undefined && b.shortest_days !== b.longest_days) facts.splice(1, 0, t("brands.range", { min: b.shortest_days, max: t("unit.days", { n: b.longest_days }) }));
+      const enough = b.average_days !== null && b.average_days !== undefined;
+      const pct = enough && top ? Math.max(4, Math.round((b.average_days / top) * 100)) : 0;
+      return `<div class="brand-row"><div class="top"><span>${esc(b.brand)}</span><b>${enough ? th("brands.average", { n: b.average_days }) : `<span class="muted">${th("brands.not_enough")}</span>`}</b></div>
+        ${enough ? `<div class="bar" aria-hidden="true"><i style="width:${pct}%"></i></div>` : ""}<div class="t2">${esc(facts.filter(Boolean).join(" · "))}</div></div>`;
+    };
+    return `<div class="card"><div class="card-header">${ic("battery")}<div><h2 class="ch">${th("brands.title")}</h2><small>${th("brands.subtitle")}</small></div></div>
+      ${types.map((g) => { const top = Math.max(0, ...g.brands.map((b) => b.average_days || 0)); return `<div class="brand-type">${esc(g.type === "Unknown type" ? t("shop.unknown_type") : g.type)}</div>${g.brands.map((b) => row(b, top)).join("")}`; }).join("")}
     </div>`;
   };
 
@@ -2188,6 +2235,10 @@
       <div class="card"><div class="card-header"><h2 class="ch">${th("settings.ignored")}</h2></div>
         ${S.muted.length ? S.muted.map((m) => { const c = S.checks.find((x) => x.key === m.kind); return `<div class="set-row"><div class="text"><div class="t1">${esc(m.name)}</div><div class="t2">${esc(c ? checkLabel(c) : m.kind)} · ${m.until ? th("settings.until", { date: esc(fmtDate(m.until)) }) : th("settings.forever")}</div></div><div class="ctl"><button class="btn" data-act="unmute" data-ieee="${esc(m.ieee)}" data-kind="${esc(m.kind)}">${th("common.stop_ignoring")}</button></div></div>`; }).join("") + `<div class="card-actions"><button class="btn" data-act="unmute-all">${th("settings.stop_ignoring_all")}</button></div>` : `<div class="set-row"><div class="text"><div class="t2">${th("settings.nothing_ignored")}</div></div></div>`}
       </div>
+      <div class="card" data-section="brands"><div class="card-header"><div><h2 class="ch">${th("brands.settings_title")}</h2><small>${th("brands.settings_desc")}</small></div></div>
+        ${brandList().length ? brandList().map((b) => `<div class="set-row compact"><div class="text"><div class="t1">${esc(b)}</div></div><div class="ctl"><button class="icon-btn" data-act="brand-remove" data-brand="${esc(b)}" aria-label="${esc(t("brands.remove", { brand: b }))}">${ic("delete", "s20")}</button></div></div>`).join("") : `<div class="set-row"><div class="text"><div class="t2">${th("brands.none")}</div></div></div>`}
+        <div class="stock-add"><input class="field" id="brandNew" maxlength="40" autocomplete="off" placeholder="${esc(t("battery.brand_placeholder"))}" aria-label="${esc(t("brands.new"))}"><button class="btn" data-act="brand-add">${ic("plus", "s18")}${th("shop.add")}</button></div>
+      </div>
       <div class="card"><div class="card-header"><h2 class="ch">${th("settings.appearance")}</h2></div>
         <div class="set-row"><div class="text"><div class="t1">${th("settings.language")}</div><div class="t2">${th("settings.language_desc")}</div></div><div class="ctl"><select class="field" id="langSel" aria-label="${esc(t("settings.language"))}"><option value="auto" ${I18N.pref === "auto" ? "selected" : ""}>${th("settings.language_auto", { code: esc(I18N.auto) })}</option>${I18N.langs.map((l) => `<option value="${esc(l.code)}" ${I18N.pref === l.code ? "selected" : ""}>${esc(l.name || l.code)}</option>`).join("")}</select></div></div>
         <div class="set-row"><div class="text"><div class="t1">${th("settings.theme")}</div><div class="t2">${th("settings.theme_desc")}</div></div><div class="ctl"><select class="field" id="themeSel" aria-label="${esc(t("settings.theme"))}">${THEMES.map((x) => `<option value="${x}" ${theme === x ? "selected" : ""}>${th(`theme.${x}`)}</option>`).join("")}</select></div></div>
@@ -2213,6 +2264,7 @@
     });
     $("#view").prepend(nav);
     fadeEdges();
+    if (state.jumpBrands) { state.jumpBrands = false; const to = $("#view [data-section=brands]"); if (to) { window.scrollTo({ top: to.getBoundingClientRect().top + window.scrollY - $(".toolbar").offsetHeight - 8 }); $("#brandNew")?.focus({ preventScroll: true }); } }
   };
   // An out-of-range number goes back to the saved value, with a note under the field saying why.
   // The note stays until the next save re-renders the view, so it can't be missed like a snackbar.
@@ -2543,7 +2595,7 @@
       <datalist id="batTypes">${["CR2032", "CR2450", "CR2477", "CR1632", "CR123A", "AAA", "AA", "18650", t("battery.rechargeable")].map((x) => `<option value="${esc(x)}"></option>`).join("")}</datalist>
       <div class="row-actions"><button class="btn" data-act="save-battery">${th("common.save")}</button><span class="saved" id="savedBat">${th("common.saved")}</span></div>
       <div class="sub-h">${th("battery.history")}</div>
-      ${reps.length ? `<div class="rep-list">${reps.map(([r, i]) => `<div><span>${esc(fmtDate(r.date, false))} <span class="muted">· ${esc(r.source)}${r.note ? ` · ${esc(r.note)}` : ""}</span></span><button class="icon-btn" data-act="bat-remove" data-index="${i}" aria-label="${esc(t("battery.remove_entry"))}">${ic("delete", "s20")}</button></div>`).join("")}</div>`
+      ${reps.length ? `<div class="rep-list">${reps.map(([r, i]) => `<div><span>${esc(fmtDate(r.date, false))}${r.brand ? ` · ${esc(r.brand)}` : ""} <span class="muted">· ${esc(r.source)}${r.note ? ` · ${esc(r.note)}` : ""}</span></span><span class="rep-acts"><button class="icon-btn" data-act="bat-brand" data-index="${i}" aria-label="${esc(t(r.brand ? "battery.brand_edit" : "battery.brand_add"))}">${ic("pencil", "s20")}</button><button class="icon-btn" data-act="bat-remove" data-index="${i}" aria-label="${esc(t("battery.remove_entry"))}">${ic("delete", "s20")}</button></span></div>`).join("")}</div>`
         : `<div class="card-content muted">${rec.last_replaced ? th("battery.last_replaced_bn", { date: esc(fmtDate(rec.last_replaced, false)) }) : th("battery.no_replacements")}</div>`}`;
   };
 
@@ -3096,9 +3148,9 @@
     async "battery-replaced"() {
       const ieee = state.open, d = state.byIeee.get(ieee);
       const ok = await confirmDialog({ title: t("battery.replaced"), ok: t("common.save"),
-        html: `<p>${th(d?.battery_notes ? "battery.records_bn" : "battery.records", { name: esc(nameOf(d) || ieee) })}</p><label>${th("battery.replaced_on")}<input class="field" type="date" id="cDate" value="${todayIso()}" max="${todayIso()}"></label><label>${th("battery.note")}<input class="field" id="cNote" maxlength="200" autocomplete="off"></label>` });
+        html: `<p>${th(d?.battery_notes ? "battery.records_bn" : "battery.records", { name: esc(nameOf(d) || ieee) })}</p><label>${th("battery.replaced_on")}<input class="field" type="date" id="cDate" value="${todayIso()}" max="${todayIso()}"></label>${brandField(lastBrandFor(d?.battery_record?.type))}<label>${th("battery.note")}<input class="field" id="cNote" maxlength="200" autocomplete="off"></label>` });
       if (!ok) return;
-      try { const res = await api("api/battery/replaced", { ieee, date: $("#cDate").value || todayIso(), note: $("#cNote").value }); snack(res.entry?.battery_notes_synced ? t("battery.saved_bn") : t("common.saved")); load(); } catch (err) { snack(err.message, 4000); }
+      try { const res = await api("api/battery/replaced", { ieee, date: $("#cDate").value || todayIso(), note: $("#cNote").value, brand: $("#cBrand").value.trim() }); snack(res.entry?.battery_notes_synced ? t("battery.saved_bn") : t("common.saved")); load(); } catch (err) { snack(err.message, 4000); }
     },
     async stock(b) {
       try {
@@ -3119,6 +3171,28 @@
         if (state.view === "health") renderHealth();
         load();
       } catch (err) { snack(err.message); }
+    },
+    async "bat-brand"(b) {
+      const ieee = state.open, index = Number(b.dataset.index);
+      const r = (state.byIeee.get(ieee)?.battery_record?.replacements || [])[index];
+      if (!r) return;
+      const ok = await confirmDialog({ title: t(r.brand ? "battery.brand_edit" : "battery.brand_add"), ok: t("common.save"),
+        html: `<p>${th("battery.brand_text", { date: esc(fmtDate(r.date, false)) })}</p>${brandField(r.brand || "", true)}` });
+      if (!ok) return;
+      try { await api("api/battery/brand", { ieee, index, brand: $("#cBrand").value.trim() }); snack(t("common.saved")); load(); } catch (err) { snack(err.message); }
+    },
+    "manage-brands"() {
+      const dlg = $("#confirmDlg"); if (dlg.open) dlg.close("cancel");
+      if ($("#more").open) closeDevice();
+      state.jumpBrands = true; go("settings");
+    },
+    async "brand-add"() {
+      const input = $("#brandNew"), brand = input?.value.trim();
+      if (!brand) { input?.focus(); return; }
+      try { const r = await api("api/battery_brands/add", { brand }); state.data.battery_brand_list = r.brands; renderSettings(false); $("#brandNew")?.focus(); snack(t("brands.added", { brand })); } catch (err) { snack(err.message, 4000); }
+    },
+    async "brand-remove"(b) {
+      try { const r = await api("api/battery_brands/remove", { brand: b.dataset.brand }); state.data.battery_brand_list = r.brands; renderSettings(false); snack(t("brands.removed", { brand: b.dataset.brand })); } catch (err) { snack(err.message, 4000); }
     },
     async "bat-remove"(b) {
       if (!(await confirmDialog({ title: t("battery.remove_title"), ok: t("common.remove"), danger: true, html: `<p>${th("battery.remove_text")}</p>` }))) return;

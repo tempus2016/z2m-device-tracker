@@ -20,6 +20,10 @@ battery_replaced:
       example: CR2032
       selector:
         text:
+    brand:
+      example: Panasonic
+      selector:
+        text:
 
 mute_device:
   fields:

@@ -59,6 +59,7 @@ SCHEMAS: dict[str, vol.Schema] = {
             **DEVICE_FIELDS,
             vol.Optional("date"): cv.date,
             vol.Optional("battery_type"): vol.All(cv.string, vol.Length(max=40)),
+            vol.Optional("brand"): vol.All(cv.string, vol.Length(max=40)),
         }
     ),
     "mute_device": vol.Schema(
@@ -148,7 +149,8 @@ async def _battery_replaced(hass: HomeAssistant, call: ServiceCall) -> None:
     ieee = resolve_ieee(hass, call, tracker)
     when: date_cls | None = call.data.get("date")
     try:
-        await tracker.async_battery_replaced(ieee, when.isoformat() if when else None)
+        brand = (call.data.get("brand") or "").strip()
+        await tracker.async_battery_replaced(ieee, when.isoformat() if when else None, brand=brand)
         if call.data.get("battery_type"):
             await tracker.async_set_battery_type(ieee, call.data["battery_type"].strip())
     except TrackerAppError as err:
