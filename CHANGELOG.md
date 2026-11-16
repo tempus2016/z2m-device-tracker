@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.4.0
+
+Update the app and the integration together. The app now asks Home Assistant for an API token, and an integration older than 1.4.0 has none, so it shows as unavailable until it is updated too.
+
+### Added
+- MQTT broker from the app's options: `mqtt_host`, `mqtt_port`, `mqtt_user`, `mqtt_password`, `mqtt_ssl` and `mqtt_ssl_verify`. A broker set here is used instead of the one Home Assistant offers, so Mosquitto on another machine or in Docker works without the Mosquitto broker app. Its TLS certificate is checked unless `mqtt_ssl_verify` is off. Connection errors point at these options.
+
+### Changed
+- The app needs an API token from anything but the sidebar. It makes one on first start and hands it to Home Assistant through Supervisor discovery, which only Home Assistant Core can read. A new install shows the app under Settings → Devices & services → Discovered.
+- The integration's actions (OTA update, mute, pause and resume alerts, notes, battery replaced, network scan, reconfigure, import history) and ticking the batteries to-do list are for administrators. Automations and scripts can still call them. Non-administrators get the device list without notes and asset details.
+- `notify_service` accepts only notify services. A bare name like `mobile_app_phone` becomes `notify.mobile_app_phone`.
+- The MQTT broker app is no longer required to start (`mqtt: want`), because a broker can be set in the options.
+- Updated paho-mqtt 2.2.0, PyYAML 6.0.3, websocket-client 1.9.2.
+
+### Fixed
+- A device's data could run script in the sidebar. A routing scan with a text link quality was saved as-is and shown as HTML on the floor plan, on Home Assistant's own origin. Every value is now escaped, scans keep only numbers, and the sidebar is served with a Content-Security-Policy that runs only its own script.
+- One malformed MQTT message could stop all tracking until the app restarted, and a retained one stopped it on every start. Bad messages are now ignored.
+- Text, numbers and addresses from Zigbee2MQTT are checked before they are kept. A device name that isn't text, or a reading of NaN or infinity, could break health checks, alerts and the sidebar for days, even after a restart. Saved data with such values is cleaned on load.
+- A device list that would remove more than half of a network is held until it arrives again at least 5 minutes later, so a stray or spoofed message can't mark every device removed and delete their Home Assistant entities.
+- Unknown Zigbee2MQTT event types no longer create devices, and the tracker caps names, event text and routing scans, so a flood of messages can't fill the disk.
+- Restoring a broken backup no longer wipes the current history: the file is checked before anything is replaced. A backup can't remove other integrations' MQTT entities.
+- A corrupt `history.json` is set aside as `history.json.corrupt-<time>` and the app starts empty, instead of failing to start. Saves no longer collide when two run at once.
+- Device names can't add links, images or HTML to Home Assistant notifications, Repairs or the batteries to-do list.
+- Changes in the sidebar must come from the sidebar: requests that aren't JSON, or that the browser marks as coming from another site, are refused.
+- Reconfigure and battery-replaced buttons from Home Assistant run at most once a minute per device.
+- CSV export quotes cells a spreadsheet would run as a formula.
+- MQTT TLS checks the broker's certificate for brokers outside Home Assistant's own network.
+- Repairs mirror at most 50 issues, and the card translations are cached per language the app has.
+- The integration's setup rejects an app URL with a user name or password, and fills in the address the app announced.
+- The summary card counts offline devices the same way as the Offline devices sensor; it left out unidentified devices.
+- A broken link in the sidebar address (`#%E0`) no longer stops the page loading.
+
 ## 1.3.0
 
 ### Changed
