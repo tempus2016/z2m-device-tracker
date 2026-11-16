@@ -38,6 +38,16 @@ def valid_app_url(url: str) -> bool:
 
 class Z2MTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
+    _discovered_url: str | None = None
+
+    async def async_step_hassio(self, discovery_info: Any) -> ConfigFlowResult:
+        """The app announced itself through Supervisor: offer the address it gave, not a guess."""
+        await self.async_set_unique_id(DOMAIN)
+        self._abort_if_unique_id_configured()
+        config = getattr(discovery_info, "config", None) or {}
+        if config.get("host") and config.get("port"):
+            self._discovered_url = f"http://{config['host']}:{config['port']}"
+        return await self.async_step_user()
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
@@ -47,7 +57,9 @@ class Z2MTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
             errors[CONF_APP_URL] = "invalid_url"
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema({vol.Required(CONF_APP_URL, default=detect_app_url(self.hass)): str}),
+            data_schema=vol.Schema(
+                {vol.Required(CONF_APP_URL, default=self._discovered_url or detect_app_url(self.hass)): str}
+            ),
             errors=errors,
         )
 
