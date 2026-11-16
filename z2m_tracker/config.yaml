@@ -29,6 +29,7 @@ options:
   alerts_enabled: true
   persistent_notifications: true
   fire_events: true
+  ha_repairs: true
   notify_service: ""
   alert_actions: true
   alert_on_join: true
@@ -79,6 +80,7 @@ schema:
   alerts_enabled: bool
   persistent_notifications: bool
   fire_events: bool
+  ha_repairs: bool?
   notify_service: str?
   alert_actions: bool?
   alert_on_join: bool

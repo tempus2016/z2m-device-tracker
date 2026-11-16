@@ -1229,6 +1229,8 @@
   "settings.ha_notifications_desc": "Shows in the notification panel and clears itself when fixed",
   "settings.automation_event": "Automation event",
   "settings.automation_event_desc": "Fires {event} for your automations",
+  "settings.ha_repairs": "Show problems in HA Repairs",
+  "settings.ha_repairs_desc": "Critical devices offline, offline networks, coordinator backup problems and other warnings, in Settings → Repairs. Each closes itself when fixed. Needs the integration.",
   "settings.mobile": "Mobile notifications",
   "settings.mobile_desc": "Notify service, e.g. {example}",
   "settings.naming": "Device names",

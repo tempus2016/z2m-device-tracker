@@ -14,6 +14,9 @@ configuration:
   fire_events:
     name: Fire events
     description: Fire z2m_tracker_alert events for automations.
+  ha_repairs:
+    name: Show problems in HA Repairs
+    description: With the integration installed, list problems in Settings > Repairs, such as critical devices offline, offline networks and coordinator backup problems. Each one closes itself when fixed.
   notify_service:
     name: Notify service
     description: Also send alerts to a notify service, e.g. notify.mobile_app_phone.

@@ -17,7 +17,16 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
 
-from .const import DISCOVERY_SERVICE, DOMAIN, SIGNAL_UPDATED, STATUS_ACTIVE, STATUS_REMOVED
+from .const import (
+    DISCOVERY_SERVICE,
+    DOMAIN,
+    SIGNAL_UPDATED,
+    STATUS_ACTIVE,
+    STATUS_REMOVED,
+    repairs_on,
+    repairs_wanted,
+    serious_repair,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,6 +41,12 @@ STRINGS_TTL = 3600
 # Most issues mirrored into Repairs and most names in the offline sensor's attribute.
 MAX_REPAIRS = 50
 MAX_OFFLINE_NAMES = 50
+# Serious problems get their own Repairs text and a higher severity, and are never cut by MAX_REPAIRS.
+SERIOUS_SEVERITY = {
+    "critical_offline": ir.IssueSeverity.ERROR,
+    "network_offline": ir.IssueSeverity.ERROR,
+    "coordinator_backup": ir.IssueSeverity.WARNING,
+}
 # Markdown the HA frontend would turn into links, images or HTML (Repairs and to-do descriptions).
 _MARKDOWN_RE = re.compile(r"([\\\[\]<>`])")
 
@@ -224,24 +239,12 @@ class Z2MTracker:
     def _sync_repairs(self) -> None:
         """Mirror the app's alerting issues into Settings > Repairs; they clear when fixed."""
         options = self.data.get("options") or {}
-        # The app's master alerts switch covers Repairs too.
-        if options.get("alerts_enabled") is False:
+        # The app's master alerts switch covers Repairs too, and so does its own Repairs switch.
+        if not repairs_on(options):
             self._snoozed.clear()
             self._clear_repairs()
             return
-        notify = set(options.get("notify_checks") or []) - set(options.get("disabled_checks") or [])
-        wanted: dict[str, dict] = {}
-        issues = self.data.get("issues") or []
-        keys = {str(issue.get("key", "")) for issue in issues}
-        for issue in issues:
-            # A device behind an offline router is covered by the router's repair, which lists it.
-            if issue.get("behind") and f"offline:{issue['behind']}" in keys:
-                continue
-            if len(wanted) >= MAX_REPAIRS:
-                # A flood of (possibly spoofed) devices must not bury real problems in Settings > Repairs.
-                break
-            if issue.get("severity") == "warning" or issue.get("kind") in notify:
-                wanted["issue_" + re.sub(r"[^a-z0-9_]+", "_", str(issue.get("key", "")).lower())] = issue
+        wanted = repairs_wanted(self.data.get("issues") or [], options, MAX_REPAIRS)
         self._prune_snoozed(wanted)
         registry = ir.async_get(self.hass)
         for domain, issue_id in list(registry.issues):
@@ -251,6 +254,7 @@ class Z2MTracker:
             device = str(issue.get("ieee") or "")
             # Network and group issues have no single device to fix or mute.
             network = device.startswith(("network:", "group:"))
+            serious = serious_repair(issue)
             ir.async_create_issue(
                 self.hass,
                 DOMAIN,
@@ -258,8 +262,8 @@ class Z2MTracker:
                 data={"ieee": device, "kind": str(issue.get("kind") or "")},
                 is_fixable=not network,
                 is_persistent=False,
-                severity=ir.IssueSeverity.WARNING,
-                translation_key="network_issue" if network else "device_issue",
+                severity=SERIOUS_SEVERITY.get(serious or "", ir.IssueSeverity.WARNING),
+                translation_key=serious or ("network_issue" if network else "device_issue"),
                 # Placeholders go into markdown: names from Zigbee2MQTT must not add links or images.
                 translation_placeholders={
                     "name": markdown_safe(issue.get("name") or issue.get("ieee") or ""),

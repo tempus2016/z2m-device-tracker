@@ -25,7 +25,7 @@
           "repairs": "Show problems in Settings > Repairs"
         },
         "data_description": {
-          "repairs": "Mirrors the app's warnings and the checks set to notify. Each one clears itself when the problem is fixed. Nothing shows while alerts are off in the app."
+          "repairs": "Mirrors the app's warnings and the checks set to notify. Each one clears itself when the problem is fixed. Nothing shows while alerts, or Show problems in HA Repairs, are off in the app's settings."
         }
       }
     },
@@ -189,6 +189,33 @@
     "network_issue": {
       "title": "Zigbee: {name} - {title}",
       "description": "{detail}\n\n[Open the Zigbee Tracker]({panel})"
+    },
+    "critical_offline": {
+      "title": "{name} is offline (critical device)",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "{name} is offline",
+            "description": "{detail}\n\n{name} is marked as a critical device in the Zigbee Tracker. Check its power and the router it talks through. This repair closes itself when it comes back online. Muting stops the tracker flagging it as offline.\n\n[Open in the Zigbee Tracker]({panel})",
+            "menu_options": {
+              "mute_day": "Mute this check for 24 hours",
+              "mute_forever": "Mute this check until I unmute it"
+            }
+          }
+        },
+        "abort": {
+          "not_loaded": "Z2M Device Tracker is not loaded.",
+          "app_error": "The fix didn't work: {error}"
+        }
+      }
+    },
+    "network_offline": {
+      "title": "Zigbee2MQTT offline: {name}",
+      "description": "{detail}\n\nThis repair closes itself when Zigbee2MQTT is back.\n\n[Open the Zigbee Tracker]({panel})"
+    },
+    "coordinator_backup": {
+      "title": "Coordinator backup problem: {name}",
+      "description": "{detail}\n\nThis repair closes itself when Zigbee2MQTT writes a good coordinator backup.\n\n[Open the Zigbee Tracker]({panel})"
     }
   },
   "entity": {

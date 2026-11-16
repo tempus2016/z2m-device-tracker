@@ -2672,6 +2672,7 @@
         ${sw("alerts_enabled", s.alerts_enabled, t("settings.send_alerts"), th("settings.send_alerts_desc"))}
         ${sw("persistent_notifications", s.persistent_notifications, t("settings.ha_notifications"), th("settings.ha_notifications_desc"), off)}
         ${sw("fire_events", s.fire_events, t("settings.automation_event"), th("settings.automation_event_desc", { event: "<span class='mono'>z2m_tracker_alert</span>" }), off)}
+        ${sw("ha_repairs", s.ha_repairs !== false, t("settings.ha_repairs"), th("settings.ha_repairs_desc"), off)}
         <div class="set-row wide-ctl ${off ? "disabled" : ""}"><div class="text"><div class="t1">${th("settings.mobile")}</div><div class="t2">${th("settings.mobile_desc", { example: '<span class="mono">notify.mobile_app_your_phone</span>' })}</div></div>
           <div class="ctl"><input class="field" id="notifySvc" aria-label="${esc(t("settings.mobile"))}" autocomplete="off" value="${esc(s.notify_service || "")}" placeholder="notify.mobile_app_…" spellcheck="false" ${off ? "disabled" : ""}><button class="btn" data-act="save-notify" ${off ? "disabled" : ""}>${th("common.save")}</button></div></div>
         ${sw("quiet_hours", s.quiet_hours, t("settings.quiet"), th("settings.quiet_desc"), off)}
