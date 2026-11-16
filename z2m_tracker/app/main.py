@@ -1328,6 +1328,24 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(400, {"error": "Unknown network"})
             else:
                 self._json(200, {"scans": tracker.scan_history(net)})
+        elif path == "/api/whatif":
+            query = dict(
+                part.split("=", 1)
+                for part in (self.path.split("?", 1)[1] if "?" in self.path else "").split("&")
+                if "=" in part
+            )
+            net = unquote(query.get("net", ""))
+            ieee = unquote(query.get("ieee", "")).lower()
+            if net not in base_topics:
+                self._json(400, {"error": "Unknown network"})
+            elif not IEEE_RE.match(ieee):
+                self._json(400, {"error": "Not a device address"})
+            else:
+                result = tracker.router_what_if(net, ieee)
+                if result is None:
+                    self._json(404, {"error": "Not a router in the last routing scan"})
+                else:
+                    self._json(200, result)
         elif path == "/api/parents":
             query = dict(
                 part.split("=", 1)

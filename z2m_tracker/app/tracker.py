@@ -20,6 +20,8 @@ from time import monotonic as _monotonic
 from typing import Any
 
 from health import (
+    FLAP_LEAVES,
+    FLAP_OUTAGES,
     HOP_CHANGES,
     HOP_DAYS,
     REPORT_EVERY_MAX,
@@ -44,6 +46,8 @@ from reporting import audit as reporting_audit
 from reporting import clean as clean_reportings
 from reporting import describe as describe_reporting
 from reporting import slim as slim_reportings
+from route_whatif import what_if
+from router_placement import rank_areas
 from upgrade_impact import (
     ISSUE_MAX_DAYS,
     ISSUE_MIN_DAYS,
@@ -799,6 +803,7 @@ class Tracker:
         self.group_members: dict[str, dict[str, list[str]]] = {}
         self._unbinds: dict[str, float] = {}
         self._spof_cache: dict[str, tuple] = {}
+        self._placement_cache: dict[str, tuple] = {}
         self._backups: dict[str, dict] = {}
         self._backups_at = 0.0
         self.started = time.time()
@@ -2154,6 +2159,95 @@ class Tracker:
         self._spof_cache[base_topic] = (scanned_at, self.revision, result)
         return result
 
+    # ----------------------------------------------------- router what-if
+
+    def _scan_nodes(self, base_topic: str) -> tuple[dict[str, dict], str | None, str | None]:
+        """Active devices in the latest routing scan of a network, shaped for route_whatif, plus the coordinator."""
+        scanned_at = (self.data.get("networkmap") or {}).get(base_topic, {}).get("scanned_at")
+        nodes: dict[str, dict] = {}
+        coordinator = None
+        if not scanned_at:
+            return nodes, None, None
+        for ieee, record in self.data["devices"].items():
+            routing = record.get("routing") or {}
+            if (
+                record.get("instance") != base_topic
+                or record["status"] != STATUS_ACTIVE
+                or routing.get("scanned_at") != scanned_at
+                or record.get("type") not in ("Coordinator", "Router", "EndDevice")
+            ):
+                continue
+            nodes[ieee] = {
+                "type": record["type"],
+                "name": _display_name(record) or ieee,
+                "parent": (routing.get("parent") or {}).get("ieee"),
+                "neighbours": {n["ieee"]: n.get("lqi") for n in routing.get("neighbours") or [] if n.get("ieee")},
+            }
+            if record["type"] == "Coordinator":
+                coordinator = ieee
+        return nodes, coordinator, scanned_at
+
+    def router_what_if(self, base_topic: str, ieee: str) -> dict | None:
+        """What the latest scan says happens if router `ieee` goes. None if it isn't a router in that scan."""
+        with self.lock:
+            nodes, coordinator, scanned_at = self._scan_nodes(base_topic)
+            if not coordinator or (nodes.get(ieee) or {}).get("type") != "Router":
+                return None
+            return {"net": base_topic, "scanned_at": scanned_at, **what_if(nodes, coordinator, ieee)}
+
+    def router_placement(self, base_topic: str, now: float) -> dict:
+        """Areas where an extra plug-in router would help most (see router_placement.rank_areas)."""
+        scanned_at = (self.data.get("networkmap") or {}).get(base_topic, {}).get("scanned_at")
+        cached = self._placement_cache.get(base_topic)
+        if cached and cached[0] == scanned_at and cached[1] == self.revision:
+            return cached[2]
+        nodes, coordinator, _ = self._scan_nodes(base_topic)
+        # Devices that would have no other router in range if one particular router went.
+        no_backup: set[str] = set()
+        if coordinator:
+            for ieee, node in nodes.items():
+                if node["type"] == "Router":
+                    no_backup.update(o["ieee"] for o in what_if(nodes, coordinator, ieee)["orphans"])
+        day_ago = datetime.fromtimestamp(now - 86400, tz=timezone.utc).isoformat(timespec="seconds")
+        leaves = self._leaves_since(day_ago)
+        rows = []
+        for ieee, record in self.data["devices"].items():
+            if (
+                record.get("instance") != base_topic
+                or record["status"] != STATUS_ACTIVE
+                or record.get("type") not in ("Router", "EndDevice")
+            ):
+                continue
+            node = nodes.get(ieee)
+            link_lqi = None
+            if node and record["type"] == "EndDevice":
+                link_lqi = ((record.get("routing") or {}).get("parent") or {}).get("lqi")
+            elif node:
+                heard = [
+                    lqi
+                    for other, lqi in node["neighbours"].items()
+                    if isinstance(lqi, (int, float))
+                    and (nodes.get(other) or {}).get("type") in ("Router", "Coordinator")
+                ]
+                link_lqi = max(heard) if heard else None
+            outages = sum(1 for o in record.get("outages") or [] if (o.get("start") or "") >= day_ago)
+            rows.append(
+                {
+                    "ieee": ieee,
+                    "name": _display_name(record) or ieee,
+                    "area": record.get("area"),
+                    "type": record["type"],
+                    "link_lqi": link_lqi,
+                    "hops": hop_summary(self._hop_rows(record, now))["changes"] if record["type"] == "EndDevice" else 0,
+                    "offline": record.get("availability") == "offline",
+                    "flapping": outages >= FLAP_OUTAGES or leaves.get(ieee, 0) >= FLAP_LEAVES,
+                    "no_backup": ieee in no_backup,
+                }
+            )
+        result = rank_areas(rows)
+        self._placement_cache[base_topic] = (scanned_at, self.revision, result)
+        return result
+
     # ------------------------------------------------------ coordinator backup
 
     def _z2m_dirs(self) -> dict[str, str]:
@@ -2515,15 +2609,20 @@ class Tracker:
             )
         return {"networks": nets, "wifi": wifi, "findings": findings}
 
-    def _context(self, now: float) -> dict[str, dict]:
-        """Per-device extras for the health checks: recent outages/leaves, parent, single points of failure."""
-        day_ago = datetime.fromtimestamp(now - 86400, tz=timezone.utc).isoformat(timespec="seconds")
+    def _leaves_since(self, since: str) -> dict[str, int]:
+        """How many times each device left the network since `since` (an ISO time)."""
         leaves: dict[str, int] = {}
         for event in reversed(self.data["events"]):
-            if (event.get("time") or "") < day_ago:
+            if (event.get("time") or "") < since:
                 break
             if event.get("kind") == "left":
                 leaves[event["ieee"]] = leaves.get(event["ieee"], 0) + 1
+        return leaves
+
+    def _context(self, now: float) -> dict[str, dict]:
+        """Per-device extras for the health checks: recent outages/leaves, parent, single points of failure."""
+        day_ago = datetime.fromtimestamp(now - 86400, tz=timezone.utc).isoformat(timespec="seconds")
+        leaves = self._leaves_since(day_ago)
         spof = {item["ieee"]: item for bt in self.base_topics for item in self.single_points(bt)}
         bridges = self.data.get("bridges") or {}
         down = {bt for bt, bridge in bridges.items() if (bridge or {}).get("state") == "offline"}
@@ -2759,6 +2858,7 @@ class Tracker:
                 "network_hours": self.network_hours(now),
                 "upgrade_impact": self.upgrade_impact(now),
                 "single_points": {bt: self.single_points(bt) for bt in self.base_topics},
+                "router_placement": {bt: self.router_placement(bt, now) for bt in self.base_topics},
                 "backups": self._backups,
                 "groups": self.groups,
                 "group_health": self.group_health(now),

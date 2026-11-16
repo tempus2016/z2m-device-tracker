@@ -669,6 +669,67 @@
     "other": "{n} active devices weren't in the scan: {names}. Sleepy battery devices often miss scans. If one keeps missing, check its signal."
   },
   "advice.none": "No problems found. Every device has a reasonable link and no router is overloaded.",
+  "whatif.button": "What if it goes?",
+  "whatif.working": "Working out what happens if {name} goes…",
+  "whatif.failed": "Couldn't work it out: {error}",
+  "whatif.clear": "Clear",
+  "whatif.summary_moves": {
+    "one": "If {name} goes: {n} device moves ({to})",
+    "other": "If {name} goes: {n} devices move ({to})"
+  },
+  "whatif.summary_to": "{n} to {name}",
+  "whatif.summary_orphans": {
+    "one": "{n} has no other router in range ({names})",
+    "other": "{n} have no other router in range ({names})"
+  },
+  "whatif.summary_orphans_only": {
+    "one": "If {name} goes: {n} device has no other router in range ({names})",
+    "other": "If {name} goes: {n} devices have no other router in range ({names})"
+  },
+  "whatif.summary_none": "If {name} goes: nothing in the last scan depends on it. Its neighbours route around it.",
+  "whatif.moves": "Likely move",
+  "whatif.orphans": "No other router in range",
+  "whatif.move_row": "{device} → {to} (LQI {lqi})",
+  "whatif.reason.child": "connects through it",
+  "whatif.reason.behind": "its router is cut off too",
+  "whatif.reason.cut_off": "router with no other path to the coordinator",
+  "whatif.note": "From the routing scan of {when}. The mesh picks its own routes, so this is the likely outcome, not a promise. Sleepy battery devices missing from the scan aren't counted.",
+  "whatif.legend_gone": "Router taken away",
+  "whatif.legend_move": "Moves",
+  "whatif.legend_orphan": "No other router",
+  "whatif.legend_line": "Likely new router",
+  "whatif.latest_only": "What if uses the latest scan.",
+  "place.title": "Where to add a router",
+  "place.line": "{area}: {reasons} → {action}",
+  "place.weak": {
+    "one": "{n} weak device",
+    "other": "{n} weak devices"
+  },
+  "place.no_backup": {
+    "one": "{n} with no backup route",
+    "other": "{n} with no backup route"
+  },
+  "place.hopping": {
+    "one": "{n} keeps changing router",
+    "other": "{n} keep changing router"
+  },
+  "place.unstable": {
+    "one": "{n} dropping out",
+    "other": "{n} dropping out"
+  },
+  "place.add": "add a plug-in router here",
+  "place.add_more": {
+    "one": "it has {n} router already: move it closer to them, or add another",
+    "other": "it has {n} routers already: move one closer to them, or add another"
+  },
+  "place.devices": "Devices: {names}",
+  "place.none": "No area stands out. Weak links, devices without a backup route and dropouts are few or spread out.",
+  "place.no_area": {
+    "one": "{n} device with problems has no area in Home Assistant, so it isn't counted.",
+    "other": "{n} devices with problems have no area in Home Assistant, so they aren't counted."
+  },
+  "place.note": "Scored from the last routing scan, router changes over the last 7 days and dropouts in the last 24 hours. A device with no backup route counts most.",
+  "place.flag": "#{rank} place to add a router",
   "activity.empty": "No activity yet",
   "activity.empty_text": "Joins, leaves, renames, removals, battery changes and online/offline changes appear here.",
   "event.detail.appeared": "Appeared in the Z2M device list",
