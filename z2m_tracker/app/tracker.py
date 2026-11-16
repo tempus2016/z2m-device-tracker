@@ -48,6 +48,8 @@ MAX_GROUP_LEFT = 100
 GROUP_LEFT_DAYS = 30
 STATUS_ACTIVE = "active"
 STATUS_REMOVED = "removed"
+# App options the sidebar never needs and must not receive.
+SECRET_OPTIONS = frozenset({"mqtt_password", "metrics_token"})
 
 # Longest pause for alerts given in minutes (30 days).
 MAX_PAUSE_MINUTES = 43200
@@ -2268,11 +2270,50 @@ class Tracker:
                 "scan_times": {bt: [x["at"] for x in self.scans.get(bt) or []] for bt in self.base_topics},
                 "pairing": {bt: {**s, "joined": list(s["joined"])} for bt, s in self.pairing_sessions.items()},
                 "panels": self.options.get("_panels", {}),
-                "options": {k: v for k, v in self.options.items() if not k.startswith("_")},
+                "options": {k: v for k, v in self.options.items() if not k.startswith("_") and k not in SECRET_OPTIONS},
                 "alerts_paused": self.alert_pause_state(),
                 "version": self.version,
             }
             return _dumps(payload, ensure_ascii=False).encode("utf-8")
+
+    def prometheus_snapshot(self) -> dict[str, Any]:
+        """The few values the /metrics endpoint needs, read under the lock in one pass."""
+        now = time.time()
+        with self.lock:
+            devices = []
+            for record in self.data["devices"].values():
+                if record.get("type") == "Coordinator":
+                    continue
+                summary = self.metrics.summary(record["ieee"], now) if record["status"] == STATUS_ACTIVE else {}
+                devices.append(
+                    {
+                        "ieee": record["ieee"],
+                        "name": _display_name(record),
+                        "instance": record.get("instance"),
+                        "status": record["status"],
+                        "type": record.get("type"),
+                        "power_source": record.get("power_source"),
+                        "vendor": record.get("vendor"),
+                        "model": record.get("model"),
+                        "area": record.get("area"),
+                        "availability": record.get("availability"),
+                        "lqi": record.get("lqi"),
+                        "battery": record.get("battery"),
+                        "last_seen": record.get("last_seen"),
+                        "lqi_24h": summary.get("lqi_24h"),
+                        "msg_24h": summary.get("msg_24h"),
+                        "battery_days": summary.get("battery_estimate_days"),
+                        "uptime_30d": uptime(record, now) if record["status"] == STATUS_ACTIVE else None,
+                    }
+                )
+            return {
+                "devices": devices,
+                "issues": [{"ieee": i["ieee"], "kind": i["kind"], "severity": i["severity"]} for i in self.issues],
+                "bridges": {
+                    bt: ((self.data.get("bridges") or {}).get(bt) or {}).get("state") for bt in self.base_topics
+                },
+                "alerts_paused": self.alerts_paused(),
+            }
 
     def export_csv(self) -> bytes:
         now = time.time()

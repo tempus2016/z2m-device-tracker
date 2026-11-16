@@ -92,3 +92,6 @@ configuration:
   mqtt_ssl_verify:
     name: Check TLS certificate
     description: Check the broker's TLS certificate. Turn off for a self-signed certificate.
+  metrics_token:
+    name: Prometheus metrics token
+    description: Set a token of 16 or more characters to serve Prometheus metrics on port 9099. Empty keeps it off.

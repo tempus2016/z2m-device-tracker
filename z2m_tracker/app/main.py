@@ -25,6 +25,7 @@ from urllib.parse import unquote
 from zoneinfo import ZoneInfo
 
 import paho.mqtt.client as mqtt
+import prometheus
 from battery_library import BatteryLibrary
 from discovery import AVAILABILITY, Discovery
 from discovery import BASE as DISCOVERY_BASE
@@ -41,6 +42,9 @@ _LOGGER = logging.getLogger("z2m_tracker")
 
 VERSION = "1.4.0"
 PORT = 8099
+# Prometheus scrape port: only opened when metrics_token is set.
+METRICS_PORT = 9099
+METRICS_TOKEN_MIN = 16
 DATA_PATH = "/data/history.json"
 METRICS_PATH = "/data/metrics.json"
 SCANS_PATH = "/data/scans.json"
@@ -1059,6 +1063,54 @@ def _page_csp() -> str:
 PAGE_CSP = _page_csp()
 
 
+class MetricsHandler(BaseHTTPRequestHandler):
+    """GET /metrics in Prometheus text format, for a scraper that sends the metrics_token."""
+
+    server_version = f"Z2MTracker/{VERSION}"
+
+    def log_message(self, format, *args):  # noqa: A002 - signature defined by base class
+        return
+
+    def do_GET(self) -> None:  # noqa: N802 - http.server naming
+        token = str(options.get("metrics_token") or "")
+        auth = self.headers.get("Authorization") or ""
+        if not (auth.startswith("Bearer ") and hmac.compare_digest(auth[7:].strip().encode(), token.encode())):
+            self.send_response(401)
+            self.send_header("WWW-Authenticate", 'Bearer realm="z2m_tracker"')
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        if self.path.split("?", 1)[0] != "/metrics":
+            self.send_error(404)
+            return
+        body = prometheus.render(prometheus.collect(tracker.prometheus_snapshot(), VERSION)).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+
+def start_metrics_server() -> ThreadingHTTPServer | None:
+    """Open the Prometheus port when metrics_token is set and long enough; otherwise stay closed."""
+    token = str(options.get("metrics_token") or "")
+    if not token:
+        return None
+    if len(token) < METRICS_TOKEN_MIN:
+        _LOGGER.warning("Prometheus metrics stay off: metrics_token must be at least %d characters", METRICS_TOKEN_MIN)
+        return None
+    try:
+        server = ThreadingHTTPServer(("0.0.0.0", METRICS_PORT), MetricsHandler)
+    except OSError as err:
+        _LOGGER.warning("Couldn't open the Prometheus metrics port %d: %s", METRICS_PORT, err)
+        return None
+    server.daemon_threads = True
+    threading.Thread(target=server.serve_forever, name="metrics-http", daemon=True).start()
+    _LOGGER.info("Prometheus metrics on port %d at /metrics", METRICS_PORT)
+    return server
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = f"Z2MTracker/{VERSION}"
 
@@ -1451,11 +1503,14 @@ def main() -> None:
 
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     server.daemon_threads = True
+    metrics_server = start_metrics_server()
 
     def shutdown(signum, frame):
         _LOGGER.info("Stopping, saving history")
         stop_event.set()
         threading.Thread(target=server.shutdown, daemon=True).start()
+        if metrics_server is not None:
+            threading.Thread(target=metrics_server.shutdown, daemon=True).start()
 
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)

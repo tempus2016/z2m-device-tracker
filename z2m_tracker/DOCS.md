@@ -34,6 +34,7 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `mqtt_user` / `mqtt_password` | empty | Login for that broker. Leave empty if it allows anonymous connections. |
 | `mqtt_ssl` | `false` | Connect to that broker over TLS. |
 | `mqtt_ssl_verify` | `true` | Check the broker's TLS certificate. Turn off for a self-signed certificate. |
+| `metrics_token` | empty | Token for the Prometheus endpoint, 16 characters or more. Empty keeps the endpoint off. See [Prometheus metrics](#prometheus-metrics). |
 
 ## MQTT broker
 
@@ -42,6 +43,29 @@ By default the app uses the broker Home Assistant offers to apps, which is the M
 The app's Home Assistant entities use MQTT discovery, so they appear only if Home Assistant's MQTT integration is connected to the same broker.
 
 Without `mqtt_ssl`, the broker login and all Zigbee messages cross your network unencrypted. For a broker on another machine, turn on `mqtt_ssl` (usually port `8883`) and keep `mqtt_ssl_verify` on. Turn it off only for a self-signed certificate on a network you trust.
+
+## Prometheus metrics
+
+The app can serve its device and network data for Prometheus to collect, for graphs in Grafana or similar tools. It stays off until you set it up:
+
+1. Set `metrics_token` to a long random string (16 characters or more).
+2. In the app's **Configuration** tab, under **Network**, give port `9099/tcp` a host port, for example `9099`.
+3. Restart the app.
+
+Then add a scrape job to Prometheus:
+
+```yaml
+scrape_configs:
+  - job_name: z2m_tracker
+    authorization:
+      credentials: <your metrics_token>
+    static_configs:
+      - targets: ["homeassistant.local:9099"]
+```
+
+Every request must send the token, or it gets `401`. The endpoint serves only `/metrics` and changes nothing. The data includes device names and areas, so keep the token private.
+
+Each device has gauges for whether it is online, link quality (latest and 24-hour average), battery level and days left, when it was last seen, messages in the last 24 hours, uptime over 30 days and open issues. Each sample has `ieee`, `name` and `network` labels. `z2m_tracker_device_info` adds the type, power source, vendor, model and area. There are also network totals: devices per status, open issues per check, whether each Zigbee2MQTT is online, and whether alerts are paused.
 
 ## Expected reporting
 

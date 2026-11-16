@@ -18,6 +18,10 @@ discovery:
   - z2m_tracker
 map:
   - homeassistant_config:ro
+ports:
+  9099/tcp: null
+ports_description:
+  9099/tcp: Prometheus metrics (needs metrics_token)
 options:
   base_topics:
     - zigbee2mqtt
@@ -63,6 +67,7 @@ options:
   mqtt_password: ""
   mqtt_ssl: false
   mqtt_ssl_verify: true
+  metrics_token: ""
 schema:
   base_topics:
     - str
@@ -99,3 +104,4 @@ schema:
   mqtt_password: password?
   mqtt_ssl: bool?
   mqtt_ssl_verify: bool?
+  metrics_token: password?
