@@ -68,6 +68,14 @@ MEMORY_MIN_DAYS = 5  # with at least 5 days of data in that window
 ASSET_FIELDS = ("purchase_date", "shop", "price", "warranty_until", "location", "serial")
 UNKNOWN_BATTERY_TYPE = "Unknown type"
 MAX_STOCK = 9999
+# What uses a device in HA (automations, scripts, scenes): looked up again when a new issue
+# opens and the last answer is older than this; at most this many devices per lookup.
+USAGE_MAX_AGE = 600
+USAGE_LIMIT = 50
+USAGE_KEYS = ("automations", "scripts", "scenes")
+# Names in a notification's "Used by" line before it says "+N more", and their longest length.
+USAGE_LINE_NAMES = 3
+USAGE_NAME_MAX = 40
 # A battery change recorded within this many days of one that already took from stock is
 # the same change seen twice (the app detecting the jump, then someone ticking it), so it
 # doesn't take again. Changes dated further back than this are history being filled in
@@ -559,6 +567,9 @@ class Tracker:
         self.ha_device_ids: dict[str, str] = {}
         self.ha_battery: dict[str, dict] = {}
         self.ha_leftovers: list[dict] = []
+        # IEEE -> {"automations", "scripts", "scenes", "at"} for devices with a problem (see usage_wanted).
+        self.ha_usage: dict[str, dict] = {}
+        self._usage_keys: set[str] = set()
         self._pending: dict[str, dict] = {}
         self.battery_lib = None
         self.permit: dict[str, dict] = {}
@@ -2217,6 +2228,75 @@ class Tracker:
                 self.ha_leftovers = leftovers
                 self.revision += 1
 
+    # ------------------------------------------- what uses a device in HA
+
+    def usage_wanted(self) -> list[str]:
+        """Devices worth knowing the automations, scripts and scenes of: those with an
+        issue first, then critical ones. Only devices linked to an HA device."""
+        with self.lock:
+            devices = self.data["devices"]
+            wanted = dict.fromkeys(i["ieee"] for i in self.issues if i.get("ieee") in devices)
+            wanted.update(dict.fromkeys(ieee for ieee, record in devices.items() if record.get("critical")))
+            return [ieee for ieee in wanted if ieee in self.ha_device_ids][:USAGE_LIMIT]
+
+    def usage_stale(self, ieees, max_age: float = USAGE_MAX_AGE) -> list[str]:
+        """The given devices (linked to HA) never looked up or looked up longer than max_age ago."""
+        now = time.time()
+        with self.lock:
+            return [
+                ieee
+                for ieee in dict.fromkeys(ieees)
+                if ieee in self.ha_device_ids and now - (self.ha_usage.get(ieee) or {}).get("at", 0) >= max_age
+            ][:USAGE_LIMIT]
+
+    def usage_due(self) -> list[str]:
+        """Devices with an issue that opened since the last call and whose lookup is stale."""
+        with self.lock:
+            keys = {i["key"]: i["ieee"] for i in self.issues if i.get("ieee") in self.data["devices"]}
+            opened = [ieee for key, ieee in keys.items() if key not in self._usage_keys]
+            self._usage_keys = set(keys)
+        return self.usage_stale(opened)
+
+    def set_ha_usage(self, found: dict[str, dict], keep: set[str] | None = None) -> None:
+        """Store lookups by IEEE. With keep, forget devices outside it that weren't just looked up."""
+        now = time.time()
+
+        def shown(usage: dict) -> dict:
+            return {key: usage.get(key) or [] for key in USAGE_KEYS}
+
+        with self.lock:
+            before = {ieee: shown(u) for ieee, u in self.ha_usage.items()}
+            for ieee, usage in found.items():
+                self.ha_usage[ieee] = {**shown(usage), "at": now}
+            if keep is not None:
+                for ieee in [i for i in self.ha_usage if i not in keep and i not in found]:
+                    del self.ha_usage[ieee]
+            if before != {ieee: shown(u) for ieee, u in self.ha_usage.items()}:
+                self.revision += 1
+
+    def used_by(self, ieee: str) -> dict | None:
+        """What uses the device, for the snapshot; None when nothing does or it isn't known."""
+        with self.lock:
+            usage = self.ha_usage.get(ieee)
+            if not usage or not any(usage.get(key) for key in USAGE_KEYS):
+                return None
+            return {key: list(usage.get(key) or []) for key in USAGE_KEYS}
+
+    def usage_line(self, ieee: str) -> str | None:
+        """One line for a notification, e.g. "Used by: Hall lights at night, Leak shut-off (+2 more)"."""
+        usage = self.used_by(ieee)
+        if not usage:
+            return None
+        names = []
+        for key in USAGE_KEYS:
+            for item in usage[key]:
+                name = " ".join(str(item.get("name") or item.get("entity_id") or "").split())
+                names.append(name if len(name) <= USAGE_NAME_MAX else name[: USAGE_NAME_MAX - 1].rstrip() + "\u2026")
+        line = "Used by: " + ", ".join(names[:USAGE_LINE_NAMES])
+        if len(names) > USAGE_LINE_NAMES:
+            line += f" (+{len(names) - USAGE_LINE_NAMES} more)"
+        return line
+
     # ----------------------------------------------------------------- public
 
     def _oui_vendor(self, ieee: str) -> str | None:
@@ -2238,6 +2318,9 @@ class Tracker:
                 item["oui_vendor"] = self._oui_vendor(ieee)
                 item["ha_device_id"] = self.ha_device_ids.get(ieee)
                 item["battery_notes"] = self.ha_battery.get(ieee)
+                used_by = self.used_by(ieee)
+                if used_by:
+                    item["used_by"] = used_by
                 item["issues"] = issues_by_device.get(ieee, [])
                 item["battery_record"] = self.battery_summary(record) if self.is_battery_device(record) else None
                 item["suggestions"] = suggestions.get(ieee, [])
