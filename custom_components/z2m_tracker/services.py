@@ -51,6 +51,7 @@ DEVICE_CHECKS = [
     "missed_commands",
     "reporting_config",
     "naming",
+    "firmware_note",
 ]
 
 DEVICE_FIELDS = {

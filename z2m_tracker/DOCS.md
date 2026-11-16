@@ -145,6 +145,7 @@ These checks show in Health but don't notify until you set them to **Show and no
 | Daily signal dip | Average link quality across a network drops at least 25% below that day's median in the same 1 to 4 hours on at least 4 of the last 7 days, and at least 30% of its devices dip then too. Usually something that switches on at that time: busy Wi-Fi on an overlapping channel, a microwave, or a USB 3 device near the coordinator. Health → Radio channels shows the hourly chart once a network has a week of link quality from at least 3 devices. |
 | Worse since an upgrade | After Zigbee2MQTT or the coordinator firmware changes, the week after the upgrade looks clearly worse than the week before, once at least 2 days of it have passed (shown for 30 days). Shows only; it doesn't notify unless you add it to `notify_checks`. See **Effect of an upgrade** below for what is compared and the thresholds. |
 | Naming | A device still named by its IEEE address (`0x…`), or, when `naming_pattern` is set, a name that doesn't follow it. Low priority. See [Device names](#device-names). |
+| Firmware you noted | A device runs a firmware version you wrote a firmware note about. Low priority. See [Firmware notes](#firmware-notes). |
 
 **Network → Groups** lists every Zigbee2MQTT group with how many of its members are online. Groups with offline members show each member, with the offline ones in red. A device that dropped out of a group but is still on the network (for example after it left and was re-paired) is flagged for 30 days, until it's back in the group, or until the group is deleted. Leaving a group is only noticed while the app is running.
 
@@ -279,6 +280,14 @@ The **Updates** tab lists every device with a firmware update from Zigbee2MQTT, 
 - **Update now** and **Update all** add devices to a queue. The queue installs one device at a time.
 - With `ota_window` set, updates still waiting are installed inside that window each night, one at a time. A device that fails is tried once more the next night. If that fails too, it stays failed until you press **Retry**. Retry starts the count again.
 - Each update is recorded under **Recent updates** (last 200) and in the device's logbook in Home Assistant.
+
+### Firmware notes
+
+**Firmware notes** on the Updates tab are your own notes against a device model and firmware version, e.g. "Drops off the mesh every few days. Stay on 2.1.3." Add, edit and delete them there; the app keeps them in its data (up to 200).
+
+- A device of that model whose firmware build (Zigbee2MQTT's `software_build_id`) or installed OTA file version is the noted version shows the note on its page, and gets a **Firmware you noted** row in Health under **Worth a look**.
+- An update on offer to the noted version is marked "You noted problems with ..." and left out of **Update all** and the overnight `ota_window` run. **Update anyway** on that row installs it. Zigbee2MQTT only knows the OTA file version of an update before it's installed, so a note on a build such as `2.1.4` matches an offered update once a device of the same model runs `2.1.4` and reports its file version; a note on the file version itself matches straight away.
+- The models come from Zigbee2MQTT's device definitions, so a note covers every device of that model on every network.
 
 ## Security
 

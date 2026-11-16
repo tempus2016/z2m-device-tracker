@@ -294,6 +294,8 @@
   },
   "issue.update.title": "Firmware update available",
   "issue.update.detail": "{installed} → {latest}",
+  "issue.firmware_note.title": "Runs firmware you noted",
+  "issue.firmware_note.detail": "Your note on {version}: “{text}”",
   "issue.flapping.title": "Keeps dropping out",
   "issue.flapping.detail": "In the last 24 h it {what}. Usually a weak or unstable link, a failing power supply, or a router nearby that keeps restarting.",
   "issue.flapping.outages": {
@@ -1046,6 +1048,7 @@
   "ota.reason.offline": "Device is offline",
   "ota.reason.no_update": "No update available",
   "ota.reason.already_queued": "already queued",
+  "ota.reason.noted": "You noted problems with {version}",
   "ota.updating": "Updating",
   "ota.updating_pct": "Updating · {p}%",
   "ota.time_left": "About {time} left",
@@ -1633,6 +1636,8 @@
   "issue.naming.suggested": " Suggested: {name}.",
   "check.naming.label": "Naming",
   "check.naming.description": "A device still named by its IEEE address (0x…), or, when a naming pattern is set, a name that doesn't follow it.",
+  "check.firmware_note.label": "Firmware you noted",
+  "check.firmware_note.description": "A device runs a firmware version you wrote a firmware note about on the Updates tab.",
   "naming.bulk": "Rename to pattern ({n})",
   "naming.bulk_title": {
     "one": "Rename {n} device",
@@ -1955,5 +1960,29 @@
   "fine.models_bad": {
     "one": "1 model stands out",
     "other": "{n} models stand out"
-  }
+  },
+  "fwnote.title": "Firmware notes",
+  "fwnote.empty": "No notes yet. Write down what you learn about a firmware version, such as “Drops off the mesh every few days. Stay on 2.1.3.” Devices on that version show the note, and an update to it is left out of Update all.",
+  "fwnote.add": "Add note",
+  "fwnote.edit": "Edit",
+  "fwnote.delete": "Delete",
+  "fwnote.add_title": "Add a firmware note",
+  "fwnote.edit_title": "Edit firmware note",
+  "fwnote.delete_title": "Delete this firmware note?",
+  "fwnote.dialog_text": "A note on a model and firmware version. Devices of that model on that version show it, and an update to that version is left out of Update all and the overnight updates.",
+  "fwnote.model": "Model",
+  "fwnote.version": "Firmware version",
+  "fwnote.text": "Note",
+  "fwnote.text_placeholder": "Drops off the mesh every few days. Stay on 2.1.3.",
+  "fwnote.no_models": "No devices with a known model yet",
+  "fwnote.row_title": "{model} · firmware {version}",
+  "fwnote.added": "Added {date}.",
+  "fwnote.applies": "Applies to {list}.",
+  "fwnote.applies_none": "No device runs or is offered this version right now.",
+  "fwnote.on_version": "{name} (on {version})",
+  "fwnote.update_offered": "{name} (update offered)",
+  "fwnote.left_out": "Left out of Update all and the overnight updates.",
+  "fwnote.device_runs": "Runs firmware you noted. Your note on {version}: “{text}”",
+  "fwnote.device_offered": "The update on offer is a version you noted. Your note on {version}: “{text}” It is left out of Update all.",
+  "fwnote.notes": "Notes"
 }
