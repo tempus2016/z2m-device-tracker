@@ -134,6 +134,8 @@ def test_summary_lqi_windows(m):
     out = m.summary(IEEE, now=START)
     assert out["lqi_24h"] == 40.0
     assert out["lqi_prev_7d"] == 100.0
+    # Whole last 7 days: one day at 40, six at 100 (the Compare dialog's 7-day link quality).
+    assert 90 <= out["lqi_7d"] <= 92
     # 7 days of 4-hour buckets.
     assert 40 <= len(out["lqi_spark"]) <= 43
     assert all(isinstance(v, float) for _, v in out["lqi_spark"])

@@ -380,6 +380,7 @@ class Metrics:
 
             out["lqi_24h"] = avg_since(86400)
             out["lqi_prev_7d"] = avg_since(8 * 86400, 86400)
+            out["lqi_7d"] = avg_since(7 * 86400)
             # 7-day sparkline in 4-hour buckets
             buckets: dict[int, list[float]] = {}
             for hour, value_sum, n in lqi:
