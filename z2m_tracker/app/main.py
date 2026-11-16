@@ -18,6 +18,7 @@ import sys
 import threading
 import time
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote
@@ -993,16 +994,44 @@ def first_import() -> None:
 # --------------------------------------------------------------------- HTTP
 
 
+class _ScriptCollector(HTMLParser):
+    """Collects the text of each inline <script>, exactly as the browser hashes it."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=False)
+        self.scripts: list[str] = []
+        self._current: list[str] | None = None
+
+    def handle_starttag(self, tag: str, attrs: list) -> None:
+        if tag == "script" and not dict(attrs).get("src"):
+            self._current = []
+
+    def handle_data(self, data: str) -> None:
+        if self._current is not None:
+            self._current.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "script" and self._current is not None:
+            self.scripts.append("".join(self._current))
+            self._current = None
+
+
+def _inline_scripts(html: str) -> list[str]:
+    parser = _ScriptCollector()
+    parser.feed(html)
+    parser.close()
+    return parser.scripts
+
+
 def _page_csp() -> str:
     """Content-Security-Policy for the sidebar: only its own inline script (by hash) and this origin.
 
     The page runs on Home Assistant's origin inside the ingress frame, so a script injected through
     device data could reach the HA login. The policy stops any script but the page's own from running.
     """
-    html = (WWW / "index.html").read_text(encoding="utf-8")
     hashes = [
         "'sha256-" + base64.b64encode(hashlib.sha256(body.encode("utf-8")).digest()).decode() + "'"
-        for body in re.findall(r"<script>(.*?)</script>", html, re.S)
+        for body in _inline_scripts((WWW / "index.html").read_text(encoding="utf-8"))
     ]
     scripts = " ".join(hashes) or "'none'"
     return "; ".join(
