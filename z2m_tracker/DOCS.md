@@ -137,6 +137,12 @@ Some devices are left unticked:
 
 While pairing (permit join) is open, any nearby Zigbee device can join. The **Pairing left open** check warns and notifies when pairing stays open for 10 minutes, or straight away when something other than the Zigbee Tracker opened it (the Zigbee2MQTT frontend, Home Assistant or an automation). **Close now** on the Health tab closes it. Existing installs get this alert switched on once when they update; turn it off in Settings → Checks if you don't want it.
 
+## Settings advice
+
+When a Zigbee2MQTT instance has `advanced.last_seen` set to `disable` (read from the settings it publishes in `bridge/info`), Health shows a note under **Worth a look**. Without a `last_seen` time in each message, messages Zigbee2MQTT repeats from its cache look new to the app, so a battery device that has gone quiet can still look alive to the **Not heard from** and **Stopped reporting** checks.
+
+**Turn on** asks you to confirm, then sets `advanced.last_seen: ISO_8601` through Zigbee2MQTT's `bridge/request/options`. Zigbee2MQTT saves it in its `configuration.yaml`, and the change shows in the network's settings log. **Dismiss** hides the note for that network for good. The note never sends a notification.
+
 ## Device names
 
 Set a naming pattern in **Settings → Device names** (option `naming_pattern`), for example `{area} {type} {n}`. Tokens:
