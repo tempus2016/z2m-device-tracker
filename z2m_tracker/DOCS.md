@@ -6,7 +6,7 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 
 | Option | Default | What it does |
 | --- | --- | --- |
-| `base_topics` | `zigbee2mqtt` | MQTT base topic of each Zigbee2MQTT instance to track. |
+| `base_topics` | `zigbee2mqtt` | MQTT base topic of each Zigbee2MQTT instance to track. Spaces are kept, so a base topic that ends in a space works; in the YAML editor, quote it: `- "Z2MQTT "`. |
 | `z2m_panels` | empty | Links to each Zigbee2MQTT app, as `base_topic=app_slug`, e.g. `zigbee2mqtt=45df7312_zigbee2mqtt`. The slug is in the app's URL. |
 | `alerts_enabled` | `true` | Master switch for alerts. |
 | `persistent_notifications` | `true` | Show alerts as Home Assistant notifications. |
