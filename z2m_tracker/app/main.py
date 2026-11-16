@@ -1719,7 +1719,8 @@ class Handler(BaseHTTPRequestHandler):
                 for part in (self.path.split("?", 1)[1] if "?" in self.path else "").split("&")
                 if "=" in part
             )
-            net, copy_id = unquote(query.get("net", "")), unquote(query.get("id", ""))
+            # HA ingress re-encodes a space as "+"; a base topic can't hold a real "+" (an MQTT wildcard).
+            net, copy_id = unquote_plus(query.get("net", "")), unquote(query.get("id", ""))
             found = tracker.backup_history.path(net, copy_id) if net in base_topics else None
             if not found:
                 self._json(404, {"error": "No such backup copy"})
