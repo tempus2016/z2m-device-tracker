@@ -34,14 +34,14 @@ the history import, the battery library and the metrics. It needs Python 3.13 an
 packages pinned in `z2m_tracker/Dockerfile`:
 
 ```bash
-pip install pytest paho-mqtt==2.1.0 PyYAML==6.0.2 websocket-client==1.8.0
+pip install pytest paho-mqtt==2.2.0 PyYAML==6.0.3 websocket-client==1.9.2
 python -m pytest
 ```
 
 Or, with [uv](https://docs.astral.sh/uv/), in one line:
 
 ```bash
-uv run --no-project --python 3.13 --with pytest --with paho-mqtt==2.1.0 --with PyYAML==6.0.2 --with websocket-client==1.8.0 pytest
+uv run --no-project --python 3.13 --with pytest --with paho-mqtt==2.2.0 --with PyYAML==6.0.3 --with websocket-client==1.9.2 pytest
 ```
 
 The tests use a fake clock rather than sleeping, and small made-up files in `tests/fixtures/`.

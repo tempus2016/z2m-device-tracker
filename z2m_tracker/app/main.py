@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import json
 import logging
 import os
 import queue
 import re
+import secrets
 import signal
+import socket
 import ssl
 import sys
 import threading
@@ -27,7 +32,7 @@ from health import CHECKS, DEFAULT_NOTIFY, alert_title, mutes_of, nested, notify
 from metrics import Metrics
 from mqtt_status import NOTIFICATION_ID, NOTIFICATION_TITLE, MqttStatus, explain_error, explain_refusal, probe
 from ota import OtaManager, parse_window
-from tracker import Tracker, shopping_text
+from tracker import IEEE_RE, Tracker, shopping_text
 from tracker import _display_name as tracker_display_name
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
@@ -39,6 +44,7 @@ DATA_PATH = "/data/history.json"
 METRICS_PATH = "/data/metrics.json"
 SCANS_PATH = "/data/scans.json"
 OPTIONS_PATH = "/data/options.json"
+TOKEN_PATH = "/data/api_token"
 CONFIG_DIR = "/homeassistant"
 MIGRATE_FROM = f"{CONFIG_DIR}/.storage/z2m_tracker"
 APP_DIR = Path(__file__).parent
@@ -56,8 +62,14 @@ HA_REFRESH_INTERVAL = 6 * 3600
 HA_CHANGE_DELAY = 5
 FIRST_IMPORT_WAIT = 120
 
-# Ingress proxy (supervisor) and HA Core on the internal hassio network.
-ALLOWED_CLIENTS = {"172.30.32.1", "172.30.32.2", "127.0.0.1", "::1"}
+# Who may use the API. Supervisor's ingress proxy has already checked the HA login (and that the user
+# is an admin), so it needs nothing more. Everything else, including HA Core, which shares its address
+# with every host-network app, must send the API token. Supervisor hands that token to the integration
+# through discovery, which only Core can read.
+INGRESS_PROXY = "172.30.32.2"
+LOOPBACK = {"127.0.0.1", "::1"}
+# Commands from Home Assistant over MQTT (reconfigure, battery replaced): one per device per minute.
+COMMAND_COOLDOWN = 60
 
 DEFAULT_OPTIONS = {
     "base_topics": ["zigbee2mqtt"],
@@ -111,9 +123,12 @@ def _int(low, high):
 
 
 def _service(value):
+    """A notify service, as notify.<name> (a bare name gets notify. added). Nothing else may be called."""
     value = str(value or "").strip()
-    if value and not __import__("re").fullmatch(r"[a-z0-9_]+(\.[a-z0-9_]+)?", value):
-        raise ValueError("must look like notify.mobile_app_phone")
+    if value and "." not in value:
+        value = f"notify.{value}"
+    if value and not re.fullmatch(r"notify\.[a-z0-9_]+", value):
+        raise ValueError("must be a notify service, like notify.mobile_app_phone")
     return value
 
 
@@ -183,6 +198,11 @@ def load_options() -> dict:
             topic, slug = str(entry).split("=", 1)
             panels[topic.strip()] = f"/app/{slug.strip()}"
     options["_panels"] = panels
+    try:
+        options["notify_service"] = _service(options.get("notify_service"))
+    except ValueError:
+        _LOGGER.warning("Ignoring notify_service %r: only notify services are allowed", options.get("notify_service"))
+        options["notify_service"] = ""
     if not options.get("alert_on_join", True) and "joined" in options["notify_checks"]:
         options["notify_checks"] = [k for k in options["notify_checks"] if k != "joined"]
     return options
@@ -213,6 +233,25 @@ def local_timezone():
         return ZoneInfo("UTC")
 
 
+def load_api_token() -> str:
+    """The token HA Core sends with each request; made once and kept in /data (readable by this app only)."""
+    try:
+        with open(TOKEN_PATH, encoding="utf-8") as handle:
+            token = handle.read().strip()
+        if len(token) >= 32:
+            return token
+    except OSError:
+        pass
+    token = secrets.token_urlsafe(32)
+    try:
+        fd = os.open(TOKEN_PATH, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(token)
+    except OSError as err:
+        _LOGGER.warning("Couldn't save the API token (%s); the integration reconnects after a restart", err)
+    return token
+
+
 def load_oui() -> dict[str, str]:
     try:
         with open(APP_DIR / "oui.json", encoding="utf-8") as handle:
@@ -222,6 +261,7 @@ def load_oui() -> dict[str, str]:
 
 
 options = load_options()
+API_TOKEN = load_api_token()
 base_topics = [topic.strip().strip("/") for topic in options.get("base_topics") or ["zigbee2mqtt"] if topic.strip()]
 metrics = Metrics(METRICS_PATH)
 tracker = Tracker(DATA_PATH, base_topics, CONFIG_DIR, local_timezone(), metrics, options, load_oui())
@@ -457,26 +497,73 @@ def check_mqtt() -> None:
         alerts.queue.put(lambda: home_assistant.persistent_notification(NOTIFICATION_TITLE, message, NOTIFICATION_ID))
 
 
+# Commands from Home Assistant's buttons, run one at a time off the MQTT thread.
+commands: queue.Queue = queue.Queue(maxsize=50)
+command_seen: dict[tuple[str, str], float] = {}
+
+
+def queue_command(kind: str, ieee: str) -> None:
+    """Accept a reconfigure / battery-replaced command for a known device, at most once a minute each.
+
+    Anything on the broker can publish these topics, so a flood must not start a thread per message.
+    """
+    with tracker.lock:
+        known = IEEE_RE.match(ieee) and ieee in tracker.data["devices"]
+    if not known:
+        return
+    now = time.monotonic()
+    if now - command_seen.get((kind, ieee), -COMMAND_COOLDOWN) < COMMAND_COOLDOWN:
+        _LOGGER.info("Ignoring repeated %s for %s (less than a minute since the last one)", kind, ieee)
+        return
+    command_seen[(kind, ieee)] = now
+    try:
+        commands.put_nowait((kind, ieee))
+    except queue.Full:
+        _LOGGER.warning("Too many commands from Home Assistant waiting; dropped %s for %s", kind, ieee)
+
+
+def command_worker() -> None:
+    while True:
+        kind, ieee = commands.get()
+        try:
+            if kind == "battery_replaced":
+                today = datetime.now(tracker.local_tz).date().isoformat()
+                with tracker.lock:
+                    record = tracker.data["devices"].get(ieee) or {}
+                    replacements = (record.get("battery_info") or {}).get("replacements") or []
+                    done = any(r.get("date") == today and r.get("source") == "Home Assistant" for r in replacements)
+                if done:
+                    _LOGGER.info("Battery replacement for %s is already recorded today", ieee)
+                    continue
+                _LOGGER.info("Battery replacement recorded from Home Assistant for %s", ieee)
+                record_battery_replaced(ieee, today, "Home Assistant", "")
+            elif kind == "reconfigure":
+                _LOGGER.info("Reconfigure requested from Home Assistant for %s", ieee)
+                tracker.reconfigure(ieee)
+        except Exception:  # noqa: BLE001 - one failed command must not stop the next
+            _LOGGER.exception("%s for %s failed", kind, ieee)
+
+
 def on_message(client, userdata, message):
-    topic = message.topic
-    if topic.startswith(f"{DISCOVERY_BASE}/") and topic.endswith("/battery_replaced"):
-        ieee = topic.split("/")[1]
-        _LOGGER.info("Battery replacement recorded from Home Assistant for %s", ieee)
-        threading.Thread(
-            target=record_battery_replaced,
-            args=(ieee, datetime.now(tracker.local_tz).date().isoformat(), "Home Assistant", ""),
-            daemon=True,
-        ).start()
-        return
-    if topic.startswith(f"{DISCOVERY_BASE}/") and topic.endswith("/reconfigure"):
-        ieee = topic.split("/")[1]
-        _LOGGER.info("Reconfigure requested from Home Assistant for %s", ieee)
-        threading.Thread(target=tracker.reconfigure, args=(ieee,), name="reconfigure", daemon=True).start()
-        return
-    for base_topic in base_topics:
-        if topic.startswith(f"{base_topic}/"):
-            tracker.handle_message(base_topic, topic, message.payload)
+    # Never let an exception out: paho would stop its network thread, and with it all tracking.
+    try:
+        topic = message.topic
+        if topic.startswith(f"{DISCOVERY_BASE}/"):
+            parts = topic.split("/")
+            if len(parts) == 3 and parts[2] in ("battery_replaced", "reconfigure"):
+                queue_command(parts[2], parts[1])
             return
+        for base_topic in base_topics:
+            if topic.startswith(f"{base_topic}/"):
+                tracker.handle_message(base_topic, topic, message.payload)
+                return
+    except Exception:  # noqa: BLE001 - malformed input from the broker
+        _LOGGER.exception("Handling an MQTT message failed")
+
+
+def _internal_broker(host: str) -> bool:
+    """A broker on Supervisor's internal network (an app such as core-mosquitto), not reachable from outside."""
+    return "." not in host or host.endswith(".local.hass.io") or host.startswith("172.30.")
 
 
 def start_mqtt() -> mqtt.Client:
@@ -485,8 +572,15 @@ def start_mqtt() -> mqtt.Client:
     if user:
         client.username_pw_set(user, os.environ.get("MQTT_PASS") or None)
     if (os.environ.get("MQTT_SSL") or "").lower() == "true":
-        client.tls_set(cert_reqs=ssl.CERT_NONE)
-        client.tls_insecure_set(True)
+        if _internal_broker(MQTT_HOST):
+            # Traffic stays on Supervisor's internal network, and the broker app's certificate is for
+            # its public name, not this hostname, so it can't be verified here.
+            client.tls_set(cert_reqs=ssl.CERT_NONE)
+            client.tls_insecure_set(True)
+        else:
+            # Any other broker: check the certificate and hostname against the system CAs.
+            client.tls_set()
+    client.suppress_exceptions = True
     client.on_connect = on_connect
     client.on_disconnect = on_disconnect
     client.on_connect_fail = on_connect_fail
@@ -899,6 +993,37 @@ def first_import() -> None:
 # --------------------------------------------------------------------- HTTP
 
 
+def _page_csp() -> str:
+    """Content-Security-Policy for the sidebar: only its own inline script (by hash) and this origin.
+
+    The page runs on Home Assistant's origin inside the ingress frame, so a script injected through
+    device data could reach the HA login. The policy stops any script but the page's own from running.
+    """
+    html = (WWW / "index.html").read_text(encoding="utf-8")
+    hashes = [
+        "'sha256-" + base64.b64encode(hashlib.sha256(body.encode("utf-8")).digest()).decode() + "'"
+        for body in re.findall(r"<script>(.*?)</script>", html, re.S)
+    ]
+    scripts = " ".join(hashes) or "'none'"
+    return "; ".join(
+        (
+            "default-src 'self'",
+            f"script-src {scripts}",
+            "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' data:",
+            "font-src 'self'",
+            "connect-src 'self'",
+            "object-src 'none'",
+            "base-uri 'none'",
+            "form-action 'none'",
+            "frame-ancestors 'self'",
+        )
+    )
+
+
+PAGE_CSP = _page_csp()
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = f"Z2MTracker/{VERSION}"
 
@@ -906,9 +1031,27 @@ class Handler(BaseHTTPRequestHandler):
         return
 
     def _allowed(self) -> bool:
-        if self.client_address[0] in ALLOWED_CLIENTS:
+        client = self.client_address[0]
+        if client == INGRESS_PROXY or client in LOOPBACK:
+            return True
+        auth = self.headers.get("Authorization") or ""
+        if auth.startswith("Bearer ") and hmac.compare_digest(auth[7:].strip().encode(), API_TOKEN.encode()):
             return True
         self.send_error(403)
+        return False
+
+    def _cross_site(self) -> bool:
+        """True for a POST a browser sent from another page, or one that isn't JSON.
+
+        The ingress cookie is SameSite=Strict, but a page on another port of the HA host counts as the
+        same site. Requiring application/json forces the browser to ask first (CORS), which HA refuses
+        for ingress; Sec-Fetch-Site rejects what the browser itself marks as coming from elsewhere.
+        """
+        content_type = (self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
+        site = (self.headers.get("Sec-Fetch-Site") or "").lower()
+        if content_type != "application/json" or site in ("cross-site", "same-site"):
+            self._json(403, {"ok": False, "error": "Requests must come from the Zigbee Tracker page"})
+            return True
         return False
 
     def _send(
@@ -918,6 +1061,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
         for key, value in (extra or {}).items():
             self.send_header(key, value)
         self.end_headers()
@@ -927,7 +1071,10 @@ class Handler(BaseHTTPRequestHandler):
         self._send(status, json.dumps(payload).encode("utf-8"))
 
     def _body(self, limit: int = 100_000) -> dict:
-        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return {}
         if length <= 0 or length > limit:
             return {}
         try:
@@ -941,7 +1088,12 @@ class Handler(BaseHTTPRequestHandler):
             return
         path = self.path.split("?", 1)[0]
         if path in ("/", "/index.html"):
-            self._send(200, (WWW / "index.html").read_bytes(), "text/html; charset=utf-8")
+            self._send(
+                200,
+                (WWW / "index.html").read_bytes(),
+                "text/html; charset=utf-8",
+                {"Content-Security-Policy": PAGE_CSP},
+            )
         elif path.startswith("/fonts/"):
             font = FONTS.get(path.removeprefix("/fonts/"))
             if font is not None:
@@ -1034,7 +1186,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(404)
 
     def do_POST(self) -> None:  # noqa: N802 - http.server naming
-        if not self._allowed():
+        if not self._allowed() or self._cross_site():
             return
         path = self.path.split("?", 1)[0]
         if path == "/api/restore":
@@ -1247,7 +1399,13 @@ def main() -> None:
     threading.Thread(target=offer_new_notify_kinds, name="notify-kinds", daemon=True).start()
 
     client = start_mqtt()
+    threading.Thread(target=command_worker, name="commands", daemon=True).start()
     threading.Thread(target=scheduler, name="scheduler", daemon=True).start()
+    if home_assistant.available:
+        # The container's hostname is the app's hostname on Supervisor's network.
+        threading.Thread(
+            target=home_assistant.announce, args=(socket.gethostname(), PORT, API_TOKEN), name="announce", daemon=True
+        ).start()
     ota_manager.start(stop_event)
     if home_assistant.available:
         threading.Thread(

@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 
 from .const import DOMAIN
-from .tracker import TrackerAppError, Z2MTracker
+from .tracker import TrackerAppError, Z2MTracker, markdown_safe
 
 BATTERY_KINDS = {"battery_low", "battery_soon", "battery_drain"}
 
@@ -51,10 +51,11 @@ class DeviceIssueRepairFlow(RepairsFlow):
             {},
         )
         record = tracker.data["devices"].get(self._ieee) or {}
+        # Placeholders go into markdown: names from Zigbee2MQTT must not add links or images.
         return {
-            "name": str(issue.get("name") or record.get("friendly_name") or self._ieee),
-            "title": str(issue.get("label") or issue.get("title") or ""),
-            "detail": str(issue.get("detail") or "The app no longer reports this problem."),
+            "name": markdown_safe(issue.get("name") or record.get("friendly_name") or self._ieee),
+            "title": markdown_safe(issue.get("label") or issue.get("title") or ""),
+            "detail": markdown_safe(issue.get("detail") or "The app no longer reports this problem."),
             "panel": tracker.panel,
         }
 
@@ -88,7 +89,9 @@ class DeviceIssueRepairFlow(RepairsFlow):
             return self.async_abort(reason="not_loaded")
         if user_input is None:
             lost = (tracker.data["devices"].get(self._ieee) or {}).get("lost_bindings") or []
-            bindings = "\n".join(f"- {b.get('label') or b.get('key')}" for b in lost[:10]) or "- (none left)"
+            bindings = (
+                "\n".join(f"- {markdown_safe(b.get('label') or b.get('key'))}" for b in lost[:10]) or "- (none left)"
+            )
             return self.async_show_form(
                 step_id="restore_binding",
                 data_schema=vol.Schema({}),

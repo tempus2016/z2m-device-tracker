@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import threading
 import time
@@ -10,6 +11,17 @@ from datetime import datetime, timedelta, tzinfo
 from datetime import time as clock_time
 from statistics import median
 from typing import Any
+
+
+def _finite_only(value: Any) -> Any:
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {k: _finite_only(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_finite_only(v) for v in value]
+    return value
+
 
 LQI_KEEP_HOURS = 24 * 14
 LQI_DAILY_KEEP_DAYS = 90
@@ -73,11 +85,18 @@ class Metrics:
         with self.lock:
             if not self.dirty and not force:
                 return
-            payload = json.dumps(self.series, separators=(",", ":"))
+            try:
+                payload = json.dumps(self.series, separators=(",", ":"), allow_nan=False)
+            except ValueError:
+                # Data saved before readings were checked: store NaN and infinity as no reading.
+                payload = json.dumps(_finite_only(self.series), separators=(",", ":"))
             self.dirty = False
-        tmp = f"{self.path}.tmp"
+        # A unique name and fsync: two saves at once, or a power cut, can't leave a half-written file.
+        tmp = f"{self.path}.{os.getpid()}.{threading.get_ident()}.tmp"
         with open(tmp, "w", encoding="utf-8") as handle:
             handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
         os.replace(tmp, self.path)
 
     def forget(self, ieee: str) -> None:
@@ -88,7 +107,7 @@ class Metrics:
     # ----------------------------------------------------------------- record
 
     def add_lqi(self, ieee: str, value: Any, now: float | None = None) -> None:
-        if not isinstance(value, (int, float)) or isinstance(value, bool):
+        if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
             return
         now = now or time.time()
         hour = int(now // 3600 * 3600)
@@ -161,7 +180,7 @@ class Metrics:
 
     def add_battery(self, ieee: str, value: Any, now: float | None = None) -> float | None:
         """Record a battery reading. Returns the previous day's value if this looks like a replacement."""
-        if not isinstance(value, (int, float)) or isinstance(value, bool):
+        if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
             return None
         now = now or time.time()
         day = int(now // 86400 * 86400)
@@ -184,7 +203,9 @@ class Metrics:
 
     def add_ping(self, ieee: str, ms: float | None, now: float | None = None) -> None:
         """Record tonight's reply time for a router (None for no reply). One value per day; a rerun replaces it."""
-        if ms is not None and (not isinstance(ms, (int, float)) or isinstance(ms, bool) or ms < 0):
+        if ms is not None and (
+            not isinstance(ms, (int, float)) or isinstance(ms, bool) or not math.isfinite(ms) or ms < 0
+        ):
             return
         now = now or time.time()
         day = int(now // 86400 * 86400)

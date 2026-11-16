@@ -13,6 +13,8 @@ from .const import DOMAIN
 from .tracker import TrackerAppError
 
 LANGUAGE_RE = re.compile(r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
+# Device record fields only admins get from z2m_tracker/devices.
+PRIVATE_FIELDS = ("note", "asset")
 
 
 def _tracker(hass: HomeAssistant):
@@ -38,10 +40,14 @@ def ws_devices(hass: HomeAssistant, connection: websocket_api.ActiveConnection, 
     if not tracker.available and not tracker.data["devices"]:
         connection.send_error(msg["id"], "unavailable", "The Z2M Device Tracker app is not reachable")
         return
+    devices = list(tracker.data["devices"].values())
+    if not connection.user.is_admin:
+        # Notes and asset details (serials, prices, where a device is) are for admins; the cards don't use them.
+        devices = [{k: v for k, v in d.items() if k not in PRIVATE_FIELDS} for d in devices]
     connection.send_result(
         msg["id"],
         {
-            "devices": list(tracker.data["devices"].values()),
+            "devices": devices,
             "events": tracker.data["events"],
             "instances": tracker.base_topics,
             "imported": tracker.data.get("imported"),

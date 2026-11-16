@@ -235,7 +235,13 @@ def test_ping_endpoint_falls_back_to_first_then_1(net):
     send(
         net,
         "bridge/devices",
-        [plug_device(endpoints={"11": {"clusters": {"input": ["genOnOff"]}}, "12": {"clusters": {"input": []}}})],
+        [
+            coordinator(),
+            plug_device(endpoints={"11": {"clusters": {"input": ["genOnOff"]}}, "12": {"clusters": {"input": []}}}),
+            z2m_device(SENSOR, "Hall sensor", network_address=0x0042),
+            z2m_device(ROUTER_A, "Router A", "Router", network_address=0x0101),
+            z2m_device(ROUTER_B, "Router B", "Router", network_address=0x0102),
+        ],
     )
     assert net.addresses[PLUG]["ep"] == 11
 

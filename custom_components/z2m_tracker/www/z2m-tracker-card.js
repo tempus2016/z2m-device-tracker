@@ -4,6 +4,8 @@ const Z2M_TRACKER_CARD_VERSION = "1.3.0";
 
 const IEEE_RE = /^0x[0-9a-f]{16}$/i;
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+// Panel links stay inside Home Assistant: only a local path ("/app/...") is used, never a javascript: or outside URL.
+const localPath = (v) => (typeof v === "string" && /^\/(?!\/)/.test(v) ? v : "");
 const nameOf = (d) => {
   if (d.friendly_name && !IEEE_RE.test(d.friendly_name)) return d.friendly_name;
   const named = (d.names || []).filter((n) => n.name && !IEEE_RE.test(n.name));
@@ -83,7 +85,7 @@ class Z2MTrackerCard extends HTMLElement {
   _render() {
     const body = this._root?.getElementById("body");
     if (!body) return;
-    const cfg = { ...this._config, title: this._config.title || T("card.summary.title"), panel: this._config.panel || this._data?.panel || "/app/local_z2m_tracker" };
+    const cfg = { ...this._config, title: this._config.title || T("card.summary.title"), panel: localPath(this._config.panel) || localPath(this._data?.panel) || "/app/local_z2m_tracker" };
     if (this._failed) { body.innerHTML = `<div class="head"><h2>${esc(cfg.title)}</h2></div><div class="err">${esc(this._error || T("card.unreachable"))}</div>`; return; }
     if (!this._data) { body.innerHTML = `<div class="head"><h2>${esc(cfg.title)}</h2></div><div class="empty">${esc(T("card.loading"))}</div>`; return; }
     const devices = this._data.devices.filter((d) => d.type !== "Coordinator" && d.status !== "removed");

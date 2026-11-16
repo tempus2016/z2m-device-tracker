@@ -9,7 +9,7 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError, Unauthorized
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 
@@ -268,6 +268,19 @@ HANDLERS: dict[str, Any] = {
 }
 
 
+async def async_require_admin(hass: HomeAssistant, user_id: str | None) -> None:
+    """Raise Unauthorized unless the caller is an admin; calls with no user (automations, scripts) pass.
+
+    These actions push firmware, mute checks, pause alerts and change history, so a non-admin
+    account must not reach them through the websocket or REST API.
+    """
+    if not user_id:
+        return
+    user = await hass.auth.async_get_user(user_id)
+    if user is None or not user.is_admin:
+        raise Unauthorized(user_id=user_id)
+
+
 def async_register_services(hass: HomeAssistant) -> None:
     """Register the automation actions once; they look up the loaded tracker on each call."""
     for name, (handler, supports_response) in HANDLERS.items():
@@ -275,6 +288,7 @@ def async_register_services(hass: HomeAssistant) -> None:
             continue
 
         async def _call(call: ServiceCall, _handler=handler) -> ServiceResponse:
+            await async_require_admin(hass, call.context.user_id)
             return await _handler(hass, call)
 
         hass.services.async_register(DOMAIN, name, _call, schema=SCHEMAS[name], supports_response=supports_response)

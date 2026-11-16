@@ -11,7 +11,7 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `alerts_enabled` | `true` | Master switch for alerts. |
 | `persistent_notifications` | `true` | Show alerts as Home Assistant notifications. |
 | `fire_events` | `true` | Fire `z2m_tracker_alert` events for automations. |
-| `notify_service` | empty | Also send alerts to a notify service, e.g. `notify.mobile_app_phone`. |
+| `notify_service` | empty | Also send alerts to a notify service, e.g. `notify.mobile_app_phone`. Only `notify.` services are accepted; a bare name gets `notify.` added. |
 | `alert_on_join` | `true` | Alert when a new device joins. |
 | `disabled_checks` | empty | Health checks to turn off completely. |
 | `notify_checks` | most checks | Health checks that send alerts. |
@@ -140,6 +140,12 @@ The **Updates** tab lists every device with a firmware update from Zigbee2MQTT, 
 - **Update now** and **Update all** add devices to a queue. The queue installs one device at a time.
 - With `ota_window` set, updates still waiting are installed inside that window each night, one at a time. A device that fails is tried once more the next night. If that fails too, it stays failed until you press **Retry**. Retry starts the count again.
 - Each update is recorded under **Recent updates** (last 200) and in the device's logbook in Home Assistant.
+
+## Security
+
+- **Who can use the app.** The sidebar is open to Home Assistant administrators only. The integration in Home Assistant Core reaches the app with an API token: the app makes it on first start (kept in its `/data` folder) and hands it to Home Assistant through Supervisor discovery, which only Core can read. Anything else on Supervisor's network gets a 403. Update the app and the integration together: an older integration has no token and shows as unavailable.
+- **The MQTT broker.** The app trusts what arrives under each Zigbee2MQTT base topic, so whoever can publish there can feed it made-up devices. With the Mosquitto broker app, every Home Assistant user account can log in to the broker. To limit that, turn on Mosquitto's `customize` option and give only Zigbee2MQTT write access to `zigbee2mqtt/#` with an ACL file. The app checks what it receives (text, numbers and IEEE addresses), ignores malformed messages, and holds a device list that would remove more than half of a network until Zigbee2MQTT sends it again.
+- **Device names in notifications.** Names and details from Zigbee2MQTT can't add links, images or HTML to Home Assistant notifications, Repairs or the to-do list.
 
 ## Data
 

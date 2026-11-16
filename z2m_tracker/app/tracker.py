@@ -6,6 +6,7 @@ import csv
 import io
 import json
 import logging
+import math
 import os
 import re
 import threading
@@ -72,6 +73,162 @@ MAX_STOCK = 9999
 # doesn't take again. Changes dated further back than this are history being filled in
 # and leave today's stock alone.
 STOCK_WINDOW_DAYS = 3
+
+# Other parts of history.json a backup may bring back, with the type each must have.
+RESTORE_KEYS = {
+    "alerts_initialised": bool,
+    "battery_stock": dict,
+    "bridges": dict,
+    "group_left": list,
+    "notify_offered": list,
+    "ota_failures": dict,
+    "ota_history": list,
+    "ota_last_check": (str, int, float),
+    "summary_sent": (str, dict),
+}
+
+# Anything on the broker can publish under the base topic, so incoming text and numbers are checked
+# before they are kept: text must be a string (control characters removed, length capped), numbers
+# must be finite, and IEEE addresses must look like one.
+MAX_TEXT = 256
+MAX_DETAIL = 1000
+MAX_NAMES = 50
+# Biggest MQTT payload read; a large network's bridge/devices list is a few MB.
+MAX_PAYLOAD = 16 * 1024 * 1024
+# A device list that drops more than half of a network's devices (with at least this many) is only
+# applied when the same list arrives again at least SHRINK_HOLD_SECONDS later, so a stray or spoofed
+# message (or a quick burst of them) can't empty the inventory and remove the HA entities.
+SHRINK_MIN_DEVICES = 4
+SHRINK_HOLD_SECONDS = 300
+# Event types that may add a device the tracker hasn't seen yet.
+EVENT_TYPES = ("device_joined", "device_interview", "device_announce", "device_leave")
+_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
+TEXT_FIELDS = (
+    "friendly_name",
+    "type",
+    "model",
+    "vendor",
+    "description",
+    "model_id",
+    "manufacturer",
+    "power_source",
+    "software_build_id",
+    "date_code",
+    "interview_state",
+    "ha_name",
+    "area",
+)
+
+
+def _text(value: Any, limit: int = MAX_TEXT) -> str | None:
+    """A clean string from untrusted input, or None when it isn't text."""
+    if not isinstance(value, str):
+        return None
+    return _CONTROL_RE.sub(" ", value).strip()[:limit] or None
+
+
+def _ieee(value: Any) -> str | None:
+    ieee = value.strip().lower() if isinstance(value, str) else ""
+    return ieee if IEEE_RE.match(ieee) else None
+
+
+def _finite(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def _reject_constant(name: str) -> None:
+    raise ValueError(f"{name} is not valid JSON")
+
+
+def _loads(text: str | bytes) -> Any:
+    """json.loads without NaN and Infinity, which Python accepts but browsers and HA don't."""
+    return json.loads(text, parse_constant=_reject_constant)
+
+
+def _json_safe(value: Any) -> Any:
+    """A copy with every non-finite float replaced by None (for data saved before input was checked)."""
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(v) for v in value]
+    return value
+
+
+def _dumps(value: Any, **kwargs: Any) -> str:
+    try:
+        return json.dumps(value, allow_nan=False, **kwargs)
+    except ValueError:
+        return json.dumps(_json_safe(value), allow_nan=False, **kwargs)
+
+
+def _clean_record(record: dict) -> dict:
+    """Fix the types in a stored or restored device record, so bad data can't break health or the UI."""
+    for key in TEXT_FIELDS:
+        if record.get(key) is not None:
+            record[key] = _text(record[key])
+    if record.get("z2m_description") is not None:
+        record["z2m_description"] = _text(record["z2m_description"], MAX_DETAIL)
+    names = record.get("names")
+    record["names"] = [
+        {**entry, "name": _text(entry["name"])}
+        for entry in (names if isinstance(names, list) else [])
+        if isinstance(entry, dict) and _text(entry.get("name"))
+    ][-MAX_NAMES:]
+    if not isinstance(record.get("note"), str):
+        record["note"] = ""
+    for key in ("lqi", "battery"):
+        if record.get(key) is not None and not _finite(record[key]):
+            record[key] = None
+    for key, default in (("readings", {}), ("asset", {}), ("battery_info", {})):
+        if not isinstance(record.get(key), dict):
+            record[key] = default
+    for key in ("sources", "outages", "predecessors", "muted", "lost_bindings", "features"):
+        if not isinstance(record.get(key), list):
+            record[key] = []
+    if record.get("instance") is not None and not isinstance(record["instance"], str):
+        record["instance"] = None
+    if record.get("status") not in (STATUS_ACTIVE, STATUS_REMOVED):
+        record["status"] = STATUS_REMOVED
+    return record
+
+
+def _clean_scans(scans: list) -> list:
+    """Saved routing scans with only IEEE addresses and numeric LQIs (older files were not checked)."""
+    out = []
+    for scan in scans:
+        if not isinstance(scan, dict) or not isinstance(scan.get("at"), str):
+            continue
+        parents = {
+            ieee: [p[0], p[1] if _finite(p[1]) else None]
+            for ieee, p in (scan.get("parents") if isinstance(scan.get("parents"), dict) else {}).items()
+            if _ieee(ieee) and isinstance(p, list) and len(p) >= 2 and _ieee(p[0])
+        }
+        links = [
+            [link[0], link[1], link[2] if _finite(link[2]) else None]
+            for link in (scan.get("links") if isinstance(scan.get("links"), list) else [])
+            if isinstance(link, list) and len(link) >= 3 and _ieee(link[0]) and _ieee(link[1])
+        ]
+        out.append({"at": scan["at"], "parents": parents, "links": links})
+    return out
+
+
+def _csv_safe(row: list) -> list:
+    """Quote text a spreadsheet would run as a formula (=, +, -, @, tab, CR), so device names can't."""
+    return [
+        f"'{cell}" if isinstance(cell, str) and cell[:1] in ("=", "+", "-", "@", "\t", "\r") else cell for cell in row
+    ]
+
+
+def _write_atomic(path: str, payload: str) -> None:
+    """Write a file so a crash or power cut leaves the old one or the new one, never half of each."""
+    tmp_path = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as handle:
+        handle.write(payload)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(tmp_path, path)
 
 
 def _now() -> str:
@@ -181,6 +338,10 @@ def _set_current_name(record: dict, name: str | None, when: str) -> str | None:
     else:
         record["names"].append({"name": name, "from": when, "until": None, "source": "Z2M"})
     record["friendly_name"] = name
+    if len(record["names"]) > MAX_NAMES:
+        current = [entry for entry in record["names"] if entry["name"] == name]
+        older = [entry for entry in record["names"] if entry["name"] != name]
+        record["names"] = older[-(MAX_NAMES - len(current)) :] + current
     return previous or ""
 
 
@@ -343,11 +504,11 @@ def memory_growth(days: list, today: date, current: float | None = None) -> dict
     frees the memory clears the flag straight away.
     """
     start = (today - timedelta(days=MEMORY_WINDOW_DAYS - 1)).isoformat()
-    window = [d for d in days if d[0] >= start and isinstance(d[1], (int, float))]
+    window = [d for d in days if isinstance(d, list) and len(d) >= 2 and d[0] >= start and _finite(d[1])]
     if len(window) < MEMORY_MIN_DAYS or window[0][1] <= 0:
         return None
     first = window[0][1]
-    last = current if isinstance(current, (int, float)) and current > 0 else window[-1][1]
+    last = current if _finite(current) and current > 0 else window[-1][1]
     growth = (last - first) / first
     if growth <= MEMORY_GROWTH:
         return None
@@ -419,6 +580,10 @@ class Tracker:
         self._hours: dict[str, dict] = {}
         self._hours_at: int | None = None
         self.addresses: dict[str, dict] = {}
+        self._save_lock = threading.Lock()
+        # Per base topic: (IEEEs, first seen) of a device list that would remove most devices, held until it repeats.
+        self._held_list: dict[str, tuple[frozenset, float]] = {}
+        self._bad_message_logged = 0.0
 
     # ------------------------------------------------------------ persistence
 
@@ -426,9 +591,19 @@ class Tracker:
         source = "new"
         stored = None
         if os.path.exists(self.data_path):
-            with open(self.data_path, encoding="utf-8") as handle:
-                stored = json.load(handle)
-            source = "saved"
+            try:
+                with open(self.data_path, encoding="utf-8") as handle:
+                    stored = json.load(handle)
+                source = "saved"
+            except (OSError, ValueError) as err:
+                # Keep the broken file for recovery and start empty, rather than crash-looping.
+                broken = f"{self.data_path}.corrupt-{int(time.time())}"
+                _LOGGER.error("%s can't be read (%s); moved it to %s and starting empty", self.data_path, err, broken)
+                try:
+                    os.replace(self.data_path, broken)
+                except OSError:
+                    pass
+                source = "corrupt"
         elif migrate_from and os.path.exists(migrate_from):
             with open(migrate_from, encoding="utf-8") as handle:
                 wrapper = json.load(handle)
@@ -441,7 +616,10 @@ class Tracker:
                 self.data["networkmap"] = stored.get("networkmap") or {}
                 self.data["alerted"] = list(stored.get("alerted") or [])
                 for ieee, record in (stored.get("devices") or {}).items():
-                    self.data["devices"][ieee] = {**_new_record(ieee, record.get("instance")), **record}
+                    if isinstance(record, dict):
+                        self.data["devices"][ieee] = _clean_record(
+                            {**_new_record(ieee, record.get("instance")), **record}
+                        )
                 for key, value in stored.items():
                     if key not in ("devices", "events", "imported", "networkmap", "alerted"):
                         self.data[key] = value
@@ -455,15 +633,14 @@ class Tracker:
         return source
 
     def save(self, force: bool = False) -> bool:
-        with self.lock:
-            if not self.dirty and not force:
-                return False
-            payload = json.dumps(self.data, ensure_ascii=False)
-            self.dirty = False
-        tmp_path = f"{self.data_path}.tmp"
-        with open(tmp_path, "w", encoding="utf-8") as handle:
-            handle.write(payload)
-        os.replace(tmp_path, self.data_path)
+        # One writer at a time: the scheduler, a restore and shutdown can all save at once.
+        with self._save_lock:
+            with self.lock:
+                if not self.dirty and not force:
+                    return False
+                payload = _dumps(self.data, ensure_ascii=False)
+                self.dirty = False
+            _write_atomic(self.data_path, payload)
         return True
 
     def _changed(self, structural: bool) -> None:
@@ -478,25 +655,43 @@ class Tracker:
     # ------------------------------------------------------------------- MQTT
 
     def handle_message(self, base_topic: str, topic: str, payload: bytes) -> None:
+        """Handle one MQTT message. Never raises: a bad message must not stop the MQTT thread."""
+        if len(payload) > MAX_PAYLOAD:
+            self._log_bad_message(topic, f"payload of {len(payload)} bytes is too large")
+            return
+        try:
+            self._handle_message(base_topic, topic, payload)
+        except ValueError:
+            return
+        except Exception as err:  # noqa: BLE001 - malformed input from the broker
+            self._log_bad_message(topic, f"{type(err).__name__}: {err}")
+
+    def _log_bad_message(self, topic: str, reason: str) -> None:
+        # At most once a minute, so a flood of bad messages can't flood the log.
+        if time.time() - self._bad_message_logged >= 60:
+            self._bad_message_logged = time.time()
+            _LOGGER.warning("Ignored a malformed MQTT message on %s (%s)", _text(topic), _text(reason))
+
+    def _handle_message(self, base_topic: str, topic: str, payload: bytes) -> None:
         rest = topic[len(base_topic) + 1 :]
         text = payload.decode("utf-8", errors="ignore")
         try:
             with self.lock:
                 if rest.startswith("bridge/"):
                     if rest == "bridge/devices":
-                        parsed = json.loads(text)
+                        parsed = _loads(text)
                         if isinstance(parsed, list):
                             self._handle_devices(base_topic, parsed)
                     elif rest == "bridge/event":
-                        parsed = json.loads(text)
+                        parsed = _loads(text)
                         if isinstance(parsed, dict):
                             self._handle_event(base_topic, parsed)
                     elif rest.startswith("bridge/response/"):
-                        parsed = json.loads(text)
+                        parsed = _loads(text)
                         if isinstance(parsed, dict):
                             self._handle_response(base_topic, rest[len("bridge/response/") :], parsed)
                     elif rest == "bridge/info":
-                        parsed = json.loads(text)
+                        parsed = _loads(text)
                         if isinstance(parsed, dict):
                             self._handle_info(base_topic, parsed)
                     elif rest == "bridge/state":
@@ -504,11 +699,11 @@ class Tracker:
                     elif rest == "bridge/request/permit_join":
                         self._handle_permit_request(base_topic, text)
                     elif rest == "bridge/groups":
-                        parsed = json.loads(text)
+                        parsed = _loads(text)
                         if isinstance(parsed, list):
                             self._handle_groups(base_topic, parsed)
                     elif rest == "bridge/health":
-                        parsed = json.loads(text)
+                        parsed = _loads(text)
                         if isinstance(parsed, dict):
                             self._handle_bridge_health(base_topic, parsed)
                     return
@@ -531,12 +726,14 @@ class Tracker:
         names: dict[str, str] = {}
         changed = False
 
-        for device in devices:
-            ieee = str(device.get("ieee_address") or "").lower()
-            if not ieee:
-                continue
+        entries = [(d, _ieee(d.get("ieee_address"))) for d in devices if isinstance(d, dict)]
+        entries = [(d, ieee) for d, ieee in entries if ieee]
+        if self._hold_shrinking_list(base_topic, {ieee for _, ieee in entries}, now):
+            return
+
+        for device, ieee in entries:
             listed.add(ieee)
-            name = device.get("friendly_name")
+            name = _text(device.get("friendly_name"))
             if name:
                 names[name] = ieee
 
@@ -568,7 +765,7 @@ class Tracker:
                 if previous:
                     self._add_event(now, base_topic, ieee, name, "renamed", f"{previous} → {name}")
 
-            definition = device.get("definition") or {}
+            definition = device.get("definition") if isinstance(device.get("definition"), dict) else {}
             interview_state = device.get("interview_state")
             if not interview_state:
                 if device.get("interviewing"):
@@ -577,20 +774,21 @@ class Tracker:
                     interview_state = "SUCCESSFUL"
                 elif device.get("interview_completed") is False:
                     interview_state = "FAILED"
+            exposes = definition.get("exposes")
             updates = {
-                "type": device.get("type"),
-                "model": definition.get("model"),
-                "vendor": definition.get("vendor"),
-                "description": definition.get("description"),
-                "model_id": device.get("model_id"),
-                "manufacturer": device.get("manufacturer"),
-                "power_source": device.get("power_source"),
-                "software_build_id": device.get("software_build_id"),
-                "date_code": device.get("date_code"),
-                "supported": device.get("supported"),
-                "interview_state": interview_state,
-                "z2m_description": device.get("description") or None,
-                "features": _features(definition.get("exposes")),
+                "type": _text(device.get("type")),
+                "model": _text(definition.get("model")),
+                "vendor": _text(definition.get("vendor")),
+                "description": _text(definition.get("description")),
+                "model_id": _text(device.get("model_id")),
+                "manufacturer": _text(device.get("manufacturer")),
+                "power_source": _text(device.get("power_source")),
+                "software_build_id": _text(device.get("software_build_id")),
+                "date_code": _text(device.get("date_code")),
+                "supported": device.get("supported") if isinstance(device.get("supported"), bool) else None,
+                "interview_state": _text(interview_state),
+                "z2m_description": _text(device.get("description"), MAX_DETAIL),
+                "features": _features(exposes) if isinstance(exposes, list) else [],
             }
             for key, value in updates.items():
                 if value is None or value == []:
@@ -623,6 +821,48 @@ class Tracker:
         if self.lists_received >= set(self.base_topics):
             self.lists_ready.set()
         self._changed(structural=changed)
+
+    def _hold_shrinking_list(self, base_topic: str, listed: set[str], now: str) -> bool:
+        """True when this device list would drop most of the network and hasn't been seen before.
+
+        Anything on the broker can publish bridge/devices, so a list that empties the network has to
+        arrive again at least SHRINK_HOLD_SECONDS later before devices are marked removed. Zigbee2MQTT
+        republishes the list on every change and restart, so a real mass removal still lands. This
+        stops a stray message or a quick burst; only broker ACLs stop someone determined.
+        """
+        active = {
+            ieee
+            for ieee, record in self.data["devices"].items()
+            if record["instance"] == base_topic and record["status"] == STATUS_ACTIVE
+        }
+        gone = active - listed
+        if len(active) < SHRINK_MIN_DEVICES or len(gone) * 2 <= len(active):
+            self._held_list.pop(base_topic, None)
+            return False
+        key = frozenset(listed)
+        held = self._held_list.get(base_topic)
+        if held and held[0] == key:
+            if time.time() - held[1] >= SHRINK_HOLD_SECONDS:
+                self._held_list.pop(base_topic, None)
+                return False
+            return True
+        self._held_list[base_topic] = (key, time.time())
+        _LOGGER.warning(
+            "%s: device list would remove %d of %d devices; waiting for Zigbee2MQTT to send it again",
+            base_topic,
+            len(gone),
+            len(active),
+        )
+        self._add_event(
+            now,
+            base_topic,
+            "network",
+            "Network",
+            "device list held",
+            f"A device list without {len(gone)} of {len(active)} devices arrived; it is applied if it arrives again",
+        )
+        self._changed(structural=True)
+        return True
 
     # ----------------------------------------------------------------- groups
 
@@ -917,12 +1157,14 @@ class Tracker:
 
     def _handle_event(self, base_topic: str, payload: dict) -> None:
         event_type = payload.get("type")
-        data = payload.get("data") or {}
-        ieee = str(data.get("ieee_address") or "").lower()
+        data = payload.get("data")
+        if event_type not in EVENT_TYPES or not isinstance(data, dict):
+            return
+        ieee = _ieee(data.get("ieee_address"))
         if not ieee:
             return
         now = _now()
-        name = data.get("friendly_name")
+        name = _text(data.get("friendly_name"))
         record = self.data["devices"].get(ieee)
         if record is None:
             record = _new_record(ieee, base_topic)
@@ -953,17 +1195,18 @@ class Tracker:
         elif event_type == "device_leave":
             self._add_event(now, base_topic, ieee, name, "left", "Device left the network", notify=True)
         elif event_type == "device_interview":
-            status = data.get("status") or "?"
+            status = _text(data.get("status"), 40) or "?"
             detail = ""
-            definition = data.get("definition") or {}
+            definition = data.get("definition") if isinstance(data.get("definition"), dict) else {}
             if status == "successful" and definition:
                 for key in ("model", "vendor", "description"):
-                    if definition.get(key):
-                        record[key] = definition[key]
-                features = _features(definition.get("exposes"))
+                    if _text(definition.get(key)):
+                        record[key] = _text(definition[key])
+                exposes = definition.get("exposes")
+                features = _features(exposes) if isinstance(exposes, list) else []
                 if features:
                     record["features"] = features
-                detail = f"{definition.get('vendor') or ''} {definition.get('model') or ''}".strip()
+                detail = f"{record.get('vendor') or ''} {record.get('model') or ''}".strip()
             self._add_event(now, base_topic, ieee, name, f"interview {status}", detail, notify=status == "failed")
         else:
             return
@@ -1001,7 +1244,8 @@ class Tracker:
             return
         state = payload.strip()
         if state.startswith("{"):
-            state = (json.loads(state) or {}).get("state", "")
+            parsed = _loads(state)
+            state = parsed.get("state", "") if isinstance(parsed, dict) else ""
         if state not in ("online", "offline"):
             return
         previous = record["availability"]
@@ -1031,7 +1275,7 @@ class Tracker:
             return
         parsed = None
         if payload[:1] == "{":
-            parsed = json.loads(payload)
+            parsed = _loads(payload)
         if not isinstance(parsed, dict):
             record["last_seen"] = _max_time(record["last_seen"], _now())
             self._changed(structural=False)
@@ -1044,12 +1288,12 @@ class Tracker:
         self.metrics.add_message(ieee)
 
         lqi = parsed.get("linkquality")
-        if isinstance(lqi, (int, float)) and not isinstance(lqi, bool):
+        if _finite(lqi):
             record["lqi"] = lqi
             self.metrics.add_lqi(ieee, lqi)
 
         battery = parsed.get("battery")
-        if isinstance(battery, (int, float)) and not isinstance(battery, bool):
+        if _finite(battery):
             if record.get("battery") != battery:
                 structural = True
             record["battery"] = battery
@@ -1112,13 +1356,14 @@ class Tracker:
     def _ingest_networkmap(self, base_topic: str, payload: dict) -> None:
         now = _now()
         status = payload.get("status")
-        info = {"scanned_at": now, "status": status, "error": payload.get("error")}
-        value = ((payload.get("data") or {}).get("value")) if status == "ok" else None
+        info = {"scanned_at": now, "status": _text(status, 40), "error": _text(payload.get("error"), MAX_DETAIL)}
+        data = payload.get("data")
+        value = data.get("value") if status == "ok" and isinstance(data, dict) else None
         if not isinstance(value, dict):
             self.data["networkmap"][base_topic] = info
             self._changed(structural=True)
             return
-        links = value.get("links") or []
+        links = [link for link in value.get("links") or [] if isinstance(link, dict)]
         neighbours: dict[str, list[dict]] = {}
         parents: dict[str, dict] = {}
         children: dict[str, int] = {}
@@ -1126,8 +1371,8 @@ class Tracker:
 
         def addr(side: Any, fallback: Any) -> str:
             if isinstance(side, dict):
-                return str(side.get("ieeeAddr") or "").lower()
-            return str(fallback or "").lower()
+                return _ieee(side.get("ieeeAddr")) or ""
+            return _ieee(fallback) or ""
 
         for link in links:
             source = addr(link.get("source"), link.get("sourceIeeeAddr"))
@@ -1135,6 +1380,8 @@ class Tracker:
             if not source or not target:
                 continue
             lqi = link.get("lqi", link.get("linkquality"))
+            # LQI is a number from 0 to 255; anything else (text, NaN) is dropped before it's stored.
+            lqi = lqi if _finite(lqi) else None
             relationship = link.get("relationship")
             neighbours.setdefault(source, []).append({"ieee": target, "lqi": lqi, "rel": relationship})
             neighbours.setdefault(target, []).append({"ieee": source, "lqi": lqi, "rel": relationship})
@@ -1143,11 +1390,13 @@ class Tracker:
                 if current is None or (lqi or 0) > (current.get("lqi") or 0):
                     parents[source] = {"ieee": target, "lqi": lqi}
                 children[target] = children.get(target, 0) + 1
-            if link.get("depth") is not None:
+            if _finite(link.get("depth")):
                 depth[source] = link.get("depth")
 
         for node in value.get("nodes") or []:
-            ieee = str(node.get("ieeeAddr") or "").lower()
+            if not isinstance(node, dict):
+                continue
+            ieee = _ieee(node.get("ieeeAddr")) or ""
             record = self.data["devices"].get(ieee)
             if record is None:
                 continue
@@ -1180,20 +1429,21 @@ class Tracker:
             with open(path, encoding="utf-8") as handle:
                 data = json.load(handle)
             if isinstance(data, dict):
-                self.scans = data
+                self.scans = {topic: _clean_scans(scans) for topic, scans in data.items() if isinstance(scans, list)}
         except (OSError, ValueError):
             self.scans = {}
 
     def _save_scans(self) -> None:
         if not self.scans_path:
             return
-        tmp = f"{self.scans_path}.tmp"
-        with open(tmp, "w", encoding="utf-8") as handle:
-            json.dump(self.scans, handle, separators=(",", ":"))
-        os.replace(tmp, self.scans_path)
+        _write_atomic(self.scans_path, _dumps(self.scans, separators=(",", ":")))
 
     def _record_scan(self, base_topic: str, when: str, parents: dict, neighbours: dict) -> None:
-        record_parents = {ieee: [p["ieee"], p.get("lqi")] for ieee, p in parents.items()}
+        devices = self.data["devices"]
+        # Only devices the tracker knows: a made-up response can't fill scans.json with strangers.
+        record_parents = {
+            ieee: [p["ieee"], p.get("lqi")] for ieee, p in parents.items() if ieee in devices and p["ieee"] in devices
+        }
         links: dict[str, list] = {}
         for ieee, nbrs in neighbours.items():
             dev = self.data["devices"].get(ieee)
@@ -1247,10 +1497,13 @@ class Tracker:
         if value in (None, ""):
             return None
         if isinstance(value, (int, float)):
-            if value <= 0:
+            if not _finite(value) or value <= 0:
                 return None
             seconds = value / 1000 if value > 1e11 else value
-            return datetime.fromtimestamp(seconds, tz=timezone.utc).isoformat(timespec="seconds")
+            try:
+                return datetime.fromtimestamp(seconds, tz=timezone.utc).isoformat(timespec="seconds")
+            except (OverflowError, OSError, ValueError):
+                return None
         try:
             moment = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
         except ValueError:
@@ -1262,7 +1515,14 @@ class Tracker:
     def _add_event(
         self, when: str, base_topic: str, ieee: str, name: str | None, kind: str, detail: str, notify: bool = False
     ) -> None:
-        event = {"time": when, "instance": base_topic, "ieee": ieee, "name": name, "kind": kind, "detail": detail}
+        event = {
+            "time": when,
+            "instance": base_topic,
+            "ieee": ieee,
+            "name": _text(name),
+            "kind": kind,
+            "detail": _text(str(detail or ""), MAX_DETAIL) or "",
+        }
         events = self.data["events"]
         events.append(event)
         if len(events) > MAX_EVENTS:
@@ -2012,7 +2272,7 @@ class Tracker:
                 "alerts_paused": self.alert_pause_state(),
                 "version": self.version,
             }
-            return json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            return _dumps(payload, ensure_ascii=False).encode("utf-8")
 
     def export_csv(self) -> bytes:
         now = time.time()
@@ -2067,38 +2327,40 @@ class Tracker:
                 battery = self.battery_summary(record)
                 asset = record.get("asset") or {}
                 writer.writerow(
-                    [
-                        record["ieee"],
-                        name,
-                        "; ".join(former),
-                        record["status"],
-                        record.get("instance") or "",
-                        record.get("vendor") or "",
-                        record.get("model") or "",
-                        record.get("model_id") or "",
-                        record.get("manufacturer") or "",
-                        self._oui_vendor(record["ieee"]) or "",
-                        record.get("description") or "",
-                        record.get("type") or "",
-                        record.get("power_source") or "",
-                        " ".join(str(x) for x in (record.get("software_build_id"), record.get("date_code")) if x),
-                        record.get("first_seen") or "",
-                        record.get("last_seen") or "",
-                        record.get("removed_at") or "",
-                        summary.get("lqi_24h") if summary.get("lqi_24h") is not None else "",
-                        record.get("battery") if record.get("battery") is not None else "",
-                        battery["type"],
-                        battery["quantity"] or "",
-                        battery["installed"],
-                        battery["last_replaced"] or "",
-                        len(battery["replacements"]),
-                        uptime(record, now) or "",
-                        record.get("area") or "",
-                        record.get("ha_name") or "",
-                        *[asset.get(field, "") for field in ASSET_FIELDS],
-                        "yes" if record.get("critical") else "",
-                        record.get("note") or "",
-                    ]
+                    _csv_safe(
+                        [
+                            record["ieee"],
+                            name,
+                            "; ".join(former),
+                            record["status"],
+                            record.get("instance") or "",
+                            record.get("vendor") or "",
+                            record.get("model") or "",
+                            record.get("model_id") or "",
+                            record.get("manufacturer") or "",
+                            self._oui_vendor(record["ieee"]) or "",
+                            record.get("description") or "",
+                            record.get("type") or "",
+                            record.get("power_source") or "",
+                            " ".join(str(x) for x in (record.get("software_build_id"), record.get("date_code")) if x),
+                            record.get("first_seen") or "",
+                            record.get("last_seen") or "",
+                            record.get("removed_at") or "",
+                            summary.get("lqi_24h") if summary.get("lqi_24h") is not None else "",
+                            record.get("battery") if record.get("battery") is not None else "",
+                            battery["type"],
+                            battery["quantity"] or "",
+                            battery["installed"],
+                            battery["last_replaced"] or "",
+                            len(battery["replacements"]),
+                            uptime(record, now) or "",
+                            record.get("area") or "",
+                            record.get("ha_name") or "",
+                            *[asset.get(field, "") for field in ASSET_FIELDS],
+                            "yes" if record.get("critical") else "",
+                            record.get("note") or "",
+                        ]
+                    )
                 )
         return buffer.getvalue().encode("utf-8-sig")
 
@@ -2645,7 +2907,7 @@ class Tracker:
     def _handle_bridge_state(self, base_topic: str, text: str) -> None:
         state = text.strip()
         if state.startswith("{"):
-            state = (json.loads(state) or {}).get("state", "")
+            state = (_loads(state) or {}).get("state", "")
         if state not in ("online", "offline"):
             return
         bridge = self._bridge(base_topic)
@@ -2675,11 +2937,19 @@ class Tracker:
         self._changed(structural=True)
 
     def _handle_bridge_health(self, base_topic: str, health: dict) -> None:
+        def obj(value: Any) -> dict:
+            return value if isinstance(value, dict) else {}
+
+        def num(value: Any) -> Any:
+            return value if _finite(value) else None
+
         bridge = self._bridge(base_topic)
-        process = health.get("process") or {}
-        uptime = process.get("uptime_sec")
-        previous = (bridge.get("health") or {}).get("uptime_sec")
-        if isinstance(uptime, (int, float)) and isinstance(previous, (int, float)) and uptime + 120 < previous:
+        process = obj(health.get("process"))
+        uptime = num(process.get("uptime_sec"))
+        if uptime is not None and not 0 <= uptime < 1e10:
+            uptime = None
+        previous = obj(bridge.get("health")).get("uptime_sec")
+        if uptime is not None and _finite(previous) and uptime + 120 < previous:
             now = _now()
             bridge["restarts"].append(now)
             del bridge["restarts"][: max(0, len(bridge["restarts"]) - 100)]
@@ -2687,31 +2957,32 @@ class Tracker:
                 now, base_topic, "network", "Network", "zigbee2mqtt restarted", f"Was up {int(previous // 3600)} h"
             )
             self.revision += 1
-        for ieee, stats in (health.get("devices") or {}).items():
+        for ieee, stats in obj(health.get("devices")).items():
             record = self.data["devices"].get(str(ieee).lower())
             if record is None or not isinstance(stats, dict):
                 continue
             record["z2m_stats"] = {
-                "messages": stats.get("messages"),
-                "per_sec": stats.get("messages_per_sec"),
-                "leave_count": stats.get("leave_count"),
-                "nwk_changes": stats.get("network_address_changes"),
+                "messages": num(stats.get("messages")),
+                "per_sec": num(stats.get("messages_per_sec")),
+                "leave_count": num(stats.get("leave_count")),
+                "nwk_changes": num(stats.get("network_address_changes")),
                 "since": _now()
-                if not isinstance(uptime, (int, float))
+                if uptime is None
                 else datetime.fromtimestamp(time.time() - uptime, tz=timezone.utc).isoformat(timespec="minutes"),
             }
-        mqtt = health.get("mqtt") or {}
-        memory = process.get("memory_used_mb")
+        mqtt = obj(health.get("mqtt"))
+        memory = num(process.get("memory_used_mb"))
+        load = obj(health.get("os")).get("load_average")
         bridge["health"] = {
             "uptime_sec": uptime,
             "memory_mb": memory,
-            "mqtt_connected": mqtt.get("connected"),
-            "mqtt_published": mqtt.get("published"),
-            "mqtt_received": mqtt.get("received"),
-            "os_load": ((health.get("os") or {}).get("load_average") or [None])[0],
+            "mqtt_connected": mqtt.get("connected") if isinstance(mqtt.get("connected"), bool) else None,
+            "mqtt_published": num(mqtt.get("published")),
+            "mqtt_received": num(mqtt.get("received")),
+            "os_load": num(load[0]) if isinstance(load, list) and load else None,
             "updated": _now(),
         }
-        if isinstance(memory, (int, float)) and not isinstance(memory, bool) and memory > 0:
+        if memory is not None and 0 < memory < 1e7:
             bridge["memory_days"] = record_memory(bridge.get("memory_days") or [], self._today(), round(memory, 1))
         self.dirty = True
 
@@ -2719,18 +2990,21 @@ class Tracker:
         return datetime.fromtimestamp(time.time(), tz=self.local_tz).date()
 
     def _handle_info(self, base_topic: str, info: dict) -> None:
-        coordinator = info.get("coordinator") or {}
-        network = info.get("network") or {}
-        meta = coordinator.get("meta") or {}
+        def obj(value: Any) -> dict:
+            return value if isinstance(value, dict) else {}
+
+        coordinator = obj(info.get("coordinator"))
+        network = obj(info.get("network"))
+        meta = obj(coordinator.get("meta"))
         firmware = meta.get("revision") or meta.get("version") or meta.get("firmware")
         slim = {
-            "version": info.get("version"),
-            "commit": info.get("commit"),
-            "coordinator_type": coordinator.get("type"),
-            "coordinator_ieee": coordinator.get("ieee_address"),
-            "firmware": str(firmware) if firmware is not None else None,
-            "channel": network.get("channel"),
-            "pan_id": network.get("pan_id"),
+            "version": _text(info.get("version"), 40),
+            "commit": _text(info.get("commit"), 40),
+            "coordinator_type": _text(coordinator.get("type"), 40),
+            "coordinator_ieee": _ieee(coordinator.get("ieee_address")),
+            "firmware": _text(str(firmware), 80) if firmware is not None else None,
+            "channel": network.get("channel") if _finite(network.get("channel")) else None,
+            "pan_id": network.get("pan_id") if _finite(network.get("pan_id")) else None,
             "restart_required": bool(info.get("restart_required")),
             # Only Z2M's availability settings, not its whole config, to keep history.json small.
             "availability": z2m_availability(info),
@@ -2755,8 +3029,8 @@ class Tracker:
         # Z2M 2.x: permit_join_end is an epoch in ms. 1.x: permit_join_timeout is seconds left.
         end = info.get("permit_join_end") or info.get("permit_join_timeout")
         end_iso = None
-        if isinstance(end, (int, float)) and not isinstance(end, bool) and end > 0:
-            end_ts = end / 1000 if end > 1e11 else time.time() + end
+        if _finite(end) and 0 < end < 1e14:
+            end_ts = end / 1000 if end > 1e11 else time.time() + min(end, 86400)
             end_iso = datetime.fromtimestamp(end_ts, tz=timezone.utc).isoformat(timespec="seconds")
         state = {"on": on, "end": end_iso}
         previous = self.permit.get(base_topic)
@@ -2774,7 +3048,7 @@ class Tracker:
     def _handle_permit_request(self, base_topic: str, text: str) -> None:
         """Someone published bridge/request/permit_join. Remember it if it opens pairing and isn't ours."""
         try:
-            payload = json.loads(text)
+            payload = _loads(text)
         except ValueError:
             payload = text
         transaction = str(payload.get("transaction") or "") if isinstance(payload, dict) else ""
@@ -3049,7 +3323,7 @@ class Tracker:
 
     def backup(self) -> bytes:
         with self.lock, self.metrics.lock:
-            return json.dumps(
+            return _dumps(
                 {
                     "format": "z2m-tracker-backup",
                     "version": 1,
@@ -3066,27 +3340,42 @@ class Tracker:
         history = payload.get("history") or {}
         if not isinstance(history.get("devices"), dict):
             return {"ok": False, "error": "The backup has no device list"}
+        # Build and check the new state first: a broken file must not wipe what is loaded now.
+        devices: dict[str, dict] = {}
+        for ieee, record in history["devices"].items():
+            clean = _ieee(ieee)
+            if not clean or not isinstance(record, dict):
+                return {"ok": False, "error": f"The backup has an invalid device entry ({_text(str(ieee), 40)})"}
+            instance = record.get("instance")
+            if instance is not None and instance not in self.base_topics and instance != "unknown":
+                # A network this app doesn't listen to: keep the history, never send requests to it.
+                instance = None
+            devices[clean] = _clean_record(
+                {**_new_record(clean, instance), **record, "ieee": clean, "instance": instance}
+            )
+        restored: dict[str, Any] = {
+            "devices": devices,
+            "events": [e for e in history.get("events") or [] if isinstance(e, dict)][-MAX_EVENTS:],
+            "imported": history.get("imported") if isinstance(history.get("imported"), (str, dict)) else None,
+            "networkmap": history.get("networkmap") if isinstance(history.get("networkmap"), dict) else {},
+            "alerted": [str(k) for k in history.get("alerted") or [] if isinstance(k, str)],
+        }
+        for key, kind in RESTORE_KEYS.items():
+            if isinstance(history.get(key), kind):
+                restored[key] = history[key]
         with self.lock:
             # A pause is about now, not about when the backup was made.
             paused = self.data.get("alerts_paused")
             # Held quiet-hours alerts are about now, not about when the backup was made.
             quiet = self.data.get("quiet")
-            self.data = {
-                "devices": {},
-                "events": list(history.get("events") or []),
-                "imported": history.get("imported"),
-                "networkmap": history.get("networkmap") or {},
-                "alerted": list(history.get("alerted") or []),
-            }
-            for key, value in history.items():
-                if key not in ("devices", "events", "imported", "networkmap", "alerted"):
-                    self.data[key] = value
-            self.data.pop("alerts_paused", None)
+            # Entities this app published: kept so the next sync removes the ones the backup doesn't need.
+            topics = self.data.get("discovery_topics")
+            self.data = restored
             if paused:
                 self.data["alerts_paused"] = paused
             self.data["quiet"] = quiet
-            for ieee, record in history["devices"].items():
-                self.data["devices"][ieee] = {**_new_record(ieee, record.get("instance")), **record}
+            if topics:
+                self.data["discovery_topics"] = topics
             self.names = {}
             for record in self.data["devices"].values():
                 if record["status"] == STATUS_ACTIVE and record["friendly_name"] and record["instance"]:
