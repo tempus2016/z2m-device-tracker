@@ -12,6 +12,7 @@ import re
 import threading
 import time
 import uuid
+from collections import deque
 from collections.abc import Callable
 from datetime import date, datetime, timedelta, timezone, tzinfo
 from datetime import date as date_cls
@@ -25,6 +26,7 @@ from health import (
     FLAP_OUTAGES,
     HOP_CHANGES,
     HOP_DAYS,
+    MISMATCH_MESSAGES,
     REPORT_EVERY_MAX,
     REPORT_EVERY_MIN,
     clean_limits,
@@ -846,6 +848,8 @@ class Tracker:
         # Full topic -> {"ieee", "payload", "seen"} for each retained <name>/set the broker replayed when
         # the tracker subscribed. Memory only: the broker sends them again on every connect.
         self.retained_commands: dict[str, dict] = {}
+        # IEEE -> arrival times of its last few live messages (memory only), for the availability mismatch check.
+        self._recent: dict[str, deque] = {}
 
     # ------------------------------------------------------------ persistence
 
@@ -981,7 +985,7 @@ class Tracker:
                     return
                 if rest.endswith("/get") or "/get/" in rest:
                     return
-                self._handle_state(base_topic, rest, text)
+                self._handle_state(base_topic, rest, text, retained)
         except ValueError:
             return
 
@@ -1746,10 +1750,14 @@ class Tracker:
                     del self._commands[ieee]
                     self.metrics.add_command(ieee, None, now=start)
 
-    def _handle_state(self, base_topic: str, name: str, payload: str) -> None:
+    def _handle_state(self, base_topic: str, name: str, payload: str, retained: bool = False) -> None:
         record = self._record_for(base_topic, name)
         if record is None:
             return
+        if not retained:
+            # Live messages only: a retained state replayed on connect says nothing about now.
+            recent = self._recent.setdefault(record["ieee"], deque(maxlen=MISMATCH_MESSAGES))
+            recent.append(time.time())
         parsed = None
         if payload[:1] == "{":
             parsed = _loads(payload)
@@ -2790,6 +2798,12 @@ class Tracker:
             ]
             if overdue:
                 extra["maintenance_overdue"] = sorted(overdue, key=lambda x: -x["days"])
+            recent = self._recent.get(ieee)
+            if recent:
+                extra["recent_messages"] = list(recent)
+            extra["z2m_availability"] = ((bridges.get(record.get("instance")) or {}).get("info") or {}).get(
+                "availability"
+            )
             out[ieee] = extra
         for topic, entry in sorted(self.retained_commands.items()):
             owner = self._retained_command_device(entry)
@@ -4701,6 +4715,7 @@ class Tracker:
                 if record.get("successor") == ieee:
                     record["successor"] = None
             self._commands.pop(ieee, None)
+            self._recent.pop(ieee, None)
             self.metrics.forget(ieee)
             self._changed(structural=True)
             return True

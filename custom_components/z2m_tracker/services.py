@@ -53,6 +53,7 @@ DEVICE_CHECKS = [
     "naming",
     "firmware_note",
     "retained_command",
+    "availability_mismatch",
 ]
 
 DEVICE_FIELDS = {

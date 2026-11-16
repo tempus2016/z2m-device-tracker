@@ -45,6 +45,15 @@ ROUTER_BACK_GRACE = 300
 HOP_CHANGES = 3
 HOP_DAYS = 7
 DEFAULT_CRITICAL_OFFLINE_MINUTES = 5
+# Availability mismatch: "offline" while this many live messages arrived within MISMATCH_WINDOW, after
+# being offline for at least MISMATCH_SETTLE (Zigbee2MQTT itself flips a device back online within
+# seconds of a message, so a short overlap is just the change arriving).
+MISMATCH_MESSAGES = 3
+MISMATCH_WINDOW = 600
+MISMATCH_SETTLE = 300
+# "online" with no message for at least this long, and at least MISMATCH_GAPS of the device's usual gap.
+MISMATCH_QUIET = 6 * 3600
+MISMATCH_GAPS = 10
 
 # Everything the Settings page can switch: (key, label, description, is_event)
 CHECKS = [
@@ -207,6 +216,12 @@ CHECKS = [
         "A command (<name>/set) is retained on the broker, so the device repeats it every time the broker or Zigbee2MQTT restarts.",
         False,
     ),
+    (
+        "availability_mismatch",
+        "Availability disagreement",
+        "Zigbee2MQTT says the device is offline while it keeps sending messages (3 in 10 minutes), or online while it has sent nothing for far longer than usual. Usually a stale retained availability topic.",
+        False,
+    ),
     ("joined", "Device joined", "A device joins one of your networks.", True),
     ("left", "Device left", "A device leaves one of your networks.", True),
     ("interview_failed", "Interview failed", "A newly joined device couldn't be identified.", True),
@@ -257,6 +272,7 @@ KIND_LABELS = {
     "firmware_note": "Firmware you noted",
     "stale_retained": "Stale retained messages",
     "retained_command": "Retained command",
+    "availability_mismatch": "Availability disagreement",
 }
 
 
@@ -585,6 +601,63 @@ def offline_timing(record: dict, availability: dict | None, options: dict, now: 
     return out
 
 
+def availability_mismatch(record: dict, summary: dict, options: dict, now: float) -> dict | None:
+    """When the device's Zigbee2MQTT availability can't be right, given the messages it sends.
+
+    Offline, yet MISMATCH_MESSAGES live messages came within the last MISMATCH_WINDOW, all after it
+    went offline: the device is talking, so the availability topic is stale (typically a retained
+    "offline" left from when availability was on). Online, yet silent for far longer than its usual
+    gap, while Zigbee2MQTT either doesn't track its availability (so nothing updates the topic) or
+    should have marked it offline by now (a battery device past the passive timeout). Mains devices
+    Zigbee2MQTT pings are left alone: a ping keeps them online without any message.
+
+    Devices with their own report interval are left to the Stopped reporting check. Returns
+    {msg, params} or None.
+    """
+    if summary.get("network_down") or record.get("type") == "Coordinator" or record.get("status") != "active":
+        return None
+    state = record.get("availability")
+    name = record.get("friendly_name") or record.get("ieee")
+    topic = f"{record.get('instance')}/{name}/availability"
+    if state == "offline":
+        since = _age(record.get("availability_since"), now)
+        if since is None or since < MISMATCH_SETTLE:
+            return None
+        went = now - since
+        recent = [t for t in summary.get("recent_messages") or [] if t > went and now - t <= MISMATCH_WINDOW]
+        if len(recent) < MISMATCH_MESSAGES:
+            return None
+        return {
+            "msg": "availability_mismatch_offline",
+            "params": {"seconds": int(since), "n": len(recent), "ago": int(now - max(recent)), "topic": topic},
+        }
+    if state != "online" or record.get("report_every"):
+        return None
+    timing = offline_timing(record, summary.get("z2m_availability"), options, now)
+    if timing is None:
+        return None
+    quiet = _age(record.get("last_seen"), now)
+    # Messages that arrived while the app was down don't count against the device.
+    quiet = min(quiet, now - summary.get("started", 0.0)) if quiet is not None else None
+    if quiet is None:
+        return None
+    rate = summary.get("msg_rate_prev")
+    gap = 3600 / rate if _finite(rate) and rate > 0 else None
+    if timing["tracked"]:
+        if timing["mode"] == "active" or quiet < timing["z2m"] + 3600:
+            return None
+        why = "passive"
+    else:
+        why = "untracked"
+    need = max(MISMATCH_QUIET, MISMATCH_GAPS * gap) if gap else SILENT_SECONDS
+    if quiet < need:
+        return None
+    params: dict[str, Any] = {"seconds": int(quiet), "topic": topic}
+    if gap:
+        params["gap"] = int(gap)
+    return {"msg": f"availability_mismatch_{why}", "params": params}
+
+
 def mutes_of(record: dict) -> dict[str, str | None]:
     """Muted kinds as {kind: until_iso or None (forever)}; older records stored a plain list."""
     muted = record.get("muted") or {}
@@ -642,7 +715,27 @@ def device_issues(
     if critical:
         # Critical devices use their own, usually shorter, delay.
         offline_minutes = max(0, int(options.get("critical_offline_minutes", DEFAULT_CRITICAL_OFFLINE_MINUTES)))
-    if record.get("availability") == "offline":
+    mismatch = None if "availability_mismatch" in muted else availability_mismatch(record, summary, options, now)
+    if mismatch:
+        p = mismatch["params"]
+        if mismatch["msg"] == "availability_mismatch_offline":
+            detail = (
+                f"Availability says offline for {_span(p['seconds'])}, but {p['n']} messages came in the last "
+                f"{_span(MISMATCH_WINDOW)}. Likely a stale retained {p['topic']}."
+            )
+        elif mismatch["msg"] == "availability_mismatch_untracked":
+            detail = (
+                f"Availability says online, but no message for {_span(p['seconds'])}. Zigbee2MQTT doesn't track "
+                f"this device's availability, so the online is likely a stale retained {p['topic']}."
+            )
+        else:
+            detail = (
+                f"Availability says online, but no message for {_span(p['seconds'])}, past Zigbee2MQTT's own "
+                f"timeout for battery devices. Likely a stale retained {p['topic']}."
+            )
+        add("availability_mismatch", INFO, "Availability and messages disagree", detail, mismatch["msg"], **p)
+    if record.get("availability") == "offline" and not (mismatch and mismatch["msg"].endswith("_offline")):
+        # A device that keeps sending messages isn't offline: the mismatch above says so instead.
         age = _age(record.get("availability_since"), now) or 0
         if age >= offline_minutes * 60:
             add("offline", WARNING, "Offline", f"Unavailable for {_span(age)}.", "offline", seconds=int(age))

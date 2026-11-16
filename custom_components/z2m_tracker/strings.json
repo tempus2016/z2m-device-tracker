@@ -262,7 +262,8 @@
         "reporting_config": "Reporting settings",
         "naming": "Name doesn't follow the pattern",
         "firmware_note": "Firmware you noted",
-        "retained_command": "Retained command"
+        "retained_command": "Retained command",
+        "availability_mismatch": "Availability disagreement"
       }
     }
   },

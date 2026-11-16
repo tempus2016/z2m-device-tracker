@@ -60,6 +60,7 @@ mute_device:
             - naming
             - firmware_note
             - retained_command
+            - availability_mismatch
     duration:
       selector:
         duration:

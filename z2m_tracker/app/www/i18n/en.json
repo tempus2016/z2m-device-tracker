@@ -2070,5 +2070,14 @@
   "retcmd.cleared": {
     "one": "Retained command cleared",
     "other": "{n} retained commands cleared"
-  }
+  },
+  "issue.label.availability_mismatch": "Availability disagreement",
+  "issue.availability_mismatch_offline.title": "Availability and messages disagree",
+  "issue.availability_mismatch_offline.detail": "Availability says offline for {duration}, but {n} messages came in the last 10 min. Likely a stale retained {topic}.",
+  "issue.availability_mismatch_untracked.title": "Availability and messages disagree",
+  "issue.availability_mismatch_untracked.detail": "Availability says online, but no message for {duration}. Zigbee2MQTT doesn't track this device's availability, so the online is likely a stale retained {topic}.",
+  "issue.availability_mismatch_passive.title": "Availability and messages disagree",
+  "issue.availability_mismatch_passive.detail": "Availability says online, but no message for {duration}, past Zigbee2MQTT's own timeout for battery devices. Likely a stale retained {topic}.",
+  "check.availability_mismatch.label": "Availability disagreement",
+  "check.availability_mismatch.description": "Zigbee2MQTT says the device is offline while it keeps sending messages (3 in 10 minutes), or online while it has sent nothing for far longer than usual. Usually a stale retained availability topic."
 }
