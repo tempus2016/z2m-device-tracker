@@ -538,6 +538,14 @@
   .coord-extra { padding: 0 16px 16px 72px; }
   .coord-extra .sub-h { padding: 4px 0 0; font-size: 12px; font-weight: 400; }
   .coord-extra .alert { margin-top: 12px; }
+  .cfg-log { list-style: none; margin: 4px 0 0; padding: 0; }
+  .cfg-log li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 8px 0; border-bottom: 1px solid var(--divider); font-size: 13px; }
+  .cfg-log li:last-child { border-bottom: 0; }
+  .cfg-where { min-width: 0; overflow-wrap: anywhere; }
+  .cfg-what { grid-column: 1; min-width: 0; overflow-wrap: anywhere; color: var(--text-2); }
+  .cfg-when { grid-column: 2; grid-row: 1; font-size: 12px; color: var(--text-2); white-space: nowrap; }
+  .cfg-old { text-decoration: line-through; }
+  .cfg-more { padding-top: 4px; font-size: 12px; color: var(--text-2); }
   .mem-bars { display: flex; align-items: flex-end; gap: 3px; height: 70px; padding-top: 8px; }
   .mem-bars i { flex: 1; min-width: 0; height: 2px; background: var(--primary); opacity: 0.75; border-radius: 2px 2px 0 0; }
   .mem-bars i.none { background: var(--divider); opacity: 1; }
@@ -801,7 +809,7 @@
       left: ["minus", "var(--warning)"], removed: ["delete", "var(--text-2)"], renamed: ["pencil", "var(--state-icon)"], "model changed": ["swap-horizontal", "var(--state-icon)"], moved: ["swap-horizontal", "var(--state-icon)"],
       linked: ["link-variant", "var(--state-icon)"], replaced: ["swap-horizontal", "var(--state-icon)"], "replaced by": ["swap-horizontal", "var(--text-2)"], reconfigured: ["refresh", "var(--success)"], "reconfigure failed": ["refresh", "var(--error)"], "battery replaced": ["battery-sync", "var(--success)"],
       "update available": ["chip", "var(--info)"], "routing scanned": ["sitemap", "var(--state-icon)"],
-      "binding added": ["link-variant", "var(--success)"], "binding restored": ["link-variant", "var(--success)"], "binding removed": ["link-variant", "var(--error)"], unbound: ["link-variant", "var(--text-2)"], "binding change accepted": ["check", "var(--text-2)"] })[k] || ["information-outline", "var(--text-2)"];
+      "binding added": ["link-variant", "var(--success)"], "binding restored": ["link-variant", "var(--success)"], "binding removed": ["link-variant", "var(--error)"], unbound: ["link-variant", "var(--text-2)"], "binding change accepted": ["check", "var(--text-2)"], "settings changed": ["cog", "var(--state-icon)"] })[k] || ["information-outline", "var(--text-2)"];
   };
 
   const $ = (s) => document.querySelector(s);
@@ -1301,10 +1309,28 @@
           [th("coord.last_7_days"), [t("coord.outages", { n: outages.length }) + (outages.length ? ` ${t("coord.down_for", { n: downMin })}` : ""), t("coord.restarts", { n: restarts })].join(" · ")],
           [th("coord.leaves_week"), String(leaves)], [th("coord.backup"), backup]])}
         ${more.length || b.health ? `<div class="coord-more"><button class="btn" data-act="toggle-coord" data-bt="${esc(bt)}" aria-expanded="${open}">${ic(open ? "chevron-up" : "chevron-down", "s18")}${th(open ? "coord.fewer_details" : "coord.more_details")}</button></div>` : ""}
-        ${open ? `<div class="coord-detail">${kv(more)}${coordHealth(bt, b)}</div>` : ""}
+        ${open ? `<div class="coord-detail">${kv(more)}${coordHealth(bt, b)}${coordChanges(b)}</div>` : ""}
       </div>`;
     }).join("");
     return `<div class="card"><div class="card-header">${ic("router-wireless")}<div><h2 class="ch">${th("coord.title")}</h2><small>${th("coord.subtitle")}</small></div></div>${nets}</div>`;
+  };
+
+  // Zigbee2MQTT's own settings, newest change first. Values arrive as JSON text; strings lose their quotes.
+  const CFG_SHOWN = 10;
+  const cfgVal = (v) => { if (v == null) return ""; try { const p = JSON.parse(v); return typeof p === "string" ? p : v; } catch (e) { return v; } };
+  const coordChanges = (b) => {
+    const log = [...(b.config_changes || [])].reverse();
+    if (!log.length) return "";
+    const rows = log.slice(0, CFG_SHOWN).map((c) => {
+      const where = c.ieee ? `${devLink(c.ieee)} · <span class="mono">${esc(c.setting)}</span>` : `<span class="mono">${esc(c.path)}</span>`;
+      const what = c.secret ? th("coord.change_hidden")
+        : c.change === "added" ? th("coord.change_added", { value: `<b class="mono">${esc(cfgVal(c.new))}</b>` })
+        : c.change === "removed" ? th("coord.change_removed", { value: `<span class="mono">${esc(cfgVal(c.old))}</span>` })
+        : `<span class="mono cfg-old">${esc(cfgVal(c.old))}</span> → <b class="mono">${esc(cfgVal(c.new))}</b>`;
+      return `<li><div class="cfg-where">${where}</div><div class="cfg-what">${what}</div><div class="cfg-when">${esc(fmtDate(c.time))}</div></li>`;
+    }).join("");
+    const older = log.length > CFG_SHOWN ? `<div class="cfg-more">${th("coord.settings_older", { n: log.length - CFG_SHOWN })}</div>` : "";
+    return `<div class="coord-extra"><div class="sub-h">${th("coord.settings_changes")}</div><ul class="cfg-log">${rows}</ul>${older}</div>`;
   };
 
   const compactNum = (n) => intl((l) => new Intl.NumberFormat(l, { notation: "compact", maximumFractionDigits: 1 }).format(n));

@@ -703,6 +703,7 @@
   "event.kind.network_online": "network online",
   "event.kind.zigbee2mqtt_restarted": "zigbee2mqtt restarted",
   "event.kind.zigbee2mqtt_updated": "zigbee2mqtt updated",
+  "event.kind.settings_changed": "settings changed",
   "event.kind.replaced": "replaced",
   "event.kind.replaced_by": "replaced by",
   "reading.temperature": "Temperature",
@@ -1286,6 +1287,14 @@
   "coord.mqtt_value": "{sent} sent · {received} received",
   "coord.leaves_week": "Leaves this week",
   "coord.memory_chart": "Memory, last 14 days",
+  "coord.settings_changes": "Zigbee2MQTT settings changes",
+  "coord.change_hidden": "Changed (value hidden)",
+  "coord.change_added": "Set to {value}",
+  "coord.change_removed": "Removed, was {value}",
+  "coord.settings_older": {
+    "one": "{n} older change kept",
+    "other": "{n} older changes kept"
+  },
   "coord.memory_bar": "{date}: {n} MB",
   "coord.today": "today",
   "coord.health_off": "No health data from Zigbee2MQTT yet. It needs version 2.5 or newer, and sends every 10 minutes by default (Settings → Settings → Health → Interval).",
