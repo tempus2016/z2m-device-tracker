@@ -287,3 +287,21 @@ def test_integration_lists(maint):
         date(2026, 6, 10),
         date(2027, 1, 1),
     ]
+
+
+def test_replace_moves_tasks_with_notes(tracker):
+    old, new = SENSOR, "0x00158d0000700001"
+    send(tracker, "bridge/devices", [z2m_device(old, "Leak"), z2m_device(new, "New leak")])
+    tracker.set_maintenance_task(old, {"title": "Test with water", "every": 6, "unit": "months"})
+    tracker.set_maintenance_task(new, {"title": "test WITH water", "every": 1, "unit": "years"})
+    tracker.set_maintenance_task(old, {"title": "Clean contacts", "every": 1, "unit": "years"})
+
+    assert "maintenance" not in tracker.carry_over(old, new, notes=False, battery=False)
+    assert len(tracker.data["devices"][old]["maintenance"]) == 2
+
+    assert "maintenance" in tracker.carry_over(old, new, notes=True, battery=False)
+    moved = tracker.data["devices"][new]["maintenance"]
+    # Same title (any case) isn't doubled; the other task moves with a fresh id.
+    assert sorted(t["title"] for t in moved) == ["Clean contacts", "test WITH water"]
+    assert len({t["id"] for t in moved}) == 2
+    assert tracker.data["devices"][old]["maintenance"] == []

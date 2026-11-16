@@ -3793,6 +3793,18 @@ class Tracker:
                 if asset:
                     new["asset"] = {**asset, **(new.get("asset") or {})}
                     copied.append("asset")
+                # Maintenance belongs to the spot, not the hardware: the new device takes over the jobs.
+                tasks = [t for t in old.get("maintenance") or [] if isinstance(t, dict)]
+                if tasks:
+                    mine = list(new.get("maintenance") or [])
+                    titles = {str(t.get("title") or "").lower() for t in mine}
+                    for task in tasks:
+                        if len(mine) >= MAX_TASKS or str(task.get("title") or "").lower() in titles:
+                            continue
+                        mine.append({**task, "id": uuid.uuid4().hex[:8]})
+                    new["maintenance"] = mine
+                    old["maintenance"] = []
+                    copied.append("maintenance")
             if battery and old.get("battery_info"):
                 info = json.loads(json.dumps(old["battery_info"]))
                 for entry in info.get("replacements") or []:
