@@ -22,6 +22,7 @@ from typing import Any
 
 import firmware_notes
 from backup_history import BackupHistory
+from costs import clean_battery_prices, running_costs
 from group_history import apply as apply_group_history
 from group_history import clean as clean_group_history
 from group_history import clean_state as clean_group_state
@@ -167,6 +168,7 @@ MAX_BRANDS = 50
 RESTORE_KEYS = {
     "alerts_initialised": bool,
     "battery_brand_list": list,
+    "battery_prices": dict,
     "battery_stock": dict,
     "bridges": dict,
     "group_left": list,
@@ -3420,6 +3422,8 @@ class Tracker:
                 if self.broker_stats is not None
                 else None,
                 "battery_stock": dict(self.data.get("battery_stock") or {}),
+                "battery_prices": clean_battery_prices(self.data.get("battery_prices")),
+                "running_costs": self.running_costs(now),
                 "battery_brands": self.battery_brands(),
                 "battery_brand_list": list(self.brand_list()),
                 "maintenance": self.maintenance_list(),
@@ -3832,6 +3836,51 @@ class Tracker:
             stock[key] = max(0, min(MAX_STOCK, new))
             self._changed(structural=True)
             return {"ok": True, "type": key, "count": stock[key]}
+
+    def set_battery_prices(self, prices: Any) -> dict:
+        """Replace the price per battery type (Settings). Types left out or set to null are removed."""
+        if not isinstance(prices, dict):
+            return {"ok": False, "error": "Give prices as {type: price}"}
+        with self.lock:
+            self.data["battery_prices"] = clean_battery_prices({k: v for k, v in prices.items() if v is not None})
+            self._changed(structural=True)
+            return {"ok": True, "prices": dict(self.data["battery_prices"])}
+
+    def running_costs(self, now: float | None = None) -> dict:
+        """Device and battery spend (see costs.running_costs), plus the battery types in use for Settings."""
+        now = time.time() if now is None else now
+        items = []
+        types: set[str] = set()
+        with self.lock:
+            for record in self.data["devices"].values():
+                if record.get("type") == "Coordinator":
+                    continue
+                battery = self.is_battery_device(record)
+                info = self.battery_summary(record) if battery else {}
+                active = record["status"] == STATUS_ACTIVE
+                if battery and active and info.get("type"):
+                    types.add(info["type"])
+                items.append(
+                    {
+                        "model": " ".join(
+                            x for x in (record.get("vendor"), record.get("model") or record.get("model_id")) if x
+                        ),
+                        "price": (record.get("asset") or {}).get("price"),
+                        "active": active,
+                        "battery": battery,
+                        "type": info.get("type") or "",
+                        "quantity": info.get("quantity") or 1,
+                        "changes": [r.get("date") for r in info.get("replacements") or []],
+                        "installed": info.get("installed") or "",
+                        "estimate_days": self.metrics.summary(record["ieee"], now).get("battery_estimate_days")
+                        if battery and active
+                        else None,
+                    }
+                )
+            prices = clean_battery_prices(self.data.get("battery_prices"))
+        out = running_costs(items, prices, self._today())
+        out["types"] = sorted(types, key=str.casefold)
+        return out
 
     def set_battery_info(self, ieee: str, values: dict) -> bool:
         with self.lock:
