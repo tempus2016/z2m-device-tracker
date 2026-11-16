@@ -56,7 +56,7 @@ It has two parts, both in this repository:
 - **Prometheus metrics**: an optional token-protected `/metrics` endpoint for Grafana and similar tools.
 - **Actions for automations** (integration): record a battery change, mute a device, run a network scan, reconfigure, start a firmware update, add to a device's note, pause and resume alerts. Pick devices by name.
 - **Your language**: the sidebar, the dashboard cards and the setup screens follow the language in your Home Assistant profile, or one you pick in Settings. Available in English, German, Dutch, French, Spanish, Italian, Polish, Brazilian Portuguese, Swedish, Czech, Russian and Simplified Chinese. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to add or fix a translation.
-- **Works on a phone**: a bottom tab bar, problems first, pinch zoom on the map, and keyboard and screen reader support on every screen.
+- **Works on a phone**: a bottom tab bar with Health, Devices, Network and Upkeep, and the rest under More, problems first, pinch zoom on the map, and keyboard and screen reader support on every screen.
 - Weekly summary, temporary ignore, backup and restore, CSV export.
 
 ## Screenshots

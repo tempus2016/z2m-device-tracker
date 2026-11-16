@@ -14,6 +14,9 @@
   "tabs.map": "Map",
   "tabs.settings": "Settings",
   "tabs.updates": "Updates",
+  "tabs.network": "Network",
+  "tabs.upkeep": "Upkeep",
+  "tabs.more": "More",
   "menu.more": "More options",
   "menu.export_csv": "Export CSV",
   "menu.run_scan": "Run routing scan",
@@ -1896,5 +1899,61 @@
   "shop.url_title": "Shop link",
   "shop.url_desc": "Adds a cart button next to each battery you need to buy. {type} is replaced by the battery type. Leave it empty to hide the buttons. No affiliate tags are added.",
   "links.support": "Support this project",
-  "links.support_short": "Support"
+  "links.support_short": "Support",
+  "sub.map": "Map",
+  "sub.coordinator": "Coordinator",
+  "sub.broker": "Broker",
+  "sub.radio": "Radio",
+  "sub.groups": "Groups",
+  "sub.batteries": "Batteries",
+  "sub.maintenance": "Maintenance",
+  "sub.models": "Models",
+  "sub.empty_broker": "Nothing to clean up",
+  "sub.empty_broker_text": "No Zigbee2MQTT devices are left behind in Home Assistant.",
+  "sub.empty_radio": "No channel data yet",
+  "sub.empty_radio_text": "Channels show once Zigbee2MQTT has reported its network.",
+  "sub.empty_groups": "No Zigbee groups",
+  "sub.empty_groups_text": "Groups made in Zigbee2MQTT show here with the health of their members.",
+  "sub.empty_batteries": "No battery devices",
+  "sub.empty_batteries_text": "Battery devices, the batteries to buy and how long each brand lasts show here.",
+  "sub.empty_maintenance": "No maintenance tasks",
+  "sub.empty_maintenance_text": "Add recurring jobs, such as testing a smoke alarm, on a device's Notes tab.",
+  "sub.empty_models": "Not enough data yet",
+  "sub.empty_models_text": "Each model's uptime and battery life show here after a few days.",
+  "fine.coord_down": "{name} is offline",
+  "fine.coord_online": {
+    "one": "Online",
+    "other": "{n} networks online"
+  },
+  "fine.backup_age": "backup {when}",
+  "fine.no_backup": "no coordinator backup",
+  "fine.leftovers": {
+    "one": "1 device left behind in Home Assistant",
+    "other": "{n} devices left behind in Home Assistant"
+  },
+  "fine.nothing_to_clean": "Nothing to clean up",
+  "fine.radio": "Channel {ch}",
+  "fine.radio_overlap": "Wi-Fi overlap",
+  "fine.groups_ok": {
+    "one": "1 group, all members fine",
+    "other": "{n} groups, all members fine"
+  },
+  "fine.groups_bad": {
+    "one": "{bad} of {n} group needs a look",
+    "other": "{bad} of {n} groups need a look"
+  },
+  "fine.to_buy": {
+    "one": "1 battery to buy",
+    "other": "{n} batteries to buy"
+  },
+  "fine.batteries_ok": "Nothing to buy",
+  "fine.maint_next": "Next due {date}",
+  "fine.models_ok": {
+    "one": "1 model, none stand out",
+    "other": "{n} models, none stand out"
+  },
+  "fine.models_bad": {
+    "one": "1 model stands out",
+    "other": "{n} models stand out"
+  }
 }

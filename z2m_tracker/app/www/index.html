@@ -796,20 +796,37 @@
   }
   /* ------------------------------------------------------------ phone layout */
   .sm-only { display: none; }
+  /* Section tabs: Updates, Activity and Settings sit behind "More" on a phone. */
+  .tabs .sm-tab { display: none; }
+  .sub-tabs { display: flex; padding: 0 8px; border: 1px solid var(--divider); border-radius: 12px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; background: var(--card); }
+  .sub-tabs .tab { height: 48px; padding: 0 14px; }
+  .fine-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); padding: 4px 8px 8px; border-top: 1px solid var(--divider); }
+  .fine-list button { appearance: none; border: 0; background: none; text-align: left; padding: 10px 8px; border-radius: 8px; cursor: pointer; display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: center; column-gap: 4px; font: inherit; font-size: 14px; color: var(--text); }
+  @media (hover: hover) and (pointer: fine) { .fine-list button:hover { background: var(--hover); } }
+  .fine-list button::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--success)); }
+  .fine-list small { grid-column: 2; color: var(--text-2); font-size: 12.5px; }
+  .sheet-scrim { position: fixed; inset: 0; z-index: 45; background: var(--scrim); }
+  .tab-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 46; background: var(--card); border-radius: 16px 16px 0 0; padding: 8px 0 calc(16px + var(--sab, env(safe-area-inset-bottom, 0px))); box-shadow: var(--shadow); }
+  .tab-sheet button { appearance: none; border: 0; background: none; width: 100%; min-height: 56px; display: flex; align-items: center; gap: 20px; padding: 0 20px; font: inherit; font-size: 16px; color: var(--text); cursor: pointer; text-align: left; }
+  .tab-sheet button[aria-current="page"] { color: var(--primary-text); background: var(--chip-on); }
+  .tab-sheet button > span:not(.badge) { flex: 1; }
+  .tab-sheet .mdi { color: var(--text-2); }
   .phone-line { align-items: center; white-space: nowrap; overflow: hidden; }
   .phone-line .sep::before { content: "·"; margin: 0 6px; }
   .phone-line .bat { font-size: 12px; }
-  .chips, .more-tabs { --fl: 0px; --fr: 0px; -webkit-mask-image: linear-gradient(90deg, transparent, #000 var(--fl), #000 calc(100% - var(--fr)), transparent); mask-image: linear-gradient(90deg, transparent, #000 var(--fl), #000 calc(100% - var(--fr)), transparent); }
-  .chips.fade-l, .more-tabs.fade-l { --fl: 32px; }
-  .chips.fade-r, .more-tabs.fade-r { --fr: 32px; }
+  .chips, .more-tabs, .sub-tabs { --fl: 0px; --fr: 0px; -webkit-mask-image: linear-gradient(90deg, transparent, #000 var(--fl), #000 calc(100% - var(--fr)), transparent); mask-image: linear-gradient(90deg, transparent, #000 var(--fl), #000 calc(100% - var(--fr)), transparent); }
+  .chips.fade-l, .more-tabs.fade-l, .sub-tabs.fade-l { --fl: 32px; }
+  .chips.fade-r, .more-tabs.fade-r, .sub-tabs.fade-r { --fr: 32px; }
   .chips.jump { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding-bottom: 2px; }
   .set-row.wide-ctl .field { width: 240px; }
   @media (max-width: 600px) {
     .sm-only { display: block; } .phone-line.sm-only { display: flex; }
+    .tabs .lg-tab { display: none; }
+    .tabs .sm-tab { display: flex; }
     .lg-only { display: none; }
     .dt.stock td.type { min-width: 0; }
     /* Like Home Assistant's own pages on a phone: the section tabs become a bottom bar. */
-    .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); padding: 0 var(--sar, 0px) var(--sab, env(safe-area-inset-bottom, 0px)) var(--sal, 0px); background: var(--card); border-top: 1px solid var(--divider); overflow: visible; }
+    .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 0 var(--sar, 0px) var(--sab, env(safe-area-inset-bottom, 0px)) var(--sal, 0px); background: var(--card); border-top: 1px solid var(--divider); overflow: visible; }
     .tabs .tab { height: 60px; padding: 6px 2px 4px; flex-direction: column; justify-content: center; gap: 2px; font-size: 11px; min-width: 0; }
     .tabs .tab > [data-t] { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .tabs .tab > .mdi { width: 52px; height: 28px; padding: 2px 14px; border-radius: 14px; }
@@ -857,12 +874,14 @@
     <button class="icon-btn" id="menuBtn" aria-label="More options" data-ta="aria-label=menu.more" aria-haspopup="menu" aria-controls="menu" aria-expanded="false"></button>
   </div>
   <nav class="tabs" role="tablist" aria-label="Sections" data-ta="aria-label=tabs.sections">
-    <button class="tab" role="tab" id="tab-devices" data-view="devices" aria-controls="view" aria-selected="true" tabindex="0"><span data-i="zigbee"></span><span data-t="tabs.devices">Devices</span></button>
-    <button class="tab" role="tab" id="tab-health" data-view="health" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="heart-pulse"></span><span data-t="tabs.health">Health</span> <span class="badge" id="issueBadge">0</span></button>
-    <button class="tab" role="tab" id="tab-updates" data-view="updates" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="update"></span><span data-t="tabs.updates">Updates</span> <span class="badge info" id="otaBadge" hidden>0</span></button>
-    <button class="tab" role="tab" id="tab-activity" data-view="activity" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="history"></span><span data-t="tabs.activity">Activity</span></button>
-    <button class="tab" role="tab" id="tab-map" data-view="map" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="sitemap"></span><span data-t="tabs.map">Map</span></button>
-    <button class="tab" role="tab" id="tab-settings" data-view="settings" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="cog"></span><span data-t="tabs.settings">Settings</span></button>
+    <button class="tab" role="tab" id="tab-health" data-view="health" aria-controls="view" aria-selected="true" tabindex="0"><span data-i="heart-pulse"></span><span data-t="tabs.health">Health</span> <span class="badge" id="issueBadge">0</span></button>
+    <button class="tab" role="tab" id="tab-devices" data-view="devices" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="zigbee"></span><span data-t="tabs.devices">Devices</span></button>
+    <button class="tab" role="tab" id="tab-network" data-view="network" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="sitemap"></span><span data-t="tabs.network">Network</span></button>
+    <button class="tab" role="tab" id="tab-upkeep" data-view="upkeep" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="battery-sync"></span><span data-t="tabs.upkeep">Upkeep</span> <span class="badge info" id="upkeepBadge" hidden>0</span></button>
+    <button class="tab lg-tab" role="tab" id="tab-updates" data-view="updates" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="update"></span><span data-t="tabs.updates">Updates</span> <span class="badge info" id="otaBadge" hidden>0</span></button>
+    <button class="tab lg-tab" role="tab" id="tab-activity" data-view="activity" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="history"></span><span data-t="tabs.activity">Activity</span></button>
+    <button class="tab lg-tab" role="tab" id="tab-settings" data-view="settings" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="cog"></span><span data-t="tabs.settings">Settings</span></button>
+    <button class="tab sm-tab" id="tab-more" data-act="tab-more" aria-haspopup="menu" aria-controls="tabSheet" aria-expanded="false" tabindex="-1"><span data-i="dots-vertical"></span><span id="moreTabLabel" data-t="tabs.more">More</span> <span class="badge info" id="moreBadge" hidden>0</span></button>
   </nav>
   <div class="menu" id="menu" hidden role="menu" aria-labelledby="menuBtn">
     <a href="api/export.csv" download role="menuitem" tabindex="-1"><span data-i="download"></span><span data-t="menu.export_csv">Export CSV</span></a>
@@ -877,10 +896,13 @@
   </div>
 </header>
 
+<div class="sheet-scrim" id="sheetScrim" hidden></div>
+<div class="tab-sheet" id="tabSheet" role="menu" aria-labelledby="tab-more" hidden></div>
+
 <main class="page" id="page">
   <div class="alert conn" id="conn" role="alert" style="--a: var(--error)"><span data-i="lan-disconnect"></span><div class="body" id="connText"></div></div>
   <div class="alert" id="pauseBanner" style="--a: var(--info)" hidden></div>
-  <div id="view" role="tabpanel" aria-labelledby="tab-devices"></div>
+  <div id="view" role="tabpanel" aria-labelledby="tab-health"></div>
 </main>
 
 <dialog class="more" id="more" aria-labelledby="moreTitle"></dialog>
@@ -1153,7 +1175,9 @@
   };
 
   const state = {
-    data: null, byIeee: new Map(), view: "devices", chip: "all", query: "",
+    data: null, byIeee: new Map(), view: "health", chip: "all", query: "",
+    // Open sub-tab of each section with sub-tabs (Network, Upkeep).
+    sub: { network: "map", upkeep: "batteries" },
     sort: store.get("z2mt.sort") || "status", dir: Number(store.get("z2mt.dir")) || 0,
     open: null, moreTab: "info", settings: null, version: null, editing: false,
     layout: store.get("z2mt.layout") === "dialog" ? "dialog" : "pane",
@@ -1322,7 +1346,7 @@
       out.push(`<button class="btn" data-act="bindings-ack" data-ieee="${esc(i.ieee)}">${th("health.intended")}</button>`);
       return out.join("");
     }
-    if (i.kind === "single_point") out.push(`<button class="btn" data-view="map">${th("common.map")}</button>`);
+    if (i.kind === "single_point") out.push(`<button class="btn" data-view="network/map">${th("common.map")}</button>`);
     if (i.kind === "reporting_config" && !(state.open === i.ieee && state.moreTab === "health")) out.push(`<button class="btn" data-act="open-health" data-ieee="${esc(i.ieee)}">${th("more.tab.health")}</button>`);
     if (i.kind === "router_hopping" && !(state.open === i.ieee && state.moreTab === "history")) out.push(`<button class="btn" data-act="open-history" data-ieee="${esc(i.ieee)}">${th("more.tab.history")}</button>`);
     if (i.kind === "replacement" && d?.suggestions?.[0]) out.push(`<button class="btn" data-act="link" data-old="${esc(d.suggestions[0].ieee)}" data-new="${esc(i.ieee)}">${th("common.link")}</button>`);
@@ -1426,16 +1450,78 @@
           <div><small>${th("health.thresholds")}</small><b>${th("health.thresholds_line", { offline: esc(o.offline_alert_minutes), frozen: esc(o.frozen_alert_hours), battery: esc(o.battery_alert_percent) })}</b></div>
           <div><small>${th("health.routing_scan")}</small><b>${esc(scans)}</b></div>
         </div>
+        ${elsewhere()}
         <div class="card-actions"><button class="btn" data-view="settings">${th("health.alert_settings")}</button>${renames ? `<button class="btn" data-act="naming-bulk">${ic("pencil", "s18")}${th("naming.bulk", { n: renames })}</button>` : ""}<button class="btn ${running ? "busy" : ""}" data-act="scan" ${running ? "disabled" : ""}>${ic(running ? "refresh" : "sitemap", "s18")}${running ? th("common.scanning") : th("menu.run_scan")}</button></div>
-      </div>
-      ${coordinatorsCard()}
-      ${maintenanceCard()}
-      ${shoppingCard()}
-      ${brandCard()}
-      ${leftoverCard()}
-      ${radioCard()}
-      ${groupsCard()}
-      ${modelsCard()}`;
+      </div>`;
+  };
+
+  // Health's last card: one line for each part of the app that lives on another tab, so a glance here
+  // says whether anything there needs a look. Each line opens its tab.
+  const elsewhere = () => {
+    const d = state.data, B = d.bridges || {};
+    const lines = [];
+    const add = (to, tone, label, detail) => lines.push(`<button data-view="${to}" style="--c:${tone}">${esc(label)}<small>${esc(detail)}</small></button>`);
+    const ok = "var(--success)", warn = "var(--warning)", bad = "var(--error)";
+    const down = d.instances.filter((bt) => B[bt]?.state === "offline");
+    const backups = d.instances.map((bt) => d.backups?.[bt]).filter(Boolean);
+    const oldBackup = backups.some((b) => !b.exists || b.error || (b.date && Date.now() - new Date(b.date).getTime() > 7 * 86400000));
+    const newest = backups.map((b) => b.date).filter(Boolean).sort().pop();
+    add("network/coordinator", down.length ? bad : oldBackup ? warn : ok, t("sub.coordinator"),
+      down.length ? t("fine.coord_down", { name: down.map(netLabel).join(", ") }) : [t("fine.coord_online", { n: d.instances.length }), newest ? t("fine.backup_age", { when: relTime(newest) }) : backups.length ? t("fine.no_backup") : null].filter(Boolean).join(" · "));
+    const leftovers = (d.ha_leftovers || []).length;
+    add("network/broker", leftovers ? warn : ok, t("sub.broker"), leftovers ? t("fine.leftovers", { n: leftovers }) : t("fine.nothing_to_clean"));
+    const r = d.radio;
+    if (r && r.networks.length) {
+      const sev = Math.max(0, ...r.findings.map((f) => f.sev || 0));
+      add("network/radio", sev >= 2 ? warn : ok, t("sub.radio"), t("fine.radio", { ch: [...new Set(r.networks.map((n) => n.channel))].join(", ") }) + (sev >= 2 ? ` · ${t("fine.radio_overlap")}` : ""));
+    }
+    const groups = d.group_health || [];
+    if (groups.length) {
+      const badG = groups.filter((g) => g.offline || g.left.length).length;
+      add("network/groups", badG ? warn : ok, t("sub.groups"), badG ? t("fine.groups_bad", { n: groups.length, bad: badG }) : t("fine.groups_ok", { n: groups.length }));
+    }
+    const buy = (d.battery_shopping || []).reduce((n, g) => n + Math.max(0, g.count - (g.type === "Unknown type" ? 0 : stockOf(g.type) || 0)), 0);
+    if ((d.battery_shopping || []).length || d.devices.some((x) => x.battery_record && x.status === "active"))
+      add("upkeep/batteries", buy ? warn : ok, t("sub.batteries"), buy ? t("fine.to_buy", { n: buy }) : t("fine.batteries_ok"));
+    const mt = d.maintenance || [];
+    if (mt.length) {
+      const over = mt.filter((x) => x.days < 0).length, soon = mt.filter((x) => x.days >= 0 && x.days <= MT_SOON).length;
+      add("upkeep/maintenance", over ? warn : ok, t("sub.maintenance"), over ? t("maint.n_overdue", { n: over }) : soon ? t("maint.n_soon", { n: soon }) : t("fine.maint_next", { date: mtDate(mt[0].due) }));
+    }
+    const models = d.model_reliability || [];
+    if (models.length) { const flagged = models.filter(modelFlagged).length; add("upkeep/models", flagged ? warn : ok, t("sub.models"), flagged ? t("fine.models_bad", { n: flagged }) : t("fine.models_ok", { n: models.length })); }
+    return lines.length ? `<div class="fine-list">${lines.join("")}</div>` : "";
+  };
+
+  // Overdue maintenance plus batteries to buy: the Upkeep tab's badge.
+  const upkeepCount = () => {
+    const d = state.data;
+    const buy = (d.battery_shopping || []).filter((g) => g.type !== "Unknown type" && g.count > (stockOf(g.type) || 0)).length;
+    return buy + (d.maintenance || []).filter((x) => x.days < 0).length;
+  };
+
+  // ------------------------------------------------------------ Network and Upkeep sections
+  const subNav = (view) => `<nav class="sub-tabs" role="tablist" aria-label="${esc(t(`tabs.${view}`))}">${SUBS[view].map((k) => {
+    const on = state.sub[view] === k;
+    return `<button class="tab" role="tab" id="sub-${k}" data-sub="${view}/${k}" aria-selected="${on}" tabindex="${on ? 0 : -1}">${th(`sub.${k}`)}</button>`;
+  }).join("")}</nav>`;
+  const onMap = () => state.view === "network" && state.sub.network === "map";
+  const subEmpty = (icon, key) => `<div class="card">${emptyState(icon, th(`sub.empty_${key}`), `<p>${th(`sub.empty_${key}_text`)}</p>`)}</div>`;
+  const renderNetwork = () => {
+    const k = state.sub.network;
+    if (k === "map") { renderMap(); return; }
+    const body = k === "coordinator" ? coordinatorsCard()
+      : k === "broker" ? leftoverCard() || subEmpty("check", "broker")
+      : k === "radio" ? radioCard() || subEmpty("signal", "radio")
+      : groupsCard() || subEmpty("lightbulb", "groups");
+    $("#view").innerHTML = `${subNav("network")}${body}`;
+  };
+  const renderUpkeep = () => {
+    const k = state.sub.upkeep;
+    const body = k === "batteries" ? (shoppingCard() + brandCard()) || subEmpty("battery", "batteries")
+      : k === "maintenance" ? maintenanceCard() || subEmpty("calendar-clock", "maintenance")
+      : modelsCard() || subEmpty("zigbee", "models");
+    $("#view").innerHTML = `${subNav("upkeep")}${body}`;
   };
 
   // serial.adapter -> a name people recognise. Unknown drivers show as sent.
@@ -2011,7 +2097,7 @@
     // Phones get the same controls in less space, so the map starts on the first screen.
     const phone = PHONE();
     const help = th(MAP.layout === "floor" ? "map.help_floor" : TOUCH() ? "map.help_touch" : "map.help");
-    $("#view").innerHTML = `
+    $("#view").innerHTML = `${subNav("network")}
       <div class="alert" style="--a:var(--info)">${ic("information-outline")}${phone ? `<details class="body map-help"><summary>${th("map.how")}${ic("chevron-down", "s18")}</summary><div>${help}</div></details>` : `<div class="body">${help}</div>`}
         <button class="btn ${running ? "busy" : ""}" data-act="scan" ${running ? "disabled" : ""}>${ic(running ? "refresh" : "sitemap", "s18")}${running ? th("common.scanning") : th("menu.run_scan")}</button></div>
       ${state.data.instances.map((bt) => {
@@ -2260,7 +2346,7 @@
     try { const r = await api("api/areas"); FP.areas = r.areas || []; FP.floors = r.floors || []; if (!state.areas) state.areas = FP.areas; }
     catch (e) { FP.areas = []; FP.floors = []; }
     FP.loading = false;
-    if (state.view === "map" && MAP.layout === "floor") renderMap(true);
+    if (onMap() && MAP.layout === "floor") renderMap(true);
   };
   const layoutToggle = () => `<div class="chips" role="group" aria-label="${esc(t("map.layout"))}">${[["graph", "map.layout_graph"], ["floor", "map.layout_floor"]].map(([k, l]) => `<button class="chip" data-maplayout="${k}" aria-pressed="${MAP.layout === k}">${ic("check", "s18")}${th(l)}</button>`).join("")}</div>`;
   const NAMES = [["all", "map.names_all"], ["routers", "map.names_routers"], ["off", "map.names_off"]];
@@ -3274,9 +3360,17 @@
     if (cur) { const row = cur.parentElement; if (cur.offsetLeft + cur.offsetWidth > row.scrollLeft + row.clientWidth || cur.offsetLeft < row.scrollLeft) row.scrollLeft = cur.offsetLeft - 12; }
     fadeEdges();
   };
-  // The hash holds the open device (#0x…) or, with none open, the tab (#health). Devices is the bare URL.
-  const VIEWS = ["devices", "health", "updates", "activity", "map", "settings"];
-  const syncHash = () => { const h = state.open ? encodeURIComponent(state.open) : state.view !== "devices" ? state.view : ""; history.replaceState(null, "", h ? `#${h}` : location.pathname + location.search); };
+  // The hash holds the open device (#0x…) or, with none open, the tab (#devices, #network/broker). Health is the bare URL.
+  const VIEWS = ["health", "devices", "network", "upkeep", "updates", "activity", "settings"];
+  const SUBS = { network: ["map", "coordinator", "broker", "radio", "groups"], upkeep: ["batteries", "maintenance", "models"] };
+  // Old hashes and links: the Map tab is now Network > Map.
+  const ALIASES = { map: "network/map" };
+  const parseView = (h) => {
+    const [v, sub] = (ALIASES[h] || h || "").split("/");
+    return VIEWS.includes(v) ? { view: v, sub: SUBS[v]?.includes(sub) ? sub : null } : null;
+  };
+  const viewHash = () => (SUBS[state.view] ? `${state.view}/${state.sub[state.view]}` : state.view);
+  const syncHash = () => { const h = state.open ? encodeURIComponent(state.open) : state.view !== "health" ? viewHash() : ""; history.replaceState(null, "", h ? `#${h}` : location.pathname + location.search); };
   // A note typed but not saved is saved when the device, tab or view changes, or the dialog closes.
   const flushNote = () => {
     const n = document.getElementById("note"), ieee = state.open, d = state.byIeee.get(ieee);
@@ -3355,14 +3449,14 @@
   // ------------------------------------------------------------ render
   // Horizontal scrollers (filter chips, device tabs) fade at an edge that has more to scroll to.
   const fadeEdge = (el) => { el.classList.toggle("fade-l", el.scrollLeft > 1); el.classList.toggle("fade-r", el.scrollLeft + el.clientWidth < el.scrollWidth - 1); };
-  const fadeEdges = () => document.querySelectorAll(".chips, .more-tabs").forEach(fadeEdge);
-  document.addEventListener("scroll", (e) => { if (e.target instanceof Element && e.target.matches(".chips, .more-tabs")) fadeEdge(e.target); }, true);
+  const fadeEdges = () => document.querySelectorAll(".chips, .more-tabs, .sub-tabs").forEach(fadeEdge);
+  document.addEventListener("scroll", (e) => { if (e.target instanceof Element && e.target.matches(".chips, .more-tabs, .sub-tabs")) fadeEdge(e.target); }, true);
   window.addEventListener("resize", () => requestAnimationFrame(fadeEdges));
   document.addEventListener("click", (e) => { const j = e.target.closest?.("[data-jump]"); const to = j && document.getElementById(j.dataset.jump); if (to) window.scrollTo({ top: to.getBoundingClientRect().top + window.scrollY - $(".toolbar").offsetHeight - 8, behavior: "smooth" }); });
 
   // A refresh redraws the view. Remember which control had keyboard focus so it can be focused again,
   // instead of focus dropping to the top of the page every minute.
-  const FOCUS_ATTRS = ["data-open", "data-act", "data-ieee", "data-view", "data-chip", "data-sort", "data-kind", "data-tab", "data-carry", "data-bt", "data-net", "data-type", "data-delta", "data-jump", "data-bulk", "data-n", "data-mode", "data-inc", "data-ep", "data-cluster", "data-attribute"];
+  const FOCUS_ATTRS = ["data-open", "data-act", "data-ieee", "data-view", "data-sub", "data-chip", "data-sort", "data-kind", "data-tab", "data-carry", "data-bt", "data-net", "data-type", "data-delta", "data-jump", "data-bulk", "data-n", "data-mode", "data-inc", "data-ep", "data-cluster", "data-attribute"];
   const focusKey = (el) => {
     if (!el || el === document.body || el === document.documentElement) return null;
     if (el.id) return `#${CSS.escape(el.id)}`;
@@ -3380,16 +3474,23 @@
     const badge = $("#issueBadge"); badge.textContent = warn; badge.classList.toggle("warn", warn > 0);
     const otaCount = otaList().filter((d) => d.update?.state === "available" || d.update?.state === "updating").length;
     $("#otaBadge").textContent = otaCount; $("#otaBadge").hidden = !otaCount;
+    $("#moreBadge").textContent = otaCount; $("#moreBadge").hidden = !otaCount;
+    const upkeep = upkeepCount();
+    $("#upkeepBadge").textContent = upkeep; $("#upkeepBadge").hidden = !upkeep;
+    const behindMore = MORE_VIEWS.includes(state.view);
+    $("#tab-more").setAttribute("aria-selected", String(behindMore));
+    $("#moreTabLabel").textContent = t(behindMore ? `tabs.${state.view}` : "tabs.more");
     renderPause();
-    document.querySelectorAll(".toolbar .tab").forEach((t) => { const on = t.dataset.view === state.view; t.setAttribute("aria-selected", String(on)); t.tabIndex = on ? 0 : -1; });
+    document.querySelectorAll(".toolbar .tab[data-view]").forEach((t) => { const on = t.dataset.view === state.view; t.setAttribute("aria-selected", String(on)); t.tabIndex = on ? 0 : -1; });
     $("#view").setAttribute("aria-labelledby", `tab-${state.view}`);
     if (state.view !== "devices") $("#page").classList.remove("wide");
     if (state.view === "devices") { if (!(usePane() && state.editing && $("#pane")?.contains(document.activeElement))) renderDevices(); }
     else if (state.view === "health") renderHealth();
     else if (state.view === "activity") renderActivity();
-    else if (state.view === "map") renderMap();
+    else if (state.view === "network") renderNetwork();
+    else if (state.view === "upkeep") renderUpkeep();
     else if (state.view === "updates") renderUpdates();
-    if (state.view !== "map" && MAP.rendered) { Object.values(MAP.sims).forEach((x) => x.stop()); MAP.sims = {}; MAP.rendered = null; }
+    if (!onMap() && MAP.rendered) { Object.values(MAP.sims).forEach((x) => x.stop()); MAP.sims = {}; MAP.rendered = null; }
     if (state.view === "settings" && !state.settingsShown) { state.settingsShown = true; renderSettings(); }
     if (state.view !== "settings") state.settingsShown = false;
     fadeEdges();
@@ -3399,11 +3500,36 @@
     if ($("#bulkDlg").open && !state.bulk?.busy) renderBulk();
     if (fk && (document.activeElement === document.body || !document.activeElement)) document.querySelector(fk)?.focus({ preventScroll: true });
   };
-  const go = (view) => { flushNote(); state.view = view; state.settingsShown = false; if (!state.open) syncHash(); render(); window.scrollTo(0, 0); };
+  // go("upkeep"), go("network/broker") or an old name such as go("map").
+  const go = (to) => {
+    const v = parseView(to);
+    if (!v) return;
+    flushNote(); closeSheet();
+    state.view = v.view;
+    if (v.sub) { state.sub[v.view] = v.sub; store.set(`z2mt.sub.${v.view}`, v.sub); }
+    state.settingsShown = false;
+    if (!state.open) syncHash();
+    render(); window.scrollTo(0, 0);
+  };
+  const goSub = (view, sub) => { state.sub[view] = sub; store.set(`z2mt.sub.${view}`, sub); if (!state.open) syncHash(); render(); };
+
+  // ------------------------------------------------------------ phone "More" sheet
+  const MORE_VIEWS = ["updates", "activity", "settings"];
+  const MORE_ICONS = { updates: "update", activity: "history", settings: "cog" };
+  const closeSheet = () => { $("#tabSheet").hidden = $("#sheetScrim").hidden = true; $("#tab-more").setAttribute("aria-expanded", "false"); };
+  const openSheet = () => {
+    const ota = Number($("#otaBadge").textContent) || 0;
+    $("#tabSheet").innerHTML = MORE_VIEWS.map((v) => `<button role="menuitem" data-view="${v}"${state.view === v ? ' aria-current="page"' : ""}>${ic(MORE_ICONS[v])}<span>${th(`tabs.${v}`)}</span>${v === "updates" && ota ? `<span class="badge info">${ota}</span>` : ""}</button>`).join("");
+    $("#tabSheet").hidden = $("#sheetScrim").hidden = false;
+    $("#tab-more").setAttribute("aria-expanded", "true");
+    $("#tabSheet button")?.focus();
+  };
+  $("#sheetScrim").addEventListener("click", closeSheet);
 
   // ------------------------------------------------------------ actions
   const flash = (sel) => { const s = $(sel); if (!s) return; s.classList.add("show"); setTimeout(() => s.classList.remove("show"), 1600); };
   const actions = {
+    "tab-more"() { if ($("#tabSheet").hidden) openSheet(); else closeSheet(); },
     close: () => closeDevice(),
     "toggle-coord": (b) => { const o = state.openCoords; if (!o.delete(b.dataset.bt)) o.add(b.dataset.bt); renderHealth(); },
     "toggle-group": (b) => { const g = state.openGroups; if (!g.delete(b.dataset.ieee)) g.add(b.dataset.ieee); renderHealth(); },
@@ -4093,7 +4219,7 @@
       MAP.whatif[bt] = job;
       const older = MAP.scanSel[bt] || MAP.cmpSel[bt];
       if (older) { MAP.scanSel[bt] = null; MAP.cmpSel[bt] = null; delete (MAP.pos || {})[bt]; }
-      if (state.view !== "map") { if ($("#more").open) closeDevice(); go("map"); }
+      if (!onMap()) { if ($("#more").open) closeDevice(); go("network/map"); }
       else if (older) renderMap(true);
       updateWhatIf(bt, true);
       let next;
@@ -4276,6 +4402,8 @@
     if (open) { e.preventDefault(); openDevice(open.dataset.open); return; }
     const view = e.target.closest("[data-view]");
     if (view) { if ($("#more").open) closeDevice(); go(view.dataset.view); return; }
+    const sub = e.target.closest("[data-sub]");
+    if (sub) { const [v, k] = sub.dataset.sub.split("/"); goSub(v, k); return; }
     const chip = e.target.closest("[data-chip]");
     if (chip) { state.chip = chip.dataset.chip; state.view = "devices"; render(); return; }
     const th = e.target.closest("th[data-sort]");
@@ -4283,6 +4411,7 @@
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !menu.hidden) { closeMenu(); return; }
+    if (e.key === "Escape" && !$("#tabSheet").hidden) { closeSheet(); $("#tab-more").focus(); return; }
     if (e.key === "Enter" && e.target.matches("tr[data-open]")) { openDevice(e.target.dataset.open); return; }
     if (e.key === "Enter" && e.target.matches("#stockType, #stockN")) { e.preventDefault(); actions["stock-add"](); return; }
     const tl = e.target.matches?.('[role="tab"]') && e.target.closest('[role="tablist"]');
@@ -4346,7 +4475,7 @@
   window.addEventListener("hashchange", () => {
     const h = hashValue();
     if (IEEE_RE.test(h) && h !== state.open) openDevice(h);
-    else if (VIEWS.includes(h) && h !== state.view) { if ($("#more").open) closeDevice(); go(h); }
+    else if (parseView(h) && h !== viewHash()) { if ($("#more").open) closeDevice(); go(h); }
   });
 
   // Deep links from the dashboard cards: /app/<slug>/<ieee>. HA's app panel passes the route
@@ -4383,8 +4512,9 @@
     await loadI18n();
     translateStatic();
     applyTheme();
-    const hv = hashValue();
-    if (VIEWS.includes(hv)) state.view = hv;
+    Object.keys(SUBS).forEach((v) => { const k = store.get(`z2mt.sub.${v}`); if (SUBS[v].includes(k)) state.sub[v] = k; });
+    const hv = parseView(hashValue());
+    if (hv) { state.view = hv.view; if (hv.sub) state.sub[hv.view] = hv.sub; }
     await load();
     const h = hashValue();
     if (IEEE_RE.test(h) && state.byIeee.has(h)) openDevice(h);

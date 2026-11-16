@@ -39,6 +39,20 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `mqtt_ssl_verify` | `true` | Check the broker's TLS certificate. Turn off for a self-signed certificate. |
 | `metrics_token` | empty | Token for the Prometheus endpoint, 16 characters or more. Empty keeps the endpoint off. See [Prometheus metrics](#prometheus-metrics). |
 
+## Where things are
+
+The sidebar has seven tabs. On a phone the last three sit behind **More** in the bottom bar.
+
+| Tab | What it holds |
+| --- | --- |
+| **Health** | Problems, worst first, then one line for each part of the app on another tab, so a glance says whether anything there needs a look. |
+| **Devices** | Every device, with its own page: info, health, trends, history, battery and notes. |
+| **Network** | **Map** (routing map, floor plan, what-if), **Coordinator** (each Zigbee2MQTT and its coordinator), **Broker** (devices left behind in Home Assistant), **Radio** (channels and Wi-Fi overlap) and **Groups**. |
+| **Upkeep** | **Batteries** (what to buy, and how long each brand lasts), **Maintenance** (recurring tasks) and **Models** (reliability by model). |
+| **Updates** | Firmware updates. |
+| **Activity** | The logbook and incidents. |
+| **Settings** | Alerts, checks, limits, naming and the rest. |
+
 ## MQTT broker
 
 By default the app uses the broker Home Assistant offers to apps, which is the Mosquitto broker app. To use another broker, for example Mosquitto on a separate server or in Docker, set `mqtt_host` and, if needed, `mqtt_port`, `mqtt_user` and `mqtt_password`, then restart the app. Use the same broker as Zigbee2MQTT. These options are at the bottom of the app's **Configuration** tab, from version 1.4.0.
@@ -132,7 +146,7 @@ These checks show in Health but don't notify until you set them to **Show and no
 | Worse since an upgrade | After Zigbee2MQTT or the coordinator firmware changes, the week after the upgrade looks clearly worse than the week before, once at least 2 days of it have passed (shown for 30 days). Shows only; it doesn't notify unless you add it to `notify_checks`. See **Effect of an upgrade** below for what is compared and the thresholds. |
 | Naming | A device still named by its IEEE address (`0x…`), or, when `naming_pattern` is set, a name that doesn't follow it. Low priority. See [Device names](#device-names). |
 
-The Health tab's **Groups** card lists every Zigbee2MQTT group with how many of its members are online. Groups with offline members show each member, with the offline ones in red. A device that dropped out of a group but is still on the network (for example after it left and was re-paired) is flagged for 30 days, until it's back in the group, or until the group is deleted. Leaving a group is only noticed while the app is running.
+**Network → Groups** lists every Zigbee2MQTT group with how many of its members are online. Groups with offline members show each member, with the offline ones in red. A device that dropped out of a group but is still on the network (for example after it left and was re-paired) is flagged for 30 days, until it's back in the group, or until the group is deleted. Leaving a group is only noticed while the app is running.
 
 ## Effect of an upgrade
 
@@ -194,7 +208,7 @@ The integration can mirror warnings and notify-enabled checks into **Settings �
 
 Recurring physical jobs for a device, such as "Test smoke alarm" every month or "Check door sensor magnet" every year. Add them on the device panel's **Notes** tab: a title, how often (1 day to 10 years), when it was last done and an optional note. Smoke, leak, door/window, motion and radiator devices offer a few suggestions; any text works. A device can have up to 20 tasks.
 
-The next due date is the last done date plus the interval, or the day the task was added plus the interval if it was never done. **Mark done** sets today and adds a "maintenance done" entry to the device's logbook. The Health tab's **Maintenance** card lists overdue tasks and those due in the next 14 days. An overdue task is the **Maintenance overdue** check; it shows in Health but doesn't notify unless you turn that on in Settings → Checks.
+The next due date is the last done date plus the interval, or the day the task was added plus the interval if it was never done. **Mark done** sets today and adds a "maintenance done" entry to the device's logbook. **Upkeep → Maintenance** lists overdue tasks and those due in the next 14 days. An overdue task is the **Maintenance overdue** check; it shows in Health but doesn't notify unless you turn that on in Settings → Checks.
 
 With the integration, `todo.z2m_tracker_maintenance` lists the same tasks (ticking one marks it done) and `calendar.z2m_tracker_maintenance` shows each task's next due date and the day it was last done. Tasks are part of the device's history, so they are in backups.
 
@@ -243,7 +257,7 @@ When quiet hours end, one notification sums up the night, titled "Zigbee overnig
 
 ## Leftover devices in Home Assistant
 
-A device removed from Zigbee2MQTT can stay in Home Assistant with all its entities unavailable, for example when Zigbee2MQTT was stopped or its Home Assistant integration was off at the time. Health lists these under **Leftover in Home Assistant**.
+A device removed from Zigbee2MQTT can stay in Home Assistant with all its entities unavailable, for example when Zigbee2MQTT was stopped or its Home Assistant integration was off at the time. **Network → Broker** lists these under **Leftover in Home Assistant**, and Health links to it.
 
 A Home Assistant device is listed when all of these are true:
 
