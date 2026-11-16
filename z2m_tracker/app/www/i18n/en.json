@@ -686,9 +686,19 @@
     "one": "If {name} goes: {n} device has no other router in range ({names})",
     "other": "If {name} goes: {n} devices have no other router in range ({names})"
   },
+  "whatif.summary_rejoin": {
+    "one": "{n} battery device will look for a new parent ({names})",
+    "other": "{n} battery devices will look for a new parent ({names})"
+  },
+  "whatif.summary_rejoin_only": {
+    "one": "If {name} goes: {n} battery device will look for a new parent ({names})",
+    "other": "If {name} goes: {n} battery devices will look for a new parent ({names})"
+  },
   "whatif.summary_none": "If {name} goes: nothing in the last scan depends on it. Its neighbours route around it.",
   "whatif.moves": "Likely move",
   "whatif.orphans": "No other router in range",
+  "whatif.rejoin": "Will look for a new parent",
+  "whatif.rejoin_note": "Battery devices don't answer the routing scan, so it can't show which other routers they hear. They pick the strongest one in range when their parent goes.",
   "whatif.move_row": "{device} → {to} (LQI {lqi})",
   "whatif.reason.child": "connects through it",
   "whatif.reason.behind": "its router is cut off too",

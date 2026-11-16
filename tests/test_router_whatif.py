@@ -50,9 +50,10 @@ def test_what_if_moves_orphans_and_targets():
         ("Porch sensor", "child", "Hall plug", 80),
         ("Shed door", "behind", "Hall plug", 30),
     ]
-    assert [(o["name"], o["reason"]) for o in result["orphans"]] == [
+    assert [(o["name"], o["reason"]) for o in result["orphans"]] == [("Shed plug", "cut_off")]
+    # The scan only shows an end device's link to its parent, so one with no other link isn't orphaned.
+    assert [(x["name"], x["reason"]) for x in result["rejoin"]] == [
         ("Garage sensor", "child"),
-        ("Shed plug", "cut_off"),
         ("Shed sensor", "behind"),
     ]
     assert result["targets"] == [{"ieee": ROUTER_B, "name": "Hall plug", "count": 2}]
@@ -61,7 +62,7 @@ def test_what_if_moves_orphans_and_targets():
 def test_what_if_leaf_router_only_moves_its_children():
     nodes = sample_nodes()
     result = route_whatif.what_if(nodes, COORD, ROUTER_B)
-    assert result["moves"] == [] and result["orphans"] == []
+    assert result["moves"] == [] and result["orphans"] == [] and result["rejoin"] == []
     nodes[S2]["parent"] = ROUTER_B
     nodes[S2]["neighbours"] = {ROUTER_B: 90, COORD: 90}
     moved = route_whatif.what_if(nodes, COORD, ROUTER_B)["moves"]
@@ -76,7 +77,7 @@ def test_child_router_with_another_path_moves():
     result = route_whatif.what_if(nodes, COORD, ROUTER_A)
     assert ("Shed plug", "Hall plug") in [(m["name"], m["to_name"]) for m in result["moves"]]
     # Shed plug still reaches the coordinator, so its own children stay put.
-    assert {m["name"] for m in result["moves"]} | {o["name"] for o in result["orphans"]} == {
+    assert {x["name"] for k in ("moves", "orphans", "rejoin") for x in result[k]} == {
         "Porch sensor",
         "Garage sensor",
         "Shed plug",
@@ -120,7 +121,8 @@ def test_tracker_what_if_from_latest_scan(tracker, clock):
     result = tracker.router_what_if("zigbee2mqtt", ROUTER_A)
     assert result["scanned_at"] == clock.iso() and result["net"] == "zigbee2mqtt"
     assert [(m["name"], m["to_name"], m["lqi"]) for m in result["moves"]] == [("Utility sensor", "Hall plug", 70)]
-    assert [o["name"] for o in result["orphans"]] == ["Shed sensor"]
+    assert result["orphans"] == []
+    assert [x["name"] for x in result["rejoin"]] == ["Shed sensor"]
     # Only routers in the latest scan, on that network.
     assert tracker.router_what_if("zigbee2mqtt", SENSOR) is None
     assert tracker.router_what_if("zigbee2mqtt", COORD) is None
@@ -136,14 +138,13 @@ def test_what_if_needs_a_scan(tracker):
 def test_placement_ranks_areas_from_scan(tracker, clock):
     scan(tracker, MESH, {SENSOR: "Shed", S2: "Utility room", ROUTER_A: "Garage", ROUTER_B: "Hall"})
     placement = tracker.router_placement("zigbee2mqtt", clock.now)
-    # Shed sensor: weak link (45) and no other router in range; Utility sensor: weak link only.
+    # Both sensors have a weak link. Shed sensor only shows its parent in the scan, but that's all a
+    # scan ever shows for an end device, so it isn't counted as having no backup route.
     assert [(a["area"], a["score"], a["weak"], a["no_backup"]) for a in placement["areas"]] == [
-        ("Shed", 5, 1, 1),
+        ("Shed", 2, 1, 0),
         ("Utility room", 2, 1, 0),
     ]
-    assert placement["areas"][0]["devices"] == [
-        {"ieee": SENSOR, "name": "Shed sensor", "reasons": ["no_backup", "weak"]}
-    ]
+    assert placement["areas"][0]["devices"] == [{"ieee": SENSOR, "name": "Shed sensor", "reasons": ["weak"]}]
     snapshot_keys = json.loads(tracker.snapshot_json())["router_placement"]
     assert snapshot_keys["zigbee2mqtt"]["areas"][0]["area"] == "Shed"
 

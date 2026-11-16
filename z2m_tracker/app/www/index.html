@@ -1935,14 +1935,17 @@
   // MAP.whatif[bt] = { ieee, busy, res, err }. The app works it out from the last scan (api/whatif).
   MAP.whatif = {};
   const wiResult = (bt) => { const w = MAP.whatif[bt]; return w?.res && !MAP.scanSel[bt] && w.res.scanned_at === state.data.networkmap?.[bt]?.scanned_at ? w.res : null; };
-  const wiMarks = (bt) => { const r = wiResult(bt); return r ? { gone: r.ieee, move: new Map(r.moves.map((m) => [m.ieee, m.to])), orphan: new Set(r.orphans.map((o) => o.ieee)) } : null; };
+  const wiMarks = (bt) => { const r = wiResult(bt); return r ? { gone: r.ieee, move: new Map([...r.moves.map((m) => [m.ieee, m.to]), ...(r.rejoin || []).map((x) => [x.ieee, null])]), orphan: new Set(r.orphans.map((o) => o.ieee)) } : null; };
   const wiSummary = (r, link) => {
     const name = `<b>${esc(r.name)}</b>`;
     const orphans = r.orphans.map((o) => link(o.ieee, o.name)).join(", ");
-    if (!r.moves.length && !r.orphans.length) return th("whatif.summary_none", { name });
-    if (!r.moves.length) return th("whatif.summary_orphans_only", { name, n: r.orphans.length, names: orphans }) + ".";
+    const rejoin = r.rejoin || [];
+    const rejoinTail = rejoin.length ? `, ${th("whatif.summary_rejoin", { n: rejoin.length, names: rejoin.map((x) => link(x.ieee, x.name)).join(", ") })}` : "";
+    if (!r.moves.length && !r.orphans.length && !rejoin.length) return th("whatif.summary_none", { name });
+    if (!r.moves.length && !r.orphans.length) return th("whatif.summary_rejoin_only", { name, n: rejoin.length, names: rejoin.map((x) => link(x.ieee, x.name)).join(", ") }) + ".";
+    if (!r.moves.length) return th("whatif.summary_orphans_only", { name, n: r.orphans.length, names: orphans }) + rejoinTail + ".";
     const to = r.targets.map((x) => th("whatif.summary_to", { n: x.count, name: esc(x.name) })).join(", ");
-    return th("whatif.summary_moves", { name, n: r.moves.length, to }) + (r.orphans.length ? `, ${th("whatif.summary_orphans", { n: r.orphans.length, names: orphans })}` : "") + ".";
+    return th("whatif.summary_moves", { name, n: r.moves.length, to }) + (r.orphans.length ? `, ${th("whatif.summary_orphans", { n: r.orphans.length, names: orphans })}` : "") + rejoinTail + ".";
   };
   const whatifHtml = (bt) => {
     const w = MAP.whatif[bt];
@@ -1957,10 +1960,11 @@
     const label = (ieee, name) => nameOf(state.byIeee.get(ieee)) || (!name || IEEE_RE.test(name) ? t("devices.unnamed") : name);
     const link = (ieee, name) => `<a href="#${esc(ieee)}" data-mapsel="${esc(ieee)}" data-net="${esc(bt)}">${esc(label(ieee, name))}</a>`;
     const why = (x) => `<small>${th(`whatif.reason.${x.reason}`)}</small>`;
-    return `<div class="wi-head"><span class="state-ic" style="color:${r.orphans.length ? "var(--error)" : r.moves.length ? "var(--warning)" : "var(--success)"}">${ic("lan-disconnect")}</span><div class="text">${wiSummary(r, link)}</div>${clear}</div>
+    return `<div class="wi-head"><span class="state-ic" style="color:${r.orphans.length ? "var(--error)" : r.moves.length || r.rejoin?.length ? "var(--warning)" : "var(--success)"}">${ic("lan-disconnect")}</span><div class="text">${wiSummary(r, link)}</div>${clear}</div>
       <div class="map-legend wi-legend"><span><i style="background:var(--disabled)"></i>${th("whatif.legend_gone")}</span><span><i style="background:var(--warning)"></i>${th("whatif.legend_move")}</span><span><i style="background:var(--error)"></i>${th("whatif.legend_orphan")}</span><span><b class="dashed wi"></b>${th("whatif.legend_line")}</span></div>
       ${r.orphans.length ? `<div class="wi-list"><div class="wi-h">${th("whatif.orphans")}</div>${r.orphans.map((o) => `<div class="wi-row orphan"><i></i><span>${link(o.ieee, o.name)} ${why(o)}</span></div>`).join("")}</div>` : ""}
       ${r.moves.length ? `<div class="wi-list"><div class="wi-h">${th("whatif.moves")}</div>${r.moves.map((m) => `<div class="wi-row move"><i></i><span>${th("whatif.move_row", { device: link(m.ieee, m.name), to: link(m.to, m.to_name), lqi: esc(m.lqi) })} ${why(m)}</span></div>`).join("")}</div>` : ""}
+      ${r.rejoin?.length ? `<div class="wi-list"><div class="wi-h">${th("whatif.rejoin")}</div>${r.rejoin.map((x) => `<div class="wi-row move"><i></i><span>${link(x.ieee, x.name)} ${why(x)}</span></div>`).join("")}<div class="wi-note">${th("whatif.rejoin_note")}</div></div>` : ""}
       <div class="wi-note">${th("whatif.note", { when: esc(fmtDate(r.scanned_at)) })}</div>`;
   };
   const updateWhatIf = (bt, scroll = false) => {

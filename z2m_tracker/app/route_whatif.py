@@ -45,7 +45,9 @@ def what_if(nodes: dict[str, dict], coordinator: str, removed: str) -> dict[str,
     A device loses its path when its parent is the removed router, or when its parent is a router that
     can no longer reach the coordinator. Routers cut off from the coordinator are orphaned with their
     children. Every other device picks the strongest router or coordinator it heard in the scan that
-    still reaches the coordinator; one that heard none is orphaned.
+    still reaches the coordinator. A router that heard none is orphaned. An end device that heard none
+    goes in `rejoin`: sleepy end devices don't answer the scan, so it only ever shows the link to their
+    parent, never the other routers they can hear. It will look for a new parent itself.
     """
     hear = hearing(nodes)
     before = reachable(nodes, hear, coordinator, None)
@@ -69,6 +71,7 @@ def what_if(nodes: dict[str, dict], coordinator: str, removed: str) -> dict[str,
 
     moves: list[dict] = []
     orphans: list[dict] = []
+    rejoin: list[dict] = []
     for ieee, reason in affected.items():
         node = nodes[ieee]
         base = {
@@ -83,8 +86,11 @@ def what_if(nodes: dict[str, dict], coordinator: str, removed: str) -> dict[str,
             for other, lqi in hear[ieee].items()
             if other != removed and other in after and other not in cut and other != ieee
         ]
-        if reason == "cut_off" or not options:
+        if reason == "cut_off" or (not options and node.get("type") != "EndDevice"):
             orphans.append(base)
+            continue
+        if not options:
+            rejoin.append(base)
             continue
         # Strongest link wins; on a tie the coordinator, then the name, so the answer is stable.
         lqi, best = min(options, key=lambda o: (-o[0], o[1] != coordinator, name(o[1]).lower()))
@@ -92,6 +98,7 @@ def what_if(nodes: dict[str, dict], coordinator: str, removed: str) -> dict[str,
 
     moves.sort(key=lambda m: (m["to_name"].lower(), m["name"].lower()))
     orphans.sort(key=lambda o: o["name"].lower())
+    rejoin.sort(key=lambda o: o["name"].lower())
     targets: dict[str, dict] = {}
     for m in moves:
         entry = targets.setdefault(m["to"], {"ieee": m["to"], "name": m["to_name"], "count": 0})
@@ -101,5 +108,6 @@ def what_if(nodes: dict[str, dict], coordinator: str, removed: str) -> dict[str,
         "name": name(removed),
         "moves": moves,
         "orphans": orphans,
+        "rejoin": rejoin,
         "targets": sorted(targets.values(), key=lambda x: (-x["count"], x["name"].lower())),
     }

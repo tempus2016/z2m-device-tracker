@@ -7,7 +7,8 @@ Pure functions, no tracker state. Each device row is a dict with:
   hops               times its parent router changed in recent scans (end devices only)
   offline            offline right now
   flapping           dropped out repeatedly in the last 24 hours
-  no_backup          in the what-if for some router it had no other router in range
+  no_backup          router only: in the what-if for some router it had no other router in range
+                     (the scan never shows what an end device hears, so end devices can't be judged)
 """
 
 from __future__ import annotations
