@@ -40,6 +40,7 @@ from health import (
 )
 from history_import import IEEE_RE, _features, collect_history
 from incidents import build_incidents
+from live_messages import MessageLog
 from metrics import Metrics
 from naming import kind_of, naming_issues
 from reliability import model_reliability
@@ -834,6 +835,8 @@ class Tracker:
         # IEEE -> when its oldest unanswered command (<name>/set) arrived. Memory only.
         # ieee -> (when the first unanswered command was sent, the values a reply must show)
         self._commands: dict[str, tuple[float, dict]] = {}
+        # The last messages to and from each device, for its Messages tab. Memory only.
+        self.messages = MessageLog(clock=lambda: time.time())
 
     # ------------------------------------------------------------ persistence
 
@@ -1610,6 +1613,7 @@ class Tracker:
         record = self._record_for(base_topic, name)
         if record is None:
             return
+        self.messages.add(record["ieee"], "availability", payload.strip())
         state = payload.strip()
         if state.startswith("{"):
             parsed = _loads(state)
@@ -1651,18 +1655,23 @@ class Tracker:
         name = rest[: -len("/set")] if rest.endswith("/set") else rest.rsplit("/set/", 1)[0]
         record = self._record_for(base_topic, name)
         if record is None and "/" in name:
-            record = self._record_for(base_topic, name.rsplit("/", 1)[0])
-        if record is None or record.get("status") != STATUS_ACTIVE or record.get("availability") == "offline":
+            name = name.rsplit("/", 1)[0]
+            record = self._record_for(base_topic, name)
+        if record is None:
             return
-        now = time.time()
-        self.expire_commands(now)
-        pending = self._commands.get(record["ieee"])
-        if pending and now - pending[0] > COMMAND_BURST:
-            # Still unanswered when the next command came: that one was missed.
-            self.metrics.add_command(record["ieee"], None, now=pending[0])
-            pending = None
-        # A burst is timed from its first command and answered by the state the last one asked for.
-        self._commands[record["ieee"]] = (pending[0] if pending else now, _expected_reply(rest, text))
+        if record.get("status") == STATUS_ACTIVE and record.get("availability") != "offline":
+            now = time.time()
+            self.expire_commands(now)
+            pending = self._commands.get(record["ieee"])
+            if pending and now - pending[0] > COMMAND_BURST:
+                # Still unanswered when the next command came: that one was missed.
+                self.metrics.add_command(record["ieee"], None, now=pending[0])
+                self.messages.settle(record["ieee"], pending[0], answered=False, now=now)
+                pending = None
+            # A burst is timed from its first command and answered by the state the last one asked for.
+            self._commands[record["ieee"]] = (pending[0] if pending else now, _expected_reply(rest, text))
+        # Logged after the timing above, so settling the previous burst can't touch this command.
+        self.messages.add(record["ieee"], "command", text.strip(), rest[len(name) + 1 :])
 
     def _command_answered(self, ieee: str, state: Any) -> None:
         pending = self._commands.get(ieee)
@@ -1674,8 +1683,10 @@ class Tracker:
         if not _reply_matches(expect, state):
             return
         del self._commands[ieee]
-        elapsed = time.time() - start
+        now = time.time()
+        elapsed = now - start
         self.metrics.add_command(ieee, elapsed * 1000 if elapsed <= COMMAND_TIMEOUT else None, now=start)
+        self.messages.settle(ieee, start, answered=elapsed <= COMMAND_TIMEOUT, now=now)
 
     def expire_commands(self, now: float | None = None) -> None:
         """Count commands still unanswered after COMMAND_TIMEOUT as missed."""
@@ -1685,11 +1696,13 @@ class Tracker:
                 if now - start > COMMAND_TIMEOUT:
                     del self._commands[ieee]
                     self.metrics.add_command(ieee, None, now=start)
+                    self.messages.settle(ieee, start, answered=False, now=now)
 
     def _handle_state(self, base_topic: str, name: str, payload: str) -> None:
         record = self._record_for(base_topic, name)
         if record is None:
             return
+        self.messages.add(record["ieee"], "state", payload)
         parsed = None
         if payload[:1] == "{":
             parsed = _loads(payload)
@@ -2819,6 +2832,13 @@ class Tracker:
         return line
 
     # ----------------------------------------------------------------- public
+
+    def recent_messages(self, ieee: str) -> list[dict] | None:
+        """The device's last messages, newest first, or None for an unknown device."""
+        with self.lock:
+            if ieee not in self.data["devices"]:
+                return None
+            return self.messages.recent(ieee)
 
     def _oui_vendor(self, ieee: str) -> str | None:
         return self.oui.get(ieee[2:8].upper()) if ieee.startswith("0x") else None
@@ -4544,6 +4564,7 @@ class Tracker:
                 if record.get("successor") == ieee:
                     record["successor"] = None
             self._commands.pop(ieee, None)
+            self.messages.forget(ieee)
             self.metrics.forget(ieee)
             self._changed(structural=True)
             return True
