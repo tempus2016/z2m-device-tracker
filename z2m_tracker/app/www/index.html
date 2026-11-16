@@ -254,6 +254,8 @@
   .log { display: flex; gap: 16px; align-items: center; padding: 6px 16px; min-height: 56px; cursor: pointer; }
   @media (hover: hover) and (pointer: fine) { .log:hover { background: var(--hover); } }
   .log .text { flex: 1; min-width: 0; }
+  /* Both lines are blocks in every row: network events are a div, not a button, and inline spans ran together. */
+  .log .t1, .log .t2 { display: block; }
   .log .t1 { color: var(--text); }
   .log .t1 b { font-weight: 500; }
   .log .t2 { font-size: 12px; color: var(--text-2); }
