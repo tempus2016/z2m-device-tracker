@@ -213,6 +213,14 @@
   .qty-step b { min-width: 28px; text-align: center; font-weight: 500; }
   .pill { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 11px; font-size: 12px; font-weight: 500; white-space: nowrap; background: color-mix(in srgb, var(--error) 14%, transparent); color: var(--error-text); }
   .pill.ok { background: color-mix(in srgb, var(--success) 14%, transparent); color: var(--success); }
+  /* Compare two devices: one row per measure, the worse value in red. */
+  table.dt.cmp { min-width: 0; table-layout: fixed; }
+  .dt.cmp tbody tr { cursor: default; }
+  @media (hover: hover) and (pointer: fine) { .dt.cmp tbody tr:hover { background: none; } }
+  .dt.cmp th, .dt.cmp td { white-space: normal; overflow-wrap: anywhere; height: auto; padding: 10px 12px; vertical-align: top; }
+  .dt.cmp th:first-child, .dt.cmp td:first-child { width: 34%; color: var(--text-2); }
+  .dt.cmp .worse { color: var(--error-text); font-weight: 500; }
+  .cmp-note { padding: 12px 16px; font-size: 13px; color: var(--text-2); }
   .stock-add { display: flex; gap: 8px; align-items: center; padding: 12px 16px; border-top: 1px solid var(--divider); flex-wrap: wrap; }
   .stock-add #stockType { flex: 1; min-width: 140px; max-width: 240px; }
   .stock-add .field.num { width: 72px; }
@@ -1014,6 +1022,7 @@
     <div class="confirm-actions"><button class="btn" value="cancel" type="submit" data-t="common.cancel">Cancel</button><button class="btn" value="ok" type="submit" id="cOk"></button></div>
   </form>
 </dialog>
+<dialog class="more wide" id="compareDlg" aria-labelledby="cmpTitle"></dialog>
 <div class="snack" id="snack" role="status"></div>
 
 <script>
@@ -4748,6 +4757,65 @@
     const own = new Set(taken); own.delete(current.toLowerCase());
     return renderPattern(pattern, { area: nameValue(area), type: nameValue(d.kind), model: nameValue(d.model) }, own);
   };
+  // ------------------------------------------------------------ compare two devices
+  // Side by side for exactly two ticked devices. A value is marked worse only when the gap matters:
+  // 10+ link quality, a deeper route, a battery pack lasting 25% less, 0.5+ points of uptime.
+  const lastPackDays = (d) => {
+    const r = d.battery_record;
+    if (!r) return null;
+    const days = [...new Set([r.installed, ...(r.replacements || []).map((x) => x.date)].filter((x) => /^\d{4}-\d{2}-\d{2}/.test(x || "")).map((x) => x.slice(0, 10)))].sort();
+    if (days.length < 2) return null;
+    const [a, b] = days.slice(-2).map((x) => new Date(`${x}T12:00:00`));
+    return Math.round((b - a) / 86400000);
+  };
+  const compareRows = (a, b) => {
+    const worseLow = (x, y, gap) => (x === null || y === null || Math.abs(x - y) < gap ? [false, false] : [x < y, y < x]);
+    const lqi = (d) => d.metrics?.lqi_7d ?? null;
+    const depth = (d) => (typeof d.routing?.depth === "number" ? d.routing.depth : null);
+    const parent = (d) => {
+      const p = d.routing?.parent?.ieee;
+      if (d.type === "Coordinator") return "—";
+      const name = p ? (state.byIeee.get(p)?.type === "Coordinator" ? t("map.coordinator") : nameOf(state.byIeee.get(p)) || p) : t("compare.no_scan");
+      return depth(d) !== null ? t("compare.hops", { name, n: depth(d) }) : name;
+    };
+    const pack = (d) => lastPackDays(d);
+    const up = (d) => (typeof d.uptime_30d === "number" ? d.uptime_30d : null);
+    const rate = (d) => (typeof d.metrics?.msg_24h === "number" ? d.metrics.msg_24h / 24 : null);
+    const fwOf = (d) => [deviceLine(d) || t("common.unknown"), d.software_build_id || d.update?.installed_version].filter(Boolean).join(" · ");
+    const packs = [pack(a), pack(b)];
+    const packWorse = packs.includes(null) || Math.max(...packs) < Math.min(...packs) * 1.25 ? [false, false] : [packs[0] < packs[1], packs[1] < packs[0]];
+    const depths = [depth(a), depth(b)];
+    const depthWorse = depths.includes(null) || depths[0] === depths[1] ? [false, false] : [depths[0] > depths[1], depths[1] > depths[0]];
+    const ups = [up(a), up(b)];
+    return [
+      ["compare.model", [fwOf(a), fwOf(b)], [false, false]],
+      ["compare.lqi", [lqi(a), lqi(b)].map((v) => (v === null ? "—" : String(Math.round(v)))), worseLow(lqi(a), lqi(b), 10)],
+      ["compare.parent", [parent(a), parent(b)], depthWorse],
+      ["compare.battery", packs.map((v) => (v === null ? "—" : t("compare.months", { n: num1(v / 30.44) }))), packWorse],
+      ["compare.uptime", ups.map((v) => (v === null ? "—" : `${num1(Math.floor(v * 10) / 10)} %`)), worseLow(ups[0], ups[1], 0.5)],
+      ["compare.rate", [rate(a), rate(b)].map((v) => (v === null ? "—" : num1(v))), [false, false]],
+    ];
+  };
+  const renderCompare = () => {
+    const dlg = $("#compareDlg");
+    const [a, b] = pickedList().slice(0, 2).map((ieee) => state.byIeee.get(ieee));
+    if (!a || !b) { if (dlg.open) dlg.close(); return; }
+    const cell = (v, bad) => `<td class="${bad ? "worse" : ""}">${esc(v)}${bad ? `<span class="sr"> ${th("compare.worse")}</span>` : ""}</td>`;
+    const head = (d) => `<th><a href="#${esc(d.ieee)}" data-act="compare-open" data-ieee="${esc(d.ieee)}">${esc(nameOf(d) || d.ieee)}</a></th>`;
+    const rows = compareRows(a, b).map(([label, [x, y], [wx, wy]]) => `<tr><td>${th(label)}</td>${cell(x, wx)}${cell(y, wy)}</tr>`).join("");
+    dlg.innerHTML = `
+      <div class="more-head"><button class="icon-btn" data-act="compare-close" aria-label="${esc(t("common.close"))}">${ic("close")}</button><div class="titles"><h2 id="cmpTitle">${th("compare.title")}</h2></div></div>
+      <div class="more-body"><div class="table-wrap"><table class="dt cmp"><thead><tr><th><span class="sr">${th("compare.measure")}</span></th>${head(a)}${head(b)}</tr></thead><tbody>${rows}</tbody></table></div>
+        <div class="cmp-note">${th("compare.note")}</div></div>
+      <div class="rep-foot"><button class="btn" data-act="compare-close">${th("common.close")}</button></div>`;
+  };
+  SEL_ACTIONS.push(["compare-open-dlg", "compare.button", "swap-horizontal", (n) => n === 2]);
+  Object.assign(actions, {
+    "compare-open-dlg"() { renderCompare(); const dlg = $("#compareDlg"); if (!dlg.open) dlg.showModal(); },
+    "compare-close"() { $("#compareDlg").close(); },
+    "compare-open"(b) { $("#compareDlg").close(); openDevice(b.dataset.ieee); },
+  });
+
   const renderPair = () => {
     const dlg = $("#pairDlg");
     const move = state.move ? state.byIeee.get(state.move.target) : null;

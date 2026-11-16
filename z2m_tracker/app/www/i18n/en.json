@@ -1496,6 +1496,26 @@
   "settings.backup_desc": "Download the tracker's full history, or restore it from a backup file. Separate from HA backups.",
   "settings.export": "Export",
   "settings.export_desc": "Every device with hardware, battery and asset details as CSV",
+  "compare.button": "Compare",
+  "compare.title": "Compare devices",
+  "compare.measure": "Measure",
+  "compare.model": "Model / firmware",
+  "compare.lqi": "Link quality (7 days)",
+  "compare.parent": "Parent router",
+  "compare.hops": {
+    "one": "{name} ({n} hop)",
+    "other": "{name} ({n} hops)"
+  },
+  "compare.no_scan": "Not in a routing scan yet",
+  "compare.battery": "Battery life (last pack)",
+  "compare.months": {
+    "one": "{n} month",
+    "other": "{n} months"
+  },
+  "compare.uptime": "Uptime (30 days)",
+  "compare.rate": "Messages / hour (24 h)",
+  "compare.worse": "(worse)",
+  "compare.note": "Worse value in red, where the gap is big enough to matter. Hops count the steps from the coordinator in the last routing scan. Battery life needs two recorded battery dates.",
   "settings.networks": "Networks",
   "settings.networks_desc": "{topics}. Add networks in the app's Configuration tab.",
   "settings.details": "Device details",

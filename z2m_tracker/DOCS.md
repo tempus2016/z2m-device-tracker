@@ -411,6 +411,10 @@ Topics of current devices and groups, `bridge/` topics, and names the app has ne
 
 **Clear** publishes an empty retained message to the topic, which deletes it from the broker. Nothing is sent to the device. **Clear all** clears every message in the current filter. Both ask first, and the app checks each topic against the latest scan before clearing it. Turn on `retained_autoclear` (**Settings → Broker**) to clear a device's old-name topics automatically after each scan. When any stale messages exist, Health shows **Stale retained messages** under **Worth a look**.
 
+## Compare two devices
+
+Tick exactly two devices in the **Devices** list (the checkbox at the start of each row; Space ticks the focused row), then **Compare** in the bar that appears. The dialog puts them side by side: model and firmware, average link quality over 7 days, parent router with its hop count from the last routing scan, how long the last battery pack lasted (between the last two recorded battery dates), uptime over 30 days and messages per hour over the last 24 hours. The worse value is in red where the gap matters: 10 or more link quality, a longer route, a battery pack lasting at least 25% less, or half a point of uptime. Select a device's name to open it.
+
 ## Leftover devices in Home Assistant
 
 A device removed from Zigbee2MQTT can stay in Home Assistant with all its entities unavailable, for example when Zigbee2MQTT was stopped or its Home Assistant integration was off at the time. **Network → Broker** lists these under **Leftover in Home Assistant**, and Health links to it.
