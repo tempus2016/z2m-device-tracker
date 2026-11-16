@@ -475,6 +475,25 @@
     "other": "{n} devices"
   },
   "coord.backup_no_key": "no network key",
+  "copies.title": "Coordinator backups",
+  "copies.saved": "Saved",
+  "copies.devices": "Devices",
+  "copies.change": "Change from the one before",
+  "copies.first": "First copy kept",
+  "copies.no_change": "No change",
+  "copies.added": {
+    "one": "+{n} device",
+    "other": "+{n} devices"
+  },
+  "copies.removed": {
+    "one": "−{n} device",
+    "other": "−{n} devices"
+  },
+  "copies.and_more": "and {n} more",
+  "copies.key_changed": "Network key changed",
+  "copies.pan_changed": "PAN ID changed",
+  "copies.channel_changed": "Channel changed",
+  "copies.note": "Keeps the last {n} copies: a new one each time the backup changes, and one a week when it doesn't.",
   "coord.online_since": "Online since {date}",
   "coord.offline_since": "Offline since {date}",
   "coord.waiting": "Waiting for status from Zigbee2MQTT",

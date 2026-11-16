@@ -634,6 +634,11 @@
   table.upg-t th[scope="row"], table.upg-t thead th:first-child { text-align: left; font-weight: 400; overflow-wrap: anywhere; }
   table.upg-t td { font-variant-numeric: tabular-nums; white-space: nowrap; }
   table.upg-t td:last-child { padding-right: 0; }
+  .copies-wrap { padding: 0 16px; overflow-x: auto; }
+  table.copies th, table.copies td { text-align: left; vertical-align: middle; }
+  table.copies .num { text-align: right; }
+  table.copies td.chg { white-space: normal; overflow-wrap: anywhere; min-width: 160px; }
+  table.copies .pill { margin: 2px 0; }
   .upg-st { font-size: 12px; color: var(--text-2); }
   .upg-list { list-style: none; margin: 4px 0 0; padding: 0; font-size: 13px; }
   .upg-list li { padding: 4px 0; overflow-wrap: anywhere; }
@@ -1623,11 +1628,36 @@
         ${kv([["Zigbee2MQTT", info.version], [th("coord.coordinator"), [info.coordinator_type, info.firmware ? t("coord.firmware", { version: info.firmware }) : null].filter(Boolean).join(" · ")],
           [th("coord.last_7_days"), [t("coord.outages", { n: outages.length }) + (outages.length ? ` ${t("coord.down_for", { n: downMin })}` : ""), t("coord.restarts", { n: restarts })].join(" · ")],
           [th("coord.leaves_week"), String(leaves)], [th("coord.backup"), backup]])}
+        ${coordCopies(bt)}
         ${more.length || b.health ? `<div class="coord-more"><button class="btn" data-act="toggle-coord" data-bt="${esc(bt)}" aria-expanded="${open}">${ic(open ? "chevron-up" : "chevron-down", "s18")}${th(open ? "coord.fewer_details" : "coord.more_details")}</button></div>` : ""}
         ${open ? `<div class="coord-detail">${kv(more)}${coordHealth(bt, b)}${coordChanges(b)}${coordUpgrade(bt)}</div>` : ""}
       </div>`;
     }).join("");
     return `<div class="card"><div class="card-header">${ic("router-wireless")}<div><h2 class="ch">${th("coord.title")}</h2><small>${th("coord.subtitle")}</small></div></div>${nets}</div>`;
+  };
+
+  // Kept copies of coordinator_backup.json (state.data.backup_copies), newest first, each against the one before.
+  // The network key never reaches the page; Download fetches the stored file only when clicked.
+  const copyDev = (x) => x.name || x.ieee;
+  const copyChange = (c) => {
+    if (!c) return `<span class="muted">${th("copies.first")}</span>`;
+    const parts = [];
+    const list = (xs) => esc(xs.slice(0, 3).map(copyDev).join(", ") + (xs.length > 3 ? ` ${t("copies.and_more", { n: xs.length - 3 })}` : ""));
+    if (c.added.length) parts.push(`${th("copies.added", { n: c.added.length })} (${list(c.added)})`);
+    if (c.removed.length) parts.push(`${th("copies.removed", { n: c.removed.length })} (${list(c.removed)})`);
+    if (c.key_changed) parts.push(`<span class="pill">${th("copies.key_changed")}</span>`);
+    if (c.pan_changed) parts.push(`<span class="pill">${th("copies.pan_changed")}</span>`);
+    if (c.channel_changed) parts.push(`<span class="pill">${th("copies.channel_changed")}</span>`);
+    return parts.length ? parts.join(" ") : `<span class="muted">${th("copies.no_change")}</span>`;
+  };
+  const coordCopies = (bt) => {
+    const rows = (state.data.backup_copies || {})[bt] || [];
+    if (!rows.length) return "";
+    const body = rows.map((r) => `<tr><td>${esc(fmtDate(r.date || r.saved))}</td><td class="num">${esc(r.devices)}</td><td class="chg">${copyChange(r.change)}</td>
+      <td class="num"><a class="btn" href="api/coordinator_backup?net=${encodeURIComponent(bt)}&amp;id=${encodeURIComponent(r.id)}" download>${th("common.download")}</a></td></tr>`).join("");
+    return `<div class="sub-h">${th("copies.title")}</div>
+      <div class="copies-wrap"><table class="upg-t copies"><thead><tr><th scope="col">${th("copies.saved")}</th><th scope="col" class="num">${th("copies.devices")}</th><th scope="col">${th("copies.change")}</th><th scope="col"><span class="sr">${th("common.download")}</span></th></tr></thead><tbody>${body}</tbody></table></div>
+      <p class="tnote">${th("copies.note", { n: 10 })}</p>`;
   };
 
   // Zigbee2MQTT's own settings, newest change first. Values arrive as JSON text; strings lose their quotes.
