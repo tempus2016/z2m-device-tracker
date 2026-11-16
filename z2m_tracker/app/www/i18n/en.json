@@ -1317,6 +1317,44 @@
   "groups.chip_offline": "{name} · offline {duration}",
   "groups.chip_offline_now": "{name} · offline",
   "groups.chip_left": "{name} · left {date}",
+  "models.title": "Reliability by model",
+  "models.subtitle": {
+    "one": "{n} model on your network, last 30 days. Tap it to list its devices.",
+    "other": "{n} models on your network, last 30 days. Tap one to list its devices."
+  },
+  "models.sort": "Sort models",
+  "models.sort_worst": "Worst first",
+  "models.sort_devices": "Most devices",
+  "models.sort_battery": "Shortest battery life",
+  "models.devices": {
+    "one": "{n} device",
+    "other": "{n} devices"
+  },
+  "models.uptime": "{n}% uptime",
+  "models.dropouts": {
+    "one": "{n} dropout a month per device",
+    "other": "{n} dropouts a month per device"
+  },
+  "models.no_dropouts": "no dropouts",
+  "models.battery": {
+    "one": "batteries last about {n} day",
+    "other": "batteries last about {n} days"
+  },
+  "models.changes": {
+    "one": "from {n} change",
+    "other": "from {n} changes"
+  },
+  "models.interview_failures": {
+    "one": "{n} failed interview",
+    "other": "{n} failed interviews"
+  },
+  "models.repairs": {
+    "one": "{n} re-pair",
+    "other": "{n} re-pairs"
+  },
+  "models.check": "Check",
+  "models.note": "From your own devices only. A model with just one device can't show a pattern, so it is never flagged. Battery life needs at least two recorded battery dates on a device.",
+  "models.show_all": "Show all {n} models",
   "dhealth.limits": "Limits for this device",
   "dhealth.limit_battery": "Low battery at",
   "dhealth.limit_frozen": "Reading unchanged for",
