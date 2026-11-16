@@ -11,7 +11,6 @@ const nameOf = (d) => {
   const named = (d.names || []).filter((n) => n.name && !IEEE_RE.test(n.name));
   return named.length ? named[named.length - 1].name : d.ha_name || d.ieee;
 };
-const statusOf = (d) => (d.status === "removed" ? "removed" : d.interview_state && d.interview_state !== "SUCCESSFUL" && d.type !== "Coordinator" ? "ghost" : d.availability === "offline" ? "offline" : "active");
 const I18N = () => window.Z2MTrackerI18n;
 const T = (key, vars, fallback) => I18N()?.t(key, vars, fallback) ?? fallback ?? key;
 const KIND_ICON = { offline: "mdi:wifi-off", silent: "mdi:wifi-off", late: "mdi:timer-sand", frozen: "mdi:thermometer-alert", weak_signal: "mdi:signal-cellular-1", signal_drop: "mdi:signal-cellular-2", battery_low: "mdi:battery-alert-variant-outline", battery_soon: "mdi:battery-clock-outline", update: "mdi:chip", unidentified: "mdi:help-circle-outline", replacement: "mdi:link-variant", router_hopping: "mdi:swap-horizontal", slow_router: "mdi:router-wireless" };
@@ -89,7 +88,8 @@ class Z2MTrackerCard extends HTMLElement {
     if (this._failed) { body.innerHTML = `<div class="head"><h2>${esc(cfg.title)}</h2></div><div class="err">${esc(this._error || T("card.unreachable"))}</div>`; return; }
     if (!this._data) { body.innerHTML = `<div class="head"><h2>${esc(cfg.title)}</h2></div><div class="empty">${esc(T("card.loading"))}</div>`; return; }
     const devices = this._data.devices.filter((d) => d.type !== "Coordinator" && d.status !== "removed");
-    const offline = devices.filter((d) => statusOf(d) === "offline").length;
+    // Same rule as the network card and the Offline devices sensor: an unidentified device that drops off counts too.
+    const offline = devices.filter((d) => d.availability === "offline").length;
     const all = devices.flatMap((d) => (d.issues || []).map((i) => ({ ...i, area: d.area })));
     const keys = new Set(all.map((i) => i.key));
     // Devices behind an offline router are covered by the router's issue.
