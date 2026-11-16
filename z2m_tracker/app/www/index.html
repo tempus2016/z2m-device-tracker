@@ -639,6 +639,16 @@
   table.copies .num { text-align: right; }
   table.copies td.chg { white-space: normal; overflow-wrap: anywhere; min-width: 160px; }
   table.copies .pill { margin: 2px 0; }
+  .score-row + .score-row { border-top: 1px solid var(--divider); }
+  .score-top { display: flex; align-items: center; gap: 16px; padding: 12px 16px; }
+  .score-top .text { flex: 1; min-width: 0; }
+  .score-top .t1 { font-size: 16px; }
+  .score-top .t2 { font-size: 14px; color: var(--text-2); }
+  .ring { width: 52px; height: 52px; border-radius: 50%; display: grid; place-content: center; flex: none; background: radial-gradient(var(--card) 60%, transparent 61%), conic-gradient(var(--c) 0 var(--p), var(--sec-bg) 0); }
+  .ring b { font-size: 18px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .kv.tight { padding: 0 4px 4px; }
+  .kv.tight > div { padding: 6px 12px; }
+  .score-more .chart { height: 60px; }
   .upg-st { font-size: 12px; color: var(--text-2); }
   .upg-list { list-style: none; margin: 4px 0 0; padding: 0; font-size: 13px; }
   .upg-list li { padding: 4px 0; overflow-wrap: anywhere; }
@@ -1208,7 +1218,7 @@
     sort: store.get("z2mt.sort") || "status", dir: Number(store.get("z2mt.dir")) || 0,
     open: null, moreTab: "info", settings: null, version: null, editing: false,
     layout: store.get("z2mt.layout") === "dialog" ? "dialog" : "pane",
-    group: store.get("z2mt.group") === "1", areas: null, pairNet: null, pairForm: {}, openGroups: new Set(), openCoords: new Set(), usedOpen: new Set(),
+    group: store.get("z2mt.group") === "1", areas: null, pairNet: null, pairForm: {}, openGroups: new Set(), openCoords: new Set(), openScores: new Set(), usedOpen: new Set(),
     // Maintenance task being edited on the device panel: { ieee, id } or null.
     mtEdit: null,
     // Network > Broker: which stale retained messages show ("all" or a reason), and whether past the first page.
@@ -1495,6 +1505,7 @@
     // An open power-loss incident leads the page: it explains several of the offline rows below.
     const powerIncs = (Array.isArray(state.data.incidents) ? state.data.incidents : []).filter((x) => x.ongoing && x.cause === "power_loss" && x.power);
     $("#view").innerHTML = `
+      ${meshCard()}
       ${powerIncs.length ? `<div class="card inc-banner">${powerIncs.map((x) => `<div class="row"><span class="state-ic bad">${ic("power-plug")}</span>
         <div class="text"><div class="t1">${th("incident.power_open", { area: esc(x.power.area) })}</div><div class="t2">${th("incident.power_open_text", { n: x.power.n, seconds: x.power.seconds, time: esc(fmtTime(x.start)), area: esc(x.power.area) })}</div></div>
         <div class="acts"><button class="btn" data-act="open-incident" data-inc="${esc(x.id)}">${th("common.open")}</button></div></div>`).join("")}</div>` : ""}
@@ -1511,6 +1522,36 @@
         ${elsewhere()}
         <div class="card-actions"><button class="btn" data-view="settings">${th("health.alert_settings")}</button>${renames ? `<button class="btn" data-act="naming-bulk">${ic("pencil", "s18")}${th("naming.bulk", { n: renames })}</button>` : ""}<button class="btn ${running ? "busy" : ""}" data-act="scan" ${running ? "disabled" : ""}>${ic(running ? "refresh" : "sitemap", "s18")}${running ? th("common.scanning") : th("menu.run_scan")}</button></div>
       </div>`;
+  };
+
+  // Mesh score per network (state.data.mesh_scores, see mesh_score.py): a compact row at the top of Health,
+  // Details opens the four parts with their change since a week ago and the last 30 days.
+  const meshTone = (n) => (n >= 80 ? "var(--success)" : n >= 60 ? "var(--warning)" : "var(--error)");
+  const meshDelta = (now, then) => (now == null || then == null ? "" : ` (${now - then > 0 ? "+" : now - then < 0 ? "−" : "±"}${Math.abs(now - then)})`);
+  const meshRow = (bt, many) => {
+    const m = state.data.mesh_scores[bt], w = m.week, open = state.openScores.has(bt);
+    const diff = w && w.score != null ? m.score - w.score : null;
+    const head = diff === null ? t("mesh.title", { score: m.score }) : diff === 0 ? t("mesh.title_same", { score: m.score }) : t(diff > 0 ? "mesh.title_up" : "mesh.title_down", { score: m.score, n: Math.abs(diff) });
+    const line = [many ? netLabel(bt) : null, t("mesh.online", { online: m.online, n: m.total }), t("mesh.problems", { n: m.problems })].filter(Boolean).join(" · ");
+    const rows = [[th("mesh.part_online"), t("mesh.of", { a: m.online, b: m.total }) + meshDelta(m.online, w?.online)],
+      [th("mesh.part_lqi"), m.lqi == null ? t("mesh.no_data") : `${m.lqi}${meshDelta(m.lqi, w?.lqi)}`],
+      [th("mesh.part_backup"), m.backup_of ? t("mesh.of", { a: m.backup, b: m.backup_of }) + meshDelta(m.backup, w?.backup_of ? w.backup : null) : t("mesh.no_scan")],
+      [th("mesh.part_problems"), `${m.problems}${meshDelta(m.problems, w?.problems)}`]];
+    const pts = (m.trend || []).map(([d, v]) => [Date.parse(`${d}T12:00:00`) / 1000, v]);
+    const pct = Math.max(0, Math.min(100, m.score));
+    return `<div class="score-row">
+      <div class="score-top"><div class="ring" style="--p:${pct}%;--c:${meshTone(m.score)}" role="img" aria-label="${esc(t("mesh.aria", { score: m.score }))}"><b>${esc(m.score)}</b></div>
+        <div class="text"><div class="t1">${esc(head)}</div><div class="t2">${esc(line)}</div></div>
+        <button class="btn" data-act="toggle-score" data-bt="${esc(bt)}" aria-expanded="${open}">${th(open ? "mesh.hide" : "mesh.details")}</button></div>
+      ${open ? `<div class="score-more">${kv(rows).replace('class="kv"', 'class="kv tight"')}
+        ${pts.length >= 2 ? sparkline(pts, { min: 0, max: 100, color: meshTone(m.score), hover: { key: `mesh-${bt}`, value: (v) => t("mesh.chart_value", { score: Math.round(v) }) } }) : `<p class="tnote">${th("mesh.trend_soon")}</p>`}
+        <p class="tnote">${th("mesh.note", { sensor: `<span class="mono">sensor.${esc(bt.replace(/[^A-Za-z0-9_]/g, "_").toLowerCase())}_mesh_score</span>` })}</p></div>` : ""}
+    </div>`;
+  };
+  const meshCard = () => {
+    const M = state.data.mesh_scores || {};
+    const nets = state.data.instances.filter((bt) => M[bt]);
+    return nets.length ? `<div class="card score-card">${nets.map((bt) => meshRow(bt, nets.length > 1)).join("")}</div>` : "";
   };
 
   // Health's last card: one line for each part of the app that lives on another tab, so a glance here
@@ -3786,6 +3827,7 @@
     close: () => closeDevice(),
     "toggle-coord": (b) => { const o = state.openCoords; if (!o.delete(b.dataset.bt)) o.add(b.dataset.bt); render(); },
     "toggle-group": (b) => { const g = state.openGroups; if (!g.delete(b.dataset.ieee)) g.add(b.dataset.ieee); render(); },
+    "toggle-score": (b) => { const o = state.openScores; if (!o.delete(b.dataset.bt)) o.add(b.dataset.bt); render(); },
     "dev-all"() { state.devAll = true; renderDevices(); },
     "models-all"() { state.modelsAll = true; render(); },
     "models-sort": (b) => { state.modelsSort = b.dataset.v; render(); document.querySelector(`[data-act="models-sort"][data-v="${CSS.escape(b.dataset.v)}"]`)?.focus(); },

@@ -114,7 +114,24 @@ scrape_configs:
 
 Every request must send the token, or it gets `401`. The endpoint serves only `/metrics` and changes nothing. The data includes device names and areas, so keep the token private.
 
-Each device has gauges for whether it is online, link quality (latest and 24-hour average), battery level and days left, when it was last seen, messages in the last 24 hours, uptime over 30 days and open issues. Each sample has `ieee`, `name` and `network` labels. `z2m_tracker_device_info` adds the type, power source, vendor, model and area. There are also network totals: devices per status, open issues per check, whether each Zigbee2MQTT is online, and whether alerts are paused.
+Each device has gauges for whether it is online, link quality (latest and 24-hour average), battery level and days left, when it was last seen, messages in the last 24 hours, uptime over 30 days and open issues. Each sample has `ieee`, `name` and `network` labels. `z2m_tracker_device_info` adds the type, power source, vendor, model and area. There are also network totals: devices per status, open issues per check, whether each Zigbee2MQTT is online, each network's mesh score (`z2m_tracker_network_mesh_score`), and whether alerts are paused.
+
+## Mesh score
+
+The top of **Health** shows one score from 0 to 100 for each network, worked out every few minutes from four parts:
+
+| Part | Weight | Full marks when |
+| --- | --- | --- |
+| Devices online | 40 | Every device on the network is online. Scored as the share that isn't offline. |
+| Average link quality | 20 | The 24-hour average link quality across the network's devices is 100 or more. Below that it scales down to 0. |
+| Devices with a backup route | 20 | No device depends on a single router. From the last routing scan: a router that loses its path to the coordinator when one other router goes, and the battery devices whose parent is such a router, count as without a backup route. |
+| Open problems | 20 | No open warnings on Health for that network. Each warning takes off a share, and all 20 are gone at 5 warnings or a fifth of the devices, whichever is more. Devices offline behind an offline router count once, with the router. |
+
+A part without data yet (no link quality, or no routing scan) is left out, and the others are scaled up to 100. The coordinator isn't counted.
+
+**Details** shows each part with its change since a week ago and the score over the last 30 days. The app keeps one value a day (the day's last) for 90 days in `history.json`.
+
+With `ha_entities` on, each network also gets a sensor through MQTT discovery, on a device named after the base topic, so the first network's is `sensor.zigbee2mqtt_mesh_score`. Its attributes hold the four parts and the score a week ago.
 
 ## Expected reporting
 

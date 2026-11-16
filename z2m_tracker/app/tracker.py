@@ -46,6 +46,10 @@ from health import (
 from history_import import IEEE_RE, _features, collect_history
 from incidents import build_incidents
 from live_messages import MessageLog
+from mesh_score import clean as clean_mesh_scores
+from mesh_score import record as record_mesh_score
+from mesh_score import score as mesh_score
+from mesh_score import summary as mesh_summary
 from metrics import Metrics
 from naming import kind_of, naming_issues
 from odd_readings import CHECKED as ODD_KEYS
@@ -866,6 +870,8 @@ class Tracker:
         self._backups_at = 0.0
         # Last copies of each network's coordinator_backup.json, next to history.json.
         self.backup_history = BackupHistory(os.path.join(os.path.dirname(data_path) or ".", "coordinator_backups"))
+        # Current mesh score per network (mesh_score.summary), set by evaluate_health.
+        self.mesh: dict[str, dict] = {}
         self.started = time.time()
         self._late_checked: dict[str, float] = {}
         self._hours: dict[str, dict] = {}
@@ -936,6 +942,8 @@ class Tracker:
                     self.data["battery_brand_list"] = _brand_list(self.data["battery_brand_list"])
                 if "upgrades" in self.data:
                     self.data["upgrades"] = clean_upgrades(self.data["upgrades"])
+                if "mesh_scores" in self.data:
+                    self.data["mesh_scores"] = clean_mesh_scores(self.data["mesh_scores"])
             for record in self.data["devices"].values():
                 if _stamp_offline_since(record):
                     self.dirty = True
@@ -3052,8 +3060,15 @@ class Tracker:
             suggestions = self._suggestions()
             context = self._context(now)
             issues = []
+            lqi_by_net: dict[str, list[float]] = {}
             for record in self.data["devices"].values():
                 summary = {**self.metrics.summary(record["ieee"], now), **context.get(record["ieee"], {})}
+                if (
+                    record["status"] == STATUS_ACTIVE
+                    and record.get("type") != "Coordinator"
+                    and isinstance(summary.get("lqi_24h"), (int, float))
+                ):
+                    lqi_by_net.setdefault(record.get("instance") or "", []).append(summary["lqi_24h"])
                 for issue in device_issues(record, summary, self.options, now, suggestions.get(record["ieee"], [])):
                     issue["name"] = _display_name(record) or record["ieee"]
                     issue["instance"] = record["instance"]
@@ -3082,9 +3097,58 @@ class Tracker:
 
             changed = shape(issues) != shape(self.issues)
             self.issues = issues
+            if self._update_mesh_scores(issues, lqi_by_net):
+                changed = True
             if changed:
                 self.revision += 1
         return issues, changed
+
+    def _mesh_inputs(self, bt: str, issues: list[dict], lqis: list[float]) -> dict | None:
+        """The four parts of a network's mesh score (see mesh_score), or None without devices."""
+        devs = [
+            r
+            for r in self.data["devices"].values()
+            if r.get("instance") == bt and r["status"] == STATUS_ACTIVE and r.get("type") != "Coordinator"
+        ]
+        scanned_at = (self.data.get("networkmap") or {}).get(bt, {}).get("scanned_at")
+        backup = backup_of = None
+        if scanned_at:
+            scanned = {r["ieee"] for r in devs if (r.get("routing") or {}).get("scanned_at") == scanned_at}
+            if scanned:
+                cut: set[str] = set()
+                for spof in self.single_points(bt):
+                    cut.update(x["ieee"] for x in spof["routers"])
+                    cut.update(spof["device_list"])
+                backup_of = len(scanned)
+                backup = len(scanned - cut)
+        problems = sum(
+            1 for i in issues if i["severity"] == "warning" and i.get("instance") == bt and not i.get("behind")
+        )
+        return mesh_score(
+            online=sum(1 for r in devs if r.get("availability") != "offline"),
+            total=len(devs),
+            lqi=sum(lqis) / len(lqis) if lqis else None,
+            backup=backup,
+            backup_of=backup_of,
+            problems=problems,
+        )
+
+    def _update_mesh_scores(self, issues: list[dict], lqi_by_net: dict[str, list[float]]) -> bool:
+        """Work out each network's mesh score and keep today's in the history. True if a score changed."""
+        today = self._today()
+        history = self.data.setdefault("mesh_scores", {})
+        out: dict[str, dict] = {}
+        for bt in self.base_topics:
+            current = self._mesh_inputs(bt, issues, lqi_by_net.get(bt, []))
+            if current is None:
+                continue
+            rows = history.setdefault(bt, [])
+            if record_mesh_score(rows, today, current):
+                self.dirty = True
+            out[bt] = mesh_summary(rows, today, current)
+        changed = {bt: s["score"] for bt, s in out.items()} != {bt: s["score"] for bt, s in self.mesh.items()}
+        self.mesh = out
+        return changed
 
     # ------------------------------------------------------ leftovers in HA
 
@@ -3308,6 +3372,7 @@ class Tracker:
                 "router_placement": {bt: self.router_placement(bt, now) for bt in self.base_topics},
                 "backups": self._backups,
                 "backup_copies": self.backup_copies(),
+                "mesh_scores": self.mesh,
                 "groups": self.groups,
                 "group_health": self.group_health(now),
                 "scan_times": {bt: [x["at"] for x in self.scans.get(bt) or []] for bt in self.base_topics},
@@ -3359,6 +3424,7 @@ class Tracker:
                     bt: ((self.data.get("bridges") or {}).get(bt) or {}).get("state") for bt in self.base_topics
                 },
                 "alerts_paused": self.alerts_paused(),
+                "mesh_scores": {bt: s["score"] for bt, s in self.mesh.items()},
             }
 
     def export_csv(self) -> bytes:
