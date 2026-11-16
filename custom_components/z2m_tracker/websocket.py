@@ -14,7 +14,7 @@ from .tracker import TrackerAppError
 
 LANGUAGE_RE = re.compile(r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
 # Device record fields only admins get from z2m_tracker/devices.
-PRIVATE_FIELDS = ("note", "asset")
+PRIVATE_FIELDS = ("note", "asset", "maintenance")
 
 
 def _tracker(hass: HomeAssistant):

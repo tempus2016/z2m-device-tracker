@@ -199,6 +199,7 @@ class Z2MTracker:
             "issues": payload.get("issues") or [],
             "options": payload.get("options") or {},
             "battery_shopping": payload.get("battery_shopping") or [],
+            "maintenance": payload.get("maintenance") or [],
             "networks": _network_summary(payload),
         }
         if self.repairs:
@@ -420,6 +421,13 @@ class Z2MTracker:
         finally:
             await self.async_refresh_now()
         return result
+
+    async def async_maintenance_done(self, ieee: str, task_id: str) -> dict[str, Any]:
+        """Mark a maintenance task done today (in the app's time zone)."""
+        try:
+            return await self._request("POST", "/api/maintenance/done", {"ieee": ieee, "id": task_id})
+        finally:
+            await self.async_refresh_now()
 
     async def async_reconfigure(self, ieee: str) -> None:
         await self._request("POST", "/api/reconfigure", {"ieee": ieee}, timeout=SLOW_REQUEST_TIMEOUT)

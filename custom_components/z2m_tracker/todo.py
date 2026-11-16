@@ -1,4 +1,7 @@
-"""Batteries to buy, as a Home Assistant to-do list. Ticking an item marks those batteries replaced."""
+"""Home Assistant to-do lists: batteries to buy and maintenance due.
+
+Ticking a battery item marks those batteries replaced; ticking a maintenance item marks that task done.
+"""
 
 from __future__ import annotations
 
@@ -14,6 +17,7 @@ from homeassistant.util import dt as dt_util
 
 from .batteries import describe_member, group_summary, recent_replacements, shopping_groups, stock_line
 from .const import DOMAIN, SIGNAL_UPDATED, VERSION
+from .maintenance import due_tasks, interval_text, recently_done
 from .services import async_require_admin
 from .tracker import TrackerAppError, Z2MTracker, markdown_safe
 
@@ -25,7 +29,7 @@ def _slug(value: str) -> str:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities: AddConfigEntryEntitiesCallback) -> None:
-    async_add_entities([BatteryTodoList(entry, entry.runtime_data)])
+    async_add_entities([BatteryTodoList(entry, entry.runtime_data), MaintenanceTodoList(entry, entry.runtime_data)])
 
 
 class BatteryTodoList(TodoListEntity):
@@ -116,6 +120,99 @@ class BatteryTodoList(TodoListEntity):
             await self._tracker.async_battery_replaced(ieees, note=DONE_NOTE)
         except TrackerAppError as err:
             self._ticked.difference_update(ieees)
+            raise HomeAssistantError(f"Z2M Device Tracker app error: {err}") from err
+        finally:
+            self.async_write_ha_state()
+
+
+class MaintenanceTodoList(TodoListEntity):
+    """Maintenance tasks overdue or due in the next 14 days; tasks done in the last 30 days show as completed."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_translation_key = "maintenance"
+    _attr_supported_features = TodoListEntityFeature.UPDATE_TODO_ITEM
+
+    def __init__(self, entry, tracker: Z2MTracker) -> None:
+        self._tracker = tracker
+        self.entity_id = "todo.z2m_tracker_maintenance"
+        self._attr_unique_id = f"{entry.entry_id}_maintenance_todo"
+        # Tasks ticked here, hidden until the integration next reads the app (which by then has a later due date).
+        self._ticked: set[str] = set()
+        self._ticked_data: dict | None = None
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry.entry_id)},
+            name="Z2M Device Tracker",
+            entry_type=DeviceEntryType.SERVICE,
+            sw_version=VERSION,
+        )
+
+    @property
+    def available(self) -> bool:
+        return self._tracker.available
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(async_dispatcher_connect(self.hass, SIGNAL_UPDATED, self._refresh))
+
+    @callback
+    def _refresh(self) -> None:
+        self.async_write_ha_state()
+
+    def _open(self) -> dict[str, dict]:
+        if self._ticked and self._tracker.data is not self._ticked_data:
+            self._ticked.clear()
+        return {task["uid"]: task for task in due_tasks(self._tracker.data, dt_util.now().date(), self._ticked)}
+
+    @property
+    def todo_items(self) -> list[TodoItem]:
+        today = dt_util.now().date()
+        items = []
+        for uid, task in self._open().items():
+            last = f" Last done {task['last_done'].day} {task['last_done']:%b %Y}." if task["last_done"] else ""
+            note = f" {task['note']}" if task.get("note") else ""
+            items.append(
+                TodoItem(
+                    summary=f"{task['title']}: {task['name']}",
+                    uid=uid,
+                    status=TodoItemStatus.NEEDS_ACTION,
+                    due=task["due"],
+                    description=markdown_safe(f"{interval_text(task).capitalize()}.{last}{note}"),
+                )
+            )
+        for task in recently_done(self._tracker.data, today)[:20]:
+            items.append(
+                TodoItem(
+                    summary=f"{task['title']}: {task['name']}",
+                    uid=f"done_{task['uid']}",
+                    status=TodoItemStatus.COMPLETED,
+                    description=markdown_safe(
+                        f"Done {task['last_done'].day} {task['last_done']:%b}. Next due {task['due'].day} {task['due']:%b %Y}."
+                    ),
+                )
+            )
+        return items
+
+    async def async_update_todo_item(self, item: TodoItem) -> None:
+        # Ticking records the task as done in the app, an admin action like ticking a battery item.
+        await async_require_admin(self.hass, self._context.user_id if self._context else None)
+        if item.uid and item.uid.startswith("done_"):
+            if item.status == TodoItemStatus.NEEDS_ACTION:
+                raise HomeAssistantError(
+                    "To change when a task was last done, edit it on the device in the Zigbee Tracker app."
+                )
+            return
+        task = self._open().get(item.uid or "")
+        if task is None:
+            raise HomeAssistantError("That item is no longer on the list. It may already be done.")
+        if item.status != TodoItemStatus.COMPLETED:
+            return
+        self._ticked_data = self._tracker.data
+        self._ticked.add(task["uid"])
+        try:
+            await self._tracker.async_maintenance_done(task["ieee"], task["id"])
+        except TrackerAppError as err:
+            self._ticked.discard(task["uid"])
             raise HomeAssistantError(f"Z2M Device Tracker app error: {err}") from err
         finally:
             self.async_write_ha_state()

@@ -67,6 +67,14 @@ MEMORY_MIN_DAYS = 5  # with at least 5 days of data in that window
 
 ASSET_FIELDS = ("purchase_date", "shop", "price", "warranty_until", "location", "serial")
 UNKNOWN_BATTERY_TYPE = "Unknown type"
+# Maintenance tasks (record["maintenance"]): recurring physical jobs such as testing a smoke alarm.
+# Longest interval per unit, all about 10 years (3650 days).
+MAINTENANCE_UNITS = {"days": 3650, "weeks": 521, "months": 120, "years": 10}
+MAX_TASKS = 20
+MAX_TASK_TITLE = 80
+MAX_TASK_NOTE = 500
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+TASK_ID_RE = re.compile(r"^[0-9a-f]{8}$")
 MAX_STOCK = 9999
 # A battery change recorded within this many days of one that already took from stock is
 # the same change seen twice (the app detecting the jump, then someone ticking it), so it
@@ -163,6 +171,87 @@ def _dumps(value: Any, **kwargs: Any) -> str:
         return json.dumps(_json_safe(value), allow_nan=False, **kwargs)
 
 
+def _iso_date(value: Any) -> date | None:
+    """A YYYY-MM-DD string as a date, or None."""
+    if not isinstance(value, str) or not DATE_RE.match(value):
+        return None
+    try:
+        return date_cls.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def add_interval(day: date, every: int, unit: str) -> date:
+    """`day` plus `every` days, weeks, months or years. Months and years end on the last day of a short month."""
+    if unit == "days":
+        return day + timedelta(days=every)
+    if unit == "weeks":
+        return day + timedelta(weeks=every)
+    months = every * 12 if unit == "years" else every
+    year, month = divmod(day.month - 1 + months, 12)
+    year += day.year
+    month += 1
+    last = (date_cls(year + (month == 12), month % 12 + 1, 1) - timedelta(days=1)).day
+    return date_cls(year, month, min(day.day, last))
+
+
+def clean_task(raw: Any, today: date | None = None) -> tuple[dict | None, str | None]:
+    """A maintenance task from untrusted input: (task, None) or (None, error).
+
+    With `today`, a last-done date after today is refused (input from the UI); stored tasks skip that check.
+    """
+    if not isinstance(raw, dict):
+        return None, "A task must be an object"
+    title = _text(raw.get("title"), MAX_TASK_TITLE)
+    if not title:
+        return None, "Give the task a title"
+    unit = raw.get("unit")
+    if unit not in MAINTENANCE_UNITS:
+        return None, "Unit must be days, weeks, months or years"
+    every = raw.get("every")
+    if isinstance(every, float) and every.is_integer():
+        every = int(every)
+    if isinstance(every, bool) or not isinstance(every, int) or not 1 <= every <= MAINTENANCE_UNITS[unit]:
+        return None, f"Repeat every 1 to {MAINTENANCE_UNITS[unit]} {unit}"
+    last_done = raw.get("last_done") or ""
+    if last_done:
+        done = _iso_date(last_done)
+        if done is None:
+            return None, "Last done must be a date like 2026-01-31"
+        if today is not None and done > today:
+            return None, "Last done can't be in the future"
+    created = raw.get("created") if _iso_date(raw.get("created")) else None
+    task_id = raw.get("id") if isinstance(raw.get("id"), str) and TASK_ID_RE.match(raw["id"]) else None
+    note = raw.get("note")
+    task = {
+        "id": task_id or uuid.uuid4().hex[:8],
+        "title": title,
+        "every": every,
+        "unit": unit,
+        "last_done": last_done,
+        "created": created or (today or datetime.now(timezone.utc).date()).isoformat(),
+        "note": (_text(note, MAX_TASK_NOTE) or "") if note is not None else "",
+    }
+    return task, None
+
+
+def task_due(task: dict) -> date:
+    """Next due date: last done (or the day the task was added) plus its interval."""
+    start = _iso_date(task.get("last_done")) or _iso_date(task.get("created")) or datetime.now(timezone.utc).date()
+    return add_interval(start, task["every"], task["unit"])
+
+
+def _clean_tasks(tasks: Any) -> list[dict]:
+    out: list[dict] = []
+    seen: set[str] = set()
+    for raw in tasks if isinstance(tasks, list) else []:
+        task, _ = clean_task(raw)
+        if task and task["id"] not in seen:
+            seen.add(task["id"])
+            out.append(task)
+    return out[:MAX_TASKS]
+
+
 def _clean_record(record: dict) -> dict:
     """Fix the types in a stored or restored device record, so bad data can't break health or the UI."""
     for key in TEXT_FIELDS:
@@ -187,6 +276,7 @@ def _clean_record(record: dict) -> dict:
     for key in ("sources", "outages", "predecessors", "muted", "lost_bindings", "features"):
         if not isinstance(record.get(key), list):
             record[key] = []
+    record["maintenance"] = _clean_tasks(record.get("maintenance"))
     if record.get("instance") is not None and not isinstance(record["instance"], str):
         record["instance"] = None
     if record.get("status") not in (STATUS_ACTIVE, STATUS_REMOVED):
@@ -319,6 +409,7 @@ def _new_record(ieee: str, instance: str | None) -> dict[str, Any]:
         "bindings": None,
         "lost_bindings": [],
         "z2m_stats": None,
+        "maintenance": [],
     }
 
 
@@ -2134,6 +2225,7 @@ class Tracker:
         spof = {item["ieee"]: item for bt in self.base_topics for item in self.single_points(bt)}
         bridges = self.data.get("bridges") or {}
         down = {bt for bt, bridge in bridges.items() if (bridge or {}).get("state") == "offline"}
+        today = self._today()
         out: dict[str, dict] = {}
         for ieee, record in self.data["devices"].items():
             extra: dict[str, Any] = {
@@ -2154,6 +2246,13 @@ class Tracker:
             # whoever let it join and says little about how its traffic flows.
             if record.get("type") == "EndDevice":
                 extra["router_hops"] = hop_summary(self._hop_rows(record, now))
+            overdue = [
+                {"title": task["title"], "days": (today - due).days}
+                for task in record.get("maintenance") or []
+                if (due := task_due(task)) < today
+            ]
+            if overdue:
+                extra["maintenance_overdue"] = sorted(overdue, key=lambda x: -x["days"])
             out[ieee] = extra
         return out
 
@@ -2258,6 +2357,7 @@ class Tracker:
                 "battery_shopping": self.battery_shopping(60),
                 "ha_leftovers": self.ha_leftovers,
                 "battery_stock": dict(self.data.get("battery_stock") or {}),
+                "maintenance": self.maintenance_list(),
                 "bridges": self.data.get("bridges") or {},
                 "radio": self.radio(),
                 "network_hours": self.network_hours(now),
@@ -2382,6 +2482,94 @@ class Tracker:
             record["asset"] = {k: v for k, v in clean.items() if v}
             self._changed(structural=True)
             return True
+
+    # ------------------------------------------------------------ maintenance
+
+    def set_maintenance_task(self, ieee: str, raw: Any) -> dict:
+        """Add a task, or change the one with the same id. Keeps its added date and, unless given, its last done date."""
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            if record is None:
+                return {"ok": False, "error": "Unknown device"}
+            tasks = record.setdefault("maintenance", [])
+            raw = dict(raw) if isinstance(raw, dict) else raw
+            current = next((x for x in tasks if isinstance(raw, dict) and x["id"] == raw.get("id")), None)
+            if current is not None:
+                raw = {"last_done": current["last_done"], **raw, "created": current["created"]}
+            elif isinstance(raw, dict):
+                raw.pop("created", None)
+                raw.pop("id", None)
+            task, error = clean_task(raw, self._today())
+            if task is None:
+                return {"ok": False, "error": error}
+            if current is not None:
+                tasks[tasks.index(current)] = task
+            elif len(tasks) >= MAX_TASKS:
+                return {"ok": False, "error": f"A device can have at most {MAX_TASKS} tasks"}
+            else:
+                tasks.append(task)
+            self._changed(structural=True)
+        self.evaluate_health()
+        return {"ok": True, "task": task}
+
+    def remove_maintenance_task(self, ieee: str, task_id: str) -> bool:
+        with self.lock:
+            tasks = (self.data["devices"].get(ieee) or {}).get("maintenance") or []
+            found = next((x for x in tasks if x["id"] == task_id), None)
+            if found is None:
+                return False
+            tasks.remove(found)
+            self._changed(structural=True)
+        self.evaluate_health()
+        return True
+
+    def maintenance_done(self, ieee: str, task_id: str, day: Any = None) -> dict:
+        """Mark a task done (today unless `day` is given) and log it on the device's history."""
+        today = self._today()
+        when = today if day in (None, "") else _iso_date(day)
+        if when is None:
+            return {"ok": False, "error": "Date must look like 2026-01-31"}
+        if when > today:
+            return {"ok": False, "error": "The date can't be in the future"}
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            task = next((x for x in (record or {}).get("maintenance") or [] if x["id"] == task_id), None)
+            if record is None or task is None:
+                return {"ok": False, "error": "Unknown device or task"}
+            task["last_done"] = when.isoformat()
+            self._add_event(
+                _now(),
+                record.get("instance") or "unknown",
+                ieee,
+                _display_name(record),
+                "maintenance done",
+                task["title"] if when == today else f"{task['title']} ({when.isoformat()})",
+            )
+            self._changed(structural=True)
+            task = dict(task)
+        self.evaluate_health()
+        return {"ok": True, "task": task, "due": task_due(task).isoformat()}
+
+    def maintenance_list(self) -> list[dict]:
+        """Every task on an active device with its next due date and days until then (negative when overdue)."""
+        today = self._today()
+        out = []
+        with self.lock:
+            for record in self.data["devices"].values():
+                if record["status"] != STATUS_ACTIVE:
+                    continue
+                for task in record.get("maintenance") or []:
+                    due = task_due(task)
+                    out.append(
+                        {
+                            **task,
+                            "ieee": record["ieee"],
+                            "name": _display_name(record) or record["ieee"],
+                            "due": due.isoformat(),
+                            "days": (due - today).days,
+                        }
+                    )
+        return sorted(out, key=lambda x: (x["due"], x["name"].lower(), x["title"].lower()))
 
     # ---------------------------------------------------------------- battery
 

@@ -191,11 +191,17 @@
     "calendar": {
       "batteries": {
         "name": "Zigbee batteries"
+      },
+      "maintenance": {
+        "name": "Zigbee maintenance"
       }
     },
     "todo": {
       "batteries": {
         "name": "Zigbee batteries"
+      },
+      "maintenance": {
+        "name": "Zigbee maintenance"
       }
     }
   },
@@ -218,7 +224,8 @@
         "binding_lost": "Binding lost",
         "single_point": "Single point of failure",
         "router_hopping": "Changes router often",
-        "slow_router": "Router getting slower"
+        "slow_router": "Router getting slower",
+        "maintenance_due": "Maintenance overdue"
       }
     }
   },
