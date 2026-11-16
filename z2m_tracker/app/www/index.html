@@ -1934,9 +1934,10 @@
   const leftoverUse = (x) => [x.automations ? t("leftover.automations", { n: x.automations }) : null, x.scripts ? t("leftover.scripts", { n: x.scripts }) : null].filter(Boolean);
   const leftoverIc = (x) => { const d = state.byIeee.get(x.ieee); return d ? stateIc(d) : `<span class="state-ic off">${ic("zigbee")}</span>`; };
   const leftoverCard = () => {
-    // A leftover the tracker knows belongs to its network; one it doesn't know shows on every network.
+    // A leftover on a tracked network shows under that network; one the tracker doesn't know, or from a
+    // network it no longer tracks, shows on every network.
     const shown = new Set(netsShown());
-    const list = (state.data.ha_leftovers || []).filter((x) => { const d = state.byIeee.get(x.ieee); return !d?.instance || shown.has(d.instance); });
+    const list = (state.data.ha_leftovers || []).filter((x) => { const d = state.byIeee.get(x.ieee); return !d?.instance || !state.data.instances.includes(d.instance) || shown.has(d.instance); });
     if (!list.length) return "";
     return `<div class="card"><div class="card-header">${ic("home-assistant")}<div><h2 class="ch">${th("leftover.title")}</h2><small>${th("leftover.subtitle", { n: list.length })}</small></div></div>
       ${list.map((x) => `<div class="row">${leftoverIc(x)}<div class="text"><div class="t1">${esc(x.name)}</div><div class="t2">${esc(leftoverLine(x))}</div></div></div>`).join("")}
