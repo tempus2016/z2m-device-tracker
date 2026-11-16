@@ -188,6 +188,12 @@ CHECKS = [
         "A device still named by its IEEE address (0x…), or, when a naming pattern is set, a name that doesn't follow it.",
         False,
     ),
+    (
+        "stale_retained",
+        "Stale retained messages",
+        "Retained MQTT messages under an old device name, of a removed device, or Home Assistant discovery for a device no longer in Zigbee2MQTT.",
+        False,
+    ),
     ("joined", "Device joined", "A device joins one of your networks.", True),
     ("left", "Device left", "A device leaves one of your networks.", True),
     ("interview_failed", "Interview failed", "A newly joined device couldn't be identified.", True),
@@ -235,6 +241,7 @@ KIND_LABELS = {
     "upgrade_worse": "Worse since upgrade",
     "reporting_config": "Reporting settings",
     "naming": "Naming",
+    "stale_retained": "Stale retained messages",
 }
 
 

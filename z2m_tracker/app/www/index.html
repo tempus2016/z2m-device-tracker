@@ -939,7 +939,7 @@
     removed: { get label() { return t("status.removed"); }, c: "var(--disabled)" },
   };
   const KIND_ICON = { offline: "wifi-off", silent: "wifi-off", late: "history", frozen: "thermometer", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
-    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb", slow_router: "router-wireless", maintenance_due: "calendar-clock", upgrade_worse: "update", slow_commands: "history", missed_commands: "gesture-tap-button", reporting_config: "tune", naming: "pencil" };
+    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb", slow_router: "router-wireless", maintenance_due: "calendar-clock", upgrade_worse: "update", slow_commands: "history", missed_commands: "gesture-tap-button", reporting_config: "tune", naming: "pencil", stale_retained: "content-copy" };
   const EVENT_ICON = (k) => {
     if (k.startsWith("interview")) return k.endsWith("successful") ? ["check", "var(--success)"] : ["alert-circle", "var(--error)"];
     return ({ joined: ["plus", "var(--success)"], added: ["plus", "var(--success)"], rejoined: ["plus", "var(--success)"], online: ["wifi", "var(--success)"], offline: ["wifi-off", "var(--error)"],
@@ -1184,6 +1184,8 @@
     group: store.get("z2mt.group") === "1", areas: null, pairNet: null, pairForm: {}, openGroups: new Set(), openCoords: new Set(), usedOpen: new Set(),
     // Maintenance task being edited on the device panel: { ieee, id } or null.
     mtEdit: null,
+    // Network > Broker: which stale retained messages show ("all" or a reason), and whether past the first page.
+    retFilter: "all", retAll: false,
     logMode: store.get("z2mt.logMode") === "incidents" ? "incidents" : "all", openIncidents: new Set(),
   };
 
@@ -1401,7 +1403,8 @@
       if (isNetIssue(i)) {
         const panel = state.data.panels?.[i.instance];
         const icon = { network_offline: "lan-disconnect", coordinator_backup: "download", pairing_open: "link-variant" }[i.kind] || KIND_ICON[i.kind] || "refresh";
-        const close = i.kind === "pairing_open" ? `<button class="btn danger" data-act="pair-stop" data-net="${esc(i.instance)}">${th("health.close_now")}</button>` : "";
+        const close = i.kind === "pairing_open" ? `<button class="btn danger" data-act="pair-stop" data-net="${esc(i.instance)}">${th("health.close_now")}</button>`
+          : i.kind === "stale_retained" ? `<button class="btn" data-view="network/broker">${th("ret.review")}</button>` : "";
         return `<div class="row"><span class="state-ic" style="color:${tone}">${ic(icon)}</span>
           <div class="text"><div class="t1">${esc(issueTitle(i))}: ${esc(issueName(i))}</div><div class="t2">${esc(issueDetail(i))}</div></div>
           <div class="acts">${close}${panel ? `<a class="btn" href="${esc(panel)}" target="_top">${th("health.open_z2m")}</a>` : ""}</div></div>`;
@@ -1468,8 +1471,9 @@
     const newest = backups.map((b) => b.date).filter(Boolean).sort().pop();
     add("network/coordinator", down.length ? bad : oldBackup ? warn : ok, t("sub.coordinator"),
       down.length ? t("fine.coord_down", { name: down.map(netLabel).join(", ") }) : [t("fine.coord_online", { n: d.instances.length }), newest ? t("fine.backup_age", { when: relTime(newest) }) : backups.length ? t("fine.no_backup") : null].filter(Boolean).join(" · "));
-    const leftovers = (d.ha_leftovers || []).length;
-    add("network/broker", leftovers ? warn : ok, t("sub.broker"), leftovers ? t("fine.leftovers", { n: leftovers }) : t("fine.nothing_to_clean"));
+    const leftovers = (d.ha_leftovers || []).length, stale = d.retained?.total || 0;
+    add("network/broker", leftovers || stale ? warn : ok, t("sub.broker"), leftovers || stale
+      ? [stale ? t("fine.stale_retained", { n: stale }) : null, leftovers ? t("fine.leftovers", { n: leftovers }) : null].filter(Boolean).join(" · ") : t("fine.nothing_to_clean"));
     const r = d.radio;
     if (r && r.networks.length) {
       const sev = Math.max(0, ...r.findings.map((f) => f.sev || 0));
@@ -1511,7 +1515,7 @@
     const k = state.sub.network;
     if (k === "map") { renderMap(); return; }
     const body = k === "coordinator" ? coordinatorsCard()
-      : k === "broker" ? leftoverCard() || subEmpty("check", "broker")
+      : k === "broker" ? retainedCard() + (leftoverCard() || leftoverNone())
       : k === "radio" ? radioCard() || subEmpty("signal", "radio")
       : groupsCard() || subEmpty("lightbulb", "groups");
     $("#view").innerHTML = `${subNav("network")}${body}`;
@@ -1885,6 +1889,44 @@
     return `<div class="card"><div class="card-header">${ic("home-assistant")}<div><h2 class="ch">${th("leftover.title")}</h2><small>${th("leftover.subtitle", { n: list.length })}</small></div></div>
       ${list.map((x) => `<div class="row">${leftoverIc(x)}<div class="text"><div class="t1">${esc(x.name)}</div><div class="t2">${esc(leftoverLine(x))}</div></div></div>`).join("")}
       <div class="card-actions"><button class="btn" data-act="leftovers">${ic("delete", "s18")}${th("leftover.review")}</button></div></div>`;
+  };
+  const leftoverNone = () => `<div class="card"><div class="card-header">${ic("home-assistant")}<div><h2 class="ch">${th("leftover.title")}</h2><small>${th("leftover.none_text")}</small></div></div></div>`;
+
+  // ------------------------------------------------------------ stale retained messages (Network > Broker)
+  const RET_REASONS = ["old_name", "removed", "discovery"];
+  const RET_PAGE = 10;
+  const retWhy = (x) => {
+    const when = x.since ? t(x.reason === "old_name" ? "ret.renamed_ago" : "ret.removed_ago", { when: relTime(x.since, true) }) : null;
+    const who = x.name || x.ieee;
+    const why = x.reason === "old_name"
+      ? (x.availability ? th("ret.old_name_state", { name: `<b>${esc(who)}</b>`, state: esc(t(x.availability === "online" ? "more.availability.online" : "more.availability.offline")) }) : th("ret.old_name", { name: `<b>${esc(who)}</b>` }))
+      : x.reason === "removed" ? (x.name ? th("ret.removed", { name: esc(x.name) }) : th("ret.removed_unnamed"))
+      : th("ret.discovery", { name: esc(who) });
+    return [why, when ? esc(when) : null].filter(Boolean).join(" · ");
+  };
+  const retShown = () => { const list = state.data.retained?.stale || []; return state.retFilter === "all" ? list : list.filter((x) => x.reason === state.retFilter); };
+  const retainedCard = () => {
+    const r = state.data.retained || {};
+    const list = r.stale || [], n = r.total || 0, c = r.counts || {};
+    const shown = retShown(), rows = state.retAll ? shown : shown.slice(0, RET_PAGE);
+    const when = r.scanned_at ? new Date(r.scanned_at * 1000).toISOString() : null;
+    const status = r.running ? t("ret.scanning") : r.error ? t("ret.failed", { error: r.error }) : when ? t("ret.last_scan", { when: relTime(when, true) }) : t("ret.not_scanned");
+    const chip = (k, count) => `<button class="chip" data-act="ret-filter" data-kind="${k}" aria-pressed="${state.retFilter === k}">${ic("check")}${th(`ret.chip.${k}`)} <span class="n">${count}</span></button>`;
+    const row = (x) => `<div class="row"><span class="state-ic warn">${ic("content-copy")}</span><div class="text"><div class="t1 mono">${esc(x.topic)}</div><div class="t2"><span class="mono">${esc(x.payload)}</span> · ${retWhy(x)}</div></div>
+      <div class="acts"><button class="btn danger" data-act="ret-clear" data-topic="${esc(x.topic)}">${th("ret.clear")}</button></div></div>`;
+    const body = !n ? (r.ready ? emptyState("check", th("ret.none"), `<p>${th("ret.none_text")}</p>`) : "")
+      : `<div class="chips" style="padding:0 16px 8px">${chip("all", n)}${RET_REASONS.filter((k) => c[k]).map((k) => chip(k, c[k])).join("")}</div>${rows.map(row).join("")}`;
+    return `<div class="card"><div class="card-header">${ic("content-copy")}<div><h2 class="ch">${th("ret.title")}${n ? ` <span class="badge warn">${n}</span>` : ""}</h2><small>${th("ret.subtitle")}</small></div></div>
+      <p class="tnote">${esc(status)}${r.truncated ? ` ${th("ret.truncated")}` : ""}</p>
+      ${body}
+      ${n ? `<p class="tnote">${th("ret.note")}</p>` : ""}
+      <div class="card-actions">${shown.length > rows.length ? `<button class="btn" data-act="ret-more">${th("ret.show_all", { n: shown.length })}</button>` : ""}<button class="btn${r.running ? " busy" : ""}" data-act="ret-scan" ${r.running ? "disabled" : ""}>${ic("refresh", "s18")}${th("ret.rescan")}</button>${shown.length ? `<button class="btn filled" data-act="ret-clear-all">${th("ret.clear_all", { n: shown.length })}</button>` : ""}</div></div>`;
+  };
+  const retClear = async (topics) => {
+    const ok = await confirmDialog({ title: t("ret.confirm_title", { n: topics.length }), ok: t("ret.clear"), danger: true, filled: true,
+      html: `<p>${th("ret.confirm_text")}</p>${topics.length <= 5 ? `<p>${topics.map((x) => `<span class="mono">${esc(x)}</span>`).join("<br>")}</p>` : ""}` });
+    if (!ok) return;
+    try { const r = await api("api/retained/clear", { topics }); snack(t("ret.cleared", { n: r.cleared.length })); load(); } catch (err) { snack(err.message, 5000); }
   };
   const leftoverOk = () => { const n = document.querySelectorAll('#cText input[name="lo"]:checked').length; $("#cOk").textContent = t("leftover.remove_n", { n }); $("#cOk").disabled = !n; };
 
@@ -2684,6 +2726,9 @@
         <div class="set-row wide-ctl"><div class="text"><div class="t1">${th("settings.naming_pattern")}</div><div class="t2">${th("settings.naming_tokens", NAME_TOKENS_HTML)}</div></div>
           <div class="ctl"><input class="field" id="namePattern" aria-label="${esc(t("settings.naming_pattern"))}" aria-describedby="nameExample" autocomplete="off" spellcheck="false" maxlength="80" value="${esc(s.naming_pattern || "")}" placeholder="{area} {type} {n}"><button class="btn" data-act="save-naming">${th("common.save")}</button></div></div>
         <div class="set-row"><div class="text"><div class="t1">${th("settings.naming_example")}</div><div class="t2" id="nameExample" aria-live="polite">${esc(namingExample(s.naming_pattern))}</div></div></div>
+      </div>
+      <div class="card"><div class="card-header"><h2 class="ch">${th("settings.broker")}</h2></div>
+        ${sw("retained_autoclear", s.retained_autoclear, t("settings.retained_autoclear"), th("settings.retained_autoclear_desc"))}
       </div>
       <div class="card"><div class="card-header"><h2 class="ch">${th("settings.entities")}</h2></div>
         ${sw("ha_entities", s.ha_entities, t("settings.entities_add"), th("settings.entities_desc", { n: S.entities }))}
@@ -3623,6 +3668,15 @@
         html: `<p>${th("ota.text1", { latest: esc(u.latest_version), installed: esc(u.installed_version) })}</p><p>${th("ota.text2")}</p>` });
       if (!ok) return;
       try { await api("api/ota", { ieee: d.ieee, action: "update" }); snack(t("ota.started")); load(); } catch (err) { snack(err.message, 5000); }
+    },
+    "ret-filter"(b) { state.retFilter = b.dataset.kind; state.retAll = false; render(); },
+    "ret-more"() { state.retAll = true; render(); },
+    "ret-clear"(b) { retClear([b.dataset.topic]); },
+    "ret-clear-all"() { retClear(retShown().map((x) => x.topic)); },
+    async "ret-scan"(b) {
+      b.disabled = true;
+      try { await api("api/retained/scan", {}); snack(t("ret.scan_started")); } catch (err) { snack(err.message, 5000); }
+      setTimeout(load, 4000);
     },
     async leftovers(b) {
       b.disabled = true; b.classList.add("busy");

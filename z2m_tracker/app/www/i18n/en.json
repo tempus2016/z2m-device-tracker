@@ -1955,5 +1955,57 @@
   "fine.models_bad": {
     "one": "1 model stands out",
     "other": "{n} models stand out"
-  }
+  },
+  "issue.label.stale_retained": "Stale retained messages",
+  "issue.stale_retained.title": "Stale retained messages",
+  "issue.stale_retained.detail": {
+    "one": "1 retained message belongs to no current device: {topic}.",
+    "other": "{n} retained messages belong to no current device, e.g. {topic}."
+  },
+  "check.stale_retained.label": "Stale retained messages",
+  "check.stale_retained.description": "Retained MQTT messages under an old device name, of a removed device, or Home Assistant discovery for a device no longer in Zigbee2MQTT.",
+  "ret.title": "Stale retained messages",
+  "ret.subtitle": "Messages the broker keeps for devices that were renamed or removed. Home Assistant and other MQTT clients read them again on every restart.",
+  "ret.last_scan": "Last scan {when}",
+  "ret.scanning": "Scanning the broker…",
+  "ret.not_scanned": "Not scanned yet. The broker is scanned shortly after the app connects, after each rename or removal, and every 6 hours.",
+  "ret.failed": "Last scan failed: {error}",
+  "ret.truncated": "The broker holds more than 20,000 retained topics. Only the first 20,000 were checked.",
+  "ret.chip.all": "All",
+  "ret.chip.old_name": "Old name",
+  "ret.chip.removed": "Removed device",
+  "ret.chip.discovery": "HA discovery",
+  "ret.old_name": "Old name of {name}",
+  "ret.old_name_state": "Old name of {name} ({state})",
+  "ret.removed": "Removed device {name}",
+  "ret.removed_unnamed": "Removed device",
+  "ret.discovery": "HA discovery for {name}, which is no longer in Zigbee2MQTT. Makes a ghost entity.",
+  "ret.renamed_ago": "renamed {when}",
+  "ret.removed_ago": "removed {when}",
+  "ret.none": "No stale retained messages",
+  "ret.none_text": "Every retained message belongs to a current device.",
+  "ret.show_all": "Show all {n}",
+  "ret.clear": "Clear",
+  "ret.clear_all": "Clear all {n}",
+  "ret.rescan": "Scan again",
+  "ret.review": "Review",
+  "ret.note": "Clear publishes an empty retained message, which deletes it from the broker. Nothing is sent to the device.",
+  "ret.confirm_title": {
+    "one": "Clear 1 retained message?",
+    "other": "Clear {n} retained messages?"
+  },
+  "ret.confirm_text": "The broker deletes them, so Home Assistant and other MQTT clients stop reading them on restart. Nothing is sent to any device, and topics of current devices are never touched.",
+  "ret.cleared": {
+    "one": "Cleared 1 retained message",
+    "other": "Cleared {n} retained messages"
+  },
+  "ret.scan_started": "Scanning the broker…",
+  "fine.stale_retained": {
+    "one": "1 stale retained message",
+    "other": "{n} stale retained messages"
+  },
+  "leftover.none_text": "No Zigbee2MQTT devices are left behind in Home Assistant.",
+  "settings.broker": "Broker",
+  "settings.retained_autoclear": "Clear a device's old retained topics after a rename",
+  "settings.retained_autoclear_desc": "Otherwise they are listed on Network → Broker for you to clear."
 }

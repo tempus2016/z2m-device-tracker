@@ -64,6 +64,7 @@ options:
   quiet_end: "07:00"
   naming_pattern: ""
   battery_shop_url: ""
+  retained_autoclear: false
   mqtt_host: ""
   mqtt_port: 1883
   mqtt_user: ""
@@ -104,6 +105,7 @@ schema:
   quiet_end: match(^([01]\d|2[0-3]):[0-5]\d$)?
   naming_pattern: str?
   battery_shop_url: str?
+  retained_autoclear: bool?
   mqtt_host: str?
   mqtt_port: port?
   mqtt_user: str?

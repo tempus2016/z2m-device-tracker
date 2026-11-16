@@ -47,6 +47,8 @@ from reporting import audit as reporting_audit
 from reporting import clean as clean_reportings
 from reporting import describe as describe_reporting
 from reporting import slim as slim_reportings
+from retained import counts as retained_counts
+from retained import stale_entries
 from route_whatif import what_if
 from router_placement import rank_areas
 from upgrade_impact import (
@@ -834,6 +836,8 @@ class Tracker:
         # IEEE -> when its oldest unanswered command (<name>/set) arrived. Memory only.
         # ieee -> (when the first unanswered command was sent, the values a reply must show)
         self._commands: dict[str, tuple[float, dict]] = {}
+        # The last scan of retained messages on the broker (retained.RetainedStore), set by main.py.
+        self.retained = None
 
     # ------------------------------------------------------------ persistence
 
@@ -2544,6 +2548,56 @@ class Tracker:
                 )
         return out
 
+    def stale_retained(self) -> list[dict] | None:
+        """Retained topics from the last broker scan that belong to no current device.
+
+        None until there is a scan and every network has sent its device list: before that, the
+        current names aren't known and every topic would look stale."""
+        store = self.retained
+        if store is None or store.scanned_at is None or not self.lists_ready.is_set():
+            return None
+        topics = store.items()
+        with self.lock:
+            return stale_entries(topics, self.data["devices"], self.names, self.groups, self.base_topics)
+
+    def _retained_issues(self) -> list[dict]:
+        if "stale_retained" in set(self.options.get("disabled_checks") or []):
+            return []
+        stale = self.stale_retained()
+        if not stale:
+            return []
+        n = len(stale)
+        example = stale[0]["topic"]
+        return [
+            {
+                "key": "stale_retained:broker",
+                "kind": "stale_retained",
+                "label": "Stale retained messages",
+                "severity": "info",
+                "ieee": "network:broker",
+                "title": "Stale retained messages",
+                "detail": f"{n} retained message{'s belong' if n != 1 else ' belongs'} to no current device, "
+                f"e.g. {example}. Review on Network → Broker.",
+                "msg": "stale_retained",
+                "params": {"n": n, "topic": example},
+                "name": "MQTT broker",
+                "instance": None,
+            }
+        ]
+
+    def retained_payload(self) -> dict:
+        """The Broker page's list of stale retained messages (first 500) and the scan state."""
+        store = self.retained
+        status = store.status() if store is not None else {"scanned_at": None, "error": None, "truncated": False}
+        stale = self.stale_retained()
+        return {
+            **status,
+            "ready": stale is not None,
+            "total": len(stale or []),
+            "counts": retained_counts(stale or []),
+            "stale": (stale or [])[:500],
+        }
+
     def radio(self) -> dict:
         """Zigbee/Wi-Fi channel overlap analysis."""
         zfreq = lambda c: 2405 + 5 * (int(c) - 11)
@@ -2699,6 +2753,7 @@ class Tracker:
                     issues.append(issue)
             group_router_outages(issues, self.data["devices"], self.options, now)
             issues.extend(self._network_issues(now))
+            issues.extend(self._retained_issues())
             issues.extend(self._group_issues(now))
             for issue in naming_issues(list(self.data["devices"].values()), self.options, now):
                 record = self.data["devices"][issue["ieee"]]
@@ -2880,6 +2935,7 @@ class Tracker:
                 "battery_shopping": self.battery_shopping(60),
                 "model_reliability": model_reliability(list(self.data["devices"].values()), self.data["events"], now),
                 "ha_leftovers": self.ha_leftovers,
+                "retained": self.retained_payload(),
                 "battery_stock": dict(self.data.get("battery_stock") or {}),
                 "battery_brands": self.battery_brands(),
                 "battery_brand_list": list(self.brand_list()),
