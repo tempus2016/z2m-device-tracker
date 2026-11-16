@@ -154,3 +154,72 @@ def model_reliability(records: list[dict], events: list[dict], now: float) -> li
         )
     )
     return rows
+
+
+# ------------------------------------------------------------ device age
+# How old each device is and when its firmware last changed (Upkeep → Models → By device age).
+# Age counts from the purchase date in the asset details, else the first time the tracker saw the device.
+# The firmware change date is record["firmware_changed"] (set when Zigbee2MQTT reports a different
+# software_build_id, or an update finishes), else the newest "firmware updated" event in the log.
+
+STALE_DAYS = 730  # firmware unchanged for 2 years or more, on a device at least that old
+AGE_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}")
+
+
+def _age_day(value: Any) -> date | None:
+    text = str(value or "")
+    if not AGE_DATE_RE.match(text):
+        return None
+    try:
+        return date.fromisoformat(text[:10])
+    except ValueError:
+        return None
+
+
+def _age_when(value: Any) -> str | None:
+    """An ISO timestamp kept as given when it parses, else None."""
+    try:
+        datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+    return str(value)
+
+
+def device_ages(records: list[dict], events: list[dict], today: date) -> list[dict]:
+    """Active devices, oldest first: since (date), source ("bought" or "first_seen"), age_days,
+    firmware, firmware_changed (ISO time or None) and stale (firmware unchanged for 2+ years)."""
+    updated: dict[str, str] = {}
+    for event in events:
+        if event.get("kind") == "firmware updated" and event.get("ieee") and _age_when(event.get("time")):
+            updated[event["ieee"]] = max(updated.get(event["ieee"], ""), event["time"])
+    out = []
+    for record in records:
+        if record.get("status") != "active" or record.get("type") == "Coordinator":
+            continue
+        bought = _age_day((record.get("asset") or {}).get("purchase_date"))
+        seen = _age_day(record.get("first_seen"))
+        since = bought if bought and bought <= today else seen
+        if since is None:
+            continue
+        changed = max(
+            filter(None, (_age_when(record.get("firmware_changed")), updated.get(record["ieee"]))), default=None
+        )
+        age = (today - since).days
+        quiet = (today - _age_day(changed)).days if changed and _age_day(changed) else age
+        update = record.get("update") if isinstance(record.get("update"), dict) else {}
+        out.append(
+            {
+                "ieee": record["ieee"],
+                "name": record.get("friendly_name") or record["ieee"],
+                "model": " ".join(
+                    x for x in (record.get("vendor"), record.get("model") or record.get("model_id")) if x
+                ),
+                "since": since.isoformat(),
+                "source": "bought" if since == bought else "first_seen",
+                "age_days": age,
+                "firmware": record.get("software_build_id") or update.get("installed_version"),
+                "firmware_changed": changed,
+                "stale": age >= STALE_DAYS and quiet >= STALE_DAYS,
+            }
+        )
+    return sorted(out, key=lambda x: (-x["age_days"], x["name"].lower()))

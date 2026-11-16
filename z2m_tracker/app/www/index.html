@@ -111,6 +111,9 @@
   .ota-time { display: flex; gap: 8px; align-items: center; }
   .ota-time .field { width: 132px; }
   .dt.ota td.nw { white-space: nowrap; }
+  .chips.models-view { padding: 0 4px 12px; }
+  .dt.ages tbody tr { cursor: pointer; }
+  .dt.ages td.mono { white-space: nowrap; }
   .dt.ota td.dev { min-width: 180px; }
   .set-row.ota-row { flex-wrap: wrap; }
   .set-row.ota-row .text { min-width: 220px; }
@@ -1717,8 +1720,9 @@
   const num1 = (n) => intl((l) => new Intl.NumberFormat(l, { maximumFractionDigits: 1 }).format(n));
   const modelFlagged = (r) => r.devices > 1 && ((r.uptime_30d !== null && r.uptime_30d < 99) || (r.dropouts_per_month ?? 0) >= 2 || (r.interview_failures + r.repairs) / r.devices >= 1);
   const modelsCard = () => {
+    if (state.modelsView === "age") return modelsTabs() + (agesCard() || subEmpty("zigbee", "ages"));
     const all = state.data.model_reliability || [];
-    if (!all.length) return "";
+    if (!all.length) return modelsTabs() + subEmpty("zigbee", "models");
     const by = state.modelsSort || "worst";
     const rows = by === "devices" ? [...all].sort((a, b) => b.devices - a.devices)
       : by === "battery" ? [...all].sort((a, b) => (a.battery_life_days ?? Infinity) - (b.battery_life_days ?? Infinity)) : all;
@@ -1739,7 +1743,7 @@
         <span class="text"><span class="t1">${esc(name)}</span><span class="t2">${esc(facts(r))}</span></span>${bad ? `<span class="badge warn">${th("models.check")}</span>` : ""}</button>`;
     };
     const chips = MODEL_SORTS.map(([k, l]) => `<button class="chip" data-act="models-sort" data-v="${k}" aria-pressed="${by === k}">${ic("check", "s18")}${th(l)}</button>`).join("");
-    return `<div class="card"><div class="card-header">${ic("chip")}<div><h2 class="ch">${th("models.title")}</h2><small>${th("models.subtitle", { n: all.length })}</small></div></div>
+    return `${modelsTabs()}<div class="card"><div class="card-header">${ic("chip")}<div><h2 class="ch">${th("models.title")}</h2><small>${th("models.subtitle", { n: all.length })}</small></div></div>
       ${all.length > 1 ? `<div class="chips models-sort" role="group" aria-label="${esc(t("models.sort"))}">${chips}</div>` : ""}
       ${shown.map(row).join("")}
       <div class="models-note">${th("models.note")}</div>
@@ -1810,6 +1814,36 @@
       ${rows ? `<div class="rep-list">${rows}</div>` : `<div class="card-content muted">${th("maint.none")}</div>`}${form}`;
   };
 
+  // ------------------------------------------------------------ device age
+  // Upkeep → Models, "By device age": state.data.device_ages, oldest first. Age counts from the purchase
+  // date, else the day the tracker first saw the device; `stale` = firmware unchanged for 2+ years.
+  const AGES_LIMIT = 25;
+  const ageText = (days) => {
+    const months = Math.floor(days / 30.44), y = Math.floor(months / 12), m = months % 12;
+    return y ? (m ? t("age.ym", { y, m }) : t("age.y", { n: y })) : months ? t("age.m", { n: months }) : t("age.d", { n: Math.max(0, days) });
+  };
+  const ageSince = (iso) => intl((l) => new Date(`${iso}T12:00:00`).toLocaleDateString(l, { day: "numeric", month: "short", year: "numeric" }));
+  // The device's age on its Notes tab.
+  const ageLine = (d) => {
+    const age = (state.data.device_ages || []).find((x) => x.ieee === d.ieee);
+    return age ? `<div class="card-content muted" style="font-size:13px">${th(age.source === "bought" ? "age.line_bought" : "age.line_seen", { age: esc(ageText(age.age_days)), date: esc(ageSince(age.since)) })}</div>` : "";
+  };
+  const modelsTabs = () => `<div class="chips models-view" role="group" aria-label="${esc(t("age.view"))}">${[["model", "age.by_model"], ["age", "age.by_age"]].map(([k, l]) => `<button class="chip" data-act="models-view" data-v="${k}" aria-pressed="${(state.modelsView || "model") === k}">${ic("check", "s18")}${th(l)}</button>`).join("")}</div>`;
+  const agesCard = () => {
+    const all = state.data.device_ages || [];
+    if (!all.length) return "";
+    const stale = all.filter((x) => x.stale).length;
+    const shown = state.agesAll ? all : all.slice(0, AGES_LIMIT);
+    const fw = (x) => (x.firmware_changed ? esc(relTime(x.firmware_changed)) : `<span class="muted">${th("age.fw_not_seen")}</span>`);
+    const rows = shown.map((x) => {
+      const d = state.byIeee.get(x.ieee);
+      return `<tr data-open="${esc(x.ieee)}" tabindex="0"><td class="type"><div class="name">${esc((d && nameOf(d)) || x.name)}</div><div class="name-2">${esc(t(x.source === "bought" ? "age.bought" : "age.first_seen", { date: ageSince(x.since) }))}</div></td><td class="num">${esc(ageText(x.age_days))}</td><td class="mono">${esc(x.firmware ?? "—")}</td><td>${x.stale ? `<span class="pill">${th("age.not_updated")}</span> ` : ""}${fw(x)}</td></tr>`;
+    }).join("");
+    return `<div class="card"><div class="card-header">${ic("history")}<div><h2 class="ch">${th("age.title")}</h2><small>${stale ? th("age.n_stale", { n: stale }) : th("age.subtitle", { n: all.length })}</small></div></div>
+      <div class="table-wrap"><table class="dt stock ages"><thead><tr><th>${th("age.col_device")}</th><th class="num">${th("age.col_age")}</th><th>${th("age.col_firmware")}</th><th>${th("age.col_changed")}</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="models-note">${th("age.note")}</div>
+      ${shown.length < all.length ? `<div class="card-actions"><button class="btn" data-act="ages-all">${th("models.show_all", { n: all.length })}</button></div>` : ""}</div>`;
+  };
   // Spares in the drawer per battery type (state.data.battery_stock), matched without regard to case.
   const stockKey = (type) => Object.keys(state.data.battery_stock || {}).find((k) => k.toLowerCase() === String(type).toLowerCase());
   const stockOf = (type) => { const k = stockKey(type); return k === undefined ? 0 : state.data.battery_stock[k]; };
@@ -3308,7 +3342,7 @@
     const a = d.asset || {};
     const f = (k, key, type = "text", cls = "") => `<label class="${cls}">${th(key)}<input class="field" name="${k}" type="${type}" value="${esc(a[k] || "")}" autocomplete="off"></label>`;
     return `${maintSection(d)}
-      <div class="sub-h">${th("asset.title")}</div>
+      <div class="sub-h">${th("asset.title")}</div>${ageLine(d)}
       <form class="form" id="assetForm">${f("location", "asset.location", "text", "wide")}${f("purchase_date", "asset.purchased", "date")}${f("warranty_until", "asset.warranty", "date")}${f("shop", "asset.shop")}${f("price", "asset.price")}${f("serial", "asset.serial", "text", "wide")}</form>
       <div class="row-actions"><button class="btn" data-act="save-asset">${th("common.save")}</button><span class="saved" id="savedAsset">${th("common.saved")}</span></div>
       <div class="sub-h">${th("asset.notes")}</div>
@@ -3534,8 +3568,10 @@
     "toggle-coord": (b) => { const o = state.openCoords; if (!o.delete(b.dataset.bt)) o.add(b.dataset.bt); renderHealth(); },
     "toggle-group": (b) => { const g = state.openGroups; if (!g.delete(b.dataset.ieee)) g.add(b.dataset.ieee); renderHealth(); },
     "dev-all"() { state.devAll = true; renderDevices(); },
-    "models-all"() { state.modelsAll = true; renderHealth(); },
-    "models-sort": (b) => { state.modelsSort = b.dataset.v; renderHealth(); document.querySelector(`[data-act="models-sort"][data-v="${CSS.escape(b.dataset.v)}"]`)?.focus(); },
+    "models-all"() { state.modelsAll = true; render(); },
+    "models-view": (b) => { state.modelsView = b.dataset.v; render(); document.querySelector(`[data-act="models-view"][data-v="${CSS.escape(b.dataset.v)}"]`)?.focus(); },
+    "ages-all"() { state.agesAll = true; render(); },
+    "models-sort": (b) => { state.modelsSort = b.dataset.v; render(); document.querySelector(`[data-act="models-sort"][data-v="${CSS.escape(b.dataset.v)}"]`)?.focus(); },
     "model-filter": (b) => { state.query = b.dataset.q || ""; state.chip = "all"; go("devices"); },
     "log-more"() { state.logLimit = (state.logLimit || LOG_PAGE) + LOG_PAGE; renderActivity(); },
     "log-mode"(b) { state.logMode = b.dataset.mode === "incidents" ? "incidents" : "all"; store.set("z2mt.logMode", state.logMode); renderActivity(); },

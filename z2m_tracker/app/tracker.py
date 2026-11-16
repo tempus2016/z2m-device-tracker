@@ -42,7 +42,7 @@ from history_import import IEEE_RE, _features, collect_history
 from incidents import build_incidents
 from metrics import Metrics
 from naming import kind_of, naming_issues
-from reliability import model_reliability
+from reliability import device_ages, model_reliability
 from reporting import audit as reporting_audit
 from reporting import clean as clean_reportings
 from reporting import describe as describe_reporting
@@ -1055,6 +1055,9 @@ class Tracker:
                 if record.get(key) != value:
                     if key == "model" and record.get(key):
                         self._add_event(now, base_topic, ieee, name, "model changed", f"{record[key]} → {value}")
+                    if key == "software_build_id" and record.get(key):
+                        # Device age view: when the firmware last changed (an update from anywhere).
+                        record["firmware_changed"] = now
                     record[key] = value
                     changed = True
             address = _ping_address(device)
@@ -1746,6 +1749,7 @@ class Tracker:
             previous = record.get("update") or {}
             if previous.get("state") == "updating" and slim["state"] == "idle":
                 self._add_event(now, base_topic, ieee, name, "firmware updated", f"Now on {slim['installed_version']}")
+                record["firmware_changed"] = now
             if slim != previous:
                 if slim["state"] == "available" and previous.get("state") != "available":
                     self._add_event(
@@ -2879,6 +2883,7 @@ class Tracker:
                 "permit": self.permit,
                 "battery_shopping": self.battery_shopping(60),
                 "model_reliability": model_reliability(list(self.data["devices"].values()), self.data["events"], now),
+                "device_ages": device_ages(list(self.data["devices"].values()), self.data["events"], self._today()),
                 "ha_leftovers": self.ha_leftovers,
                 "battery_stock": dict(self.data.get("battery_stock") or {}),
                 "battery_brands": self.battery_brands(),
