@@ -25,6 +25,7 @@ from urllib.parse import unquote
 from zoneinfo import ZoneInfo
 
 import alert_actions
+import escalation
 import paho.mqtt.client as mqtt
 import prometheus
 from battery_library import BatteryLibrary, clean_shop_url
@@ -108,6 +109,10 @@ DEFAULT_OPTIONS = {
     "quiet_hours": False,
     "quiet_start": "23:00",
     "quiet_end": "07:00",
+    "escalate_enabled": False,
+    "escalate_hours": 2,
+    "escalate_service": "",
+    "escalate_critical_only": True,
     "naming_pattern": "",
     "battery_shop_url": "",
 }
@@ -200,6 +205,10 @@ SETTINGS = {
     "quiet_hours": _bool,
     "quiet_start": _clock,
     "quiet_end": _clock,
+    "escalate_enabled": _bool,
+    "escalate_hours": _int(1, 168),
+    "escalate_service": _service,
+    "escalate_critical_only": _bool,
     "naming_pattern": clean_pattern,
     "battery_shop_url": clean_shop_url,
 }
@@ -522,6 +531,55 @@ class Alerts:
         if plan["digest"]:
             title, message = plan["digest"]
             self._send("digest", "digest", "", "Zigbee Tracker", title, message, None)
+        self.escalate(issues, plan["send"])
+
+    def escalate(self, issues: list[dict], sent: list[dict]) -> None:
+        """Record the alerts just sent, and send unanswered ones again to the second service (escalation.py)."""
+        conf = escalation.settings(options)
+        now = time.time()
+        enabled = self.notify_set()
+        current = {issue["key"]: issue for issue in issues if issue["kind"] in enabled}
+        with tracker.lock:
+            store = escalation.clean(tracker.data.get("escalation"))
+            before = len(store)
+            if conf is None:
+                # Off: nothing waits, so turning it on later doesn't escalate old alerts at once.
+                store.clear()
+                due = []
+            else:
+                escalation.track(store, sent, now, conf["critical_only"])
+                due = escalation.due(store, current, now, conf["seconds"], tracker.in_quiet_hours(now))
+            if due or store or before:
+                tracker.data["escalation"] = store
+                tracker.dirty = True
+        for issue, waited in due:
+            title, message = escalation.message(issue, alert_title(issue), waited)
+            self._escalate(conf["service"], issue, title, message)
+
+    def _escalate(self, service: str, issue: dict, title: str, message: str) -> None:
+        key, kind, ieee = issue["key"], issue["kind"], issue.get("ieee") or ""
+        push = dict(CRITICAL_PUSH) if issue.get("critical") else {}
+        if options.get("alert_actions", True):
+            push.update(self.phone_extras(key, kind, ieee))
+        push["tag"] = "z2m_tracker_escalated_" + re.sub(r"[^A-Za-z0-9_]", "_", key)[:110]
+        _LOGGER.info("Escalated to %s: %s - %s", service, title, message)
+        data = {"key": key, "kind": kind, "ieee": ieee, "name": issue.get("name"), "title": title}
+        data.update(message=message, network=issue.get("instance"), escalated=True, service=service)
+
+        def job() -> None:
+            if options.get("fire_events", True):
+                home_assistant.fire_event("z2m_tracker_alert", data)
+            home_assistant.notify(service, title, message, push)
+
+        self.queue.put(job)
+
+
+def acknowledge_alerts(ieee: str) -> None:
+    """Someone answered the device's alert (pinged it, or pressed a button on a phone alert): no escalation."""
+    with tracker.lock:
+        store = tracker.data.get("escalation")
+        if isinstance(store, dict) and escalation.acknowledge(store, ieee):
+            tracker.dirty = True
 
 
 alerts = Alerts()
@@ -544,6 +602,7 @@ def on_notification_action(data: dict) -> None:
 
 
 def run_notification_action(verb: str, ieee: str, kind: str) -> None:
+    acknowledge_alerts(ieee)
     with tracker.lock:
         record = tracker.data["devices"].get(ieee)
         name = (tracker_display_name(record) if record else None) or ieee
@@ -1503,6 +1562,7 @@ class Handler(BaseHTTPRequestHandler):
                     200 if started else 409, {"ok": started, "error": None if started else "A scan is already running"}
                 )
             elif path == "/api/ping":
+                acknowledge_alerts(ieee)
                 result = tracker.ping(ieee)
                 self._json(200 if result["ok"] or result.get("timeout") else 400, result)
             elif path == "/api/forget":

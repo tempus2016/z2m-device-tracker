@@ -63,6 +63,10 @@ options:
   quiet_hours: false
   quiet_start: "23:00"
   quiet_end: "07:00"
+  escalate_enabled: false
+  escalate_hours: 2
+  escalate_service: ""
+  escalate_critical_only: true
   naming_pattern: ""
   battery_shop_url: ""
   mqtt_host: ""
@@ -104,6 +108,10 @@ schema:
   quiet_hours: bool?
   quiet_start: match(^([01]\d|2[0-3]):[0-5]\d$)?
   quiet_end: match(^([01]\d|2[0-3]):[0-5]\d$)?
+  escalate_enabled: bool?
+  escalate_hours: int(1,168)?
+  escalate_service: str?
+  escalate_critical_only: bool?
   naming_pattern: str?
   battery_shop_url: str?
   mqtt_host: str?

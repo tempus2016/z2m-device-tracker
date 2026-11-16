@@ -31,6 +31,10 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `ota_min_battery` | `30` | Battery devices below this level are skipped by automatic and bulk updates. **Update anyway** overrides it for one device. |
 | `quiet_hours` | `false` | Hold alerts during quiet hours and send one summary when they end. |
 | `quiet_start` / `quiet_end` | `23:00` / `07:00` | Quiet hours in the app's time zone, as `HH:MM`. The window can cross midnight. |
+| `escalate_enabled` | `false` | Send an alert again to a second notify service when nobody answers it in time. See [Escalation](#escalation). |
+| `escalate_hours` | `2` | How long an alert can go unanswered before it escalates (1 to 168 hours). |
+| `escalate_service` | empty | The second notify service, e.g. `notify.mobile_app_partner_phone`. Escalation needs one. |
+| `escalate_critical_only` | `true` | Only escalate alerts for devices marked **Critical device**. |
 | `naming_pattern` | empty | Naming pattern for devices, e.g. `{area} {type} {n}`. Fills in the name of each device that joins in **Pair device**, and drives the **Naming** check. Empty turns it off. See [Device names](#device-names). |
 | `battery_shop_url` | empty | Store search address for the cart buttons in **Batteries to buy**, with `{type}` where the battery type goes, e.g. `https://www.amazon.co.uk/s?k={type}` or `https://www.amazon.de/s?k={type}`. Any shop works. Empty hides the buttons. Set it in **Settings → Battery brands**. No affiliate tags are added. |
 | `mqtt_host` | empty | Address of your MQTT broker, if it isn't the Mosquitto broker app. Empty uses the broker Home Assistant offers. See [MQTT broker](#mqtt-broker). |
@@ -267,6 +271,12 @@ If your notify service isn't the Companion app and rejects the extra data, turn 
 With `quiet_hours` on, new issue alerts and Device joined, Device left and Interview failed alerts are held between `quiet_start` and `quiet_end` instead of being sent. Alerts for critical devices still go out straight away.
 
 When quiet hours end, one notification sums up the night, titled "Zigbee overnight: N issues, M resolved". It lists the issues that are still open, the ones that appeared and cleared during the night (with their times), and the held join, leave and interview alerts. Issues listed as still open count as alerted, so they aren't sent again one by one. If nothing happened, no summary is sent. Held alerts are kept in the app's data, so they survive a restart.
+
+## Escalation
+
+With `escalate_enabled` on and `escalate_service` set, an issue alert that nobody answers within `escalate_hours` is sent again to that second service, titled "Unanswered: ..." and ending "Nobody muted, pinged or fixed this in 2 h." Set it in **Settings → Notifications**.
+
+An alert counts as answered when the device is pinged (from the app or the **Ping** button on a phone alert), when any button on its phone alert is pressed, or when the problem goes away: fixed, muted or ignored. Each problem escalates once; if it clears and comes back, that is a new problem. With `escalate_critical_only` on (the default) only alerts for critical devices escalate. During quiet hours only critical devices escalate; the rest wait until quiet hours end. Nothing escalates while alerts are paused. Join, leave and interview alerts and the overnight summary never escalate. The `z2m_tracker_alert` event fires again with `escalated: true` and the `service` it went to.
 
 ## Leftover devices in Home Assistant
 
