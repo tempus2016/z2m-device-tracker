@@ -37,6 +37,7 @@ from health import (
     z2m_setup,
 )
 from history_import import IEEE_RE, _features, collect_history
+from incidents import build_incidents
 from metrics import Metrics
 
 _LOGGER = logging.getLogger("z2m_tracker")
@@ -553,6 +554,7 @@ class Tracker:
         self.dirty = False
         self.boot_id = uuid.uuid4().hex[:8]
         self.revision = 0
+        self._incidents_cache: tuple[tuple, list[dict]] | None = None
         self.publish: Callable[[str, dict], None] | None = None
         self.on_event: Callable[[dict], None] | None = None
         self.issues: list[dict] = []
@@ -2222,6 +2224,20 @@ class Tracker:
     def _oui_vendor(self, ieee: str) -> str | None:
         return self.oui.get(ieee[2:8].upper()) if ieee.startswith("0x") else None
 
+    def incidents(self) -> list[dict]:
+        """Grouped problem events (see incidents.py), newest first. Call with the lock held.
+
+        Cached until the events list or a device/bridge state changes (every such change bumps
+        `revision`), so the snapshot doesn't regroup thousands of events on every request.
+        """
+        events = self.data["events"]
+        key = (len(events), id(events[-1]) if events else None, self.revision)
+        if self._incidents_cache and self._incidents_cache[0] == key:
+            return self._incidents_cache[1]
+        result = build_incidents(events, self.data["devices"], self.data.get("bridges") or {})
+        self._incidents_cache = (key, result)
+        return result
+
     def snapshot_json(self) -> bytes:
         now = time.time()
         with self.lock:
@@ -2250,6 +2266,7 @@ class Tracker:
             payload = {
                 "devices": devices,
                 "events": self.data["events"],
+                "incidents": self.incidents(),
                 "instances": self.base_topics,
                 "imported": self.data.get("imported"),
                 "issues": self.issues,

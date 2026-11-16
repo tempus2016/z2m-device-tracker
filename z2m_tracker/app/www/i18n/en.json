@@ -1355,6 +1355,31 @@
   "settings.when_hour": "Summary hour",
   "asset.note_saved": "Note saved",
   "activity.show_more": "Show {n} more",
+  "incident.view": "Activity view",
+  "incident.mode_all": "All events",
+  "incident.mode_incidents": "Incidents",
+  "incident.empty": "No incidents",
+  "incident.empty_text": "Related problems on one network are grouped here: 3 or more devices dropping within 10 minutes of each other, or Zigbee2MQTT going offline or restarting. A single device going offline is not an incident.",
+  "incident.cause.z2m_down": "Likely cause: Zigbee2MQTT or coordinator down",
+  "incident.cause.router_offline": "Likely cause: router {name} offline",
+  "incident.cause.network_wide": "Likely cause: network-wide drop (interference or coordinator)",
+  "incident.cause.unknown": "Several devices dropped, cause unknown",
+  "incident.ongoing": "Ongoing",
+  "incident.since": "since {time}",
+  "incident.all_back": {
+    "one": "{n} device affected, back",
+    "other": "{n} devices affected, all back"
+  },
+  "incident.some_back": {
+    "one": "{n} device affected, {back} back",
+    "other": "{n} devices affected, {back} back"
+  },
+  "incident.network_only": "No devices dropped",
+  "incident.network": "Network",
+  "incident.more_events": {
+    "one": "{n} more event not shown",
+    "other": "{n} more events not shown"
+  },
   "devices.show_all": "Show all {n} devices",
   "card.unreachable": "The Zigbee Tracker app isn't reachable",
   "card.loading": "Loading…",
