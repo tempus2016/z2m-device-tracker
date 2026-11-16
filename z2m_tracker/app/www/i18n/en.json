@@ -1894,5 +1894,7 @@
   "reporting.attr.occupancy": "Occupancy",
   "shop.search": "Search the shop for {type}",
   "shop.url_title": "Shop link",
-  "shop.url_desc": "Adds a cart button next to each battery you need to buy. {type} is replaced by the battery type. Leave it empty to hide the buttons. No affiliate tags are added."
+  "shop.url_desc": "Adds a cart button next to each battery you need to buy. {type} is replaced by the battery type. Leave it empty to hide the buttons. No affiliate tags are added.",
+  "links.support": "Support this project",
+  "links.support_short": "Support"
 }
