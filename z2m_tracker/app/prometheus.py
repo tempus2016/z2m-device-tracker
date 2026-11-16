@@ -13,6 +13,7 @@ FAMILIES: list[tuple[str, str, str]] = [
     ("z2m_tracker_alerts_paused", "gauge", "1 while alerts are paused."),
     ("z2m_tracker_network_online", "gauge", "1 when the Zigbee2MQTT bridge reports online."),
     ("z2m_tracker_network_devices", "gauge", "Tracked devices per network and status (coordinator excluded)."),
+    ("z2m_tracker_network_mesh_score", "gauge", "Mesh score of the network, 0-100 (see the app's docs)."),
     ("z2m_tracker_issues", "gauge", "Open health issues per check and severity."),
     ("z2m_tracker_device_info", "gauge", "Device details as labels, always 1."),
     ("z2m_tracker_device_online", "gauge", "1 online, 0 offline. Missing when Zigbee2MQTT availability is off."),
@@ -79,6 +80,9 @@ def collect(snapshot: dict[str, Any], app_version: str) -> list[tuple[str, dict[
     for network, state in sorted((snapshot.get("bridges") or {}).items()):
         if state in ("online", "offline"):
             out.append(("z2m_tracker_network_online", {"network": network}, state == "online"))
+
+    for network, value in sorted((snapshot.get("mesh_scores") or {}).items()):
+        out.append(("z2m_tracker_network_mesh_score", {"network": network}, value))
 
     counts: dict[tuple[str, str], int] = {}
     issue_counts: dict[tuple[str, str], int] = {}

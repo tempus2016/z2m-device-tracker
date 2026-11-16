@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import threading
 import time
 from collections.abc import Callable
@@ -209,6 +210,48 @@ class Discovery:
             "battery_type": battery.get("label") or None,
         }
 
+    def _network(self, bt: str) -> tuple[dict[str, dict], str]:
+        """The mesh score sensor of one network, on a device named after its base topic, and its state topic.
+
+        Named that way, HA gives it the entity ID sensor.<base_topic>_mesh_score."""
+        slug = re.sub(r"[^A-Za-z0-9_]", "_", bt)
+        state_topic = f"{BASE}/network/{slug}"
+        payload = {
+            "availability_topic": AVAILABILITY,
+            "device": {
+                "identifiers": [f"z2m_tracker_network_{slug}"],
+                "name": bt,
+                "manufacturer": "Z2M Device Tracker",
+                "model": "Zigbee network",
+            },
+            "origin": {"name": "Z2M Device Tracker", "sw_version": self.version},
+            "unique_id": f"z2m_tracker_network_{slug}_mesh_score",
+            "name": "Mesh score",
+            "icon": "mdi:hexagon-multiple-outline",
+            "state_class": "measurement",
+            "state_topic": state_topic,
+            "value_template": "{{ value_json.score }}",
+            "json_attributes_topic": state_topic,
+            "json_attributes_template": "{{ value_json.parts | tojson }}",
+        }
+        return {f"{PREFIX}/sensor/{BASE}/network_{slug}_mesh_score/config": payload}, state_topic
+
+    @staticmethod
+    def _network_state(mesh: dict) -> dict:
+        week = mesh.get("week") or {}
+        return {
+            "score": mesh["score"],
+            "parts": {
+                "devices_online": mesh.get("online"),
+                "devices": mesh.get("total"),
+                "average_link_quality": mesh.get("lqi"),
+                "devices_with_backup_route": mesh.get("backup"),
+                "devices_in_routing_scan": mesh.get("backup_of"),
+                "open_problems": mesh.get("problems"),
+                "score_a_week_ago": week.get("score"),
+            },
+        }
+
     # ------------------------------------------------------------- syncing
 
     def sync(self, force: bool = False) -> None:
@@ -235,6 +278,11 @@ class Discovery:
                     states[f"{BASE}/{record['ieee']}"] = json.dumps(
                         self._state(record_for_state, summary, issues), separators=(",", ":")
                     )
+                for bt, mesh in self.tracker.mesh.items():
+                    configs, state_topic = self._network(bt)
+                    for topic, cfg in configs.items():
+                        desired[topic] = json.dumps(cfg, separators=(",", ":"))
+                    states[state_topic] = json.dumps(self._network_state(mesh), separators=(",", ":"))
             previous_topics = set(self.tracker.data.get("discovery_topics") or [])
 
         with self.lock:
