@@ -1891,5 +1891,7 @@
   "reporting.attr.energy": "Energy",
   "reporting.attr.state": "On/off",
   "reporting.attr.brightness": "Brightness",
-  "reporting.attr.occupancy": "Occupancy"
+  "reporting.attr.occupancy": "Occupancy",
+  "links.support": "Support this project",
+  "links.support_short": "Support"
 }
