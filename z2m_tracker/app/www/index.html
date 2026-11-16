@@ -272,6 +272,20 @@
   .log .t1 b { font-weight: 500; }
   .log .t2 { font-size: 12px; color: var(--text-2); }
   .log time { font-size: 12px; color: var(--text-2); white-space: nowrap; }
+  .chips.log-mode { padding: 12px 16px 4px; }
+  .inc { border-bottom: 1px solid var(--divider); }
+  .inc:last-child { border-bottom: 0; }
+  .inc-head { width: 100%; border: 0; background: none; font: inherit; color: inherit; text-align: start; padding-block: 10px; }
+  .inc-head .t1, .inc-head .t2 { display: block; }
+  .inc-head .t1 b { overflow-wrap: anywhere; }
+  .inc-head > .mdi { flex: none; color: var(--text-2); }
+  .inc-events { margin: 0 16px 10px 72px; border-left: 2px solid var(--divider); }
+  .inc-ev { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 2px 0 2px 12px; font-size: 14px; color: var(--text-2); }
+  .inc-ev .text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .inc-ev .text a { color: var(--text); }
+  .inc-ev time { font-size: 12px; white-space: nowrap; }
+  .inc-ic { display: inline-flex; flex: none; }
+  @media (max-width: 600px) { .inc-events { margin-left: 16px; } }
 
   .set-row { display: flex; align-items: center; gap: 16px; padding: 12px 16px; min-height: 72px; border-top: 1px solid var(--divider); }
   .set-row:first-child { border-top: 0; }
@@ -1066,6 +1080,7 @@
     group: store.get("z2mt.group") === "1", areas: null, pairNet: null, openGroups: new Set(), openCoords: new Set(), usedOpen: new Set(),
     // Maintenance task being edited on the device panel: { ieee, id } or null.
     mtEdit: null,
+    logMode: store.get("z2mt.logMode") === "incidents" ? "incidents" : "all", openIncidents: new Set(),
   };
 
   const TOUCH = () => window.matchMedia?.("(pointer: coarse)").matches;
@@ -2299,13 +2314,44 @@
   };
 
   const LOG_PAGE = 100;
+  // Incidents view: the server groups related problem events per network (incidents.py) and names a likely cause.
+  const logModeChips = () => `<div class="chips log-mode" role="group" aria-label="${esc(t("incident.view"))}">${[["all", "incident.mode_all"], ["incidents", "incident.mode_incidents"]].map(([m, l]) => `<button class="chip" data-act="log-mode" data-mode="${m}" aria-pressed="${state.logMode === m}">${ic("check", "s18")}${th(l)}</button>`).join("")}</div>`;
+  const incidentCause = (inc) => inc.cause === "router_offline" && inc.router ? th("incident.cause.router_offline", { name: esc(inc.router.name || inc.router.ieee) })
+    : th(`incident.cause.${["z2m_down", "network_wide"].includes(inc.cause) ? inc.cause : "unknown"}`);
+  const renderIncidents = () => {
+    const list = Array.isArray(state.data.incidents) ? state.data.incidents : [];
+    if (!list.length) return `<div class="card">${logModeChips()}${emptyState("check", th("incident.empty"), th("incident.empty_text"))}</div>`;
+    const sameDay = (a, b) => fmtDate(a, false) === fmtDate(b, false);
+    return `<div class="card">${logModeChips()}${list.map((inc) => {
+      const open = state.openIncidents.has(inc.id);
+      const when = inc.ongoing ? th("incident.since", { time: esc(fmtTime(inc.start)) })
+        : `${esc(fmtTime(inc.start))}–${esc(inc.end && !sameDay(inc.start, inc.end) ? fmtDate(inc.end) : fmtTime(inc.end || inc.last))}`;
+      const secs = ((inc.ongoing ? Date.now() : Date.parse(inc.end || inc.last)) - Date.parse(inc.start)) / 1000;
+      const counts = inc.affected ? (inc.recovered >= inc.affected ? th("incident.all_back", { n: inc.affected }) : th("incident.some_back", { n: inc.affected, back: inc.recovered })) : th("incident.network_only");
+      const color = inc.ongoing ? "var(--error)" : "var(--warning)";
+      const evs = Array.isArray(inc.events) ? inc.events : [];
+      const members = evs.map((e) => {
+        const d = state.byIeee.get(e.ieee);
+        const [icon, c] = EVENT_ICON(String(e.kind || ""));
+        const who = e.ieee === "network" ? esc(t("incident.network")) : d ? devLink(e.ieee) : esc(e.name && !IEEE_RE.test(e.name) ? e.name : e.ieee);
+        return `<div class="inc-ev"><span class="inc-ic" style="color:${c}">${ic(icon, "s18")}</span><span class="text">${who} ${esc(eventKind(e.kind))}</span><time datetime="${esc(e.time)}">${esc(fmtTime(e.time))}</time></div>`;
+      }).join("");
+      const more = (inc.events_total || 0) > evs.length ? `<div class="inc-ev muted">${th("incident.more_events", { n: inc.events_total - evs.length })}</div>` : "";
+      return `<div class="inc${inc.ongoing ? " ongoing" : ""}">
+        <button class="log inc-head" type="button" data-act="toggle-incident" data-inc="${esc(inc.id)}" aria-expanded="${open}"><span class="state-ic" style="color:${color}">${ic(inc.ongoing ? "alert-circle" : "history")}</span>
+        <span class="text"><span class="t1">${inc.ongoing ? `<span class="pill">${th("incident.ongoing")}</span> ` : ""}<b>${incidentCause(inc)}</b></span><span class="t2">${esc(fmtDate(inc.start, false))} · ${when}${secs > 0 ? ` · ${esc(span(secs))}` : ""}</span><span class="t2">${counts} · ${th("net.network", { name: esc(netLabel(inc.instance)) })}</span></span>
+        ${ic(open ? "chevron-up" : "chevron-down", "s18")}</button>
+        ${open ? `<div class="inc-events">${members}${more}</div>` : ""}</div>`;
+    }).join("")}</div>`;
+  };
   const renderActivity = () => {
+    if (state.logMode === "incidents") { $("#view").innerHTML = renderIncidents(); return; }
     const all = [...(state.data.events || [])].reverse().slice(0, 500);
     const events = all.slice(0, state.logLimit || LOG_PAGE);
-    if (!events.length) { $("#view").innerHTML = `<div class="card">${emptyState("history", th("activity.empty"), th("activity.empty_text"))}</div>`; return; }
+    if (!events.length) { $("#view").innerHTML = `<div class="card">${logModeChips()}${emptyState("history", th("activity.empty"), th("activity.empty_text"))}</div>`; return; }
     const groups = [];
     events.forEach((e) => { const day = fmtDate(e.time, false); if (!groups.length || groups[groups.length - 1].day !== day) groups.push({ day, items: [] }); groups[groups.length - 1].items.push(e); });
-    $("#view").innerHTML = `<div class="card">${groups.map((g) => `<div class="logday">${esc(g.day)}</div>` + g.items.map((e) => {
+    $("#view").innerHTML = `<div class="card">${logModeChips()}${groups.map((g) => `<div class="logday">${esc(g.day)}</div>` + g.items.map((e) => {
       const d = state.byIeee.get(e.ieee);
       const who = e.name && !IEEE_RE.test(e.name) ? e.name : nameOf(d) || e.ieee;
       const [icon, color] = EVENT_ICON(e.kind);
@@ -3075,7 +3121,7 @@
 
   // A refresh redraws the view. Remember which control had keyboard focus so it can be focused again,
   // instead of focus dropping to the top of the page every minute.
-  const FOCUS_ATTRS = ["data-open", "data-act", "data-ieee", "data-view", "data-chip", "data-sort", "data-kind", "data-tab", "data-carry", "data-bt", "data-net", "data-type", "data-delta", "data-jump", "data-bulk", "data-n"];
+  const FOCUS_ATTRS = ["data-open", "data-act", "data-ieee", "data-view", "data-chip", "data-sort", "data-kind", "data-tab", "data-carry", "data-bt", "data-net", "data-type", "data-delta", "data-jump", "data-bulk", "data-n", "data-mode", "data-inc"];
   const focusKey = (el) => {
     if (!el || el === document.body || el === document.documentElement) return null;
     if (el.id) return `#${CSS.escape(el.id)}`;
@@ -3125,6 +3171,8 @@
     "models-sort": (b) => { state.modelsSort = b.dataset.v; renderHealth(); document.querySelector(`[data-act="models-sort"][data-v="${CSS.escape(b.dataset.v)}"]`)?.focus(); },
     "model-filter": (b) => { state.query = b.dataset.q || ""; state.chip = "all"; go("devices"); },
     "log-more"() { state.logLimit = (state.logLimit || LOG_PAGE) + LOG_PAGE; renderActivity(); },
+    "log-mode"(b) { state.logMode = b.dataset.mode === "incidents" ? "incidents" : "all"; store.set("z2mt.logMode", state.logMode); renderActivity(); },
+    "toggle-incident"(b) { const o = state.openIncidents; if (!o.delete(b.dataset.inc)) o.add(b.dataset.inc); renderActivity(); },
     async copy(b) { try { await navigator.clipboard.writeText(b.dataset.ieee); snack(t("snack.ieee_copied")); } catch (e) { snack(b.dataset.ieee); } },
     async reconfigure(b) {
       const ieee = b.dataset.ieee, d = state.byIeee.get(ieee);

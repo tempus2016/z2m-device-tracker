@@ -133,6 +133,18 @@ When a router goes offline, the devices that route through it often follow. The 
 
 The device panel's Info tab also shows message rates, Zigbee2MQTT's own counters (messages, leaves, address changes) and the device's bindings.
 
+## Incidents
+
+The Activity tab can show **Incidents** instead of **All events** (the choice is remembered in the browser). An incident groups related problems on one network into one row, e.g. "Likely cause: router Garage plug offline · 23:10–23:40 · 14 devices affected, all back". Open a row to see its events and jump to the devices.
+
+- Problem events are: a device going offline, a device leaving, an interview failing, Zigbee2MQTT going offline and Zigbee2MQTT restarting. Route changes aren't logged as events, so they don't count.
+- A problem event starts an incident, or joins the open one on the same network if it comes within 10 minutes of that incident's last problem event. After 10 quiet minutes the incident takes no new problems, but its devices coming back are still added to it.
+- Only incidents with 3 or more devices, or with Zigbee2MQTT going offline or restarting, are shown. One device going offline on its own isn't an incident.
+- An incident is ongoing while one of its devices is still offline or Zigbee2MQTT is still down. A device that left and wasn't re-paired counts as not back but doesn't keep the incident ongoing.
+- Likely cause, first rule that fits: Zigbee2MQTT went offline or restarted: "Zigbee2MQTT or coordinator down". A router in the incident went down no later than devices that route through it (from the last routing scan) and at least one of them followed: "router X offline". 3 or more devices dropped within a minute of the start through 2 or more different parents: "network-wide drop (interference or coordinator)". Otherwise the cause is unknown.
+
+The last 50 incidents are kept, worked out from the activity log. No notifications are sent for incidents.
+
 ## Ping
 
 Mains devices have a **Ping** button on the device panel's Info tab. It reads one attribute (the Basic cluster's ZCL version, the same read Zigbee2MQTT's availability check uses) and shows how long the reply took, or "No reply in 10 s". Nothing is written to the device. Battery devices sleep, so they have no Ping button.
