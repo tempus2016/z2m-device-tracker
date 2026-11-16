@@ -27,7 +27,7 @@ from .const import (
     URL_BASE,
     VERSION,
 )
-from .services import async_register_services
+from .services import async_register_services, async_require_admin
 from .tracker import TrackerAppError, Z2MTracker
 from .websocket import async_register_websocket_commands
 
@@ -62,6 +62,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: Z2MTrackerConfigEntry) -
     if not hass.services.has_service(DOMAIN, "import_history"):
 
         async def _import_history(call: ServiceCall) -> ServiceResponse:
+            await async_require_admin(hass, call.context.user_id)
             current: Z2MTracker | None = hass.data.get(DOMAIN)
             if current is None:
                 raise HomeAssistantError("Z2M Device Tracker is not loaded")

@@ -15,4 +15,4 @@ voluntary. An unanswered issue is not an insult, and a closed one is not a verdi
 Harassment, sustained hostility, and making people unwelcome for who they are will get you
 blocked from the repository without much ceremony.
 
-If something needs raising privately, email john_mackinnon@live.co.uk.
+If something needs raising privately, use [GitHub's private reporting form](https://github.com/tempus2016/z2m-device-tracker/security/advisories/new).

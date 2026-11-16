@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 from datetime import datetime, timezone
 from typing import Any
@@ -152,6 +153,10 @@ CHECKS = [
     ("interview_failed", "Interview failed", "A newly joined device couldn't be identified.", True),
 ]
 DEFAULT_NOTIFY = sorted(ALERT_KINDS | {"joined", "left", "interview_failed"})
+
+
+def _finite(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
 def notify_kinds(options: dict) -> set[str]:
@@ -620,8 +625,9 @@ def device_issues(
                 )
                 break
 
-    lqi_24h = summary.get("lqi_24h")
-    lqi_prev = summary.get("lqi_prev_7d")
+    # Saved metrics from before input was checked can hold NaN or infinity: treat those as no data.
+    lqi_24h = summary.get("lqi_24h") if _finite(summary.get("lqi_24h")) else None
+    lqi_prev = summary.get("lqi_prev_7d") if _finite(summary.get("lqi_prev_7d")) else None
     if lqi_24h is not None and lqi_24h < 30:
         add(
             "weak_signal",
@@ -642,7 +648,7 @@ def device_issues(
             prev=round(lqi_prev),
         )
 
-    battery = record.get("battery")
+    battery = record.get("battery") if _finite(record.get("battery")) else None
     threshold = limit_of(record, options, "battery_percent")
     if record.get("battery_low") is True or (isinstance(battery, (int, float)) and battery <= threshold):
         add(

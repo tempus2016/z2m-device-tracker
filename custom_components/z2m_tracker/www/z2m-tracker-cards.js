@@ -4,6 +4,8 @@
 (() => {
   const IEEE_RE = /^0x[0-9a-f]{16}$/i;
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  // Panel links stay inside Home Assistant: only a local path ("/app/...") is used, never a javascript: or outside URL.
+  const localPath = (v) => (typeof v === "string" && /^\/(?!\/)/.test(v) ? v : "");
   const nameOf = (d) => {
     if (d.friendly_name && !IEEE_RE.test(d.friendly_name)) return d.friendly_name;
     const named = (d.names || []).filter((n) => n.name && !IEEE_RE.test(n.name));
@@ -114,7 +116,7 @@
 
     getGridOptions() { return { columns: 6, min_columns: 4, rows: "auto" }; }
 
-    get _panel() { return this._config?.panel || STORE.data?.panel || "/app/local_z2m_tracker"; }
+    get _panel() { return localPath(this._config?.panel) || localPath(STORE.data?.panel) || "/app/local_z2m_tracker"; }
 
     _devices() {
       return (STORE.data?.devices || []).filter((d) => d.type !== "Coordinator" && d.status !== "removed");

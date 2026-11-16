@@ -18,6 +18,20 @@ WEBSOCKET = "ws://supervisor/core/websocket"
 # Registry changes that can alter a device's link, name, area or Battery Notes entities.
 REGISTRY_EVENTS = ("device_registry_updated", "area_registry_updated", "entity_registry_updated")
 IDENT_RE = re.compile(r"zigbee2mqtt_(0x[0-9a-f]{16})$")
+# Discovery service name: Supervisor hands this app's address and API token to the integration in Core.
+DISCOVERY_SERVICE = "z2m_tracker"
+# Markdown the HA frontend would turn into links, images or HTML in a notification.
+_MARKDOWN_RE = re.compile(r"([\\\[\]<>`])")
+
+
+def markdown_safe(text: str) -> str:
+    """Text for a persistent notification, with device names unable to add links, images or HTML."""
+    text = _MARKDOWN_RE.sub(r"\\\1", str(text or ""))
+    # Bare URLs are linked too: break the scheme and www. so they stay plain text.
+    text = re.sub(r"(?i)\b([a-z][a-z0-9+.-]*):(?=//)", r"\1:\\", text)
+    return re.sub(r"(?i)\b(www)\.", r"\1\\.", text)
+
+
 # Entity states that mean nothing is providing the entity any more.
 DEAD_STATES = (None, "unavailable", "unknown")
 
@@ -156,6 +170,25 @@ class HomeAssistant:
                 return (json.loads(response.read() or b"{}") or {}).get("result") == "ok"
         except (urllib.error.URLError, TimeoutError, ValueError) as err:
             _LOGGER.warning("Saving app options failed: %s", err)
+            return False
+
+    def announce(self, host: str, port: int, token: str) -> bool:
+        """Tell Supervisor where this app is and its API token; only Home Assistant Core can read it back."""
+        if not self.token:
+            return False
+        request = urllib.request.Request(
+            "http://supervisor/discovery",
+            data=json.dumps(
+                {"service": DISCOVERY_SERVICE, "config": {"host": host, "port": port, "token": token}}
+            ).encode("utf-8"),
+            method="POST",
+            headers={"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=15) as response:
+                return (json.loads(response.read() or b"{}") or {}).get("result") == "ok"
+        except (urllib.error.URLError, TimeoutError, ValueError) as err:
+            _LOGGER.warning("Announcing the app to Home Assistant failed: %s", err)
             return False
 
     def battery_notes_replaced(self, device_id: str, when_iso: str) -> bool:
@@ -305,7 +338,7 @@ class HomeAssistant:
         self._request(
             "POST",
             "/services/persistent_notification/create",
-            {"title": title, "message": message, "notification_id": notification_id},
+            {"title": markdown_safe(title), "message": markdown_safe(message), "notification_id": notification_id},
         )
 
     def dismiss_notification(self, notification_id: str) -> None:
@@ -315,10 +348,11 @@ class HomeAssistant:
         service = service.strip()
         if not service:
             return
-        if "." in service:
-            domain, name = service.split(".", 1)
-        else:
-            domain, name = "notify", service
+        # Only notify services: the setting must never be able to run a script or shell command.
+        domain, name = service.split(".", 1) if "." in service else ("notify", service)
+        if domain != "notify" or not re.fullmatch(r"[a-z0-9_]+", name):
+            _LOGGER.warning("Not sending to %s: only notify services are allowed", service)
+            return
         payload: dict = {"title": title, "message": message}
         if data:
             payload["data"] = data

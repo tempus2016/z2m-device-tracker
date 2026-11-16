@@ -8,6 +8,8 @@ CONF_REPAIRS = "repairs"
 DEFAULT_APP_URL = "http://local-z2m-tracker:8099"
 APP_SLUG_SUFFIX = "z2m_tracker"
 APP_PORT = 8099
+# Supervisor discovery service the app announces itself with (address and API token).
+DISCOVERY_SERVICE = "z2m_tracker"
 
 SIGNAL_UPDATED = f"{DOMAIN}_updated"
 

@@ -806,6 +806,10 @@
 
   const $ = (s) => document.querySelector(s);
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  // A malformed hash (#%E0) must not stop the page from starting.
+  const hashValue = () => { try { return decodeURIComponent(location.hash.slice(1)); } catch (e) { return ""; } };
+  // Forms are filled in and read by script; pressing Enter must not submit them (no inline handlers: the CSP blocks them).
+  document.addEventListener("submit", (e) => { if (e.target.method !== "dialog") e.preventDefault(); });
   const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage unavailable */ } } };
   const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
   const cap = (s) => (s ? String(s).charAt(0).toUpperCase() + String(s).slice(1) : s);
@@ -1112,7 +1116,7 @@
       const power = powerOf(d);
       const bat = d.status !== "removed" && typeof d.battery === "number"
         ? `<span class="bat" style="--c:${batColor(d.battery, batLow(d))}">${Math.round(d.battery)} %</span>`
-        : d.status !== "removed" && power ? `<span class="muted">${power}</span>` : `<span class="muted">—</span>`;
+        : d.status !== "removed" && power ? `<span class="muted">${esc(power)}</span>` : `<span class="muted">—</span>`;
       const prev = former.length ? t("devices.previously", { names: former.join(", ") }) : null;
       const second = pane ? [d.area, prev || deviceLine(d)].filter(Boolean).join(" · ") : prev || d.ieee;
       const seen = esc(relTime(d.last_seen)), seenTitle = esc(fmtDate(d.last_seen));
@@ -1329,7 +1333,7 @@
     if (!r || !r.networks.length) return "";
     const W = 640, H = 120, x = (mhz) => ((mhz - 2400) / 85) * (W - 20) + 10;
     const wf = (n) => (n === 14 ? 2484 : 2407 + 5 * n), zf = (c) => 2405 + 5 * (c - 11);
-    const wifiBands = r.wifi.map((n) => `<rect x="${x(wf(n) - 11).toFixed(1)}" y="18" width="${(x(wf(n) + 11) - x(wf(n) - 11)).toFixed(1)}" height="54" rx="6" fill="var(--warning)" fill-opacity="0.18" stroke="var(--warning)" stroke-opacity="0.5"/><text x="${x(wf(n)).toFixed(1)}" y="14" text-anchor="middle">${th("radio.wifi_n", { n })}</text>`).join("");
+    const wifiBands = r.wifi.map((n) => `<rect x="${x(wf(n) - 11).toFixed(1)}" y="18" width="${(x(wf(n) + 11) - x(wf(n) - 11)).toFixed(1)}" height="54" rx="6" fill="var(--warning)" fill-opacity="0.18" stroke="var(--warning)" stroke-opacity="0.5"/><text x="${x(wf(n)).toFixed(1)}" y="14" text-anchor="middle">${th("radio.wifi_n", { n: esc(n) })}</text>`).join("");
     const ticks = [...Array(16).keys()].map((i) => { const c = 11 + i, used = r.networks.filter((n) => n.channel === c); return `<line x1="${x(zf(c)).toFixed(1)}" x2="${x(zf(c)).toFixed(1)}" y1="${used.length ? 24 : 62}" y2="72" stroke="${used.length ? "var(--primary)" : "var(--divider)"}" stroke-width="${used.length ? 4 : 2}" stroke-linecap="round"/><text x="${x(zf(c)).toFixed(1)}" y="88" text-anchor="middle" ${used.length ? 'class="on"' : ""}>${c}</text>${used.length ? `<text x="${x(zf(c)).toFixed(1)}" y="104" text-anchor="middle" class="on">${esc(used.map((n) => netLabel(n.topic)).join(" + "))}</text>` : ""}`; }).join("");
     return `<div class="card"><div class="card-header">${ic("signal")}<div><h2 class="ch">${th("radio.title")}</h2><small>${th("radio.subtitle", { zigbee: esc([...new Set(r.networks.map((n) => n.channel))].join(", ")), wifi: r.wifi.length ? esc(r.wifi.join(", ")) : th("radio.not_set") })}</small></div></div>
       <div class="chart-wrap"><svg class="spectrum" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t("radio.chart"))}">${wifiBands}${ticks}<text x="10" y="118" class="axis">2400 MHz</text><text x="${W - 10}" y="118" text-anchor="end" class="axis">2485 MHz</text></svg></div>
@@ -1527,12 +1531,12 @@
       if (!p || p.lqi === null || p.lqi === undefined || p.lqi >= 60) return;
       const better = (d.routing.neighbours || []).filter((n) => n.ieee !== p.ieee && state.byIeee.get(n.ieee)?.type === "Router" && (n.lqi || 0) >= Math.max(80, p.lqi + 40)).sort((a, b) => b.lqi - a.lqi)[0];
       if (better) {
-        out.push({ sev: 2, icon: "swap-horizontal", text: th("advice.better_router", { device: link(d.ieee), parent: link(p.ieee), lqi: p.lqi, better: link(better.ieee), better_lqi: better.lqi, name: esc(name(d.ieee)), better_name: esc(name(better.ieee)) }) });
+        out.push({ sev: 2, icon: "swap-horizontal", text: th("advice.better_router", { device: link(d.ieee), parent: link(p.ieee), lqi: esc(p.lqi), better: link(better.ieee), better_lqi: esc(better.lqi), name: esc(name(d.ieee)), better_name: esc(name(better.ieee)) }) });
       } else {
         const alt = suggestRouter(d);
         const where = state.byIeee.get(p.ieee)?.area;
         const inArea = (ieee, area) => (area ? th("advice.in_area", { name: link(ieee), area: esc(area) }) : link(ieee));
-        const weak = th("advice.weak_link", { device: inArea(d.ieee, d.area), parent: inArea(p.ieee, where), lqi: p.lqi });
+        const weak = th("advice.weak_link", { device: inArea(d.ieee, d.area), parent: inArea(p.ieee, where), lqi: esc(p.lqi) });
         out.push(alt
           ? { sev: 2, icon: "swap-horizontal", text: `${weak} ${th("advice.same_room_router", { router: link(alt.ieee) })}`,
               action: `<button class="btn" data-act="move" data-ieee="${esc(d.ieee)}" data-via="${esc(alt.ieee)}">${th("advice.move")}</button>` }
@@ -1594,7 +1598,7 @@
       ${state.data.instances.map((bt) => {
         const info = nm[bt] || {};
         const g = mapGraph(bt);
-        const head = `<div class="card-header">${ic("sitemap")}<div><h2 class="ch">${th("net.network", { name: esc(netLabel(bt)) })}</h2><small>${info.running_since ? th("map.scanning_now") : info.scanned_at ? th("map.scanned", { when: esc(relTime(info.scanned_at, true)), n: info.nodes ?? g.devs.length, links: info.links ?? "?" }) : th("map.not_scanned")}</small></div></div>`;
+        const head = `<div class="card-header">${ic("sitemap")}<div><h2 class="ch">${th("net.network", { name: esc(netLabel(bt)) })}</h2><small>${info.running_since ? th("map.scanning_now") : info.scanned_at ? th("map.scanned", { when: esc(relTime(info.scanned_at, true)), n: esc(info.nodes ?? g.devs.length), links: esc(info.links ?? "?") }) : th("map.not_scanned")}</small></div></div>`;
         if (g.devs.filter((d) => d.routing).length === 0) return `<div class="card map-card">${head}${emptyState("sitemap", th("map.no_data"), th("map.no_data_text"))}</div>`;
         const advice = mapAdvice(bt);
         const times = (state.data.scan_times?.[bt] || []).slice().reverse();
@@ -1961,7 +1965,7 @@
       if (state.byIeee.get(sel)?.type === "Coordinator") return th("map.fp_route_coord");
       const r = fpRoute(up, sel);
       const names = r.hops.map((id) => `<b>${esc(fpName(id))}</b>`).join(" → ");
-      return `${names} · ${r.done ? th("map.fp_route_hops", { n: r.hops.length - 1, lqi: up.get(sel)?.lqi ?? "?" }) : r.hops.length > 1 ? th("map.fp_route_unknown", { name: esc(fpName(r.hops[r.hops.length - 1])) }) : th("map.fp_route_none")}`;
+      return `${names} · ${r.done ? th("map.fp_route_hops", { n: r.hops.length - 1, lqi: esc(up.get(sel)?.lqi ?? "?") }) : r.hops.length > 1 ? th("map.fp_route_unknown", { name: esc(fpName(r.hops[r.hops.length - 1])) }) : th("map.fp_route_none")}`;
     };
     const paint = () => {
       const sel = els.has(MAP.sel[bt]) ? MAP.sel[bt] : null;
@@ -2397,7 +2401,7 @@
       <div class="sub-h">${th("dhealth.signal")}</div>
       ${kv([[th("dhealth.now"), d.lqi ?? "—"], [th("dhealth.avg_24h"), m.lqi_24h ?? "—"], [th("dhealth.prev_week"), m.lqi_prev_7d ?? "—"]])}
       ${sparkline(m.lqi_spark, { min: 0, max: 255, hover: { key: "spark-lqi", hourly: true, value: (v) => t("chart.lqi", { value: Math.round(v) }) } })}
-      <div class="sub-h">${th("more.availability")}${d.uptime_30d !== null && d.uptime_30d !== undefined ? ` · ${th("dhealth.uptime", { percent: d.uptime_30d })}` : ""}</div>
+      <div class="sub-h">${th("more.availability")}${d.uptime_30d !== null && d.uptime_30d !== undefined ? ` · ${th("dhealth.uptime", { percent: esc(d.uptime_30d) })}` : ""}</div>
       ${outages.length ? `<div class="rep-list">${outages.map((o) => { const s = (new Date(o.end || Date.now()) - new Date(o.start)) / 1000; return `<div><span>${esc(fmtDate(o.start))}</span><span class="muted">${o.end ? esc(span(s)) : th("dhealth.ongoing", { duration: esc(span(s)) })}</span></div>`; }).join("")}</div>` : `<div class="card-content muted">${th(d.availability ? "dhealth.no_outages" : "dhealth.no_outages_no_avail")}</div>`}
       ${reportEvery(d)}
       <div class="sub-h">${th("dhealth.readings")}</div>
@@ -2464,7 +2468,7 @@
       <div class="more-actions"><button class="btn filled" data-act="battery-replaced">${ic("battery-sync", "s18")}${th("battery.replaced")}</button></div>
       ${sparkline(m.battery_spark, { min: 0, max: 100, color: batColor(d.battery, batLow(d)), hover: { key: "spark-bat", value: (v) => t("chart.battery", { value: Math.round(v) }) } })}
       <div class="sub-h">${th("battery.details")}${rec.source === "battery_notes" ? ` · ${th("battery.from_bn")}` : rec.source === "library" ? ` · ${th("battery.from_library")}` : ""}</div>
-      <form class="form" id="batForm" onsubmit="return false">
+      <form class="form" id="batForm">
         <label>${th("battery.type")}<input class="field" name="type" list="batTypes" value="${esc(rec.type || "")}" placeholder="CR2032, AAA…" autocomplete="off"></label>
         <label>${th("battery.quantity")}<input class="field" name="quantity" type="number" min="1" max="20" value="${esc(rec.quantity ?? "")}" placeholder="1"></label>
         <label class="wide">${th("battery.installed")}<input class="field" name="installed" type="date" value="${esc(rec.installed || "")}"></label>
@@ -2664,7 +2668,7 @@
     const f = (k, key, type = "text", cls = "") => `<label class="${cls}">${th(key)}<input class="field" name="${k}" type="${type}" value="${esc(a[k] || "")}" autocomplete="off"></label>`;
     return `
       <div class="sub-h">${th("asset.title")}</div>
-      <form class="form" id="assetForm" onsubmit="return false">${f("location", "asset.location", "text", "wide")}${f("purchase_date", "asset.purchased", "date")}${f("warranty_until", "asset.warranty", "date")}${f("shop", "asset.shop")}${f("price", "asset.price")}${f("serial", "asset.serial", "text", "wide")}</form>
+      <form class="form" id="assetForm">${f("location", "asset.location", "text", "wide")}${f("purchase_date", "asset.purchased", "date")}${f("warranty_until", "asset.warranty", "date")}${f("shop", "asset.shop")}${f("price", "asset.price")}${f("serial", "asset.serial", "text", "wide")}</form>
       <div class="row-actions"><button class="btn" data-act="save-asset">${th("common.save")}</button><span class="saved" id="savedAsset">${th("common.saved")}</span></div>
       <div class="sub-h">${th("asset.notes")}</div>
       <div class="form"><label class="wide"><textarea class="field" id="note" aria-label="${esc(t("asset.notes"))}" placeholder="${esc(t("asset.note_placeholder"))}">${esc(d.note || "")}</textarea></label></div>
@@ -3114,7 +3118,7 @@
     const nextWin = O.next_window ? new Date(O.next_window) : null;
     const when = !nextWin ? "" : nextWin.getHours() < 6 || nextWin.getHours() >= 20 ? "ota.next_run_tonight" : nextWin.toDateString() === new Date().toDateString() ? "ota.next_run_today" : "ota.next_run_tomorrow";
     const sched = !O.window ? th("ota.window_off") : !O.window_valid ? th("ota.window_invalid", { window: esc(O.window) }) : O.window_open ? th("ota.window_running", { time: esc(O.window.split("-")[1]) }) : th(when || "ota.next_run", { window: esc(otaWin(O.window)) });
-    const checked = chk.running ? th("ota.checking_progress", { done: chk.done, total: chk.total }) : O.last_check ? th("ota.last_checked", { when: esc(relTime(O.last_check, true)) }) : th("ota.never_checked");
+    const checked = chk.running ? th("ota.checking_progress", { done: esc(chk.done), total: esc(chk.total) }) : O.last_check ? th("ota.last_checked", { when: esc(relTime(O.last_check, true)) }) : th("ota.never_checked");
     const power = (d) => (typeof d.battery === "number" ? `<span class="bat" style="--c:${batColor(d.battery, batLow(d))}">${Math.round(d.battery)} %</span>` : powerOf(d) ? `<span class="muted" title="${esc(powerOf(d))}">${ic("power-plug", "s18")}</span>` : d.power_source === "Battery" ? `<span class="muted">${th("devices.chip.battery")}</span>` : '<span class="muted">—</span>');
     const rows = list.map((d) => {
       const u = d.update || {}, [st, act] = otaStatus(d);
@@ -3603,7 +3607,7 @@
     }
   });
   window.addEventListener("hashchange", () => {
-    const h = decodeURIComponent(location.hash.slice(1));
+    const h = hashValue();
     if (IEEE_RE.test(h) && h !== state.open) openDevice(h);
     else if (VIEWS.includes(h) && h !== state.view) { if ($("#more").open) closeDevice(); go(h); }
   });
@@ -3642,10 +3646,10 @@
     await loadI18n();
     translateStatic();
     applyTheme();
-    const hv = decodeURIComponent(location.hash.slice(1));
+    const hv = hashValue();
     if (VIEWS.includes(hv)) state.view = hv;
     await load();
-    const h = decodeURIComponent(location.hash.slice(1));
+    const h = hashValue();
     if (IEEE_RE.test(h) && state.byIeee.has(h)) openDevice(h);
   })();
   setInterval(poll, 5000);

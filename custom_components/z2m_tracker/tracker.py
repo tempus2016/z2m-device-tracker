@@ -17,7 +17,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
 
-from .const import DOMAIN, SIGNAL_UPDATED, STATUS_ACTIVE, STATUS_REMOVED
+from .const import DISCOVERY_SERVICE, DOMAIN, SIGNAL_UPDATED, STATUS_ACTIVE, STATUS_REMOVED
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,6 +29,40 @@ SLOW_REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=60)
 # Sidebar translation keys the cards reuse, and how long a fetched language is kept.
 CARD_STRING_PREFIXES = ("card.", "issue.", "unit.", "reading.", "net.")
 STRINGS_TTL = 3600
+# Most issues mirrored into Repairs and most names in the offline sensor's attribute.
+MAX_REPAIRS = 50
+MAX_OFFLINE_NAMES = 50
+# Markdown the HA frontend would turn into links, images or HTML (Repairs and to-do descriptions).
+_MARKDOWN_RE = re.compile(r"([\\\[\]<>`])")
+
+
+def markdown_safe(text: Any) -> str:
+    """Device names and details from Zigbee2MQTT, unable to add links, images or HTML to markdown."""
+    text = _MARKDOWN_RE.sub(r"\\\1", str(text or ""))
+    text = re.sub(r"(?i)\b([a-z][a-z0-9+.-]*):(?=//)", r"\1:\\", text)
+    return re.sub(r"(?i)\b(www)\.", r"\1\\.", text)
+
+
+def redact_url(url: str) -> str:
+    """The URL for logs, without any user:password@."""
+    scheme, sep, rest = url.partition("://")
+    return f"{scheme}{sep}{rest.rsplit('@', 1)[-1]}" if sep else url
+
+
+async def async_discover_token(hass: HomeAssistant) -> str | None:
+    """The app's API token, which the app hands to Supervisor and only Core can read back."""
+    try:
+        from homeassistant.components.hassio import get_supervisor_client
+
+        found = await get_supervisor_client(hass).discovery.list()
+    except Exception as err:  # noqa: BLE001 - not on Supervisor, or the app hasn't announced itself yet
+        _LOGGER.debug("No Z2M Device Tracker discovery from Supervisor: %s", err)
+        return None
+    for item in found:
+        config = getattr(item, "config", None) or {}
+        if getattr(item, "service", None) == DISCOVERY_SERVICE and isinstance(config.get("token"), str):
+            return config["token"]
+    return None
 
 
 def _wifi_overlap(mhz: int | None, wifi: list[int]) -> str | None:
@@ -95,6 +129,7 @@ class Z2MTracker:
         host = self.app_url.split("://", 1)[-1].split(":", 1)[0].split("/", 1)[0]
         self.panel = f"/app/{host.replace('-', '_')}"
         self._session = async_get_clientsession(hass)
+        self._token: str | None = None
         self.data: dict[str, Any] = {"devices": {}, "events": [], "imported": None, "issues": []}
         self.base_topics: list[str] = []
         self.available = False
@@ -105,10 +140,11 @@ class Z2MTracker:
         self._lock = asyncio.Lock()
         # Repairs issue ids fixed from HA, hidden until the deadline (monotonic) or until the app clears them.
         self._snoozed: dict[str, float] = {}
-        # Card translations per requested language: (monotonic time fetched, result).
-        self._strings: dict[str, tuple[float, dict[str, Any]]] = {}
+        # Card translations and the language list: key -> (monotonic time fetched, result).
+        self._strings: dict[str, tuple[float, Any]] = {}
 
     async def async_start(self) -> None:
+        self._token = await async_discover_token(self.hass)
         await self._async_poll(None)
         self._unsub_poll = async_track_time_interval(self.hass, self._async_poll, POLL_INTERVAL)
 
@@ -121,8 +157,18 @@ class Z2MTracker:
     async def _request(
         self, method: str, path: str, body: dict | None = None, timeout: aiohttp.ClientTimeout = REQUEST_TIMEOUT
     ) -> Any:
+        headers = {"Authorization": f"Bearer {self._token}"} if self._token else None
         try:
-            async with self._session.request(method, f"{self.app_url}{path}", json=body, timeout=timeout) as response:
+            async with self._session.request(
+                method, f"{self.app_url}{path}", json=body, timeout=timeout, headers=headers
+            ) as response:
+                if response.status == 403:
+                    # The app was reinstalled (new token) or announced itself after we started: ask again.
+                    token = await async_discover_token(self.hass)
+                    if token and token != self._token:
+                        self._token = token
+                        return await self._request(method, path, body, timeout)
+                    raise TrackerAppError("The app refused the request (no valid API token from Supervisor)")
                 payload = await response.json(content_type=None)
                 if response.status >= 400:
                     message = payload.get("error") if isinstance(payload, dict) else None
@@ -140,7 +186,7 @@ class Z2MTracker:
                     await self._async_load()
             except TrackerAppError as err:
                 if self.available:
-                    _LOGGER.warning("Z2M Device Tracker app unreachable at %s: %s", self.app_url, err)
+                    _LOGGER.warning("Z2M Device Tracker app unreachable at %s: %s", redact_url(self.app_url), err)
                     self.available = False
                     self._notify()
 
@@ -190,6 +236,9 @@ class Z2MTracker:
             # A device behind an offline router is covered by the router's repair, which lists it.
             if issue.get("behind") and f"offline:{issue['behind']}" in keys:
                 continue
+            if len(wanted) >= MAX_REPAIRS:
+                # A flood of (possibly spoofed) devices must not bury real problems in Settings > Repairs.
+                break
             if issue.get("severity") == "warning" or issue.get("kind") in notify:
                 wanted["issue_" + re.sub(r"[^a-z0-9_]+", "_", str(issue.get("key", "")).lower())] = issue
         self._prune_snoozed(wanted)
@@ -210,10 +259,11 @@ class Z2MTracker:
                 is_persistent=False,
                 severity=ir.IssueSeverity.WARNING,
                 translation_key="network_issue" if network else "device_issue",
+                # Placeholders go into markdown: names from Zigbee2MQTT must not add links or images.
                 translation_placeholders={
-                    "name": str(issue.get("name") or issue.get("ieee") or ""),
-                    "title": str(issue.get("label") or issue.get("title") or ""),
-                    "detail": str(issue.get("detail") or ""),
+                    "name": markdown_safe(issue.get("name") or issue.get("ieee") or ""),
+                    "title": markdown_safe(issue.get("label") or issue.get("title") or ""),
+                    "detail": markdown_safe(issue.get("detail") or ""),
                     "panel": self.panel,
                 },
             )
@@ -275,12 +325,12 @@ class Z2MTracker:
     @callback
     def offline_names(self) -> list[str]:
         return sorted(
-            record.get("friendly_name") or record["ieee"]
+            str(record.get("friendly_name") or record["ieee"])
             for record in self.data["devices"].values()
             if record.get("status") == STATUS_ACTIVE
             and record.get("availability") == "offline"
             and record.get("type") != "Coordinator"
-        )
+        )[:MAX_OFFLINE_NAMES]
 
     @callback
     def issues(self) -> list[dict]:
@@ -301,13 +351,10 @@ class Z2MTracker:
     async def async_card_strings(self, language: str) -> dict[str, Any]:
         """The app's translations the cards use, in the closest language the app has.
 
-        Cached for an hour per requested language. An older app without a language,
+        Cached for an hour per language the app has. An older app without a language,
         or without the card keys, leaves the cards on their built-in English.
         """
-        cached = self._strings.get(language)
-        if cached and time.monotonic() - cached[0] < STRINGS_TTL:
-            return cached[1]
-        index = await self._request("GET", "/i18n/index.json")
+        index = await self._cached("index", lambda: self._request("GET", "/i18n/index.json"))
         codes = [str(lang.get("code")) for lang in (index or {}).get("languages") or [] if isinstance(lang, dict)]
         low = language.lower()
         base = low.split("-")[0]
@@ -316,13 +363,26 @@ class Z2MTracker:
             or next((c for c in codes if c.lower() == base), None)
             or next((c for c in codes if c.split("-")[0].lower() == base), None)
         )
-        strings: dict[str, Any] = {}
-        if code and code != "en":
-            payload = await self._request("GET", f"/i18n/{code}.json")
-            if isinstance(payload, dict):
-                strings = {k: v for k, v in payload.items() if k.startswith(CARD_STRING_PREFIXES)}
-        result = {"language": code or "en", "strings": strings}
-        self._strings[language] = (time.monotonic(), result)
+        # Cached by the language the app has, not the one asked for: any user can ask for any
+        # well-formed code, and those must not each add a cache entry and two requests to the app.
+        code = code or "en"
+
+        async def fetch() -> dict[str, Any]:
+            strings: dict[str, Any] = {}
+            if code != "en":
+                payload = await self._request("GET", f"/i18n/{code}.json")
+                if isinstance(payload, dict):
+                    strings = {k: v for k, v in payload.items() if k.startswith(CARD_STRING_PREFIXES)}
+            return {"language": code, "strings": strings}
+
+        return await self._cached(f"lang:{code}", fetch)
+
+    async def _cached(self, key: str, fetch: Callable[[], Any]) -> Any:
+        cached = self._strings.get(key)
+        if cached and time.monotonic() - cached[0] < STRINGS_TTL:
+            return cached[1]
+        result = await fetch()
+        self._strings[key] = (time.monotonic(), result)
         return result
 
     # ------------------------------------------------------------------ edits

@@ -11,6 +11,9 @@
     },
     "abort": {
       "single_instance_allowed": "Z2M Device Tracker is already set up."
+    },
+    "error": {
+      "invalid_url": "Enter an http:// or https:// address without a user name or password, like http://local-z2m-tracker:8099."
     }
   },
   "options": {
@@ -25,6 +28,9 @@
           "repairs": "Mirrors the app's warnings and the checks set to notify. Each one clears itself when the problem is fixed. Nothing shows while alerts are off in the app."
         }
       }
+    },
+    "error": {
+      "invalid_url": "Enter an http:// or https:// address without a user name or password, like http://local-z2m-tracker:8099."
     }
   },
   "services": {

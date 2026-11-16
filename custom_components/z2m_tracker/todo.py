@@ -14,7 +14,8 @@ from homeassistant.util import dt as dt_util
 
 from .batteries import describe_member, group_summary, recent_replacements, shopping_groups, stock_line
 from .const import DOMAIN, SIGNAL_UPDATED, VERSION
-from .tracker import TrackerAppError, Z2MTracker
+from .services import async_require_admin
+from .tracker import TrackerAppError, Z2MTracker, markdown_safe
 
 DONE_NOTE = "Ticked on the Home Assistant to-do list"
 
@@ -76,7 +77,8 @@ class BatteryTodoList(TodoListEntity):
                 uid=uid,
                 status=TodoItemStatus.NEEDS_ACTION,
                 due=group["due"],
-                description=stock_line(group) + ", ".join(describe_member(m) for m in group["devices"]),
+                # Descriptions are markdown: device names must not add links or images.
+                description=markdown_safe(stock_line(group) + ", ".join(describe_member(m) for m in group["devices"])),
             )
             for uid, group in sorted(self._open_groups().items(), key=lambda kv: (kv[1]["due"], kv[0]))
         ]
@@ -86,12 +88,16 @@ class BatteryTodoList(TodoListEntity):
                     summary=f"{group['type']} × {group['count']}",
                     uid=f"done_{group['date'].isoformat()}_{_slug(group['type'])}",
                     status=TodoItemStatus.COMPLETED,
-                    description=f"{', '.join(sorted(group['names'], key=str.lower))}. Replaced {group['date'].day} {group['date']:%b}.",
+                    description=markdown_safe(
+                        f"{', '.join(sorted(group['names'], key=str.lower))}. Replaced {group['date'].day} {group['date']:%b}."
+                    ),
                 )
             )
         return items
 
     async def async_update_todo_item(self, item: TodoItem) -> None:
+        # Ticking records battery changes in the app, an admin action like the battery_replaced action.
+        await async_require_admin(self.hass, self._context.user_id if self._context else None)
         if item.uid and item.uid.startswith("done_"):
             if item.status == TodoItemStatus.NEEDS_ACTION:
                 raise HomeAssistantError(
