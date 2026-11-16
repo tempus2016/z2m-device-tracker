@@ -1327,6 +1327,40 @@
   "issue.slow_router.detail": "Getting slower: {from_ms} ms to {to_ms} ms in 2 weeks. Often a failing plug or too many devices on one router.",
   "check.slow_router.label": "Router getting slower",
   "check.slow_router.description": "A router's nightly reply time over the last 3 days is more than 3 times its usual and above 150 ms.",
+  "issue.label.slow_commands": "Slow to respond",
+  "issue.slow_commands.title": "Slow to respond",
+  "issue.slow_commands.detail": "Typical reply to commands {ms} ms over the last 24 h ({n} commands). Often a weak link or a busy router on the way.",
+  "issue.slow_commands_rise.title": "Slower to respond",
+  "issue.slow_commands_rise.detail": "Typical reply to commands {ms} ms over the last 24 h, against its usual {usual_ms} ms ({n} commands). Often a weaker link or a busy router on the way.",
+  "check.slow_commands.label": "Slow to respond",
+  "check.slow_commands.description": "Commands to the device (from Home Assistant or automations) take more than 1 s to answer over the last 24 hours, or 3 times longer than its usual. Needs at least 10 commands.",
+  "issue.label.missed_commands": "Misses commands",
+  "issue.missed_commands.title": "Misses commands",
+  "issue.missed_commands.detail": "{missed} of {n} commands in the last 24 h got no reply within 10 s ({percent}%). Usually a weak link or a router that drops messages.",
+  "check.missed_commands.label": "Misses commands",
+  "check.missed_commands.description": "At least 20% of the commands sent to the device over the last 24 hours got no reply within 10 s. Needs at least 10 commands.",
+  "cmd.title": "Commands",
+  "cmd.in_24h": {
+    "one": "{n} in 24 h",
+    "other": "{n} in 24 h"
+  },
+  "cmd.none_24h": "None in the last 24 h",
+  "cmd.typical": "typical {value}",
+  "cmd.missed": {
+    "one": "{n} missed",
+    "other": "{n} missed"
+  },
+  "cmd.chart_title": "Typical reply to commands, last 7 days",
+  "cmd.hint": "Time from a command (a /set message from Home Assistant, an automation or anything else) to the first state message showing what was asked (on, off, brightness…). Commands within 2 s count as one. No reply within 10 s, or none before the next command, counts as missed.",
+  "cmd.bar_none": "no reply",
+  "chart.commands": {
+    "one": "Typical {value} · {n} command · {missed} missed",
+    "other": "Typical {value} · {n} commands · {missed} missed"
+  },
+  "chart.commands_none": {
+    "one": "No reply to {n} command",
+    "other": "No reply to {n} commands"
+  },
   "ping.button": "Ping",
   "ping.running": "Pinging…",
   "ping.replied": "Replied in {ms} ms",

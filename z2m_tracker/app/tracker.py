@@ -95,6 +95,10 @@ MAX_DETAIL = 1000
 MAX_NAMES = 50
 # Biggest MQTT payload read; a large network's bridge/devices list is a few MB.
 MAX_PAYLOAD = 16 * 1024 * 1024
+# A command (<name>/set) with no state message from the device within this many seconds counts as missed.
+COMMAND_TIMEOUT = 10.0
+# Commands closer together than this (a dimmer slider, a double tap) are one burst with one reply.
+COMMAND_BURST = 2.0
 # A device list that drops more than half of a network's devices (with at least this many) is only
 # applied when the same list arrives again at least SHRINK_HOLD_SECONDS later, so a stray or spoofed
 # message (or a quick burst of them) can't empty the inventory and remove the HA entities.
@@ -320,6 +324,55 @@ def _new_record(ieee: str, instance: str | None) -> dict[str, Any]:
         "lost_bindings": [],
         "z2m_stats": None,
     }
+
+
+# Command values a reply has to echo before it counts as the answer; other keys only need to appear.
+_ECHOED = ("state", "brightness", "color_temp", "position")
+
+
+def _expected_reply(rest: str, text: str) -> dict:
+    """What a device's reply to this /set must show: {key: value} or {key: None} (any value)."""
+    if "/set/" in rest:
+        key = rest.rsplit("/set/", 1)[1]
+        try:
+            value = json.loads(text)
+        except ValueError:
+            value = text.strip()
+        return {key: value if key in _ECHOED else None}
+    parsed = _loads(text) if text[:1] == "{" else None
+    if not isinstance(parsed, dict):
+        return {}
+    out = {}
+    for key, value in list(parsed.items())[:10]:
+        if key in _ECHOED and isinstance(value, (str, int, float)) and not isinstance(value, bool):
+            # TOGGLE flips whatever the state was, so any state answers it.
+            out[key] = None if isinstance(value, str) and value.upper() == "TOGGLE" else value
+        elif isinstance(key, str):
+            out[key] = None
+    return out
+
+
+def _reply_matches(expect: dict, state: Any) -> bool:
+    if not expect:
+        return True
+    if not isinstance(state, dict):
+        return False
+    for key, value in expect.items():
+        if key not in state:
+            return False
+        if value is None:
+            continue
+        got = state[key]
+        if isinstance(value, str) and isinstance(got, str):
+            if value.upper() != got.upper():
+                return False
+        elif isinstance(value, (int, float)) and isinstance(got, (int, float)):
+            # Brightness and colour land near, not always on, the asked value.
+            if abs(got - value) > max(2, abs(value) * 0.05):
+                return False
+        elif got != value:
+            return False
+    return True
 
 
 def _set_current_name(record: dict, name: str | None, when: str) -> str | None:
@@ -584,6 +637,9 @@ class Tracker:
         # Per base topic: (IEEEs, first seen) of a device list that would remove most devices, held until it repeats.
         self._held_list: dict[str, tuple[frozenset, float]] = {}
         self._bad_message_logged = 0.0
+        # IEEE -> when its oldest unanswered command (<name>/set) arrived. Memory only.
+        # ieee -> (when the first unanswered command was sent, the values a reply must show)
+        self._commands: dict[str, tuple[float, dict]] = {}
 
     # ------------------------------------------------------------ persistence
 
@@ -654,13 +710,13 @@ class Tracker:
 
     # ------------------------------------------------------------------- MQTT
 
-    def handle_message(self, base_topic: str, topic: str, payload: bytes) -> None:
+    def handle_message(self, base_topic: str, topic: str, payload: bytes, retained: bool = False) -> None:
         """Handle one MQTT message. Never raises: a bad message must not stop the MQTT thread."""
         if len(payload) > MAX_PAYLOAD:
             self._log_bad_message(topic, f"payload of {len(payload)} bytes is too large")
             return
         try:
-            self._handle_message(base_topic, topic, payload)
+            self._handle_message(base_topic, topic, payload, retained)
         except ValueError:
             return
         except Exception as err:  # noqa: BLE001 - malformed input from the broker
@@ -672,7 +728,7 @@ class Tracker:
             self._bad_message_logged = time.time()
             _LOGGER.warning("Ignored a malformed MQTT message on %s (%s)", _text(topic), _text(reason))
 
-    def _handle_message(self, base_topic: str, topic: str, payload: bytes) -> None:
+    def _handle_message(self, base_topic: str, topic: str, payload: bytes, retained: bool = False) -> None:
         rest = topic[len(base_topic) + 1 :]
         text = payload.decode("utf-8", errors="ignore")
         try:
@@ -709,6 +765,11 @@ class Tracker:
                     return
                 if rest.endswith("/availability"):
                     self._handle_availability(base_topic, rest[: -len("/availability")], text)
+                    return
+                if rest.endswith("/set") or "/set/" in rest:
+                    self._handle_command(base_topic, rest, retained, text)
+                    return
+                if rest.endswith("/get") or "/get/" in rest:
                     return
                 self._handle_state(base_topic, rest, text)
         except ValueError:
@@ -1269,6 +1330,55 @@ class Tracker:
             self._add_event(now, base_topic, record["ieee"], name, "online", "")
         self._changed(structural=True)
 
+    # --------------------------------------------------------------- commands
+
+    def _handle_command(self, base_topic: str, rest: str, retained: bool, text: str = "") -> None:
+        """A <name>/set (or <name>/set/<attribute>, <name>/<endpoint>/set) from anyone: HA, automations, scripts.
+
+        Starts the clock for the device's reply. A burst of commands before the reply counts as one,
+        timed from the first. A retained /set is an old message replayed by the broker, not a command.
+        Devices Zigbee2MQTT already marks offline aren't timed: the offline check covers them.
+        """
+        if retained:
+            return
+        name = rest[: -len("/set")] if rest.endswith("/set") else rest.rsplit("/set/", 1)[0]
+        record = self._record_for(base_topic, name)
+        if record is None and "/" in name:
+            record = self._record_for(base_topic, name.rsplit("/", 1)[0])
+        if record is None or record.get("status") != STATUS_ACTIVE or record.get("availability") == "offline":
+            return
+        now = time.time()
+        self.expire_commands(now)
+        pending = self._commands.get(record["ieee"])
+        if pending and now - pending[0] > COMMAND_BURST:
+            # Still unanswered when the next command came: that one was missed.
+            self.metrics.add_command(record["ieee"], None, now=pending[0])
+            pending = None
+        # A burst is timed from its first command and answered by the state the last one asked for.
+        self._commands[record["ieee"]] = (pending[0] if pending else now, _expected_reply(rest, text))
+
+    def _command_answered(self, ieee: str, state: Any) -> None:
+        pending = self._commands.get(ieee)
+        if pending is None:
+            return
+        start, expect = pending
+        # Zigbee2MQTT repeats the device's whole state in every message, so a regular report would look
+        # like a reply. Only a message showing the values the command asked for counts.
+        if not _reply_matches(expect, state):
+            return
+        del self._commands[ieee]
+        elapsed = time.time() - start
+        self.metrics.add_command(ieee, elapsed * 1000 if elapsed <= COMMAND_TIMEOUT else None, now=start)
+
+    def expire_commands(self, now: float | None = None) -> None:
+        """Count commands still unanswered after COMMAND_TIMEOUT as missed."""
+        now = now or time.time()
+        with self.lock:
+            for ieee, (start, _) in list(self._commands.items()):
+                if now - start > COMMAND_TIMEOUT:
+                    del self._commands[ieee]
+                    self.metrics.add_command(ieee, None, now=start)
+
     def _handle_state(self, base_topic: str, name: str, payload: str) -> None:
         record = self._record_for(base_topic, name)
         if record is None:
@@ -1276,6 +1386,8 @@ class Tracker:
         parsed = None
         if payload[:1] == "{":
             parsed = _loads(payload)
+        if self._commands:
+            self._command_answered(record["ieee"], parsed)
         if not isinstance(parsed, dict):
             record["last_seen"] = _max_time(record["last_seen"], _now())
             self._changed(structural=False)
@@ -2161,6 +2273,7 @@ class Tracker:
         now = time.time()
         self.coordinator_backups()
         with self.lock:
+            self.expire_commands(now)
             suggestions = self._suggestions()
             context = self._context(now)
             issues = []
@@ -2225,6 +2338,7 @@ class Tracker:
     def snapshot_json(self) -> bytes:
         now = time.time()
         with self.lock:
+            self.expire_commands(now)
             suggestions = self._suggestions()
             issues_by_device: dict[str, list[dict]] = {}
             for issue in self.issues:
@@ -2304,6 +2418,9 @@ class Tracker:
             "battery_last_replaced",
             "battery_replacements",
             "uptime_30d",
+            "commands_24h",
+            "command_typical_ms_24h",
+            "commands_missed_24h",
             "area",
             "ha_name",
             *ASSET_FIELDS,
@@ -2324,6 +2441,7 @@ class Tracker:
                     }
                 )
                 summary = self.metrics.summary(record["ieee"], now)
+                cmd = summary.get("cmd") or {}
                 battery = self.battery_summary(record)
                 asset = record.get("asset") or {}
                 writer.writerow(
@@ -2354,6 +2472,9 @@ class Tracker:
                             battery["last_replaced"] or "",
                             len(battery["replacements"]),
                             uptime(record, now) or "",
+                            cmd.get("commands_24h", ""),
+                            cmd.get("median_ms") if cmd.get("median_ms") is not None else "",
+                            cmd.get("missed_24h", ""),
                             record.get("area") or "",
                             record.get("ha_name") or "",
                             *[asset.get(field, "") for field in ASSET_FIELDS],
@@ -3445,6 +3566,7 @@ class Tracker:
                     record["predecessors"].remove(ieee)
                 if record.get("successor") == ieee:
                     record["successor"] = None
+            self._commands.pop(ieee, None)
             self.metrics.forget(ieee)
             self._changed(structural=True)
             return True

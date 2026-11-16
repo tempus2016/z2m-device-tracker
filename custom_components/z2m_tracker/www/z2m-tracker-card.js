@@ -13,7 +13,7 @@ const nameOf = (d) => {
 };
 const I18N = () => window.Z2MTrackerI18n;
 const T = (key, vars, fallback) => I18N()?.t(key, vars, fallback) ?? fallback ?? key;
-const KIND_ICON = { offline: "mdi:wifi-off", silent: "mdi:wifi-off", late: "mdi:timer-sand", frozen: "mdi:thermometer-alert", weak_signal: "mdi:signal-cellular-1", signal_drop: "mdi:signal-cellular-2", battery_low: "mdi:battery-alert-variant-outline", battery_soon: "mdi:battery-clock-outline", update: "mdi:chip", unidentified: "mdi:help-circle-outline", replacement: "mdi:link-variant", router_hopping: "mdi:swap-horizontal", slow_router: "mdi:router-wireless" };
+const KIND_ICON = { offline: "mdi:wifi-off", silent: "mdi:wifi-off", late: "mdi:timer-sand", frozen: "mdi:thermometer-alert", weak_signal: "mdi:signal-cellular-1", signal_drop: "mdi:signal-cellular-2", battery_low: "mdi:battery-alert-variant-outline", battery_soon: "mdi:battery-clock-outline", update: "mdi:chip", unidentified: "mdi:help-circle-outline", replacement: "mdi:link-variant", router_hopping: "mdi:swap-horizontal", slow_router: "mdi:router-wireless", slow_commands: "mdi:timer-sand", missed_commands: "mdi:gesture-tap-button" };
 
 class Z2MTrackerCard extends HTMLElement {
   setConfig(config) {

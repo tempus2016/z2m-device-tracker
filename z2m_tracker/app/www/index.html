@@ -794,7 +794,7 @@
     removed: { get label() { return t("status.removed"); }, c: "var(--disabled)" },
   };
   const KIND_ICON = { offline: "wifi-off", silent: "wifi-off", late: "history", frozen: "thermometer", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
-    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb", slow_router: "router-wireless" };
+    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb", slow_router: "router-wireless", slow_commands: "history", missed_commands: "gesture-tap-button" };
   const EVENT_ICON = (k) => {
     if (k.startsWith("interview")) return k.endsWith("successful") ? ["check", "var(--success)"] : ["alert-circle", "var(--error)"];
     return ({ joined: ["plus", "var(--success)"], added: ["plus", "var(--success)"], rejoined: ["plus", "var(--success)"], online: ["wifi", "var(--success)"], offline: ["wifi-off", "var(--error)"],
@@ -2303,6 +2303,36 @@
       ${slow ? `<div class="alerts"><div class="alert" style="--a:${slow.severity === "warning" ? "var(--warning)" : "var(--info)"}">${ic("router-wireless")}<div class="body">${esc(issueDetail(slow))}</div></div></div>` : ""}`;
   };
 
+  // ------------------------------------------------------------ commands (<name>/set to the device's next state message)
+  const fmtMs = (ms) => (ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms)} ms`);
+  const cmdSection = (d) => {
+    const c = d.metrics?.cmd;
+    if (!c || d.status === "removed") return "";
+    const line = c.commands_24h
+      ? [t("cmd.in_24h", { n: c.commands_24h }), c.median_ms !== null && c.median_ms !== undefined ? t("cmd.typical", { value: fmtMs(c.median_ms) }) : null, t("cmd.missed", { n: c.missed_24h || 0 })].filter(Boolean).join(" · ")
+      : t("cmd.none_24h");
+    // daily: [UTC day, typical ms or null when every command was missed, commands, missed]
+    const pts = c.daily || [], byDay = new Map(pts.map((p) => [p[0], p]));
+    const last = Math.max(Math.floor(Date.now() / 86400000) * 86400, pts.length ? pts[pts.length - 1][0] : 0);
+    const days = Array.from({ length: 7 }, (_, i) => last - (6 - i) * 86400);
+    const hi = Math.max(500, ...pts.map((p) => p[1]).filter((v) => v !== null));
+    const hov = days.map((day) => { const p = byDay.get(day); return [null, null, fmtHover(day, false), !p ? t("chart.no_data") : p[1] === null ? t("chart.commands_none", { n: p[2] }) : t("chart.commands", { value: fmtMs(p[1]), n: p[2], missed: p[3] })]; });
+    const bars = days.map((day, i) => {
+      const p = byDay.get(day), aria = `role="img" aria-label="${esc(`${hov[i][2]}: ${hov[i][3]}`)}"`;
+      if (!p) return `<i class="gap" ${aria}></i>`;
+      if (p[1] === null) return `<i class="none" ${aria}></i>`;
+      const cls = p[1] > 1000 ? "bad" : p[2] && p[3] / p[2] >= 0.2 ? "lo" : "";
+      return `<i class="${cls}" style="height:${Math.max(2, (p[1] / hi) * 100).toFixed(1)}%" ${aria}></i>`;
+    }).join("");
+    const lab = (day) => { const p = byDay.get(day); return !p ? "" : p[1] === null ? t("cmd.bar_none") : fmtMs(p[1]); };
+    const alerts = (d.issues || []).filter((i) => i.kind === "slow_commands" || i.kind === "missed_commands")
+      .map((i) => `<div class="alert" style="--a:${i.severity === "warning" ? "var(--warning)" : "var(--info)"}">${ic(KIND_ICON[i.kind])}<div class="body">${esc(issueDetail(i))}</div></div>`).join("");
+    const chart = pts.length ? `<div class="sub-h">${th("cmd.chart_title")}</div><div class="ping-bars" role="group" aria-label="${esc(t("cmd.chart_title"))}" ${hoverAttrs("cmd", { bars: true, p: hov })}>${bars}</div>
+      <div class="chart-axis"><span>${esc([fmtTick(days[0], 7 * 86400), lab(days[0])].filter(Boolean).join(" · "))}</span><span>${esc([fmtTick(last, 7 * 86400), lab(last)].filter(Boolean).join(" · "))}</span></div>` : "";
+    return `<div class="sub-h">${th("cmd.title")}</div><div class="card-content">${esc(line)}</div>${chart}
+      ${alerts ? `<div class="alerts">${alerts}</div>` : ""}<p class="tnote">${th("cmd.hint")}</p>`;
+  };
+
   // The Info tab shows the one action that fixes the device's current state as the filled button,
   // a second fitting action if there is one, and puts every other action in the More menu.
   const infoActions = (d) => {
@@ -2404,6 +2434,7 @@
       <div class="sub-h">${th("more.availability")}${d.uptime_30d !== null && d.uptime_30d !== undefined ? ` · ${th("dhealth.uptime", { percent: esc(d.uptime_30d) })}` : ""}</div>
       ${outages.length ? `<div class="rep-list">${outages.map((o) => { const s = (new Date(o.end || Date.now()) - new Date(o.start)) / 1000; return `<div><span>${esc(fmtDate(o.start))}</span><span class="muted">${o.end ? esc(span(s)) : th("dhealth.ongoing", { duration: esc(span(s)) })}</span></div>`; }).join("")}</div>` : `<div class="card-content muted">${th(d.availability ? "dhealth.no_outages" : "dhealth.no_outages_no_avail")}</div>`}
       ${reportEvery(d)}
+      ${cmdSection(d)}
       <div class="sub-h">${th("dhealth.readings")}</div>
       ${readings.length ? `<div class="rep-list">${readings.map(([k, r]) => `<div><span>${esc(readingName(k))}: ${esc(r.value)}</span><span class="muted">${th("dhealth.changed", { when: esc(relTime(r.changed_at, true)), n: esc(r.reports) })}</span></div>`).join("")}</div>` : `<div class="card-content muted">${th("dhealth.no_readings")}</div>`}
       ${limitsHtml(d, readings.length > 0)}

@@ -125,6 +125,18 @@ CHECKS = [
         False,
     ),
     (
+        "slow_commands",
+        "Slow to respond",
+        "Commands to the device (from Home Assistant or automations) take more than 1 s to answer over the last 24 hours, or 3 times longer than its usual. Needs at least 10 commands.",
+        False,
+    ),
+    (
+        "missed_commands",
+        "Misses commands",
+        "At least 20% of the commands sent to the device over the last 24 hours got no reply within 10 s. Needs at least 10 commands.",
+        False,
+    ),
+    (
         "coordinator_backup",
         "Coordinator backup",
         "Zigbee2MQTT's coordinator_backup.json is missing, more than 3 days old, or doesn't match the running network.",
@@ -185,6 +197,8 @@ KIND_LABELS = {
     "single_point": "Single point of failure",
     "router_hopping": "Changes router often",
     "slow_router": "Router getting slower",
+    "slow_commands": "Slow to respond",
+    "missed_commands": "Misses commands",
     "coordinator_backup": "Coordinator backup",
     "z2m_memory": "Memory climbing",
     "signal_dip": "Daily signal dip",
@@ -803,6 +817,42 @@ def device_issues(
             "slow_router",
             from_ms=slow["from"],
             to_ms=slow["to"],
+        )
+
+    cmd = summary.get("cmd") or {}
+    slow_cmd = cmd.get("slow")
+    if slow_cmd and slow_cmd.get("rise"):
+        add(
+            "slow_commands",
+            INFO,
+            "Slower to respond",
+            f"Typical reply to commands {slow_cmd['median_ms']} ms over the last 24 h, against its usual {slow_cmd['usual_ms']} ms ({slow_cmd['n']} commands). Often a weaker link or a busy router on the way.",
+            "slow_commands_rise",
+            ms=slow_cmd["median_ms"],
+            usual_ms=slow_cmd["usual_ms"],
+            n=slow_cmd["n"],
+        )
+    elif slow_cmd:
+        add(
+            "slow_commands",
+            INFO,
+            "Slow to respond",
+            f"Typical reply to commands {slow_cmd['median_ms']} ms over the last 24 h ({slow_cmd['n']} commands). Often a weak link or a busy router on the way.",
+            "slow_commands",
+            ms=slow_cmd["median_ms"],
+            n=slow_cmd["n"],
+        )
+    missed_cmd = cmd.get("missed_share")
+    if missed_cmd:
+        add(
+            "missed_commands",
+            WARNING,
+            "Misses commands",
+            f"{missed_cmd['missed']} of {missed_cmd['n']} commands in the last 24 h got no reply within 10 s ({missed_cmd['percent']}%). Usually a weak link or a router that drops messages.",
+            "missed_commands",
+            missed=missed_cmd["missed"],
+            n=missed_cmd["n"],
+            percent=missed_cmd["percent"],
         )
 
     for suggestion in suggestions:

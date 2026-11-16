@@ -1,10 +1,12 @@
-"""Time-series for link quality (hourly and daily), battery (daily) and router reply time (daily), kept in a separate file."""
+"""Time-series for link quality (hourly and daily), battery (daily), router reply time (daily) and command
+reply time (hourly), kept in a separate file."""
 
 from __future__ import annotations
 
 import json
 import math
 import os
+import random
 import threading
 import time
 from datetime import datetime, timedelta, tzinfo
@@ -38,6 +40,20 @@ SLOW_FACTOR = 3
 SLOW_MIN_MS = 150
 SLOW_MIN_RECENT = 2
 SLOW_MIN_BASE = 5
+# Commands: time from a <name>/set message to the device's next state message (see Tracker._handle_command).
+CMD_KEEP_HOURS = 24 * 14
+CMD_SAMPLES_PER_HOUR = 60  # reply times kept per hour; past that a random sample stands in for the rest
+CMD_CHART_DAYS = 7
+CMD_MIN = 10  # commands in the last 24 h before either check looks at a device
+CMD_SLOW_MS = 1000  # slow_commands: typical (median) reply above this...
+CMD_SLOW_FACTOR = 3  # ...or this many times its own usual over the 7 days before
+CMD_SLOW_FLOOR_MS = 300  # ...and above this, so 40 ms to 130 ms isn't flagged
+CMD_BASE_MIN = 20  # answered commands needed in those 7 days for a usual value
+CMD_MISSED_SHARE = 0.2  # missed_commands: at least this share of commands got no reply
+
+
+def _finite(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
 def _median(values: list[float]) -> float:
@@ -64,8 +80,11 @@ class Metrics:
         self.path = path
         self.lock = threading.RLock()
         # {ieee: {"lqi": [[hour_ts, sum, count], ...], "msg": [[hour_ts, count], ...], "bat": [[day_ts, value], ...],
-        #         "lqid": [[day_ts, min, sum, count, max], ...], "ping": [[day_ts, ms or None], ...]}}
+        #         "lqid": [[day_ts, min, sum, count, max], ...], "ping": [[day_ts, ms or None], ...],
+        #         "cmd": [[hour_ts, commands, missed, [reply ms, ...]], ...]}}
         # "ping" holds one nightly reply time per router per day; None means it didn't reply.
+        # "cmd" counts commands per hour; the list holds reply times of the answered ones (at most
+        # CMD_SAMPLES_PER_HOUR, a random sample beyond that).
         # "lqid" (daily LQI rollups) was added later. Older files lack it; it's rebuilt from the hourly series.
         self.series: dict[str, dict[str, list]] = {}
         self.dirty = False
@@ -221,6 +240,87 @@ class Metrics:
                     points.pop(0)
             self.dirty = True
 
+    def add_command(self, ieee: str, ms: float | None, now: float | None = None) -> None:
+        """Record one command: its reply time in ms, or None when no state message came back in time."""
+        if ms is not None and (
+            not isinstance(ms, (int, float)) or isinstance(ms, bool) or not math.isfinite(ms) or ms < 0
+        ):
+            return
+        now = now or time.time()
+        hour = int(now // 3600 * 3600)
+        with self.lock:
+            points = self.series.setdefault(ieee, {}).setdefault("cmd", [])
+            if points and points[-1][0] == hour:
+                entry = points[-1]
+            else:
+                entry = [hour, 0, 0, []]
+                points.append(entry)
+                cutoff = hour - CMD_KEEP_HOURS * 3600
+                while points and points[0][0] < cutoff:
+                    points.pop(0)
+            entry[1] += 1
+            if ms is None:
+                entry[2] += 1
+            else:
+                value = round(float(ms))
+                samples = entry[3]
+                if len(samples) < CMD_SAMPLES_PER_HOUR:
+                    samples.append(value)
+                else:
+                    # Reservoir sampling: every answered command this hour has the same chance to be kept.
+                    slot = random.randrange(entry[1] - entry[2])
+                    if slot < CMD_SAMPLES_PER_HOUR:
+                        samples[slot] = value
+            self.dirty = True
+
+    @staticmethod
+    def command_stats(points: list[list], now: float) -> dict[str, Any]:
+        """Command counts and reply times: last 24 h, the 7 days before as the usual, and a daily chart.
+
+        Also the two checks: "slow" (typical reply over CMD_SLOW_MS, or CMD_SLOW_FACTOR times its usual
+        and over CMD_SLOW_FLOOR_MS) and "missed_share" (CMD_MISSED_SHARE or more without a reply), each
+        only with at least CMD_MIN commands in the last 24 h.
+        """
+        hour_now = int(now // 3600 * 3600)
+        recent = [p for p in points if p[0] > hour_now - 24 * 3600]
+        base = [p for p in points if hour_now - 8 * 86400 < p[0] <= hour_now - 24 * 3600]
+
+        def pick(rows: list[list]) -> tuple[int, int, list[float]]:
+            samples = sorted(ms for row in rows for ms in row[3] if _finite(ms))
+            return sum(row[1] for row in rows), sum(row[2] for row in rows), samples
+
+        commands, missed, samples = pick(recent)
+        _, _, base_samples = pick(base)
+        out: dict[str, Any] = {
+            "commands_24h": commands,
+            "missed_24h": missed,
+            "median_ms": round(_median(samples)) if samples else None,
+            "p90_ms": round(samples[math.ceil(0.9 * len(samples)) - 1]) if samples else None,
+            "usual_ms": round(_median(base_samples)) if len(base_samples) >= CMD_BASE_MIN else None,
+        }
+        today = int(now // 86400 * 86400)
+        days: dict[int, list] = {}
+        for row in points:
+            day = int(row[0] // 86400 * 86400)
+            if day > today - CMD_CHART_DAYS * 86400:
+                entry = days.setdefault(day, [0, 0, []])
+                entry[0] += row[1]
+                entry[1] += row[2]
+                entry[2].extend(ms for ms in row[3] if _finite(ms))
+        # [day_ts, typical ms (None when every command was missed), commands, missed]
+        out["daily"] = [[day, round(_median(v[2])) if v[2] else None, v[0], v[1]] for day, v in sorted(days.items())]
+
+        median_ms, usual_ms = out["median_ms"], out["usual_ms"]
+        answered = len(samples)
+        if commands >= CMD_MIN and answered >= CMD_MIN and median_ms is not None:
+            if median_ms > CMD_SLOW_MS:
+                out["slow"] = {"median_ms": median_ms, "usual_ms": usual_ms, "n": commands}
+            elif usual_ms and median_ms > CMD_SLOW_FLOOR_MS and median_ms >= CMD_SLOW_FACTOR * usual_ms:
+                out["slow"] = {"median_ms": median_ms, "usual_ms": usual_ms, "n": commands, "rise": True}
+        if commands >= CMD_MIN and missed / commands >= CMD_MISSED_SHARE:
+            out["missed_share"] = {"missed": missed, "n": commands, "percent": round(missed / commands * 100)}
+        return out
+
     @staticmethod
     def ping_slowdown(points: list[list], now: float) -> dict | None:
         """Median reply time over the last SLOW_RECENT_DAYS days against the SLOW_BASE_DAYS days before.
@@ -250,7 +350,16 @@ class Metrics:
             msg = [list(p) for p in data.get("msg", [])]
             bat = [list(p) for p in data.get("bat", [])]
             ping = [list(p) for p in data.get("ping", [])]
+            # Restored backups can hold anything: skip rows that aren't [hour, commands, missed, [ms, ...]].
+            cmd = [
+                [p[0], p[1], p[2], list(p[3])]
+                for p in data.get("cmd", [])
+                if isinstance(p, list) and len(p) == 4 and all(_finite(x) for x in p[:3]) and isinstance(p[3], list)
+            ]
         out: dict[str, Any] = {}
+
+        if cmd:
+            out["cmd"] = self.command_stats(cmd, now)
 
         if ping:
             today = int(now // 86400 * 86400)
