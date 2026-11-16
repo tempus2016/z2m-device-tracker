@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.2
+
+Update the app. The integration only changes how the `run_network_scan` action reads a base topic with a space, so updating it is optional.
+
+### Fixed
+- A Zigbee2MQTT base topic that starts or ends with a space, such as `Z2MQTT `, now works ([#33](https://github.com/tempus2016/z2m-device-tracker/issues/33)). The app trimmed the space off and listened on the wrong topic, so it never saw the network. Base topics are now used exactly as written, apart from slashes at either end, and the log warns about any leading or trailing space. In the YAML editor, quote such a topic: `- "Z2MQTT "`.
+- The routing scan history and router what-if on the Map tab work for a network whose base topic contains a space.
+- `z2m_panels` entries match a base topic with a space as written; trimmed entries still match as before.
+- The `run_network_scan` action accepts a base topic with a space.
+
 ## 1.5.1
 
 Only the app changed. The integration is unchanged apart from its version number, so updating it is optional.

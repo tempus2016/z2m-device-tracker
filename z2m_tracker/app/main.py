@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote
+from urllib.parse import unquote, unquote_plus
 from zoneinfo import ZoneInfo
 
 import alert_actions
@@ -37,7 +37,7 @@ from mqtt_status import NOTIFICATION_ID, NOTIFICATION_TITLE, MqttStatus, explain
 from naming import clean_pattern
 from ota import OtaManager, parse_window
 from reporting import clean_fix as clean_reporting_fix
-from tracker import IEEE_RE, Tracker, shopping_text
+from tracker import IEEE_RE, Tracker, base_topic_list, shopping_text
 from tracker import _display_name as tracker_display_name
 from usage import UsageRefresher
 
@@ -214,7 +214,8 @@ def load_options() -> dict:
     for entry in options.get("z2m_panels") or []:
         if "=" in str(entry):
             topic, slug = str(entry).split("=", 1)
-            panels[topic.strip()] = f"/app/{slug.strip()}"
+            panels[topic.strip("/")] = f"/app/{slug.strip()}"
+            panels.setdefault(topic.strip().strip("/"), f"/app/{slug.strip()}")
     options["_panels"] = panels
     try:
         options["notify_service"] = _service(options.get("notify_service"))
@@ -297,7 +298,10 @@ def load_oui() -> dict[str, str]:
 
 options = load_options()
 API_TOKEN = load_api_token()
-base_topics = [topic.strip().strip("/") for topic in options.get("base_topics") or ["zigbee2mqtt"] if topic.strip()]
+base_topics = base_topic_list(options.get("base_topics"))
+for _topic in base_topics:
+    if _topic != _topic.strip():
+        _LOGGER.warning("Base topic %r starts or ends with a space; it is used exactly as written", _topic)
 metrics = Metrics(METRICS_PATH)
 tracker = Tracker(DATA_PATH, base_topics, CONFIG_DIR, local_timezone(), metrics, options, load_oui())
 home_assistant = HomeAssistant(CONFIG_DIR)
@@ -1339,7 +1343,8 @@ class Handler(BaseHTTPRequestHandler):
                 for part in (self.path.split("?", 1)[1] if "?" in self.path else "").split("&")
                 if "=" in part
             )
-            net = query.get("net", "")
+            # HA ingress re-encodes a space as "+"; a base topic can't hold a real "+" (an MQTT wildcard).
+            net = unquote_plus(query.get("net", ""))
             if net not in base_topics:
                 self._json(400, {"error": "Unknown network"})
             else:
@@ -1350,7 +1355,7 @@ class Handler(BaseHTTPRequestHandler):
                 for part in (self.path.split("?", 1)[1] if "?" in self.path else "").split("&")
                 if "=" in part
             )
-            net = unquote(query.get("net", ""))
+            net = unquote_plus(query.get("net", ""))
             ieee = unquote(query.get("ieee", "")).lower()
             if net not in base_topics:
                 self._json(400, {"error": "Unknown network"})

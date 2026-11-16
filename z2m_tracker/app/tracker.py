@@ -196,6 +196,20 @@ def _brand_list(values: Any) -> list[str]:
     return sorted(seen.values(), key=str.casefold)
 
 
+def base_topic_list(values: Any) -> list[str]:
+    """Base topics from the app options, kept exactly as written apart from outer slashes.
+
+    MQTT topics may start or end with spaces, and Zigbee2MQTT uses its base_topic as given, so a
+    base topic like "Z2MQTT " (trailing space) must stay as it is. Blank entries and repeats are dropped.
+    """
+    topics: list[str] = []
+    for value in values if isinstance(values, list) else []:
+        topic = str(value).strip("/") if isinstance(value, str) else ""
+        if topic.strip() and topic not in topics:
+            topics.append(topic)
+    return topics or ["zigbee2mqtt"]
+
+
 def _ieee(value: Any) -> str | None:
     ieee = value.strip().lower() if isinstance(value, str) else ""
     return ieee if IEEE_RE.match(ieee) else None
