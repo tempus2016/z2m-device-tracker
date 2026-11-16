@@ -53,6 +53,8 @@ The sidebar has seven tabs. On a phone the last three sit behind **More** in the
 | **Activity** | The logbook and incidents. |
 | **Settings** | Alerts, checks, limits, naming and the rest. |
 
+With more than one Zigbee2MQTT, **Network** starts with a network picker. **All networks** shows a card for each network (devices, how many are online, open problems, channel and Zigbee2MQTT version) and warns when the same device name is used on two networks, because Home Assistant then gives the second device's entities IDs ending in `_2`. Picking one network shows its map, coordinator, broker leftovers, radio channel and groups on their own. The app remembers the choice in this browser.
+
 ## MQTT broker
 
 By default the app uses the broker Home Assistant offers to apps, which is the Mosquitto broker app. To use another broker, for example Mosquitto on a separate server or in Docker, set `mqtt_host` and, if needed, `mqtt_port`, `mqtt_user` and `mqtt_password`, then restart the app. Use the same broker as Zigbee2MQTT. These options are at the bottom of the app's **Configuration** tab, from version 1.4.0.

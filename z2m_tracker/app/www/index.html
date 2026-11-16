@@ -618,6 +618,18 @@
   table.upg-t th[scope="row"], table.upg-t thead th:first-child { text-align: left; font-weight: 400; overflow-wrap: anywhere; }
   table.upg-t td { font-variant-numeric: tabular-nums; white-space: nowrap; }
   table.upg-t td:last-child { padding-right: 0; }
+  .net-pick { align-items: center; padding: 0 0 12px; }
+  .net-pick .muted { margin-right: 4px; font-size: 14px; }
+  .nets { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; padding: 0 16px 16px; }
+  .net { appearance: none; font: inherit; color: var(--text); background: var(--card); text-align: left; cursor: pointer; border: 1px solid var(--divider); border-radius: 12px; padding: 12px 16px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  @media (hover: hover) and (pointer: fine) { .net:hover { background: var(--hover); } }
+  .net > b { font-weight: 500; overflow-wrap: anywhere; }
+  .net .muted { font-size: 13px; }
+  .net .kv.tight { display: grid; width: 100%; padding: 4px 0 0; }
+  .net .kvr { display: flex; width: 100%; justify-content: space-between; gap: 16px; padding: 4px 0; }
+  .net .kvr span { color: var(--text-2); }
+  .net .kvr b { font-weight: 400; color: var(--text); }
+  .nets-warn { display: grid; gap: 8px; padding: 0 16px 16px; }
   .upg-st { font-size: 12px; color: var(--text-2); }
   .upg-list { list-style: none; margin: 4px 0 0; padding: 0; font-size: 13px; }
   .upg-list li { padding: 4px 0; overflow-wrap: anywhere; }
@@ -1182,6 +1194,8 @@
     open: null, moreTab: "info", settings: null, version: null, editing: false,
     layout: store.get("z2mt.layout") === "dialog" ? "dialog" : "pane",
     group: store.get("z2mt.group") === "1", areas: null, pairNet: null, pairForm: {}, openGroups: new Set(), openCoords: new Set(), usedOpen: new Set(),
+    // Network picked on the Network tab when more than one Zigbee2MQTT is tracked: "all" or a base topic.
+    net: store.get("z2mt.net") || null,
     // Maintenance task being edited on the device panel: { ieee, id } or null.
     mtEdit: null,
     logMode: store.get("z2mt.logMode") === "incidents" ? "incidents" : "all", openIncidents: new Set(),
@@ -1346,7 +1360,7 @@
       out.push(`<button class="btn" data-act="bindings-ack" data-ieee="${esc(i.ieee)}">${th("health.intended")}</button>`);
       return out.join("");
     }
-    if (i.kind === "single_point") out.push(`<button class="btn" data-view="network/map">${th("common.map")}</button>`);
+    if (i.kind === "single_point") out.push(`<button class="btn" data-view="network/map" data-net="${esc(i.instance)}">${th("common.map")}</button>`);
     if (i.kind === "reporting_config" && !(state.open === i.ieee && state.moreTab === "health")) out.push(`<button class="btn" data-act="open-health" data-ieee="${esc(i.ieee)}">${th("more.tab.health")}</button>`);
     if (i.kind === "router_hopping" && !(state.open === i.ieee && state.moreTab === "history")) out.push(`<button class="btn" data-act="open-history" data-ieee="${esc(i.ieee)}">${th("more.tab.history")}</button>`);
     if (i.kind === "replacement" && d?.suggestions?.[0]) out.push(`<button class="btn" data-act="link" data-old="${esc(d.suggestions[0].ieee)}" data-new="${esc(i.ieee)}">${th("common.link")}</button>`);
@@ -1505,16 +1519,50 @@
     const on = state.sub[view] === k;
     return `<button class="tab" role="tab" id="sub-${k}" data-sub="${view}/${k}" aria-selected="${on}" tabindex="${on ? 0 : -1}">${th(`sub.${k}`)}</button>`;
   }).join("")}</nav>`;
-  const onMap = () => state.view === "network" && state.sub.network === "map";
+  const onMap = () => state.view === "network" && state.sub.network === "map" && pickedNet() !== "all";
   const subEmpty = (icon, key) => `<div class="card">${emptyState(icon, th(`sub.empty_${key}`), `<p>${th(`sub.empty_${key}_text`)}</p>`)}</div>`;
+  // With more than one Zigbee2MQTT, a picker above the sub-tabs: All networks (an overview card per network),
+  // or one network, which the sub-tabs then show on their own. With one network nothing changes.
+  const multiNet = () => (state.data?.instances || []).length > 1;
+  const pickedNet = () => {
+    if (!multiNet()) return null;
+    return state.net === "all" || state.data.instances.includes(state.net) ? state.net : state.data.instances[0];
+  };
+  const netsShown = () => { const p = pickedNet(); return p && p !== "all" ? [p] : state.data.instances; };
+  const netPick = () => !multiNet() ? "" : `<div class="chips net-pick" role="group" aria-label="${esc(t("nets.picker"))}"><span class="muted">${th("nets.network")}</span>${["all", ...state.data.instances]
+    .map((n) => `<button class="chip" data-act="pick-net" data-net="${esc(n)}" aria-pressed="${pickedNet() === n}">${ic("check", "s18")}${esc(n === "all" ? t("nets.all") : netLabel(n))}</button>`).join("")}</div>`;
+  const allNetsCard = () => {
+    const B = state.data.bridges || {}, scores = state.data.mesh_scores || {};
+    const devs = state.data.devices.filter((d) => d.status === "active" && d.type !== "Coordinator");
+    const own = healthRows(ownIssues(state.data.issues || [])).filter((g) => g[0].severity === "warning");
+    const cards = state.data.instances.map((bt) => {
+      const mine = devs.filter((d) => d.instance === bt), info = B[bt]?.info || {};
+      const online = mine.filter((d) => d.availability !== "offline").length;
+      const problems = own.filter((g) => g[0].instance === bt).length;
+      const score = scores[bt]?.score;
+      const sub = [info.channel ? t("nets.channel", { n: info.channel }) : null, info.version ? `Zigbee2MQTT ${info.version}` : null, B[bt]?.state === "offline" ? t("nets.offline") : null].filter(Boolean).join(" · ");
+      const tiles = [[th("nets.devices"), mine.length], [th("nets.online"), online], ...(score != null ? [[th("nets.score"), score]] : []), [th("nets.problems"), problems]];
+      return `<button class="net" data-act="pick-net" data-net="${esc(bt)}"><b>${esc(netLabel(bt))}</b><span class="muted">${esc(sub || t("nets.waiting"))}</span>
+        <span class="kv tight">${tiles.map(([k, v]) => `<span class="kvr"><span>${k}</span><b>${esc(v)}</b></span>`).join("")}</span></button>`;
+    }).join("");
+    // The same friendly name on two networks: Home Assistant gives the second one's entities a _2 suffix.
+    const byName = new Map();
+    devs.forEach((d) => { const n = (nameOf(d) || "").trim().toLowerCase(); if (!n) return; if (!byName.has(n)) byName.set(n, []); byName.get(n).push(d); });
+    const dupes = [...byName.values()].filter((ds) => new Set(ds.map((d) => d.instance)).size > 1);
+    const warn = dupes.map((ds) => `<div class="alert" style="--a:var(--warning)">${ic("alert")}<div class="body"><b>${th("nets.same_name_title")}</b> ${th("nets.same_name", { name: `“${esc(nameOf(ds[0]))}”`, nets: esc(listOf([...new Set(ds.map((d) => netLabel(d.instance)))])), suffix: '<span class="mono">_2</span>' })}</div>
+      <button class="btn" data-open="${esc(ds[ds.length - 1].ieee)}">${th("nets.rename_one")}</button></div>`).join("");
+    return `<div class="card"><div class="card-header">${ic("sitemap")}<div><h2 class="ch">${th("nets.all")}</h2><small>${th("nets.subtitle", { n: state.data.instances.length })}</small></div></div>
+      <div class="nets">${cards}</div>${warn ? `<div class="nets-warn">${warn}</div>` : ""}</div>`;
+  };
   const renderNetwork = () => {
     const k = state.sub.network;
+    if (pickedNet() === "all") { $("#view").innerHTML = `${netPick()}${allNetsCard()}`; return; }
     if (k === "map") { renderMap(); return; }
     const body = k === "coordinator" ? coordinatorsCard()
       : k === "broker" ? leftoverCard() || subEmpty("check", "broker")
       : k === "radio" ? radioCard() || subEmpty("signal", "radio")
       : groupsCard() || subEmpty("lightbulb", "groups");
-    $("#view").innerHTML = `${subNav("network")}${body}`;
+    $("#view").innerHTML = `${netPick()}${subNav("network")}${body}`;
   };
   const renderUpkeep = () => {
     const k = state.sub.upkeep;
@@ -1540,7 +1588,7 @@
   const coordinatorsCard = () => {
     const B = state.data.bridges || {};
     const week = Date.now() - 7 * 86400000;
-    const nets = state.data.instances.map((bt) => {
+    const nets = netsShown().map((bt) => {
       const b = B[bt] || {}, info = b.info || {}, h = b.health || {};
       const online = b.state !== "offline";
       const outages = (b.outages || []).filter((o) => new Date(o.start).getTime() >= week);
@@ -1642,8 +1690,13 @@
   };
 
   const radioCard = () => {
-    const r = state.data.radio;
-    if (!r || !r.networks.length) return "";
+    const all = state.data.radio;
+    if (!all || !all.networks.length) return "";
+    // One network picked: its channel, and only the findings about it (a shared channel names both).
+    const shown = new Set(netsShown());
+    const about = (f) => { const p = f.params || {}; return p.net ? shown.has(p.net) : p.nets ? p.nets.some((n) => shown.has(n)) : true; };
+    const r = { ...all, networks: all.networks.filter((n) => shown.has(n.topic)), findings: all.findings.filter(about) };
+    if (!r.networks.length) return "";
     const W = 640, H = 120, x = (mhz) => ((mhz - 2400) / 85) * (W - 20) + 10;
     const wf = (n) => (n === 14 ? 2484 : 2407 + 5 * n), zf = (c) => 2405 + 5 * (c - 11);
     const wifiBands = r.wifi.map((n) => `<rect x="${x(wf(n) - 11).toFixed(1)}" y="18" width="${(x(wf(n) + 11) - x(wf(n) - 11)).toFixed(1)}" height="54" rx="6" fill="var(--warning)" fill-opacity="0.18" stroke="var(--warning)" stroke-opacity="0.5"/><text x="${x(wf(n)).toFixed(1)}" y="14" text-anchor="middle">${th("radio.wifi_n", { n: esc(n) })}</text>`).join("");
@@ -1658,7 +1711,7 @@
   // Average link quality by hour of day (last 7 days), one chart per network, with daily dips marked.
   const hoursChart = () => {
     const all = state.data.network_hours || {};
-    const nets = state.data.instances.filter((bt) => all[bt]);
+    const nets = netsShown().filter((bt) => all[bt]);
     return nets.map((bt) => {
       const h = all[bt], hours = h.hours;
       const issue = (state.data.issues || []).find((i) => i.key === `signal_dip:${bt}`);
@@ -1681,7 +1734,8 @@
 
   // Zigbee2MQTT groups: members offline, and members that left the group while staying on the network.
   const groupsCard = () => {
-    const groups = state.data.group_health || [];
+    const shown = new Set(netsShown());
+    const groups = (state.data.group_health || []).filter((g) => shown.has(g.instance));
     if (!groups.length) return "";
     const iconOf = (g) => {
       const count = {};
@@ -1880,7 +1934,9 @@
   const leftoverUse = (x) => [x.automations ? t("leftover.automations", { n: x.automations }) : null, x.scripts ? t("leftover.scripts", { n: x.scripts }) : null].filter(Boolean);
   const leftoverIc = (x) => { const d = state.byIeee.get(x.ieee); return d ? stateIc(d) : `<span class="state-ic off">${ic("zigbee")}</span>`; };
   const leftoverCard = () => {
-    const list = state.data.ha_leftovers || [];
+    // A leftover the tracker knows belongs to its network; one it doesn't know shows on every network.
+    const shown = new Set(netsShown());
+    const list = (state.data.ha_leftovers || []).filter((x) => { const d = state.byIeee.get(x.ieee); return !d?.instance || shown.has(d.instance); });
     if (!list.length) return "";
     return `<div class="card"><div class="card-header">${ic("home-assistant")}<div><h2 class="ch">${th("leftover.title")}</h2><small>${th("leftover.subtitle", { n: list.length })}</small></div></div>
       ${list.map((x) => `<div class="row">${leftoverIc(x)}<div class="text"><div class="t1">${esc(x.name)}</div><div class="t2">${esc(leftoverLine(x))}</div></div></div>`).join("")}
@@ -2085,7 +2141,7 @@
 
   const renderMap = (force = false) => {
     const nm = state.data.networkmap || {};
-    const sig = JSON.stringify(state.data.instances.map((bt) => [bt, nm[bt]?.scanned_at, nm[bt]?.running_since, MAP.scanSel[bt], MAP.cmpSel[bt], (MAP.hist[bt] || []).length, MAP.opts[bt]])) + MAP.allLinks + MAP.layout + !!FP.floors + PHONE();
+    const sig = JSON.stringify(netsShown().map((bt) => [bt, nm[bt]?.scanned_at, nm[bt]?.running_since, MAP.scanSel[bt], MAP.cmpSel[bt], (MAP.hist[bt] || []).length, MAP.opts[bt]])) + MAP.allLinks + MAP.layout + !!FP.floors + PHONE();
     if (!force && MAP.rendered === sig && $("#view .map-card")) { refreshMapInfo(); return; }
     MAP.rendered = sig;
     // A what-if belongs to one scan; a newer scan makes it stale.
@@ -2097,10 +2153,10 @@
     // Phones get the same controls in less space, so the map starts on the first screen.
     const phone = PHONE();
     const help = th(MAP.layout === "floor" ? "map.help_floor" : TOUCH() ? "map.help_touch" : "map.help");
-    $("#view").innerHTML = `${subNav("network")}
+    $("#view").innerHTML = `${netPick()}${subNav("network")}
       <div class="alert" style="--a:var(--info)">${ic("information-outline")}${phone ? `<details class="body map-help"><summary>${th("map.how")}${ic("chevron-down", "s18")}</summary><div>${help}</div></details>` : `<div class="body">${help}</div>`}
         <button class="btn ${running ? "busy" : ""}" data-act="scan" ${running ? "disabled" : ""}>${ic(running ? "refresh" : "sitemap", "s18")}${running ? th("common.scanning") : th("menu.run_scan")}</button></div>
-      ${state.data.instances.map((bt) => {
+      ${netsShown().map((bt) => {
         const info = nm[bt] || {};
         const g = mapGraph(bt);
         const head = `<div class="card-header">${ic("sitemap")}<div><h2 class="ch">${th("net.network", { name: esc(netLabel(bt)) })}</h2><small>${info.running_since ? th("map.scanning_now") : info.scanned_at ? th("map.scanned", { when: esc(relTime(info.scanned_at, true)), n: esc(info.nodes ?? g.devs.length), links: esc(info.links ?? "?") }) : th("map.not_scanned")}</small></div></div>`;
@@ -2144,8 +2200,8 @@
           ${placementHtml(bt)}
         </div>`;
       }).join("")}`;
-    state.data.instances.forEach((bt) => { const svg = document.getElementById(`map-${bt}`); if (svg) MAP.sims[bt] = startSim(bt, svg); });
-    state.data.instances.forEach((bt) => { const fp = document.getElementById(`fp-${bt}`); if (fp) MAP.sims[bt] = startFloorPlan(bt, fp); });
+    netsShown().forEach((bt) => { const svg = document.getElementById(`map-${bt}`); if (svg) MAP.sims[bt] = startSim(bt, svg); });
+    netsShown().forEach((bt) => { const fp = document.getElementById(`fp-${bt}`); if (fp) MAP.sims[bt] = startFloorPlan(bt, fp); });
   };
 
   const refreshMapInfo = () => Object.keys(MAP.sims).forEach((bt) => { MAP.sims[bt].refresh?.(); showMapInfo(bt); });
@@ -3531,6 +3587,7 @@
   const actions = {
     "tab-more"() { if ($("#tabSheet").hidden) openSheet(); else closeSheet(); },
     close: () => closeDevice(),
+    "pick-net": (b) => { state.net = b.dataset.net; store.set("z2mt.net", state.net); render(); },
     "toggle-coord": (b) => { const o = state.openCoords; if (!o.delete(b.dataset.bt)) o.add(b.dataset.bt); renderHealth(); },
     "toggle-group": (b) => { const g = state.openGroups; if (!g.delete(b.dataset.ieee)) g.add(b.dataset.ieee); renderHealth(); },
     "dev-all"() { state.devAll = true; renderDevices(); },
@@ -4219,8 +4276,10 @@
       MAP.whatif[bt] = job;
       const older = MAP.scanSel[bt] || MAP.cmpSel[bt];
       if (older) { MAP.scanSel[bt] = null; MAP.cmpSel[bt] = null; delete (MAP.pos || {})[bt]; }
+      const other = multiNet() && pickedNet() !== bt;
+      if (other) state.net = bt;
       if (!onMap()) { if ($("#more").open) closeDevice(); go("network/map"); }
-      else if (older) renderMap(true);
+      else if (older || other) renderMap(true);
       updateWhatIf(bt, true);
       let next;
       try { next = { ieee, res: await api(`api/whatif?net=${encodeURIComponent(bt)}&ieee=${encodeURIComponent(ieee)}`) }; }
@@ -4401,7 +4460,7 @@
     const open = e.target.closest("[data-open]");
     if (open) { e.preventDefault(); openDevice(open.dataset.open); return; }
     const view = e.target.closest("[data-view]");
-    if (view) { if ($("#more").open) closeDevice(); go(view.dataset.view); return; }
+    if (view) { if ($("#more").open) closeDevice(); if (view.dataset.net && multiNet()) state.net = view.dataset.net; go(view.dataset.view); return; }
     const sub = e.target.closest("[data-sub]");
     if (sub) { const [v, k] = sub.dataset.sub.split("/"); goSub(v, k); return; }
     const chip = e.target.closest("[data-chip]");
