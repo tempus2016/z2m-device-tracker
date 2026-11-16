@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.1
+
+Only the app changed. The integration is unchanged apart from its version number, so updating it is optional.
+
+### Fixed
+- Battery devices are no longer reported as having no backup route. Zigbee2MQTT's routing scan only shows a battery device's link to its current parent, never the other routers it can hear. The router what-if took that to mean it had nowhere else to go. Battery devices whose parent goes now appear under "Will look for a new parent" instead of "No other router in range". "Where to add a router" counts only routers as having no backup route, because routers report their neighbours in the scan.
+
 ## 1.5.0
 
 Update the app and the integration together: the integration's new maintenance to-do list and calendar, and the brand on the battery replaced action, need the 1.5.0 app. New checks show on the Health tab but don't notify until you turn them on under Settings → Checks.
