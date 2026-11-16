@@ -243,6 +243,7 @@
   .empty p { margin: 0 auto 16px; max-width: 40ch; }
   .empty .btn .mdi { width: 18px; height: 18px; margin: 0; color: inherit; }
   .empty .err-detail { margin: 16px auto 0; font-size: 12px; font-family: var(--mono); overflow-wrap: anywhere; }
+  .field-hint { margin: -4px 0 0; font-size: 12.5px; color: var(--text-2); grid-column: 1 / -1; }
   .field-err { margin-top: 4px; font-size: 13px; color: var(--error-text); }
 
   /* ------------------------------------------------------------ list rows (repairs, logbook, settings) */
@@ -4597,14 +4598,33 @@
     const devs = state.data.devices.filter((d) => d.status !== "removed" && d.type !== "Coordinator" && d.model);
     const models = [...new Set(devs.map((d) => d.model))].sort(collator.compare);
     if (note && !models.includes(note.model)) models.unshift(note.model);
-    const versions = [...new Set(devs.flatMap((d) => [d.software_build_id, d.update?.installed_version, d.update?.latest_version]).filter((v) => v !== null && v !== undefined && v !== -1 && v !== "").map(String))].sort(collator.compare);
+    // Suggestions for the picked model, each labelled with what it is: a build installed on a device, its OTA file
+    // version, or the file version of an update on offer. An offered update only comes with its file version.
+    const known = (v) => v !== null && v !== undefined && v !== -1 && v !== "";
+    const versionOpts = (model) => {
+      const found = new Map();
+      const add = (v, label) => { if (!known(v)) return; const k = String(v); if (!found.has(k)) found.set(k, []); if (!found.get(k).includes(label)) found.get(k).push(label); };
+      devs.filter((d) => d.model === model).forEach((d) => {
+        const name = nameOf(d) || d.ieee, inst = d.update?.installed_version, latest = d.update?.latest_version;
+        add(d.software_build_id, t("fwnote.opt_installed", { name }));
+        add(inst, t("fwnote.opt_installed_file", { name }));
+        if (known(latest) && String(latest) !== String(inst)) add(latest, t("fwnote.opt_offered", { name }));
+      });
+      return [...found.entries()].sort((a, b) => collator.compare(a[0], b[0]))
+        .map(([v, labels]) => `<option value="${esc(v)}" label="${esc(`${v} · ${labels.join(", ")}`)}">${esc(`${v} · ${labels.join(", ")}`)}</option>`).join("");
+    };
+    const onModel = (e) => { if (e.target.id === "fwModel") $("#fwVersions").innerHTML = versionOpts(e.target.value); };
     if (!models.length) { snack(t("fwnote.no_models"), 4000); return; }
-    const ok = await confirmDialog({ title: t(note ? "fwnote.edit_title" : "fwnote.add_title"), ok: t("common.save"), filled: true,
+    $("#confirmDlg").addEventListener("change", onModel);
+    const shown = confirmDialog({ title: t(note ? "fwnote.edit_title" : "fwnote.add_title"), ok: t("common.save"), filled: true,
       html: `<p>${th("fwnote.dialog_text")}</p><div class="form">
         <label class="wide">${th("fwnote.model")}<select class="field" id="fwModel">${models.map((m) => `<option ${note?.model === m ? "selected" : ""}>${esc(m)}</option>`).join("")}</select></label>
         <label class="wide">${th("fwnote.version")}<input class="field" id="fwVersion" maxlength="40" autocomplete="off" spellcheck="false" list="fwVersions" value="${esc(note?.version || "")}" placeholder="2.1.4"></label>
-        <datalist id="fwVersions">${versions.map((v) => `<option value="${esc(v)}">`).join("")}</datalist>
+        <datalist id="fwVersions">${versionOpts(note?.model || models[0])}</datalist>
+        <p class="field-hint">${th("fwnote.version_hint")}</p>
         <label class="wide">${th("fwnote.text")}<textarea class="field" id="fwText" rows="3" maxlength="500" placeholder="${esc(t("fwnote.text_placeholder"))}">${esc(note?.text || "")}</textarea></label></div>` });
+    const ok = await shown;
+    $("#confirmDlg").removeEventListener("change", onModel);
     if (!ok) return;
     const body = { id: note?.id, model: $("#fwModel").value, version: $("#fwVersion").value.trim(), text: $("#fwText").value.trim() };
     try { await api("api/firmware_notes", { note: body }); snack(t("common.saved")); } catch (err) { snack(err.message, 5000); }
