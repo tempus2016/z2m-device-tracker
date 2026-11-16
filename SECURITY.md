@@ -4,7 +4,10 @@
 
 The app runs as a Home Assistant app (add-on) with the access its `config.yaml` asks for:
 
-- **MQTT**, through the broker Home Assistant is set up with. It reads every message under
+- **MQTT**, through the broker Home Assistant offers to apps (the Mosquitto broker app), or
+  the broker set in the app's `mqtt_host` option. For a broker set there, TLS is optional and
+  its certificate is checked unless `mqtt_ssl_verify` is off; without TLS the login and messages
+  cross the network unencrypted. It reads every message under
   each Zigbee2MQTT base topic it tracks, and publishes to them when you ask it to: rename a
   device, set an area, reconfigure, start a routing scan, open pairing through a router, or
   start an OTA update. It also publishes its own MQTT discovery sensors and an availability

@@ -14,8 +14,12 @@ RELOG_AFTER = 600
 NOTIFICATION_ID = "z2m_tracker_mqtt"
 NOTIFICATION_TITLE = "Zigbee Tracker can't reach MQTT"
 NO_BROKER = (
-    "No MQTT broker is set up in Home Assistant. Install and start the Mosquitto broker app, then restart this app."
+    "No MQTT broker is set up in Home Assistant. Install and start the Mosquitto broker app, "
+    "or set mqtt_host in this app's configuration, then restart this app."
 )
+# Where to look when something is wrong, for the Mosquitto app and for a broker set in this app's options.
+CHECK_APP = "Check the Mosquitto broker app is started."
+CHECK_MANUAL = "Check the broker is running and mqtt_host and mqtt_port in this app's configuration are right."
 
 
 def probe(host: str, port: int, timeout: float = 3.0) -> Exception | None:
@@ -27,27 +31,42 @@ def probe(host: str, port: int, timeout: float = 3.0) -> Exception | None:
         return err
 
 
-def explain_error(err: Exception | None, host: str, port: int) -> str:
-    """A network-level failure, in words a user can act on."""
+def explain_error(err: Exception | None, host: str, port: int, manual: bool = False) -> str:
+    """A network-level failure, in words a user can act on.
+
+    `manual` is a broker set in this app's options rather than the Mosquitto app.
+    """
     where = f"{host}:{port}"
     if isinstance(err, socket.gaierror):
-        return (
-            f"Can't find the MQTT broker '{host}'. Check the Mosquitto broker app is installed and started. "
-            "This app reconnects by itself once it is."
+        check = (
+            "Check mqtt_host in this app's configuration."
+            if manual
+            else "Check the Mosquitto broker app is installed and started."
         )
+        return f"Can't find the MQTT broker '{host}'. {check} This app reconnects by itself once it is."
     if isinstance(err, ConnectionRefusedError):
-        return f"Nothing is accepting connections at {where}. Check the Mosquitto broker app is started."
+        return f"Nothing is accepting connections at {where}. {CHECK_MANUAL if manual else CHECK_APP}"
     if isinstance(err, (TimeoutError, socket.timeout)):
         return f"No answer from the MQTT broker at {where}. Check it is running and reachable."
     if err is None:
-        return f"The MQTT broker at {where} answered, but the MQTT connection still failed. See the Mosquitto log."
+        return f"The MQTT broker at {where} answered, but the MQTT connection still failed. " + (
+            "Check mqtt_ssl matches the port. With mqtt_ssl on, the broker's certificate must be trusted: "
+            "for a self-signed one, turn off mqtt_ssl_verify. See the broker's log."
+            if manual
+            else "See the Mosquitto log."
+        )
     return f"Can't connect to the MQTT broker at {where}: {err}"
 
 
-def explain_refusal(reason: str) -> str:
+def explain_refusal(reason: str, manual: bool = False) -> str:
     """The broker answered but refused the connection (an MQTT reason code)."""
     text = reason.lower()
     if "not authorized" in text or "bad user name" in text or "password" in text:
+        if manual:
+            return (
+                f"The MQTT broker refused this app's login ({reason}). Check mqtt_user and mqtt_password "
+                "in this app's configuration."
+            )
         return (
             f"The MQTT broker refused this app's login ({reason}). Restart this app so it gets fresh "
             "credentials from the Mosquitto broker app."

@@ -448,12 +448,14 @@ tracker.on_event = alerts.on_event
 
 MQTT_HOST = os.environ.get("MQTT_HOST") or "core-mosquitto"
 MQTT_PORT = int(os.environ.get("MQTT_PORT") or 1883)
+# Set by run.sh when the broker comes from this app's options rather than the Mosquitto app.
+MQTT_MANUAL = os.environ.get("MQTT_MANUAL") == "true"
 mqtt_status = MqttStatus(MQTT_HOST, MQTT_PORT, configured=bool(os.environ.get("MQTT_HOST")))
 
 
 def on_connect(client, userdata, flags, reason_code, properties):
     if reason_code.is_failure:
-        line = mqtt_status.failed(explain_refusal(str(reason_code)), refused=True)
+        line = mqtt_status.failed(explain_refusal(str(reason_code), manual=MQTT_MANUAL), refused=True)
         if line:
             _LOGGER.error("MQTT: %s", line)
         return
@@ -485,7 +487,7 @@ def on_connect_fail(client, userdata):
     """paho retries on its own but doesn't say why; probe the broker to find out."""
     if stop_event.is_set():
         return
-    line = mqtt_status.failed(explain_error(probe(MQTT_HOST, MQTT_PORT), MQTT_HOST, MQTT_PORT))
+    line = mqtt_status.failed(explain_error(probe(MQTT_HOST, MQTT_PORT), MQTT_HOST, MQTT_PORT, manual=MQTT_MANUAL))
     if line:
         _LOGGER.error("MQTT: %s Retrying.", line)
 
@@ -572,14 +574,18 @@ def start_mqtt() -> mqtt.Client:
     if user:
         client.username_pw_set(user, os.environ.get("MQTT_PASS") or None)
     if (os.environ.get("MQTT_SSL") or "").lower() == "true":
-        if _internal_broker(MQTT_HOST):
-            # Traffic stays on Supervisor's internal network, and the broker app's certificate is for
-            # its public name, not this hostname, so it can't be verified here.
+        if MQTT_MANUAL:
+            # A broker from this app's options: checked against the system CAs unless mqtt_ssl_verify is off.
+            verify = (os.environ.get("MQTT_SSL_VERIFY") or "true").lower() != "false"
+        else:
+            # The broker app on Supervisor's internal network: its certificate is for its public name,
+            # not this hostname, so it can't be verified. Any other broker Supervisor offers is checked.
+            verify = not _internal_broker(MQTT_HOST)
+        if verify:
+            client.tls_set(cert_reqs=ssl.CERT_REQUIRED)
+        else:
             client.tls_set(cert_reqs=ssl.CERT_NONE)
             client.tls_insecure_set(True)
-        else:
-            # Any other broker: check the certificate and hostname against the system CAs.
-            client.tls_set()
     client.suppress_exceptions = True
     client.on_connect = on_connect
     client.on_disconnect = on_disconnect

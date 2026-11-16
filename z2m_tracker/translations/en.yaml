@@ -74,3 +74,21 @@ configuration:
   quiet_end:
     name: Quiet hours end
     description: End of quiet hours, as HH:MM. The window can cross midnight.
+  mqtt_host:
+    name: MQTT broker address
+    description: Your MQTT broker, if it isn't the Mosquitto broker app. Empty uses the broker Home Assistant offers.
+  mqtt_port:
+    name: MQTT broker port
+    description: Port of that broker. Usually 1883, or 8883 with TLS.
+  mqtt_user:
+    name: MQTT username
+    description: Login for that broker. Leave empty if it allows anonymous connections.
+  mqtt_password:
+    name: MQTT password
+    description: Password for that broker.
+  mqtt_ssl:
+    name: MQTT over TLS
+    description: Connect to that broker over TLS.
+  mqtt_ssl_verify:
+    name: Check TLS certificate
+    description: Check the broker's TLS certificate. Turn off for a self-signed certificate.
