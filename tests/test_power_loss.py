@@ -108,10 +108,17 @@ def test_area_without_battery_devices_is_not_power_loss():
     assert inc["cause"] != "power_loss"
 
 
-def test_spread_over_more_than_a_minute_is_not_power_loss():
-    events = [ev(0, P1, "offline"), ev(90, P2, "offline"), ev(200, P3, "offline")]
+def test_drops_spread_by_availability_pings_still_count():
+    # Zigbee2MQTT marks each mains device offline when its own ping fails, minutes apart.
+    events = [ev(0, P1, "offline"), ev(240, P2, "offline"), ev(560, P3, "offline")]
     [inc] = build_incidents(events, garage())
-    assert inc["cause"] != "power_loss"
+    assert inc["cause"] == "power_loss"
+
+
+def test_spread_over_more_than_eleven_minutes_is_not_power_loss():
+    events = [ev(0, P1, "offline"), ev(400, P2, "offline"), ev(800, P3, "offline")]
+    incs = build_incidents(events, garage())
+    assert all(inc["cause"] != "power_loss" for inc in incs)
 
 
 def test_devices_in_different_areas_are_not_power_loss():
@@ -210,7 +217,7 @@ def test_no_power_loss_when_the_battery_device_is_offline_too(make_tracker, cloc
 def test_no_power_loss_when_drops_are_far_apart(make_tracker, clock):
     t = make_tracker(options={"offline_alert_minutes": 10})
     build(t)
-    offline(t, clock, P1, P2, P3, gap=45)
+    offline(t, clock, P1, P2, P3, gap=360)
     clock.advance(minutes=11)
     issues, _ = t.evaluate_health()
     assert not any(i.get("power_area") for i in issues)
