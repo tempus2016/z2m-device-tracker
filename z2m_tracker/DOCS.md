@@ -107,8 +107,25 @@ These checks show in Health but don't notify until you set them to **Show and no
 | Group members offline | A Zigbee2MQTT group with members that have been offline for longer than `offline_alert_minutes`. One issue per group, listing the offline members. |
 | Maintenance overdue | A maintenance task on the device is past its due date. See Maintenance tasks below. |
 | Daily signal dip | Average link quality across a network drops at least 25% below that day's median in the same 1 to 4 hours on at least 4 of the last 7 days, and at least 30% of its devices dip then too. Usually something that switches on at that time: busy Wi-Fi on an overlapping channel, a microwave, or a USB 3 device near the coordinator. Health → Radio channels shows the hourly chart once a network has a week of link quality from at least 3 devices. |
+| Worse since an upgrade | After Zigbee2MQTT or the coordinator firmware changes, the week after the upgrade looks clearly worse than the week before, once at least 2 days of it have passed (shown for 30 days). Shows only; it doesn't notify unless you add it to `notify_checks`. See **Effect of an upgrade** below for what is compared and the thresholds. |
 
 The Health tab's **Groups** card lists every Zigbee2MQTT group with how many of its members are online. Groups with offline members show each member, with the offline ones in red. A device that dropped out of a group but is still on the network (for example after it left and was re-paired) is flagged for 30 days, until it's back in the group, or until the group is deleted. Leaving a group is only noticed while the app is running.
+
+## Effect of an upgrade
+
+When a network's Zigbee2MQTT version or coordinator firmware changes, the app records the upgrade (the last 20 per network, kept in `history.json` and in backups) and compares the week before it with the week after. Health → Coordinators → More details shows the latest upgrade, the before and after numbers, and a short list of earlier upgrades. Numbers appear once there is at least a day of data on both sides; until the week is over the card says how many days the "after" side has so far. The first hour after the upgrade is left out, because the restart itself drops devices for a moment. Two changes within an hour (firmware flashed, then Zigbee2MQTT updated) count as one upgrade.
+
+Only data the app already keeps is used, and a number is left out when its data isn't there:
+
+| Compared | From | Marked worse when |
+| --- | --- | --- |
+| Devices going offline per day | Offline spells of the network's devices (needs availability in Zigbee2MQTT) | Up by at least 1 a day and at least doubled |
+| Average link quality | Hourly link quality, each device counted once | Down by at least 10 |
+| Messages per hour | Hourly message counts | Down by at least 30% and at least 10 an hour (up by that much shows as changed, not worse) |
+| Devices leaving per day | "Left" events | Up by at least 0.5 a day and at least doubled |
+| Parent router changes per routing scan | Routing scans, each compared with the one before (needs 2 scans on each side) | Up by at least 2 per scan and at least 1.5 times |
+
+The same rules the other way round mark a number better. The "before" numbers are worked out when the upgrade is seen, so they only cover what the app saw then: an app installed three days before an upgrade compares three days.
 
 ## Router outages
 

@@ -39,6 +39,19 @@ from health import (
 from history_import import IEEE_RE, _features, collect_history
 from metrics import Metrics
 from reliability import model_reliability
+from upgrade_impact import (
+    ISSUE_MAX_DAYS,
+    ISSUE_MIN_DAYS,
+    MAX_UPGRADES,
+    MERGE_SECONDS,
+    after_window,
+    before_window,
+    clean_upgrades,
+    merge_changes,
+    summary,
+    window_stats,
+)
+from upgrade_impact import ts as upgrade_ts
 from z2m_config import KEEP_CHANGES, describe
 from z2m_config import diff as config_diff
 from z2m_config import flatten as config_flatten
@@ -115,6 +128,7 @@ RESTORE_KEYS = {
     "ota_last_check": (str, int, float),
     "summary_sent": (str, dict),
     "z2m_config": dict,
+    "upgrades": dict,
 }
 
 # Anything on the broker can publish under the base topic, so incoming text and numbers are checked
@@ -723,6 +737,10 @@ class Tracker:
         # Per base topic: (IEEEs, first seen) of a device list that would remove most devices, held until it repeats.
         self._held_list: dict[str, tuple[frozenset, float]] = {}
         self._bad_message_logged = 0.0
+        # upgrade_impact() result, recomputed once an hour or when an upgrade is recorded or restored.
+        self._impact: dict[str, dict] = {}
+        self._impact_key: tuple | None = None
+        self._upgrade_rev = 0
 
     # ------------------------------------------------------------ persistence
 
@@ -764,6 +782,8 @@ class Tracker:
                         self.data[key] = value
                 if isinstance(self.data.get("battery_brand_list"), list):
                     self.data["battery_brand_list"] = _brand_list(self.data["battery_brand_list"])
+                if "upgrades" in self.data:
+                    self.data["upgrades"] = clean_upgrades(self.data["upgrades"])
             for record in self.data["devices"].values():
                 if _stamp_offline_since(record):
                     self.dirty = True
@@ -2153,6 +2173,10 @@ class Tracker:
                             "instance": bt,
                         }
                     )
+            if "upgrade_worse" not in disabled:
+                issue = self._upgrade_issue(bt, label, now)
+                if issue:
+                    out.append(issue)
             dips = (hours.get(bt) or {}).get("dips") or []
             if dips:
                 text, params = self._dip_text(dips[0])
@@ -2486,6 +2510,7 @@ class Tracker:
                 "bridges": self.data.get("bridges") or {},
                 "radio": self.radio(),
                 "network_hours": self.network_hours(now),
+                "upgrade_impact": self.upgrade_impact(now),
                 "single_points": {bt: self.single_points(bt) for bt in self.base_topics},
                 "backups": self._backups,
                 "groups": self.groups,
@@ -3528,6 +3553,7 @@ class Tracker:
         bridge = self._bridge(base_topic)
         if bridge.get("info") != slim:
             old = bridge.get("info") or {}
+            changes = []
             if old.get("version") and slim["version"] and old["version"] != slim["version"]:
                 self._add_event(
                     _now(),
@@ -3537,6 +3563,19 @@ class Tracker:
                     "zigbee2mqtt updated",
                     f"{old['version']} → {slim['version']}",
                 )
+                changes.append({"what": "zigbee2mqtt", "from": old["version"], "to": slim["version"]})
+            if old.get("firmware") and slim["firmware"] and old["firmware"] != slim["firmware"]:
+                self._add_event(
+                    _now(),
+                    base_topic,
+                    "network",
+                    "Network",
+                    "coordinator firmware updated",
+                    f"{old['firmware']} → {slim['firmware']}",
+                )
+                changes.append({"what": "firmware", "from": old["firmware"], "to": slim["firmware"]})
+            if changes:
+                self._record_upgrade(base_topic, changes)
             bridge["info"] = slim
             self._changed(structural=True)
         if isinstance(info.get("config"), dict):
@@ -3600,6 +3639,115 @@ class Tracker:
                 when, base_topic, ieee, _display_name(self.data["devices"][ieee]), "settings changed", "; ".join(lines)
             )
         self._changed(structural=True)
+
+    # ------------------------------------------------------- upgrade impact
+
+    def _upgrade_window(self, base_topic: str, start: float, end: float) -> dict | None:
+        events = self.data["events"]
+        # A full event list has been trimmed: leaves before its oldest event are no longer known.
+        events_from = upgrade_ts(events[0].get("time")) if len(events) >= MAX_EVENTS and events else None
+        with self.metrics.lock:
+            return window_stats(
+                base_topic,
+                start,
+                end,
+                self.data["devices"],
+                self.metrics.series,
+                events,
+                self.scans.get(base_topic) or [],
+                events_from,
+            )
+
+    def _record_upgrade(self, base_topic: str, changes: list[dict]) -> None:
+        """Remember a Zigbee2MQTT or coordinator firmware change, with the network's numbers for the week before."""
+        now = time.time()
+        upgrades = self.data.setdefault("upgrades", {}).setdefault(base_topic, [])
+        last = upgrades[-1] if upgrades else None
+        last_at = upgrade_ts(last.get("at")) if last else None
+        if last is not None and last_at is not None and now - last_at < MERGE_SECONDS:
+            last["changes"] = merge_changes(last["changes"], changes)
+            if not last["changes"]:
+                upgrades.pop()
+        else:
+            if last is not None and last.get("after") is None:
+                # The next upgrade ends this one's "after" week early; keep what it got.
+                start, end = after_window(last, now)
+                last["after"] = self._upgrade_window(base_topic, start, end)
+            start, end = before_window(now, last)
+            upgrades.append(
+                {
+                    "at": _now(),
+                    "changes": changes,
+                    "before": self._upgrade_window(base_topic, start, end),
+                    "after": None,
+                }
+            )
+            del upgrades[: max(0, len(upgrades) - MAX_UPGRADES)]
+        self._upgrade_rev += 1
+        self._changed(structural=True)
+
+    def upgrade_impact(self, now: float) -> dict[str, dict]:
+        """Per network: the latest upgrade's week before against the week after, and earlier upgrades.
+
+        Recomputed once an hour. When the latest upgrade's week is over, its "after" numbers are stored.
+        """
+        key = (int(now // 3600), self._upgrade_rev)
+        if self._impact_key == key:
+            return self._impact
+        out: dict[str, dict] = {}
+        with self.lock:
+            for bt, upgrades in (self.data.get("upgrades") or {}).items():
+                if bt not in self.base_topics or not upgrades:
+                    continue
+                latest = upgrades[-1]
+                after = latest.get("after")
+                if after is None:
+                    start, end = after_window(latest)
+                    after = self._upgrade_window(bt, start, min(end, now))
+                    if now >= end:
+                        latest["after"] = after
+                        self.dirty = True
+                result = summary(upgrades, after, now)
+                if result:
+                    out[bt] = result
+        self._impact, self._impact_key = out, key
+        return out
+
+    def _upgrade_issue(self, bt: str, label: str, now: float) -> dict | None:
+        latest = (self.upgrade_impact(now).get(bt) or {}).get("latest")
+        if not latest or latest["verdict"] != "worse" or latest["elapsed_days"] < ISSUE_MIN_DAYS:
+            return None
+        at = upgrade_ts(latest["at"])
+        if at is None or now - at > ISSUE_MAX_DAYS * 86400:
+            return None
+        names = {
+            "offline_per_day": "devices going offline per day",
+            "lqi": "average link quality",
+            "msg_per_hour": "messages per hour",
+            "leaves_per_day": "devices leaving per day",
+            "parent_changes_per_scan": "parent router changes per routing scan",
+        }
+        worse = [m for m in latest["metrics"] if m["status"] == "worse"]
+        what = " and ".join(
+            f"{'Zigbee2MQTT' if c['what'] == 'zigbee2mqtt' else 'coordinator firmware'} {c['to']}"
+            for c in latest["changes"]
+        )
+        moment = datetime.fromtimestamp(at, tz=self.local_tz)
+        day = f"{moment.day} {moment.strftime('%b')}"
+        listing = ", ".join(f"{names[m['key']]} {m['before']:g} → {m['after']:g}" for m in worse)
+        return {
+            "key": f"upgrade_worse:{bt}",
+            "kind": "upgrade_worse",
+            "label": "Worse since upgrade",
+            "severity": "info",
+            "ieee": f"network:{bt}",
+            "title": "Worse since the upgrade",
+            "detail": f"Since {what} ({day}): {listing}. Health → Coordinators has the full comparison.",
+            "msg": "upgrade_worse",
+            "params": {"changes": latest["changes"], "at": latest["at"], "metrics": worse},
+            "name": f"{label} network",
+            "instance": bt,
+        }
 
     def _handle_permit_request(self, base_topic: str, text: str) -> None:
         """Someone published bridge/request/permit_join. Remember it if it opens pairing and isn't ours."""
@@ -3921,6 +4069,8 @@ class Tracker:
                 restored[key] = history[key]
         if "battery_brand_list" in restored:
             restored["battery_brand_list"] = _brand_list(restored["battery_brand_list"])
+        if "upgrades" in restored:
+            restored["upgrades"] = clean_upgrades(restored["upgrades"])
         with self.lock:
             # A pause is about now, not about when the backup was made.
             paused = self.data.get("alerts_paused")
@@ -3938,6 +4088,7 @@ class Tracker:
             for record in self.data["devices"].values():
                 if record["status"] == STATUS_ACTIVE and record["friendly_name"] and record["instance"]:
                     self.names.setdefault(record["instance"], {})[record["friendly_name"]] = record["ieee"]
+            self._upgrade_rev += 1
             self._changed(structural=True)
         if isinstance(payload.get("metrics"), dict):
             with self.metrics.lock:

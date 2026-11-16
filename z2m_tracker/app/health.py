@@ -143,6 +143,12 @@ CHECKS = [
         False,
     ),
     (
+        "upgrade_worse",
+        "Worse since an upgrade",
+        "After a Zigbee2MQTT or coordinator firmware update, at least 2 days of the week after look clearly worse than the week before: more devices going offline or leaving, lower link quality, fewer messages or more parent router changes.",
+        False,
+    ),
+    (
         "group_member_offline",
         "Group members offline",
         "A Zigbee2MQTT group has members that have been offline for longer than the offline threshold.",
@@ -196,6 +202,7 @@ KIND_LABELS = {
     "signal_dip": "Daily signal dip",
     "group_member_offline": "Group members offline",
     "maintenance_due": "Maintenance overdue",
+    "upgrade_worse": "Worse since upgrade",
 }
 
 
