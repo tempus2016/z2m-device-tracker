@@ -17,7 +17,12 @@ def setup_network(tracker):
     send(
         tracker,
         "bridge/devices",
-        [coordinator(), z2m_device(ROUTER_A, "Router", "Router"), z2m_device(SENSOR, "Sensor"), z2m_device(PLUG, "Plug")],
+        [
+            coordinator(),
+            z2m_device(ROUTER_A, "Router", "Router"),
+            z2m_device(SENSOR, "Sensor"),
+            z2m_device(PLUG, "Plug"),
+        ],
     )
     for name in ("Router", "Sensor", "Plug"):
         send(tracker, f"{name}/availability", "online")
@@ -41,7 +46,11 @@ def run_hours(tracker, clock, hours, lqi=130, msgs=10, flaps_per_day=0):
 
 
 def upgrade(tracker, version="2.6.0", firmware=20230507):
-    send(tracker, "bridge/info", {**INFO, "version": version, "coordinator": {**INFO["coordinator"], "meta": {"revision": firmware}}})
+    send(
+        tracker,
+        "bridge/info",
+        {**INFO, "version": version, "coordinator": {**INFO["coordinator"], "meta": {"revision": firmware}}},
+    )
 
 
 # ------------------------------------------------------------------ pure comparison

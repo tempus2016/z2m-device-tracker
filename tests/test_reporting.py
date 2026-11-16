@@ -171,7 +171,9 @@ def test_max_65535_never_reports(tracker):
 
 
 def test_on_off_with_max_65535_is_not_a_measurement(tracker):
-    send(tracker, "bridge/devices", [plug(rep("genOnOff", "onOff", 0, 65535, 0), rep(POWER, "activePower", 10, 600, 5))])
+    send(
+        tracker, "bridge/devices", [plug(rep("genOnOff", "onOff", 0, 65535, 0), rep(POWER, "activePower", 10, 600, 5))]
+    )
     assert [r["rule"] for r in audit_of(tracker, PLUG)["items"]] == [None, None]
 
 
