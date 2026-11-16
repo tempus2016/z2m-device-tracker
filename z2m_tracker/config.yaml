@@ -71,6 +71,9 @@ options:
   battery_shop_url: ""
   retained_autoclear: false
   broker_stats: true
+  impossible_temp_min: -30
+  impossible_temp_max: 60
+  humidity_stuck_hours: 6
   mqtt_host: ""
   mqtt_port: 1883
   mqtt_user: ""
@@ -118,6 +121,9 @@ schema:
   battery_shop_url: str?
   retained_autoclear: bool?
   broker_stats: bool?
+  impossible_temp_min: int(-100,100)?
+  impossible_temp_max: int(-100,100)?
+  humidity_stuck_hours: int(1,168)?
   mqtt_host: str?
   mqtt_port: port?
   mqtt_user: str?

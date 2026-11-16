@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from incidents import POWER_MIN_DEVICES, POWER_WINDOW, is_battery, is_mains
+from odd_readings import issue as odd_reading_issue
 from reporting import audit as reporting_audit
 from reporting import findings as reporting_findings
 from reporting import summary_text as reporting_summary
@@ -74,6 +75,12 @@ CHECKS = [
         "frozen",
         "Frozen reading",
         "Temperature, humidity, pressure or air quality hasn't changed while the device keeps reporting.",
+        False,
+    ),
+    (
+        "impossible_reading",
+        "Impossible readings",
+        "A temperature outside the limits set in Settings, humidity or battery outside 0-100%, or humidity stuck at 0 or 100% for longer than the set hours.",
         False,
     ),
     (
@@ -245,6 +252,7 @@ KIND_LABELS = {
     "silent": "Not heard from",
     "late": "Stopped reporting",
     "frozen": "Frozen reading",
+    "impossible_reading": "Impossible reading",
     "weak_signal": "Weak signal",
     "signal_drop": "Signal dropping",
     "battery_low": "Low battery",
@@ -785,6 +793,10 @@ def device_issues(
                     n=reading["reports"],
                 )
                 break
+
+    odd = odd_reading_issue(record, options, now)
+    if odd:
+        add("impossible_reading", WARNING, odd["title"], odd["detail"], odd["msg"], **odd["params"])
 
     # Saved metrics from before input was checked can hold NaN or infinity: treat those as no data.
     lqi_24h = summary.get("lqi_24h") if _finite(summary.get("lqi_24h")) else None

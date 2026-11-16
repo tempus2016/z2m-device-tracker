@@ -950,7 +950,7 @@
     ghost: { get label() { return t("status.ghost"); }, c: "var(--error)" },
     removed: { get label() { return t("status.removed"); }, c: "var(--disabled)" },
   };
-  const KIND_ICON = { offline: "wifi-off", silent: "wifi-off", late: "history", frozen: "thermometer", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
+  const KIND_ICON = { offline: "wifi-off", silent: "wifi-off", late: "history", frozen: "thermometer", impossible_reading: "alert", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
     flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb", slow_router: "router-wireless", maintenance_due: "calendar-clock", upgrade_worse: "update", slow_commands: "history", missed_commands: "gesture-tap-button", reporting_config: "tune", naming: "pencil", stale_retained: "content-copy", retained_command: "alert", availability_mismatch: "swap-horizontal" };
   const EVENT_ICON = (k) => {
     if (k.startsWith("interview")) return k.endsWith("successful") ? ["check", "var(--success)"] : ["alert-circle", "var(--error)"];
@@ -1083,6 +1083,10 @@
     flapping: (p) => { p.what = listOf([p.outages ? t("issue.flapping.outages", { n: p.outages }) : null, p.leaves ? t("issue.flapping.leaves", { n: p.leaves }) : null].filter(Boolean)); },
     single_point: (p) => { p.extra = p.devices ? t("issue.single_point.extra", { n: p.devices }) : ""; },
     late: (p) => { p.every = span(p.every); },
+    impossible_reading: (p) => { p.value = num1(p.value); p.lo = num1(p.lo); p.hi = num1(p.hi); p.unit = p.unit === "%" ? "%" : ` ${p.unit}`; },
+    impossible_reading_no_range: (p) => { p.value = num1(p.value); p.unit = p.unit === "%" ? "%" : ` ${p.unit}`; },
+    impossible_battery: (p) => { p.value = num1(p.value); },
+    humidity_stuck: (p) => { p.cause = t(p.value === 100 ? "issue.humidity_stuck.cause_wet" : "issue.humidity_stuck.cause_dry"); p.value = num1(p.value); },
     router_offline: (p) => { p.names = listOf([...(p.names || []), ...(p.more ? [t("issue.router_offline.more", { n: p.more })] : [])]); },
     power_loss: (p) => { p.names = listOf([...(p.names || []), ...(p.more ? [t("issue.router_offline.more", { n: p.more })] : [])]); },
     router_hopping: (p) => { p.quality = p.lqi_min === null || p.lqi_min === undefined ? "" : p.lqi_min === p.lqi_max ? t("issue.router_hopping.lqi", { lqi: p.lqi_min }) : t("issue.router_hopping.lqi_range", { min: p.lqi_min, max: p.lqi_max }); },
@@ -2806,6 +2810,12 @@
         ${num("battery_alert_percent", t("settings.battery_at"), th("settings.battery_at_desc"), 0, 100, "%")}
         ${num("chatty_per_hour", t("settings.chatty_above"), th("settings.chatty_above_desc"), 60, 36000, th("settings.unit_per_h"))}
         <div class="set-row"><div class="text"><div class="t1">${th("report.title")}</div><div class="t2">${th("bulk.desc", { n: state.data ? state.data.devices.filter((d) => d.report_every && d.status !== "removed").length : 0 })}</div></div><div class="ctl"><button class="btn" data-act="bulk-open" ${state.data ? "" : "disabled"}>${th("bulk.open")}</button></div></div>
+      </div>
+      <div class="card"><div class="card-header"><div><h2 class="ch">${th("settings.limits")}</h2><small>${th("settings.limits_desc")}</small></div></div>
+        <div class="set-row"><div class="text"><div class="t1">${th("settings.temp_range")}</div><div class="t2">${th("settings.temp_range_desc")}</div></div><div class="ctl">
+          <input class="field num" type="number" data-num="impossible_temp_min" min="-100" max="100" value="${esc(s.impossible_temp_min ?? -30)}" aria-label="${esc(t("settings.temp_lowest"))}"><span class="unit">${th("settings.range_to")}</span>
+          <input class="field num" type="number" data-num="impossible_temp_max" min="-100" max="100" value="${esc(s.impossible_temp_max ?? 60)}" aria-label="${esc(t("settings.temp_highest"))}"><span class="unit">°C</span></div></div>
+        ${num("humidity_stuck_hours", t("settings.humidity_stuck"), th("settings.humidity_stuck_desc"), 1, 168, th("settings.unit_h"))}
       </div>
       <div class="card"><div class="card-header"><div><h2 class="ch">${th("settings.routing_scan")}</h2><small>${th("settings.routing_scan_desc")}</small></div></div>
         <div class="set-row"><div class="text"><div class="t1">${th("settings.wifi")}</div><div class="t2">${th("settings.wifi_desc")}</div></div><div class="ctl"><input class="field" id="wifiCh" aria-label="${esc(t("settings.wifi"))}" autocomplete="off" style="width:120px" value="${esc(s.wifi_channels || "")}" placeholder="${esc(t("settings.wifi_placeholder"))}" inputmode="numeric"><button class="btn" data-act="save-wifi">${th("common.save")}</button></div></div>
