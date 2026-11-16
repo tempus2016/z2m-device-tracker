@@ -29,6 +29,17 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `ota_min_battery` | `30` | Battery devices below this level are skipped by automatic and bulk updates. **Update anyway** overrides it for one device. |
 | `quiet_hours` | `false` | Hold alerts during quiet hours and send one summary when they end. |
 | `quiet_start` / `quiet_end` | `23:00` / `07:00` | Quiet hours in the app's time zone, as `HH:MM`. The window can cross midnight. |
+| `mqtt_host` | empty | Address of your MQTT broker, if it isn't the Mosquitto broker app. Empty uses the broker Home Assistant offers. See [MQTT broker](#mqtt-broker). |
+| `mqtt_port` | `1883` | Port of that broker. Usually `1883`, or `8883` with TLS. |
+| `mqtt_user` / `mqtt_password` | empty | Login for that broker. Leave empty if it allows anonymous connections. |
+| `mqtt_ssl` | `false` | Connect to that broker over TLS. |
+| `mqtt_ssl_verify` | `true` | Check the broker's TLS certificate. Turn off for a self-signed certificate. |
+
+## MQTT broker
+
+By default the app uses the broker Home Assistant offers to apps, which is the Mosquitto broker app. To use another broker, for example Mosquitto on a separate server or in Docker, set `mqtt_host` and, if needed, `mqtt_port`, `mqtt_user` and `mqtt_password`, then restart the app. Use the same broker as Zigbee2MQTT. These options are on the app's **Configuration** tab, under **Show unused optional configuration options** if they're hidden.
+
+The app's Home Assistant entities use MQTT discovery, so they appear only if Home Assistant's MQTT integration is connected to the same broker.
 
 ## Expected reporting
 

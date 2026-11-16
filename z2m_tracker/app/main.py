@@ -408,12 +408,14 @@ tracker.on_event = alerts.on_event
 
 MQTT_HOST = os.environ.get("MQTT_HOST") or "core-mosquitto"
 MQTT_PORT = int(os.environ.get("MQTT_PORT") or 1883)
+# Set by run.sh when the broker comes from this app's options rather than the Mosquitto app.
+MQTT_MANUAL = os.environ.get("MQTT_MANUAL") == "true"
 mqtt_status = MqttStatus(MQTT_HOST, MQTT_PORT, configured=bool(os.environ.get("MQTT_HOST")))
 
 
 def on_connect(client, userdata, flags, reason_code, properties):
     if reason_code.is_failure:
-        line = mqtt_status.failed(explain_refusal(str(reason_code)), refused=True)
+        line = mqtt_status.failed(explain_refusal(str(reason_code), manual=MQTT_MANUAL), refused=True)
         if line:
             _LOGGER.error("MQTT: %s", line)
         return
@@ -445,7 +447,7 @@ def on_connect_fail(client, userdata):
     """paho retries on its own but doesn't say why; probe the broker to find out."""
     if stop_event.is_set():
         return
-    line = mqtt_status.failed(explain_error(probe(MQTT_HOST, MQTT_PORT), MQTT_HOST, MQTT_PORT))
+    line = mqtt_status.failed(explain_error(probe(MQTT_HOST, MQTT_PORT), MQTT_HOST, MQTT_PORT, manual=MQTT_MANUAL))
     if line:
         _LOGGER.error("MQTT: %s Retrying.", line)
 
@@ -485,8 +487,14 @@ def start_mqtt() -> mqtt.Client:
     if user:
         client.username_pw_set(user, os.environ.get("MQTT_PASS") or None)
     if (os.environ.get("MQTT_SSL") or "").lower() == "true":
-        client.tls_set(cert_reqs=ssl.CERT_NONE)
-        client.tls_insecure_set(True)
+        # A broker from this app's options is checked against the system CAs unless mqtt_ssl_verify is off.
+        # The Mosquitto app's certificate is usually issued for a public name, not core-mosquitto.
+        verify = MQTT_MANUAL and (os.environ.get("MQTT_SSL_VERIFY") or "true").lower() != "false"
+        if verify:
+            client.tls_set(cert_reqs=ssl.CERT_REQUIRED)
+        else:
+            client.tls_set(cert_reqs=ssl.CERT_NONE)
+            client.tls_insecure_set(True)
     client.on_connect = on_connect
     client.on_disconnect = on_disconnect
     client.on_connect_fail = on_connect_fail

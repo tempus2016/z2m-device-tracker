@@ -13,7 +13,7 @@ panel_title: Zigbee Tracker
 homeassistant_api: true
 hassio_api: true
 services:
-  - mqtt:need
+  - mqtt:want
 map:
   - homeassistant_config:ro
 options:
@@ -55,6 +55,12 @@ options:
   quiet_hours: false
   quiet_start: "23:00"
   quiet_end: "07:00"
+  mqtt_host: ""
+  mqtt_port: 1883
+  mqtt_user: ""
+  mqtt_password: ""
+  mqtt_ssl: false
+  mqtt_ssl_verify: true
 schema:
   base_topics:
     - str
@@ -85,3 +91,9 @@ schema:
   quiet_hours: bool?
   quiet_start: match(^([01]\d|2[0-3]):[0-5]\d$)?
   quiet_end: match(^([01]\d|2[0-3]):[0-5]\d$)?
+  mqtt_host: str?
+  mqtt_port: port?
+  mqtt_user: str?
+  mqtt_password: password?
+  mqtt_ssl: bool?
+  mqtt_ssl_verify: bool?

@@ -52,6 +52,20 @@ def test_login_refusal_says_restart():
     assert explain_refusal("Server unavailable").endswith("Server unavailable")
 
 
+def test_manual_broker_points_at_the_options_not_the_app():
+    for err in (socket.gaierror(-2, "Name or service not known"), ConnectionRefusedError(), None):
+        text = explain_error(err, "192.168.1.5", 1883, manual=True)
+        assert "Mosquitto broker app" not in text
+        assert "configuration" in text or "mqtt_ssl" in text
+    login = explain_refusal("Not authorized", manual=True)
+    assert "mqtt_user and mqtt_password" in login
+    assert "Restart this app" not in login
+
+
+def test_no_broker_mentions_the_option():
+    assert "mqtt_host" in NO_BROKER
+
+
 def test_probe_reports_refused_port():
     server = socket.socket()
     server.bind(("127.0.0.1", 0))
