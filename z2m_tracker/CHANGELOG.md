@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.5.0
+
+Update the app and the integration together: the integration's new maintenance to-do list and calendar, and the brand on the battery replaced action, need the 1.5.0 app. New checks show on the Health tab but don't notify until you turn them on under Settings → Checks.
+
+### Added
+- What a problem affects: a device with an issue lists the Home Assistant automations, scripts and scenes that use it, with links to their editors, and its alerts get a "Used by" line. Looked up for devices with issues and critical devices; a failed lookup is retried after 1, 5 and 15 minutes.
+- Buttons on phone alerts: alerts sent through `notify_service` get Companion app buttons (Mute 24 h, Ping for mains devices, Battery replaced for battery alerts) and open the device when tapped. Each alert carries a one-use code that expires after 7 days. New option `alert_actions` (on) turns them off for notify services that aren't the Companion app.
+- Incidents: the Activity tab has an Incidents view that groups problems on one network (3 or more devices, or Zigbee2MQTT going down, within 10 minutes of each other) with a likely cause: Zigbee2MQTT or the coordinator down, a named router offline, or a network-wide drop.
+- Effect of an upgrade: Zigbee2MQTT and coordinator firmware upgrades are recorded, and the Coordinators card compares the week before with the week after: devices going offline per day, average link quality, messages per hour, devices leaving per day and parent changes per routing scan. A clearly worse week adds a Worse since upgrade item.
+- Slow or missed commands: every `/set` to a device is timed until its state shows what was asked; commands within 2 s count as one. The device's Health tab shows commands, typical reply time and misses with a 7-day chart. New checks Slow to respond and Misses commands.
+- Reporting settings: each device's configured attribute reporting is listed in plain words on its Health tab. Settings that drain a battery, flood the mesh or may never report are flagged, and Use recommended sends the fix to Zigbee2MQTT after a confirm. New check Reporting settings.
+- What if a router goes: on the Map tab, pick a router to see which devices would move and to which router, and which have no other router in range, from the latest routing scan.
+- Where to add a router: the Map tab ranks Home Assistant areas by devices with no backup route, weak links, router hopping and dropouts, and flags the top 3 on the floor plan.
+- Pairing helper: the Pair device dialog follows each joining device through its interview, then offers a name and an area. Names come from a naming pattern (`naming_pattern`, tokens `{area}`, `{type}`, `{model}`, `{n}`), set under Settings → Device names. New check Naming, for devices still named by address or off-pattern, with Rename to pattern on the Health tab.
+- Maintenance tasks: recurring jobs per device on its Notes tab (test the smoke alarm monthly), with quick picks by device type and Mark done, which goes in the device's logbook. A Maintenance card lists overdue and due-soon tasks. With the integration, a Zigbee maintenance to-do list (tick to mark done) and calendar. Tasks move to a replacement device with its notes. New check Maintenance overdue.
+- Battery brands: a battery change can record a brand, picked from a list you keep under Settings → Battery brands. A Battery life by brand card compares how long each brand lasts per battery type, from finished batteries only. The `battery_replaced` action takes an optional `brand`, and the CSV export has a `battery_brand` column.
+- Reliability by model: a Health card groups your devices by vendor and model with uptime, dropouts a month, battery life, failed interviews and re-pairs, worst first. Models with one device are never flagged.
+- Zigbee2MQTT settings history: changes to Zigbee2MQTT's own settings are listed on the Coordinators card and logged as events; a device's own options go on its logbook. Passwords, the network key, PAN ID and tokens are never stored or shown.
+- Prometheus metrics: an optional `/metrics` endpoint on port 9099 with per-device gauges (online, link quality, battery, last seen, messages, uptime, issues) and network totals. Off until `metrics_token` (16 characters or more) is set and the port is mapped.
+
+### Fixed
+- The sidebar no longer receives `mqtt_password`.
+- A device Home Assistant learns about from a join event, before Zigbee2MQTT lists it, is named by its address instead of after the MQTT broker.
+- Network events on the Activity tab no longer run their detail into the network name.
+
 ## 1.4.0
 
 Update the app and the integration together. The app now asks Home Assistant for an API token, and an integration older than 1.4.0 has none, so it shows as unavailable until it is updated too.

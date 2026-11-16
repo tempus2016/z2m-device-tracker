@@ -44,7 +44,7 @@ from usage import UsageRefresher
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
 _LOGGER = logging.getLogger("z2m_tracker")
 
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 PORT = 8099
 # Prometheus scrape port: only opened when metrics_token is set.
 METRICS_PORT = 9099
