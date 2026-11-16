@@ -144,9 +144,22 @@ These checks show in Health but don't notify until you set them to **Show and no
 | Reporting settings | A device whose attribute reporting drains its battery, floods the mesh, or may never report a measurement. See Reporting settings below. |
 | Daily signal dip | Average link quality across a network drops at least 25% below that day's median in the same 1 to 4 hours on at least 4 of the last 7 days, and at least 30% of its devices dip then too. Usually something that switches on at that time: busy Wi-Fi on an overlapping channel, a microwave, or a USB 3 device near the coordinator. Health → Radio channels shows the hourly chart once a network has a week of link quality from at least 3 devices. |
 | Worse since an upgrade | After Zigbee2MQTT or the coordinator firmware changes, the week after the upgrade looks clearly worse than the week before, once at least 2 days of it have passed (shown for 30 days). Shows only; it doesn't notify unless you add it to `notify_checks`. See **Effect of an upgrade** below for what is compared and the thresholds. |
+| Sends different data | A device stopped sending a value it always sent, and an automation or script in Home Assistant uses that value's entity. See [Payload changes](#payload-changes). |
 | Naming | A device still named by its IEEE address (`0x…`), or, when `naming_pattern` is set, a name that doesn't follow it. Low priority. See [Device names](#device-names). |
 
 **Network → Groups** lists every Zigbee2MQTT group with how many of its members are online. Groups with offline members show each member, with the offline ones in red. A device that dropped out of a group but is still on the network (for example after it left and was re-paired) is flagged for 30 days, until it's back in the group, or until the group is deleted. Leaving a group is only noticed while the app is running.
+
+## Payload changes
+
+After a firmware update or a change in Zigbee2MQTT's converter for it, a device can start sending different data: a value is renamed, or one disappears. The app learns which values (keys) each device sends from its first 30 messages, then logs a change in the device's History tab, with the keys that are new and the keys that are gone, and the firmware version when the device was updated in the week before.
+
+- A key counts as gone when it was in at least 80% of the learning messages and then misses 20 messages in a row.
+- A key counts as new when it turns up in 5 messages within 50. Keys that only appear now and then are remembered and never reported, and `action`, `update`, `last_seen`, `linkquality` and the like are ignored.
+- Changes within a day of each other are one entry.
+
+The **Sends different data** check shows on Health for 30 days when a gone key's Home Assistant entity is still used by an automation or script. The app finds the entity from Zigbee2MQTT's discovery ids, so it needs the device to be in Home Assistant through MQTT discovery, and the app to have been running (or HA's registry to still hold the entity) when the key went.
+
+With Zigbee2MQTT's `cache_state` on (the default), Zigbee2MQTT keeps repeating the last cached value of a key the device no longer sends, and keeps it across restarts, so a gone key may only be noticed once that cached value is cleared. New keys are noticed either way.
 
 ## Effect of an upgrade
 

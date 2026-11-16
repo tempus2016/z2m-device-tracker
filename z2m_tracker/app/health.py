@@ -7,6 +7,7 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
+from payload_keys import SHOW_DAYS as PAYLOAD_SHOW_DAYS
 from reporting import audit as reporting_audit
 from reporting import findings as reporting_findings
 from reporting import summary_text as reporting_summary
@@ -183,6 +184,12 @@ CHECKS = [
         False,
     ),
     (
+        "payload_changed",
+        "Sends different data",
+        "A device stopped sending a value it always sent (often after a firmware update), and an automation or script uses that value's entity.",
+        False,
+    ),
+    (
         "naming",
         "Naming",
         "A device still named by its IEEE address (0x…), or, when a naming pattern is set, a name that doesn't follow it.",
@@ -235,6 +242,7 @@ KIND_LABELS = {
     "upgrade_worse": "Worse since upgrade",
     "reporting_config": "Reporting settings",
     "naming": "Naming",
+    "payload_changed": "Sends different data",
 }
 
 
@@ -923,6 +931,33 @@ def device_issues(
             n=n,
             names=names,
             rate=result["rate"],
+        )
+
+    change = record.get("payload_change") or {}
+    used = summary.get("payload_usage") or []
+    change_age = _age(change.get("at"), now)
+    if used and change.get("removed") and change_age is not None and change_age < PAYLOAD_SHOW_DAYS * 86400:
+        gone = ", ".join(change["removed"])
+        new = ", ".join(change.get("added") or [])
+        users = [x["name"] for u in used for key in ("automations", "scripts") for x in u.get(key) or []]
+        users = list(dict.fromkeys(users))
+        names = ", ".join(users[:3]) + (f" (+{len(users) - 3} more)" if len(users) > 3 else "")
+        entities = ", ".join(u["entity_id"] for u in used)
+        firmware = change.get("firmware")
+        lead = f"Since firmware {firmware}: " if firmware else ""
+        what = f"{gone} gone" + (f", {new} new" if new else "")
+        add(
+            "payload_changed",
+            INFO,
+            "Sends different data",
+            f"{lead}{what}. Still used by {names} ({entities}), which may stop working.",
+            "payload_changed",
+            gone=gone,
+            new=new,
+            firmware=firmware,
+            entities=entities,
+            names=names,
+            n=len(users),
         )
 
     for suggestion in suggestions:

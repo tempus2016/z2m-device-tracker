@@ -51,6 +51,7 @@ DEVICE_CHECKS = [
     "missed_commands",
     "reporting_config",
     "naming",
+    "payload_changed",
 ]
 
 DEVICE_FIELDS = {

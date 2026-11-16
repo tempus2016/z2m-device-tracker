@@ -42,6 +42,12 @@ from history_import import IEEE_RE, _features, collect_history
 from incidents import build_incidents
 from metrics import Metrics
 from naming import kind_of, naming_issues
+from payload_keys import MERGE_SECONDS as PAYLOAD_MERGE_SECONDS
+from payload_keys import SHOW_DAYS as PAYLOAD_SHOW_DAYS
+from payload_keys import clean as clean_payload_keys
+from payload_keys import describe as describe_payload_change
+from payload_keys import merge as merge_payload_change
+from payload_keys import observe as observe_payload_keys
 from reliability import model_reliability
 from reporting import audit as reporting_audit
 from reporting import clean as clean_reportings
@@ -350,6 +356,15 @@ def _clean_record(record: dict) -> dict:
         if not isinstance(record.get(key), list):
             record[key] = []
     record["maintenance"] = _clean_tasks(record.get("maintenance"))
+    if "payload_keys" in record:
+        record["payload_keys"] = clean_payload_keys(record["payload_keys"])
+    change = record.get("payload_change")
+    if change is not None and not (
+        isinstance(change, dict)
+        and isinstance(change.get("at"), str)
+        and all(isinstance(change.get(k), list) for k in ("added", "removed"))
+    ):
+        record["payload_change"] = None
     if "reportings" in record:
         record["reportings"] = clean_reportings(record["reportings"])
     inputs = record.get("reporting_inputs")
@@ -800,6 +815,12 @@ class Tracker:
         self.ha_leftovers: list[dict] = []
         # IEEE -> {"automations", "scripts", "scenes", "at"} for devices with a problem (see usage_wanted).
         self.ha_usage: dict[str, dict] = {}
+        # IEEE -> {Zigbee2MQTT unique id after "<ieee>_" -> HA entity id}, merged at each registry read and
+        # never trimmed while running, so an entity HA has just removed can still be named.
+        self.ha_entities: dict[str, dict[str, str]] = {}
+        # Entity id -> {"automations", "scripts"} that use it, for keys a device stopped sending.
+        self.entity_usage: dict[str, dict] = {}
+        self._entity_usage_at: dict[str, float] = {}
         self._usage_keys: set[str] = set()
         self._pending: dict[str, dict] = {}
         self.battery_lib = None
@@ -1711,6 +1732,14 @@ class Tracker:
             record["lqi"] = lqi
             self.metrics.add_lqi(ieee, lqi)
 
+        keys_state = record.get("payload_keys")
+        if not isinstance(keys_state, dict):
+            keys_state = record["payload_keys"] = {}
+        added, removed = observe_payload_keys(keys_state, parsed.keys())
+        if added or removed:
+            self._payload_changed(base_topic, record, name, added, removed, now)
+            structural = True
+
         battery = parsed.get("battery")
         if _finite(battery):
             if record.get("battery") != battery:
@@ -1771,6 +1800,100 @@ class Tracker:
                 reading["reports"] = int(reading.get("reports", 0)) + 1
 
         self._changed(structural=structural)
+
+    def _payload_changed(
+        self, base_topic: str, record: dict, name: str, added: list[str], removed: list[str], now: str
+    ) -> None:
+        """Record a change in the keys a device sends: on the device (for Health) and in its logbook.
+        Changes within a day of the last one are folded into it, so one firmware update is one entry."""
+        ieee = record["ieee"]
+        ts = time.time()
+        last = record.get("payload_change")
+        try:
+            recent = bool(last) and ts - datetime.fromisoformat(last["at"]).timestamp() < PAYLOAD_MERGE_SECONDS
+        except (KeyError, TypeError, ValueError):
+            recent = False
+        merged = merge_payload_change(last if recent else None, added, removed)
+        entities = dict((last or {}).get("entities") or {}) if recent else {}
+        known = self.ha_entities.get(ieee) or {}
+        for key in removed:
+            entity_id = known.get(f"{key}_{base_topic}")
+            if entity_id:
+                entities[key] = entity_id
+        entities = {k: v for k, v in entities.items() if k in merged["removed"]}
+        at = last["at"] if recent else now
+        change = {**merged, "at": at, "entities": entities, "firmware": self._recent_firmware(ieee, ts)}
+        record["payload_change"] = change if merged["added"] or merged["removed"] else None
+        detail = describe_payload_change(merged["added"], merged["removed"])
+        event = None
+        if recent:
+            event = next(
+                (
+                    e
+                    for e in reversed(self.data["events"][-500:])
+                    if e.get("ieee") == ieee and e.get("kind") == "payload changed" and e.get("time") == at
+                ),
+                None,
+            )
+        if event is None:
+            self._add_event(now, base_topic, ieee, name, "payload changed", detail)
+            event = self.data["events"][-1]
+        event["detail"] = detail
+        event["added"], event["removed"] = merged["added"], merged["removed"]
+        if change["firmware"]:
+            event["firmware"] = change["firmware"]
+
+    def _recent_firmware(self, ieee: str, now: float, days: int = 7) -> str | None:
+        """The version from the device's last firmware update in the past few days, if any."""
+        since = datetime.fromtimestamp(now - days * 86400, tz=timezone.utc).isoformat(timespec="seconds")
+        for event in reversed(self.data["events"]):
+            if (event.get("time") or "") < since:
+                break
+            if event.get("ieee") == ieee and event.get("kind") == "firmware updated":
+                detail = str(event.get("detail") or "")
+                return _text(detail.removeprefix("Now on "), 40) if detail.startswith("Now on ") else None
+        return None
+
+    def entity_usage_wanted(self, max_age: float = USAGE_MAX_AGE) -> list[str]:
+        """HA entities of keys a device recently stopped sending, not looked up in the last max_age seconds."""
+        now = time.time()
+        wanted = []
+        with self.lock:
+            for record in self.data["devices"].values():
+                change = record.get("payload_change")
+                if not change or record.get("status") != STATUS_ACTIVE:
+                    continue
+                try:
+                    if now - datetime.fromisoformat(change["at"]).timestamp() > PAYLOAD_SHOW_DAYS * 86400:
+                        continue
+                except (KeyError, TypeError, ValueError):
+                    continue
+                wanted.extend(v for v in (change.get("entities") or {}).values() if isinstance(v, str))
+            return [e for e in dict.fromkeys(wanted) if now - self._entity_usage_at.get(e, 0) >= max_age][:USAGE_LIMIT]
+
+    def set_entity_usage(self, found: dict[str, dict], asked: list[str]) -> None:
+        """Store what uses each asked entity. One missing from found (a failed lookup) keeps what was
+        known and is asked again after USAGE_MAX_AGE."""
+        now = time.time()
+        with self.lock:
+            for entity_id in asked:
+                self._entity_usage_at[entity_id] = now
+                if entity_id not in found:
+                    continue
+                usage = found[entity_id] or {}
+                shown = {key: list(usage.get(key) or []) for key in ("automations", "scripts")}
+                if self.entity_usage.get(entity_id) != shown:
+                    self.entity_usage[entity_id] = shown
+                    self.revision += 1
+
+    def _payload_usage(self, record: dict) -> list[dict]:
+        """For each key the device stopped sending: its HA entity and what uses it, when something does."""
+        out = []
+        for key, entity_id in sorted(((record.get("payload_change") or {}).get("entities") or {}).items()):
+            usage = self.entity_usage.get(entity_id) or {}
+            if usage.get("automations") or usage.get("scripts"):
+                out.append({"key": key, "entity_id": entity_id, **usage})
+        return out
 
     def _ingest_networkmap(self, base_topic: str, payload: dict) -> None:
         now = _now()
@@ -2680,6 +2803,8 @@ class Tracker:
             ]
             if overdue:
                 extra["maintenance_overdue"] = sorted(overdue, key=lambda x: -x["days"])
+            if record.get("payload_change"):
+                extra["payload_usage"] = self._payload_usage(record)
             out[ieee] = extra
         return out
 
@@ -2849,6 +2974,8 @@ class Tracker:
             for record in self.data["devices"].values():
                 ieee = record["ieee"]
                 item = dict(record)
+                # The learning counts only matter to the tracker.
+                item.pop("payload_keys", None)
                 item["metrics"] = self.metrics.summary(ieee, now)
                 item["uptime_30d"] = uptime(record, now)
                 item["oui_vendor"] = self._oui_vendor(ieee)
