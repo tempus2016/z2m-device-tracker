@@ -1,0 +1,38 @@
+name: Device rating
+description: Share how a Zigbee device works for you. Opened from the Zigbee Tracker sidebar (device details > Community).
+title: "Rating: "
+labels: ["rating"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for rating a device. The easiest way is **Share your experience** on the device's
+        **Community** tab in the Zigbee Tracker sidebar: it fills in the report below for you.
+
+        A bot checks the report, closes this issue and adds it to the community ratings the
+        next time they're rebuilt (once a week). Submissions are public and released under
+        [CC0](https://creativecommons.org/publicdomain/zero/1.0/), so anyone can reuse the data.
+        Please don't include names, addresses or anything else personal.
+
+  - type: textarea
+    id: report
+    attributes:
+      label: Report
+      description: Filled in by the Zigbee Tracker. Please leave the keys as they are.
+      render: yaml
+      placeholder: |
+        schema: 1
+        vendor: ...
+        model: ...
+        verdict: recommend
+    validations:
+      required: true
+
+  - type: textarea
+    id: comment
+    attributes:
+      label: Comment
+      description: Optional, public. What should someone buying this device know? Up to 500 characters.
+    validations:
+      required: false

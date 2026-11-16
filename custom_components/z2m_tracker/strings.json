@@ -233,7 +233,8 @@
         "slow_commands": "Slow to respond",
         "missed_commands": "Misses commands",
         "reporting_config": "Reporting settings",
-        "naming": "Name doesn't follow the pattern"
+        "naming": "Name doesn't follow the pattern",
+        "community_avoid": "Rated poorly by others"
       }
     }
   },

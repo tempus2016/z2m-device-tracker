@@ -70,6 +70,7 @@ options:
   mqtt_ssl: false
   mqtt_ssl_verify: true
   metrics_token: ""
+  community_ratings_fetch: true
 schema:
   base_topics:
     - str
@@ -109,3 +110,4 @@ schema:
   mqtt_ssl: bool?
   mqtt_ssl_verify: bool?
   metrics_token: password?
+  community_ratings_fetch: bool?

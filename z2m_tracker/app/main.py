@@ -28,6 +28,7 @@ import alert_actions
 import paho.mqtt.client as mqtt
 import prometheus
 from battery_library import BatteryLibrary
+from community import CommunityRatings
 from discovery import AVAILABILITY, Discovery
 from discovery import BASE as DISCOVERY_BASE
 from ha import HomeAssistant
@@ -54,6 +55,8 @@ METRICS_PATH = "/data/metrics.json"
 SCANS_PATH = "/data/scans.json"
 OPTIONS_PATH = "/data/options.json"
 TOKEN_PATH = "/data/api_token"
+COMMUNITY_PATH = "/data/community_ratings.json"
+COMMUNITY_ID_PATH = "/data/community_id"
 CONFIG_DIR = "/homeassistant"
 MIGRATE_FROM = f"{CONFIG_DIR}/.storage/z2m_tracker"
 APP_DIR = Path(__file__).parent
@@ -108,6 +111,7 @@ DEFAULT_OPTIONS = {
     "quiet_start": "23:00",
     "quiet_end": "07:00",
     "naming_pattern": "",
+    "community_ratings_fetch": True,
 }
 
 CHECK_KEYS = {key for key, _, _, _ in CHECKS}
@@ -198,6 +202,7 @@ SETTINGS = {
     "quiet_start": _clock,
     "quiet_end": _clock,
     "naming_pattern": clean_pattern,
+    "community_ratings_fetch": _bool,
 }
 
 
@@ -299,6 +304,8 @@ metrics = Metrics(METRICS_PATH)
 tracker = Tracker(DATA_PATH, base_topics, CONFIG_DIR, local_timezone(), metrics, options, load_oui())
 home_assistant = HomeAssistant(CONFIG_DIR)
 tracker.battery_lib = BatteryLibrary(APP_DIR / "battery_library.json")
+community = CommunityRatings(APP_DIR / "community_ratings.json", Path(COMMUNITY_PATH), Path(COMMUNITY_ID_PATH))
+tracker.community = community
 discovery = Discovery(tracker, VERSION, bool(options.get("ha_entities", True)))
 stop_event = threading.Event()
 ha_changed_at = 0.0
@@ -958,6 +965,8 @@ def apply_settings(changes: dict) -> dict:
         "naming_pattern",
     } & set(clean):
         tracker.evaluate_health()
+    if clean.get("community_ratings_fetch"):
+        community.fetched_at = 0.0
     if {"alerts_enabled", "notify_checks", "disabled_checks"} & set(clean):
         alerts.rebaseline()
     threading.Thread(target=discovery.sync, daemon=True).start()
@@ -996,6 +1005,25 @@ def refresh_leftovers(usage: bool = False) -> list[dict] | None:
     return found
 
 
+community_lock = threading.Lock()
+
+
+def fetch_community() -> None:
+    """Daily refresh of the community ratings from GitHub; a new file re-runs the health checks."""
+    if not community_lock.acquire(blocking=False):
+        return
+    try:
+        if community.fetch(time.time()):
+            _LOGGER.info("Community ratings updated (%s, %d models)", community.updated, len(community.data["models"]))
+            tracker.evaluate_health()
+            with tracker.lock:
+                tracker._changed(structural=True)
+        elif community.fetch_error:
+            _LOGGER.info("Couldn't fetch the community ratings (%s); trying again in an hour", community.fetch_error)
+    finally:
+        community_lock.release()
+
+
 def scheduler() -> None:
     global ha_changed_at
     last_save = last_metrics = last_ha = last_health = 0.0
@@ -1029,6 +1057,8 @@ def scheduler() -> None:
                 alerts.check()
                 discovery.sync()
                 last_health = now
+            if options.get("community_ratings_fetch", True) and community.fetch_due(now):
+                threading.Thread(target=fetch_community, name="community", daemon=True).start()
             # What uses devices with a problem: after a registry refresh, for new issues,
             # and retries after a failure. Kept for the next round while a lookup runs.
             usage_refresher.start_due()
@@ -1326,6 +1356,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, tracker.snapshot_json())
         elif path == "/api/settings":
             self._json(200, settings_payload())
+        elif path == "/api/community":
+            self._json(200, community.all_models())
         elif path == "/api/version":
             self._json(200, {"version": tracker.version, "app": VERSION})
         elif path == "/api/ota":
@@ -1432,7 +1464,14 @@ class Handler(BaseHTTPRequestHandler):
         body = self._body()
         ieee = str(body.get("ieee") or "")
         try:
-            if path == "/api/note":
+            if path == "/api/community/report":
+                choice = body.get("choice") if isinstance(body.get("choice"), dict) else {}
+                result = tracker.community_report(ieee, choice)
+                if result is None:
+                    self._json(404, {"error": "Unknown device or no model"})
+                else:
+                    self._json(200, result)
+            elif path == "/api/note":
                 ok = tracker.set_note(ieee, str(body.get("note") or "")[:2000])
                 self._json(200 if ok else 404, {"ok": ok})
             elif path == "/api/asset":

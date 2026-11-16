@@ -58,6 +58,7 @@ mute_device:
             - missed_commands
             - reporting_config
             - naming
+            - community_avoid
     duration:
       selector:
         duration:
