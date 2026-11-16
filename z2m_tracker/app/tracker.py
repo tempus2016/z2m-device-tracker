@@ -38,6 +38,9 @@ from health import (
 )
 from history_import import IEEE_RE, _features, collect_history
 from metrics import Metrics
+from z2m_config import KEEP_CHANGES, describe
+from z2m_config import diff as config_diff
+from z2m_config import flatten as config_flatten
 
 _LOGGER = logging.getLogger("z2m_tracker")
 
@@ -87,6 +90,7 @@ RESTORE_KEYS = {
     "ota_history": list,
     "ota_last_check": (str, int, float),
     "summary_sent": (str, dict),
+    "z2m_config": dict,
 }
 
 # Anything on the broker can publish under the base topic, so incoming text and numbers are checked
@@ -3066,6 +3070,8 @@ class Tracker:
                 )
             bridge["info"] = slim
             self._changed(structural=True)
+        if isinstance(info.get("config"), dict):
+            self._track_config(base_topic, info["config"])
         on = bool(info.get("permit_join"))
         # Z2M 2.x: permit_join_end is an epoch in ms. 1.x: permit_join_timeout is seconds left.
         end = info.get("permit_join_end") or info.get("permit_join_timeout")
@@ -3085,6 +3091,46 @@ class Tracker:
             if not on and base_topic in self.pairing_sessions:
                 self.pairing_sessions[base_topic]["active"] = False
             self.revision += 1
+
+    def _track_config(self, base_topic: str, config: dict) -> None:
+        """Compare Zigbee2MQTT's settings with the last copy and log what changed.
+
+        The first copy is the baseline, like the first device list. Network-wide changes go on the
+        Coordinators card and one network event; a device's own options go on that device's logbook."""
+        flat = config_flatten(config)
+        store = self.data.setdefault("z2m_config", {})
+        previous = store.get(base_topic)
+        if previous == flat:
+            return
+        store[base_topic] = flat
+        if previous is None:
+            self.dirty = True
+            return
+        changes = config_diff(previous, flat)
+        when = _now()
+        bridge = self._bridge(base_topic)
+        log = bridge.setdefault("config_changes", [])
+        network_lines = []
+        by_device: dict[str, list[str]] = {}
+        for change in changes:
+            log.append({"time": when, **change})
+            ieee = change.get("ieee")
+            if ieee and ieee in self.data["devices"]:
+                by_device.setdefault(ieee, []).append(describe(change))
+            elif not ieee:
+                network_lines.append(describe(change))
+        if len(log) > KEEP_CHANGES:
+            del log[: len(log) - KEEP_CHANGES]
+        if network_lines:
+            more = f" (+{len(network_lines) - 3} more)" if len(network_lines) > 3 else ""
+            self._add_event(
+                when, base_topic, "network", "Network", "settings changed", "; ".join(network_lines[:3]) + more
+            )
+        for ieee, lines in by_device.items():
+            self._add_event(
+                when, base_topic, ieee, _display_name(self.data["devices"][ieee]), "settings changed", "; ".join(lines)
+            )
+        self._changed(structural=True)
 
     def _handle_permit_request(self, base_topic: str, text: str) -> None:
         """Someone published bridge/request/permit_join. Remember it if it opens pairing and isn't ours."""
