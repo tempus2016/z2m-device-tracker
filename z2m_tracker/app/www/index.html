@@ -543,6 +543,18 @@
   .mem-bars i.none { background: var(--divider); opacity: 1; }
   .mem-bars i.hi { background: var(--warning); opacity: 1; }
   .mem-axis { display: flex; justify-content: space-between; padding-top: 4px; font-size: 12px; color: var(--text-2); }
+  .upg-head { padding-top: 6px; font-size: 14px; overflow-wrap: anywhere; }
+  .upg-note { padding-top: 2px; font-size: 13px; color: var(--text-2); }
+  table.upg-t { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+  table.upg-t th, table.upg-t td { padding: 6px 8px 6px 0; text-align: right; border-bottom: 1px solid var(--divider); vertical-align: top; }
+  table.upg-t thead th { font-size: 12px; font-weight: 400; color: var(--text-2); }
+  table.upg-t th[scope="row"], table.upg-t thead th:first-child { text-align: left; font-weight: 400; overflow-wrap: anywhere; }
+  table.upg-t td { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  table.upg-t td:last-child { padding-right: 0; }
+  .upg-st { font-size: 12px; color: var(--text-2); }
+  .upg-list { list-style: none; margin: 4px 0 0; padding: 0; font-size: 13px; }
+  .upg-list li { padding: 4px 0; overflow-wrap: anywhere; }
+  .upg-list .upg-st { padding-left: 4px; }
   @media (max-width: 600px) { .coord .kv { padding-left: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); } .coord-extra { padding-left: 16px; } .coord-more { padding-left: 4px; } .coord-detail { margin: 0 8px; } .coord-detail .kv { padding-left: 0; } .coord-detail .coord-extra { padding-left: 8px; } }
   svg.spectrum { width: 100%; max-width: 720px; height: auto; display: block; margin: 0 auto; }
   svg.spectrum text { font-size: 11px; fill: var(--text-2); font-family: var(--font); }
@@ -794,7 +806,7 @@
     removed: { get label() { return t("status.removed"); }, c: "var(--disabled)" },
   };
   const KIND_ICON = { offline: "wifi-off", silent: "wifi-off", late: "history", frozen: "thermometer", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
-    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb", slow_router: "router-wireless" };
+    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb", slow_router: "router-wireless", upgrade_worse: "update" };
   const EVENT_ICON = (k) => {
     if (k.startsWith("interview")) return k.endsWith("successful") ? ["check", "var(--success)"] : ["alert-circle", "var(--error)"];
     return ({ joined: ["plus", "var(--success)"], added: ["plus", "var(--success)"], rejoined: ["plus", "var(--success)"], online: ["wifi", "var(--success)"], offline: ["wifi-off", "var(--error)"],
@@ -932,6 +944,11 @@
       p.extra = parts.filter(Boolean).map((x) => ` · ${x}`).join("");
     },
     signal_dip: (p) => { p.period = tx(`issue.signal_dip.${p.period}`, null, p.period); },
+    upgrade_worse: (p) => {
+      p.date = fmtDate(p.at, false);
+      p.what = listOf((p.changes || []).map((c) => t(c.what === "firmware" ? "upgrade.short_firmware" : "upgrade.short_z2m", { version: c.to })));
+      p.list = listOf((p.metrics || []).map((m) => t("upgrade.issue_metric", { metric: t(`upgrade.metric.${m.key}`), before: upgNum(m.key, m.before), after: upgNum(m.key, m.after) })));
+    },
   };
   // Offline devices behind an offline router are shown inside the router's issue, not on their own.
   const nestedIssue = (i, keys) => Boolean(i.behind) && keys.has(`offline:${i.behind}`);
@@ -1287,7 +1304,8 @@
       // The five facts worth a glance stay visible; the rest opens on demand. A network that is down, or whose
       // Zigbee2MQTT memory is growing, starts open. Toggling flips it from that default.
       const memIssue = (state.data.issues || []).some((i) => i.kind === "z2m_memory" && i.instance === bt);
-      const open = state.openCoords.has(bt) !== (!online || memIssue);
+      const upgIssue = (state.data.issues || []).some((i) => i.kind === "upgrade_worse" && i.instance === bt);
+      const open = state.openCoords.has(bt) !== (!online || memIssue || upgIssue);
       const more = [...[[th("coord.connection"), coordConnection(info.connection)], [th("coord.channel_pan"), info.channel ? `${info.channel} / ${info.pan_id ?? "?"}` : null],
         [th("coord.running_for"), h.uptime_sec ? span(h.uptime_sec) : null], [th("coord.memory"), h.memory_mb ? t("coord.memory_mb", { n: Math.round(h.memory_mb) }) : null],
         [th("coord.mqtt"), h.mqtt_published != null ? t("coord.mqtt_value", { sent: compactNum(h.mqtt_published), received: compactNum(h.mqtt_received ?? 0) }) : null],
@@ -1301,7 +1319,7 @@
           [th("coord.last_7_days"), [t("coord.outages", { n: outages.length }) + (outages.length ? ` ${t("coord.down_for", { n: downMin })}` : ""), t("coord.restarts", { n: restarts })].join(" · ")],
           [th("coord.leaves_week"), String(leaves)], [th("coord.backup"), backup]])}
         ${more.length || b.health ? `<div class="coord-more"><button class="btn" data-act="toggle-coord" data-bt="${esc(bt)}" aria-expanded="${open}">${ic(open ? "chevron-up" : "chevron-down", "s18")}${th(open ? "coord.fewer_details" : "coord.more_details")}</button></div>` : ""}
-        ${open ? `<div class="coord-detail">${kv(more)}${coordHealth(bt, b)}</div>` : ""}
+        ${open ? `<div class="coord-detail">${kv(more)}${coordHealth(bt, b)}${coordUpgrade(bt)}</div>` : ""}
       </div>`;
     }).join("");
     return `<div class="card"><div class="card-header">${ic("router-wireless")}<div><h2 class="ch">${th("coord.title")}</h2><small>${th("coord.subtitle")}</small></div></div>${nets}</div>`;
@@ -1326,6 +1344,32 @@
       <div class="mem-bars" role="group" aria-label="${esc(t("coord.memory_chart"))}" ${hoverAttrs(`mem-${bt}`, { bars: true, p: hov })}>${bars}</div>
       <div class="mem-axis"><span>${esc(label(slots[0].dt))}</span><span>${th("coord.today")}</span></div>
       ${issue ? `<div class="alert" style="--a:var(--warning)">${ic("chip")}<div class="body">${esc(issueDetail(issue))}</div></div>` : ""}</div>`;
+  };
+
+  // Effect of an upgrade (state.data.upgrade_impact): the week before the latest Zigbee2MQTT or firmware change against the week after.
+  const UPG_METRICS = { offline_per_day: 1, lqi: 0, msg_per_hour: 0, leaves_per_day: 1, parent_changes_per_scan: 1 };
+  const upgNum = (key, v) => intl((l) => new Intl.NumberFormat(l, { maximumFractionDigits: UPG_METRICS[key] ?? 1 }).format(v));
+  const upgChange = (c) => t(c.what === "firmware" ? "upgrade.change_firmware" : "upgrade.change_z2m", { from: c.from, to: c.to });
+  const upgChanges = (u) => listOf((u.changes || []).map(upgChange));
+  const upgVerdict = (u) => !u.ready ? t(u.no_before ? "upgrade.verdict_no_before" : "upgrade.verdict_waiting") : u.verdict ? t(`upgrade.verdict_${u.verdict}`) : t("upgrade.verdict_none");
+  const coordUpgrade = (bt) => {
+    const imp = (state.data.upgrade_impact || {})[bt];
+    if (!imp || !imp.latest) return "";
+    const u = imp.latest;
+    const status = (st) => (st === "worse" ? `<span class="badge warn">${th("upgrade.worse")}</span>` : `<span class="upg-st">${th(`upgrade.${st === "better" || st === "changed" ? st : "same"}`)}</span>`);
+    const note = !u.ready
+      ? th(u.no_before ? "upgrade.no_before" : "upgrade.waiting")
+      : [u.complete ? th("upgrade.after_full") : th("upgrade.after_so_far", { n: Math.floor(u.elapsed_days) }), u.before_days < 6.5 ? th("upgrade.short_before", { n: Math.round(u.before_days) }) : ""].filter(Boolean).join(" ");
+    const rows = u.ready && u.metrics.length ? `<table class="upg-t"><thead><tr><th scope="col">${th("upgrade.measure")}</th><th scope="col">${th("upgrade.before")}</th><th scope="col">${th("upgrade.after")}</th><th scope="col"><span class="sr">${th("upgrade.change")}</span></th></tr></thead><tbody>${u.metrics
+      .map((m) => `<tr><th scope="row">${th(`upgrade.metric.${m.key}`)}</th><td>${esc(upgNum(m.key, m.before))}</td><td>${esc(upgNum(m.key, m.after))}</td><td>${status(m.status)}</td></tr>`).join("")}</tbody></table>`
+      : u.ready ? `<div class="upg-note">${th("upgrade.verdict_no_data")}</div>` : "";
+    const issue = (state.data.issues || []).find((i) => i.kind === "upgrade_worse" && i.instance === bt);
+    const earlier = (imp.earlier || []).map((e) => `<li>${esc(upgChanges(e))} · ${esc(fmtDate(e.at, false))}<span class="upg-st">· ${esc(upgVerdict(e))}</span></li>`).join("");
+    return `<div class="coord-extra"><div class="sub-h">${th("upgrade.title")}</div>
+      <div class="upg-head">${esc(upgChanges(u))} · ${esc(fmtDate(u.at, false))}</div>
+      <div class="upg-note">${note}</div>${rows}
+      ${issue ? `<div class="alert" style="--a:var(--warning)">${ic("update")}<div class="body">${th("upgrade.alert")}</div></div>` : ""}
+      ${earlier ? `<div class="sub-h">${th("upgrade.earlier")}</div><ul class="upg-list">${earlier}</ul>` : ""}</div>`;
   };
 
   const radioCard = () => {
