@@ -3531,11 +3531,11 @@
   const actions = {
     "tab-more"() { if ($("#tabSheet").hidden) openSheet(); else closeSheet(); },
     close: () => closeDevice(),
-    "toggle-coord": (b) => { const o = state.openCoords; if (!o.delete(b.dataset.bt)) o.add(b.dataset.bt); renderHealth(); },
-    "toggle-group": (b) => { const g = state.openGroups; if (!g.delete(b.dataset.ieee)) g.add(b.dataset.ieee); renderHealth(); },
+    "toggle-coord": (b) => { const o = state.openCoords; if (!o.delete(b.dataset.bt)) o.add(b.dataset.bt); render(); },
+    "toggle-group": (b) => { const g = state.openGroups; if (!g.delete(b.dataset.ieee)) g.add(b.dataset.ieee); render(); },
     "dev-all"() { state.devAll = true; renderDevices(); },
-    "models-all"() { state.modelsAll = true; renderHealth(); },
-    "models-sort": (b) => { state.modelsSort = b.dataset.v; renderHealth(); document.querySelector(`[data-act="models-sort"][data-v="${CSS.escape(b.dataset.v)}"]`)?.focus(); },
+    "models-all"() { state.modelsAll = true; render(); },
+    "models-sort": (b) => { state.modelsSort = b.dataset.v; render(); document.querySelector(`[data-act="models-sort"][data-v="${CSS.escape(b.dataset.v)}"]`)?.focus(); },
     "model-filter": (b) => { state.query = b.dataset.q || ""; state.chip = "all"; go("devices"); },
     "log-more"() { state.logLimit = (state.logLimit || LOG_PAGE) + LOG_PAGE; renderActivity(); },
     "log-mode"(b) { state.logMode = b.dataset.mode === "incidents" ? "incidents" : "all"; store.set("z2mt.logMode", state.logMode); renderActivity(); },
@@ -3736,7 +3736,7 @@
       try {
         const r = await api("api/battery_stock", { type: b.dataset.type, delta: Number(b.dataset.delta) });
         state.data.battery_stock = { ...(state.data.battery_stock || {}), [r.type]: r.count };
-        if (state.view === "health") renderHealth();
+        if (state.view === "upkeep") render();
         load();
       } catch (err) { snack(err.message); }
     },
@@ -3748,7 +3748,7 @@
         const r = await api("api/battery_stock", { type, delta: n });
         state.data.battery_stock = { ...(state.data.battery_stock || {}), [r.type]: r.count };
         snack(t("shop.added", { n, type: r.type }));
-        if (state.view === "health") renderHealth();
+        if (state.view === "upkeep") render();
         load();
       } catch (err) { snack(err.message); }
     },
