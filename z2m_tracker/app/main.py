@@ -1536,6 +1536,9 @@ class Handler(BaseHTTPRequestHandler):
                     200 if entry else 400,
                     {"ok": bool(entry), "entry": entry, "error": None if entry else "Invalid device or date"},
                 )
+            elif path == "/api/battery_prices":
+                result = tracker.set_battery_prices(body.get("prices"))
+                self._json(200 if result["ok"] else 400, result)
             elif path == "/api/battery_stock":
                 result = tracker.set_battery_stock(str(body.get("type") or ""), body.get("count"), body.get("delta"))
                 self._json(200 if result["ok"] else 400, result)

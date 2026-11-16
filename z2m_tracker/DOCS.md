@@ -48,7 +48,7 @@ The sidebar has seven tabs. On a phone the last three sit behind **More** in the
 | **Health** | Problems, worst first, then one line for each part of the app on another tab, so a glance says whether anything there needs a look. |
 | **Devices** | Every device, with its own page: info, health, trends, history, battery and notes. |
 | **Network** | **Map** (routing map, floor plan, what-if), **Coordinator** (each Zigbee2MQTT and its coordinator), **Broker** (devices left behind in Home Assistant), **Radio** (channels and Wi-Fi overlap) and **Groups**. |
-| **Upkeep** | **Batteries** (what to buy, and how long each brand lasts), **Maintenance** (recurring tasks) and **Models** (reliability by model). |
+| **Upkeep** | **Batteries** (what to buy, and how long each brand lasts), **Maintenance** (recurring tasks), **Models** (reliability by model) and **Costs** (running costs). |
 | **Updates** | Firmware updates. |
 | **Activity** | The logbook and incidents. |
 | **Settings** | Alerts, checks, limits, naming and the rest. |
@@ -223,6 +223,17 @@ Use **⋮ → Pause alerts** before planned work, such as a Zigbee2MQTT upgrade,
 - The weekly summary and **Send test notification** still go out.
 
 The pause survives an app restart. The integration has the actions `z2m_tracker.pause_alerts` (optional `minutes`, empty pauses until resumed) and `z2m_tracker.resume_alerts`. Changing an alert setting during a pause marks the issues already found as sent, the same as it does outside a pause.
+
+## Running costs
+
+**Upkeep → Costs** adds up what the devices cost and what their batteries cost:
+
+- **Devices bought**: the total of the **Price** in each device's asset details (Notes tab). Prices are free text, so `£14.99`, `14,99 €` and `EUR 20` all work; the currency mark shown is the one most of your prices use. Removed devices count too.
+- **Batteries, last 12 months**: battery changes recorded in the last 365 days, times the number of batteries each device takes, times the price per battery type.
+- **Batteries, next 12 months (est.)**: for each active battery device, one change when its battery is predicted to run low (if that's within the year), then one per battery life after that. A device without a prediction counts one change per battery life. Battery life is the device's own average time between changes (its install date counts as the first), or the average for its model when it has none. Devices with neither are left out, and the page says how many.
+- A table per model and battery type: batteries per year and cost per year for each device.
+
+Set the price of one battery per type in **Settings → Battery brands → Battery prices**. Types without a price are counted but not costed. Battery prices are kept by the app (in its history and backups), not in the app configuration.
 
 ## Critical devices
 
