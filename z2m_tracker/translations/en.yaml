@@ -77,6 +77,18 @@ configuration:
   quiet_end:
     name: Quiet hours end
     description: End of quiet hours, as HH:MM. The window can cross midnight.
+  escalate_enabled:
+    name: Escalate unanswered alerts
+    description: If nobody mutes, pings or fixes a problem in time, send its alert again to a second notify service. Each problem escalates once.
+  escalate_hours:
+    name: Escalate after (hours)
+    description: How long an alert can go unanswered before it escalates.
+  escalate_service:
+    name: Escalation notify service
+    description: The second notify service, e.g. notify.mobile_app_partner_phone.
+  escalate_critical_only:
+    name: Escalate critical devices only
+    description: Only escalate alerts for devices marked Critical device.
   naming_pattern:
     name: Naming pattern
     description: Pattern for device names, built from tokens in curly braces - area, type, model and n (a number that keeps names unique). Fills in the name of new devices when pairing and drives the Naming check. Empty turns it off.

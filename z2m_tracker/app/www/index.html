@@ -2657,6 +2657,11 @@
           <input class="field" type="time" id="quietStart" style="width:120px" value="${esc(s.quiet_start || "23:00")}" aria-label="${esc(t("settings.quiet_from"))}" ${off || !s.quiet_hours ? "disabled" : ""}><span class="muted">${th("settings.quiet_to")}</span>
           <input class="field" type="time" id="quietEnd" style="width:120px" value="${esc(s.quiet_end || "07:00")}" aria-label="${esc(t("settings.quiet_to"))}" ${off || !s.quiet_hours ? "disabled" : ""}></div></div>
         <div class="set-row ${off || !s.quiet_hours ? "disabled" : ""}"><div class="text"><div class="t1">${th("settings.quiet_critical")}</div><div class="t2">${th("settings.quiet_critical_desc")}</div></div><span class="pill">${th("settings.quiet_not_held")}</span></div>
+        ${sw("escalate_enabled", s.escalate_enabled, t("settings.escalate"), th("settings.escalate_desc"), off)}
+        ${(() => { const dis = off || !s.escalate_enabled ? "disabled" : ""; return `<div class="set-row ${dis}"><div class="text"><div class="t1">${th("settings.escalate_after")}</div></div><div class="ctl"><input class="field num" type="number" data-num="escalate_hours" min="1" max="168" value="${esc(s.escalate_hours ?? 2)}" aria-label="${esc(t("settings.escalate_after"))}" ${dis}><span class="unit">${th("settings.unit_h")}</span></div></div>
+        <div class="set-row wide-ctl ${dis}"><div class="text"><div class="t1">${th("settings.escalate_to")}</div><div class="t2">${th("settings.escalate_to_desc", { example: '<span class="mono">notify.mobile_app_partner</span>' })}</div></div>
+          <div class="ctl"><input class="field" id="escSvc" aria-label="${esc(t("settings.escalate_to"))}" autocomplete="off" value="${esc(s.escalate_service || "")}" placeholder="notify.mobile_app_…" spellcheck="false" ${dis}><button class="btn" data-act="save-escalate" ${dis}>${th("common.save")}</button></div></div>
+        ${sw("escalate_critical_only", s.escalate_critical_only !== false, t("settings.escalate_critical"), th("settings.escalate_critical_desc"), Boolean(dis))}`; })()}
         <div class="card-actions"><button class="btn" data-act="test-notify" ${off ? "disabled" : ""}>${ic("bell", "s18")}${th("settings.test_notification")}</button></div>
       </div>
       <div class="card"><div class="card-header"><div><h2 class="ch">${th("settings.weekly")}</h2><small>${th("settings.weekly_desc")}</small></div></div>
@@ -3828,6 +3833,7 @@
       try { await api("api/forget", { ieee }); closeDevice(); snack(t("forget.done")); load(); } catch (err) { snack(err.message); }
     },
     async "save-notify"() { await saveSettings({ notify_service: $("#notifySvc").value.trim() }); },
+    async "save-escalate"() { await saveSettings({ escalate_service: $("#escSvc").value.trim() }); },
     async "naming-bulk"(b) {
       const list = namingRenames();
       if (!list.length) { snack(t("naming.none")); return; }
