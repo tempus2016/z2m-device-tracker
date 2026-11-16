@@ -1508,6 +1508,15 @@ class Handler(BaseHTTPRequestHandler):
                 ok = tracker.remove_battery_replacement(ieee, int(body.get("index", -1)))
                 threading.Thread(target=discovery.sync, daemon=True).start()
                 self._json(200 if ok else 404, {"ok": ok})
+            elif path == "/api/maintenance":
+                result = tracker.set_maintenance_task(ieee, body.get("task"))
+                self._json(200 if result["ok"] else (404 if result["error"] == "Unknown device" else 400), result)
+            elif path == "/api/maintenance/remove":
+                ok = tracker.remove_maintenance_task(ieee, str(body.get("id") or ""))
+                self._json(200 if ok else 404, {"ok": ok})
+            elif path == "/api/maintenance/done":
+                result = tracker.maintenance_done(ieee, str(body.get("id") or ""), body.get("date"))
+                self._json(200 if result["ok"] else 400, result)
             elif path == "/api/rename":
                 result = tracker.rename(ieee, str(body.get("name") or ""))
                 self._json(200 if result["ok"] else 400, result)

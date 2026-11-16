@@ -420,6 +420,12 @@
   .hop .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex: none; }
   .hop .chg { font-size: 12px; color: var(--warning-text); font-weight: 500; }
   .rep-list .lost-act { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .rep-list > div.mt-item { flex-wrap: wrap; }
+  .mt-text { flex: 1 1 180px; min-width: 0; display: grid; gap: 2px; overflow-wrap: anywhere; }
+  .mt-text .muted { font-size: 13px; }
+  .chips.mt-picks { flex-wrap: wrap; overflow: visible; padding: 4px 16px 12px; margin: 0; -webkit-mask-image: none; mask-image: none; }
+  .mt-picks .chip { height: auto; min-height: 32px; padding: 4px 12px; text-align: start; white-space: normal; }
+  .mt-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .lost-all { display: flex; justify-content: flex-end; padding: 0 16px 8px; }
   dialog.confirm { width: min(420px, calc(100vw - 32px)); }
   .confirm-body { padding: 24px 24px 0; }
@@ -831,12 +837,12 @@
     removed: { get label() { return t("status.removed"); }, c: "var(--disabled)" },
   };
   const KIND_ICON = { offline: "wifi-off", silent: "wifi-off", late: "history", frozen: "thermometer", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
-    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb", slow_router: "router-wireless" };
+    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb", slow_router: "router-wireless", maintenance_due: "calendar-clock" };
   const EVENT_ICON = (k) => {
     if (k.startsWith("interview")) return k.endsWith("successful") ? ["check", "var(--success)"] : ["alert-circle", "var(--error)"];
     return ({ joined: ["plus", "var(--success)"], added: ["plus", "var(--success)"], rejoined: ["plus", "var(--success)"], online: ["wifi", "var(--success)"], offline: ["wifi-off", "var(--error)"],
       left: ["minus", "var(--warning)"], removed: ["delete", "var(--text-2)"], renamed: ["pencil", "var(--state-icon)"], "model changed": ["swap-horizontal", "var(--state-icon)"], moved: ["swap-horizontal", "var(--state-icon)"],
-      linked: ["link-variant", "var(--state-icon)"], replaced: ["swap-horizontal", "var(--state-icon)"], "replaced by": ["swap-horizontal", "var(--text-2)"], reconfigured: ["refresh", "var(--success)"], "reconfigure failed": ["refresh", "var(--error)"], "battery replaced": ["battery-sync", "var(--success)"],
+      linked: ["link-variant", "var(--state-icon)"], replaced: ["swap-horizontal", "var(--state-icon)"], "replaced by": ["swap-horizontal", "var(--text-2)"], reconfigured: ["refresh", "var(--success)"], "reconfigure failed": ["refresh", "var(--error)"], "battery replaced": ["battery-sync", "var(--success)"], "maintenance done": ["calendar-clock", "var(--success)"],
       "update available": ["chip", "var(--info)"], "routing scanned": ["sitemap", "var(--state-icon)"],
       "binding added": ["link-variant", "var(--success)"], "binding restored": ["link-variant", "var(--success)"], "binding removed": ["link-variant", "var(--error)"], unbound: ["link-variant", "var(--text-2)"], "binding change accepted": ["check", "var(--text-2)"], "settings changed": ["cog", "var(--state-icon)"] })[k] || ["information-outline", "var(--text-2)"];
   };
@@ -1041,6 +1047,8 @@
     open: null, moreTab: "info", settings: null, version: null, editing: false,
     layout: store.get("z2mt.layout") === "dialog" ? "dialog" : "pane",
     group: store.get("z2mt.group") === "1", areas: null, pairNet: null, openGroups: new Set(), openCoords: new Set(), usedOpen: new Set(),
+    // Maintenance task being edited on the device panel: { ieee, id } or null.
+    mtEdit: null,
   };
 
   const TOUCH = () => window.matchMedia?.("(pointer: coarse)").matches;
@@ -1307,6 +1315,7 @@
         <div class="card-actions"><button class="btn" data-view="settings">${th("health.alert_settings")}</button><button class="btn ${running ? "busy" : ""}" data-act="scan" ${running ? "disabled" : ""}>${ic(running ? "refresh" : "sitemap", "s18")}${running ? th("common.scanning") : th("menu.run_scan")}</button></div>
       </div>
       ${coordinatorsCard()}
+      ${maintenanceCard()}
       ${shoppingCard()}
       ${brandCard()}
       ${leftoverCard()}
@@ -1508,6 +1517,70 @@
       ${shown.map(row).join("")}
       <div class="models-note">${th("models.note")}</div>
       ${shown.length < rows.length ? `<div class="card-actions"><button class="btn" data-act="models-all">${th("models.show_all", { n: rows.length })}</button></div>` : ""}</div>`;
+  };
+  // ------------------------------------------------------------ maintenance tasks
+  // Recurring jobs per device (test a smoke alarm monthly). The app works out each task's due date and
+  // its days until then (state.data.maintenance, negative when overdue); this only draws them.
+  const MT_SOON = 14;
+  const MT_UNITS = { days: 3650, weeks: 521, months: 120, years: 10 };
+  const mtEvery = (x) => t(`maint.every.${x.unit}`, { n: x.every });
+  const mtDate = (iso) => fmtDate(`${iso}T12:00:00`, false);
+  const mtDue = (x) => (x.days < 0 ? t("maint.overdue", { n: -x.days }) : x.days === 0 ? t("maint.due_today") : x.days <= MT_SOON ? t("maint.due_in", { n: x.days }) : t("maint.due_on", { date: mtDate(x.due) }));
+  const mtTone = (x) => (x.days < 0 ? "var(--warning)" : x.days <= MT_SOON ? "var(--info)" : "var(--text-2)");
+  const mtDoneBtn = (x) => `<button class="btn" data-act="mt-done" data-ieee="${esc(x.ieee)}" data-id="${esc(x.id)}">${ic("check", "s18")}${th("maint.done")}</button>`;
+  // Quick picks by what the device is; free text is always allowed.
+  const MT_SUGGEST = [
+    [/smoke|fire alarm|carbon monoxide/, [["maint.s.smoke_test", 1, "months"], ["maint.s.smoke_vacuum", 6, "months"]]],
+    [/water_leak|leak|flood/, [["maint.s.leak_test", 6, "months"], ["maint.s.leak_clean", 6, "months"]]],
+    [/contact|door|window/, [["maint.s.door_magnet", 1, "years"]]],
+    [/occupancy|motion|presence/, [["maint.s.motion_lens", 6, "months"], ["maint.s.motion_test", 1, "years"]]],
+    [/radiator|thermostat|trv/, [["maint.s.thermostat", 1, "years"]]],
+  ];
+  const mtSuggestions = (d) => {
+    const text = `${d.description || ""} ${d.model || ""} ${(d.features || []).join(" ")}`.toLowerCase();
+    return MT_SUGGEST.filter(([re]) => re.test(text)).flatMap(([, list]) => list);
+  };
+  const maintenanceCard = () => {
+    const all = state.data.maintenance || [];
+    if (!all.length) return "";
+    const due = all.filter((x) => x.days <= MT_SOON);
+    const overdue = due.filter((x) => x.days < 0).length;
+    const sub = due.length ? [overdue ? t("maint.n_overdue", { n: overdue }) : null, due.length - overdue ? t("maint.n_soon", { n: due.length - overdue }) : null].filter(Boolean).join(" · ")
+      : t("maint.card_clear", { title: all[0].title, date: mtDate(all[0].due) });
+    const row = (x) => `<div class="row"><span class="state-ic" style="color:${mtTone(x)}">${ic("calendar-clock")}</span>
+      <div class="text"><div class="t1">${esc(x.title)}</div><div class="t2"><a href="#${esc(x.ieee)}" data-open="${esc(x.ieee)}">${esc(x.name)}</a> · ${esc(mtDue(x))} · ${esc(mtEvery(x))}</div></div>
+      <span class="acts">${mtDoneBtn(x)}</span></div>`;
+    return `<div class="card"><div class="card-header">${ic("calendar-clock")}<div><h2 class="ch">${th("maint.title")}</h2><small>${esc(sub)}</small></div></div>${due.map(row).join("")}</div>`;
+  };
+  // The device panel's Maintenance section (Notes tab): its tasks, then a form to add one or edit the chosen one.
+  const maintSection = (d) => {
+    if (d.type === "Coordinator") return "";
+    const tasks = d.maintenance || [];
+    const active = d.status !== "removed";
+    if (!tasks.length && !active) return "";
+    const info = new Map((state.data.maintenance || []).filter((x) => x.ieee === d.ieee).map((x) => [x.id, x]));
+    const edit = state.mtEdit?.ieee === d.ieee ? tasks.find((x) => x.id === state.mtEdit.id) : null;
+    const rows = tasks.map((task) => {
+      const x = info.get(task.id);
+      const facts = [mtEvery(task), x ? mtDue(x) : null, task.last_done ? t("maint.last_done", { date: mtDate(task.last_done) }) : null].filter(Boolean).join(" · ");
+      return `<div class="mt-item"><span class="mt-text"><span class="mt-title">${esc(task.title)}${x && x.days < 0 ? `<span class="badge warn">${th("maint.overdue_tag")}</span>` : ""}</span><span class="muted">${esc(facts)}</span>${task.note ? `<span class="muted">${esc(task.note)}</span>` : ""}</span>
+        ${active ? `<span class="lost-act">${mtDoneBtn({ ieee: d.ieee, id: task.id })}<button class="icon-btn" data-act="mt-edit" data-id="${esc(task.id)}" aria-label="${esc(t("maint.edit"))}" title="${esc(t("maint.edit"))}">${ic("pencil", "s20")}</button><button class="icon-btn" data-act="mt-remove" data-id="${esc(task.id)}" aria-label="${esc(t("maint.remove"))}" title="${esc(t("maint.remove"))}">${ic("delete", "s20")}</button></span>` : ""}</div>`;
+    }).join("");
+    const f = edit || { title: "", every: 1, unit: "months", last_done: "", note: "" };
+    const picks = edit ? [] : mtSuggestions(d);
+    const form = !active || (tasks.length >= 20 && !edit) ? "" : `
+      ${edit ? `<div class="card-content muted">${th("maint.editing", { title: esc(edit.title) })}</div>` : ""}
+      ${picks.length ? `<div class="chips mt-picks" role="group" aria-label="${esc(t("maint.suggestions"))}">${picks.map(([k, n, u], i) => `<button class="chip" data-act="mt-pick" data-i="${i}">${th(k)} · ${esc(t(`maint.every.${u}`, { n }))}</button>`).join("")}</div>` : ""}
+      <form class="form" id="mtForm">
+        <label class="wide">${th("maint.task")}<input class="field" name="title" maxlength="80" value="${esc(f.title)}" placeholder="${esc(t("maint.task_placeholder"))}" autocomplete="off"></label>
+        <label>${th("maint.repeat")}<input class="field" name="every" type="number" min="1" max="3650" step="1" inputmode="numeric" value="${esc(f.every)}"></label>
+        <label>${th("maint.unit")}<select class="field" name="unit">${Object.keys(MT_UNITS).map((u) => `<option value="${u}" ${u === f.unit ? "selected" : ""}>${th(`maint.unit.${u}`)}</option>`).join("")}</select></label>
+        <label class="wide">${th("maint.last_done_label")}<input class="field" name="last_done" type="date" max="${todayIso()}" value="${esc(f.last_done || "")}"></label>
+        <label class="wide">${th("maint.note")}<input class="field" name="note" maxlength="500" value="${esc(f.note || "")}" autocomplete="off"></label>
+      </form>
+      <div class="row-actions"><button class="btn" data-act="mt-save">${ic(edit ? "check" : "plus", "s18")}${th(edit ? "maint.save" : "maint.add")}</button>${edit ? `<button class="btn" data-act="mt-cancel">${th("common.cancel")}</button>` : ""}</div>`;
+    return `<div class="sub-h">${th("maint.title")}</div>
+      ${rows ? `<div class="rep-list">${rows}</div>` : `<div class="card-content muted">${th("maint.none")}</div>`}${form}`;
   };
 
   // Spares in the drawer per battery type (state.data.battery_stock), matched without regard to case.
@@ -2818,7 +2891,7 @@
   const tabAsset = (d) => {
     const a = d.asset || {};
     const f = (k, key, type = "text", cls = "") => `<label class="${cls}">${th(key)}<input class="field" name="${k}" type="${type}" value="${esc(a[k] || "")}" autocomplete="off"></label>`;
-    return `
+    return `${maintSection(d)}
       <div class="sub-h">${th("asset.title")}</div>
       <form class="form" id="assetForm">${f("location", "asset.location", "text", "wide")}${f("purchase_date", "asset.purchased", "date")}${f("warranty_until", "asset.warranty", "date")}${f("shop", "asset.shop")}${f("price", "asset.price")}${f("serial", "asset.serial", "text", "wide")}</form>
       <div class="row-actions"><button class="btn" data-act="save-asset">${th("common.save")}</button><span class="saved" id="savedAsset">${th("common.saved")}</span></div>
@@ -3226,6 +3299,47 @@
     },
     async "brand-remove"(b) {
       try { const r = await api("api/battery_brands/remove", { brand: b.dataset.brand }); state.data.battery_brand_list = r.brands; renderSettings(false); snack(t("brands.removed", { brand: b.dataset.brand })); } catch (err) { snack(err.message, 4000); }
+    },
+    "mt-pick"(b) {
+      const d = state.byIeee.get(state.open), pick = d && mtSuggestions(d)[Number(b.dataset.i)], form = $("#mtForm");
+      if (!pick || !form) return;
+      form.elements.title.value = t(pick[0]); form.elements.every.value = pick[1]; form.elements.unit.value = pick[2];
+      state.editing = true;
+      form.elements.title.focus();
+    },
+    async "mt-save"() {
+      const form = $("#mtForm");
+      if (!form) return;
+      const v = Object.fromEntries(new FormData(form).entries());
+      const every = Number(v.every), title = v.title.trim();
+      if (!title) { snack(t("maint.need_title")); form.elements.title.focus(); return; }
+      if (!Number.isInteger(every) || every < 1 || every > (MT_UNITS[v.unit] || 0)) { snack(t("maint.range")); form.elements.every.focus(); return; }
+      const edit = state.mtEdit?.ieee === state.open ? state.mtEdit.id : null;
+      const task = { title, every, unit: v.unit, last_done: v.last_done, note: v.note.trim(), ...(edit ? { id: edit } : {}) };
+      try {
+        await api("api/maintenance", { ieee: state.open, task });
+        snack(t(edit ? "maint.saved" : "maint.added"));
+        state.mtEdit = null; state.editing = false;
+        load();
+      } catch (err) { snack(err.message, 4000); }
+    },
+    "mt-edit"(b) { state.mtEdit = { ieee: state.open, id: b.dataset.id }; state.editing = false; renderMore(); $("#mtForm")?.elements.title.focus(); },
+    "mt-cancel"() { state.mtEdit = null; state.editing = false; renderMore(); },
+    async "mt-remove"(b) {
+      const d = state.byIeee.get(state.open), task = (d?.maintenance || []).find((x) => x.id === b.dataset.id);
+      if (!task || !(await confirmDialog({ title: t("maint.remove_title"), ok: t("common.remove"), danger: true, html: `<p>${th("maint.remove_text", { title: esc(task.title) })}</p>` }))) return;
+      try {
+        await api("api/maintenance/remove", { ieee: state.open, id: task.id });
+        if (state.mtEdit?.id === task.id) state.mtEdit = null;
+        snack(t("maint.removed")); load();
+      } catch (err) { snack(err.message); }
+    },
+    async "mt-done"(b) {
+      b.disabled = true;
+      try {
+        const r = await api("api/maintenance/done", { ieee: b.dataset.ieee, id: b.dataset.id });
+        snack(t("maint.marked", { title: r.task.title })); load();
+      } catch (err) { b.disabled = false; snack(err.message); }
     },
     async "bat-remove"(b) {
       if (!(await confirmDialog({ title: t("battery.remove_title"), ok: t("common.remove"), danger: true, html: `<p>${th("battery.remove_text")}</p>` }))) return;

@@ -1,4 +1,4 @@
-"""Battery replacements as a calendar: predicted dates ahead, recorded replacements behind."""
+"""Calendars: battery replacements (predicted dates ahead, recorded replacements behind) and maintenance tasks."""
 
 from __future__ import annotations
 
@@ -13,11 +13,12 @@ from homeassistant.util import dt as dt_util
 
 from .batteries import past_replacements, predicted_replacements
 from .const import DOMAIN, SIGNAL_UPDATED, VERSION
+from .maintenance import calendar_items
 from .tracker import Z2MTracker
 
 
 async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities: AddConfigEntryEntitiesCallback) -> None:
-    async_add_entities([BatteryCalendar(entry, entry.runtime_data)])
+    async_add_entities([BatteryCalendar(entry, entry.runtime_data), MaintenanceCalendar(entry, entry.runtime_data)])
 
 
 def _all_day(day: date, summary: str, description: str, uid: str) -> CalendarEvent:
@@ -100,4 +101,21 @@ class BatteryCalendar(CalendarEntity):
             e
             for e in self._events()
             if dt_util.start_of_local_day(e.start) < end_date and dt_util.start_of_local_day(e.end) > start_date
+        ]
+
+
+class MaintenanceCalendar(BatteryCalendar):
+    """All-day events: each maintenance task's next due date and the day it was last done."""
+
+    _attr_translation_key = "maintenance"
+
+    def __init__(self, entry, tracker: Z2MTracker) -> None:
+        super().__init__(entry, tracker)
+        self.entity_id = "calendar.z2m_tracker_maintenance"
+        self._attr_unique_id = f"{entry.entry_id}_maintenance_calendar"
+
+    def _events(self) -> list[CalendarEvent]:
+        return [
+            _all_day(item["date"], item["summary"], item["description"], item["uid"])
+            for item in calendar_items(self._tracker.data)
         ]

@@ -148,6 +148,12 @@ CHECKS = [
         "A Zigbee2MQTT group has members that have been offline for longer than the offline threshold.",
         False,
     ),
+    (
+        "maintenance_due",
+        "Maintenance overdue",
+        "A maintenance task set on the device (such as testing a smoke alarm) is past its due date.",
+        False,
+    ),
     ("joined", "Device joined", "A device joins one of your networks.", True),
     ("left", "Device left", "A device leaves one of your networks.", True),
     ("interview_failed", "Interview failed", "A newly joined device couldn't be identified.", True),
@@ -189,6 +195,7 @@ KIND_LABELS = {
     "z2m_memory": "Memory climbing",
     "signal_dip": "Daily signal dip",
     "group_member_offline": "Group members offline",
+    "maintenance_due": "Maintenance overdue",
 }
 
 
@@ -803,6 +810,20 @@ def device_issues(
             "slow_router",
             from_ms=slow["from"],
             to_ms=slow["to"],
+        )
+
+    overdue = summary.get("maintenance_overdue") or []
+    if overdue:
+        shown = ", ".join(task["title"] for task in overdue[:3]) + ("…" if len(overdue) > 3 else "")
+        days = overdue[0]["days"]
+        add(
+            "maintenance_due",
+            INFO,
+            "Maintenance overdue",
+            f"Overdue: {shown}. Due {days} day{'s' if days != 1 else ''} ago.",
+            "maintenance_due",
+            titles=shown,
+            n=days,
         )
 
     for suggestion in suggestions:

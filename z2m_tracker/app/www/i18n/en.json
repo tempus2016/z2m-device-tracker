@@ -1264,7 +1264,7 @@
   "replace.step.name": "Name",
   "replace.step.area": "Area",
   "replace.step.bindings": "Bindings",
-  "replace.step.notes": "Notes and asset details",
+  "replace.step.notes": "Notes, asset details and maintenance tasks",
   "replace.step.battery": "Battery record",
   "replace.step.remove": "Remove the old device",
   "replace.step.link": "Link both histories",
@@ -1274,7 +1274,7 @@
   "replace.hint.other_network": "The new device is on another network, so bindings can't be copied.",
   "replace.hint.bindings": "Re-created on the new device. Links to the coordinator are set up by Zigbee2MQTT itself.",
   "replace.hint.no_bindings": "No bindings recorded.",
-  "replace.hint.notes": "The serial number isn't copied.",
+  "replace.hint.notes": "The serial number isn't copied. Maintenance tasks move to the new device.",
   "replace.hint.nothing": "Nothing recorded.",
   "replace.hint.battery": "Off by default: a new device comes with a fresh battery.",
   "replace.hint.already_gone": "Already gone from Zigbee2MQTT.",
@@ -1283,6 +1283,7 @@
   "replace.carried.area": "area",
   "replace.carried.bindings": "bindings",
   "replace.carried.notes": "notes",
+  "replace.carried.maintenance": "maintenance tasks",
   "replace.carried.battery_record": "battery record",
   "replace.intro": "Pair the new device first, then choose it here. The new device takes over {name}'s name, area and setup. Its history starts where this one ended.",
   "replace.new_device": "New device",
@@ -1353,6 +1354,87 @@
   },
   "check.group_member_offline.label": "Group members offline",
   "check.group_member_offline.description": "A Zigbee2MQTT group has members that have been offline for longer than the offline threshold.",
+  "issue.label.maintenance_due": "Maintenance overdue",
+  "issue.maintenance_due.title": "Maintenance overdue",
+  "issue.maintenance_due.detail": {
+    "one": "Overdue: {titles}. Due {n} day ago.",
+    "other": "Overdue: {titles}. Due {n} days ago."
+  },
+  "check.maintenance_due.label": "Maintenance overdue",
+  "check.maintenance_due.description": "A maintenance task set on the device (such as testing a smoke alarm) is past its due date.",
+  "event.kind.maintenance_done": "maintenance done",
+  "maint.title": "Maintenance",
+  "maint.none": "No maintenance tasks. Add recurring jobs such as testing a smoke alarm or cleaning a sensor.",
+  "maint.every.days": {
+    "one": "Every day",
+    "other": "Every {n} days"
+  },
+  "maint.every.weeks": {
+    "one": "Every week",
+    "other": "Every {n} weeks"
+  },
+  "maint.every.months": {
+    "one": "Every month",
+    "other": "Every {n} months"
+  },
+  "maint.every.years": {
+    "one": "Every year",
+    "other": "Every {n} years"
+  },
+  "maint.unit.days": "days",
+  "maint.unit.weeks": "weeks",
+  "maint.unit.months": "months",
+  "maint.unit.years": "years",
+  "maint.overdue": {
+    "one": "Overdue by {n} day",
+    "other": "Overdue by {n} days"
+  },
+  "maint.overdue_tag": "Overdue",
+  "maint.due_today": "Due today",
+  "maint.due_in": {
+    "one": "Due tomorrow",
+    "other": "Due in {n} days"
+  },
+  "maint.due_on": "Due {date}",
+  "maint.last_done": "Last done {date}",
+  "maint.task": "Task",
+  "maint.task_placeholder": "Test smoke alarm",
+  "maint.repeat": "Repeat every",
+  "maint.unit": "Unit",
+  "maint.last_done_label": "Last done (optional)",
+  "maint.note": "Note (optional)",
+  "maint.suggestions": "Suggestions",
+  "maint.add": "Add task",
+  "maint.save": "Save task",
+  "maint.editing": "Editing \"{title}\"",
+  "maint.done": "Mark done",
+  "maint.edit": "Edit task",
+  "maint.remove": "Remove task",
+  "maint.remove_title": "Remove this task?",
+  "maint.remove_text": "\"{title}\" and its due date are removed. Times it was marked done stay in the device's history.",
+  "maint.added": "Task added",
+  "maint.saved": "Task saved",
+  "maint.removed": "Task removed",
+  "maint.marked": "Marked done: {title}",
+  "maint.need_title": "Give the task a title",
+  "maint.range": "Repeat every 1 day to 10 years",
+  "maint.n_overdue": {
+    "one": "{n} overdue",
+    "other": "{n} overdue"
+  },
+  "maint.n_soon": {
+    "one": "{n} due in the next 14 days",
+    "other": "{n} due in the next 14 days"
+  },
+  "maint.card_clear": "Nothing due in the next 14 days. Next: {title} on {date}.",
+  "maint.s.smoke_test": "Test smoke alarm",
+  "maint.s.smoke_vacuum": "Vacuum smoke alarm vents",
+  "maint.s.leak_test": "Test leak sensor with a damp cloth",
+  "maint.s.leak_clean": "Clean leak sensor contacts",
+  "maint.s.door_magnet": "Check door sensor magnet alignment",
+  "maint.s.motion_lens": "Wipe motion sensor lens",
+  "maint.s.motion_test": "Walk test motion sensor",
+  "maint.s.thermostat": "Check radiator valve for sticking",
   "groups.title": "Groups",
   "groups.subtitle": {
     "one": "{n} Zigbee2MQTT group, all members fine",
