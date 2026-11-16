@@ -1459,6 +1459,12 @@ class Handler(BaseHTTPRequestHandler):
                 if result["errors"]:
                     result["error"] = result["errors"][0]["error"]
                 self._json(200 if result["applied"] or not result["errors"] else 400, result)
+            elif path == "/api/report_profile":
+                result = tracker.set_report_profile(ieee, body.get("profile"), body.get("seconds"))
+                self._json(200 if result["ok"] else 400, result)
+            elif path == "/api/report_defaults":
+                result = tracker.set_report_defaults(body.get("defaults"))
+                self._json(200 if result["ok"] else 400, result)
             elif path == "/api/critical":
                 ok = tracker.set_critical(ieee, bool(body.get("critical")))
                 self._json(200 if ok else 404, {"ok": ok})
