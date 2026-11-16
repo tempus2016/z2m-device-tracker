@@ -36,11 +36,10 @@ class Discovery:
     def _entities(self, record: dict, summary: dict, issues: list[dict]) -> dict[str, dict]:
         ieee = record["ieee"]
         state_topic = f"{BASE}/{ieee}"
-        device = {"identifiers": [f"zigbee2mqtt_{ieee}"]}
-        if record.get("friendly_name"):
-            # Same name Zigbee2MQTT gives the device. Without it, when Zigbee2MQTT's own HA discovery
-            # is off, HA creates a nameless device and names every entity after the MQTT broker.
-            device["name"] = record["friendly_name"]
+        # Same name Zigbee2MQTT gives the device. Without one HA creates a nameless device and names it
+        # and every entity after the MQTT broker. A device seen only in a join event has no friendly name
+        # yet; Zigbee2MQTT will call it by its address, so use that.
+        device = {"identifiers": [f"zigbee2mqtt_{ieee}"], "name": record.get("friendly_name") or ieee}
         base = {
             "availability_topic": AVAILABILITY,
             "device": device,
