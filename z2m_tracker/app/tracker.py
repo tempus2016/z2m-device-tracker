@@ -38,6 +38,7 @@ from health import (
 )
 from history_import import IEEE_RE, _features, collect_history
 from metrics import Metrics
+from reliability import model_reliability
 from z2m_config import KEEP_CHANGES, describe
 from z2m_config import diff as config_diff
 from z2m_config import flatten as config_flatten
@@ -2262,6 +2263,7 @@ class Tracker:
                 "networkmap": self.data.get("networkmap") or {},
                 "permit": self.permit,
                 "battery_shopping": self.battery_shopping(60),
+                "model_reliability": model_reliability(list(self.data["devices"].values()), self.data["events"], now),
                 "ha_leftovers": self.ha_leftovers,
                 "battery_stock": dict(self.data.get("battery_stock") or {}),
                 "bridges": self.data.get("bridges") or {},

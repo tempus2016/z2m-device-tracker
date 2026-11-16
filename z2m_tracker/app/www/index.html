@@ -579,6 +579,8 @@
   .row.compact .state-ic { width: 32px; height: 32px; margin: 0 4px; }
   @media (max-width: 520px) { .members { padding-left: 16px; } }
   .adv > .btn { flex: none; margin-top: 4px; }
+  .models-sort { padding: 0 16px 8px; }
+  .models-note { padding: 8px 16px 12px; font-size: 13px; color: var(--text-2); }
   @media (max-width: 600px) { svg.map { height: 420px; } .map-info { position: static; width: auto; margin: 8px; } }
   .map-stage.fp-mode { overflow: visible; display: flex; align-items: flex-start; }
   .map-stage.fp-mode .map-info { order: 2; position: sticky; top: 8px; flex: none; width: 300px; margin: 12px 12px 12px 0; }
@@ -1263,7 +1265,8 @@
       ${shoppingCard()}
       ${leftoverCard()}
       ${radioCard()}
-      ${groupsCard()}`;
+      ${groupsCard()}
+      ${modelsCard()}`;
   };
 
   // serial.adapter -> a name people recognise. Unknown drivers show as sent.
@@ -1423,6 +1426,42 @@
     const problems = groups.filter((g) => g.offline || g.left.length).length;
     return `<div class="card"><div class="card-header">${ic("lightbulb")}<div><h2 class="ch">${th("groups.title")}</h2><small>${problems ? th("groups.subtitle_problems", { n: groups.length, bad: problems }) : th("groups.subtitle", { n: groups.length })}</small></div></div>
       ${groups.map(row).join("")}</div>`;
+  };
+
+  // Reliability by model (state.data.model_reliability): the user's own devices grouped by vendor + model, worst first.
+  // Tapping a model searches the device list for it. One-device models are listed but never flagged.
+  const MODELS_LIMIT = 8;
+  const MODEL_SORTS = [["worst", "models.sort_worst"], ["devices", "models.sort_devices"], ["battery", "models.sort_battery"]];
+  const num1 = (n) => intl((l) => new Intl.NumberFormat(l, { maximumFractionDigits: 1 }).format(n));
+  const modelFlagged = (r) => r.devices > 1 && ((r.uptime_30d !== null && r.uptime_30d < 99) || (r.dropouts_per_month ?? 0) >= 2 || (r.interview_failures + r.repairs) / r.devices >= 1);
+  const modelsCard = () => {
+    const all = state.data.model_reliability || [];
+    if (!all.length) return "";
+    const by = state.modelsSort || "worst";
+    const rows = by === "devices" ? [...all].sort((a, b) => b.devices - a.devices)
+      : by === "battery" ? [...all].sort((a, b) => (a.battery_life_days ?? Infinity) - (b.battery_life_days ?? Infinity)) : all;
+    const shown = state.modelsAll ? rows : rows.slice(0, MODELS_LIMIT);
+    const facts = (r) => [
+      t("models.devices", { n: r.devices }),
+      r.uptime_30d !== null ? t("models.uptime", { n: num1(Math.floor(r.uptime_30d * 10) / 10) }) : null,
+      r.dropouts_per_month === null ? null : r.dropouts_per_month ? t("models.dropouts", { n: num1(r.dropouts_per_month) }) : t("models.no_dropouts"),
+      r.battery_life_days !== null ? `${t("models.battery", { n: r.battery_life_days })} (${t("models.changes", { n: r.battery_samples })})` : null,
+      r.interview_failures ? t("models.interview_failures", { n: r.interview_failures }) : null,
+      r.repairs ? t("models.repairs", { n: r.repairs }) : null,
+    ].filter(Boolean).join(" · ");
+    const row = (r) => {
+      const name = [r.vendor, r.model].filter(Boolean).join(" ");
+      const bad = modelFlagged(r);
+      const d = state.byIeee.get(r.ieees[0]);
+      return `<button type="button" class="row click open-btn" data-act="model-filter" data-q="${esc(name)}"><span class="state-ic" style="color:${bad ? "var(--warning)" : "var(--state-icon)"}">${ic(d ? kindIcon(d) : "zigbee")}</span>
+        <span class="text"><span class="t1">${esc(name)}</span><span class="t2">${esc(facts(r))}</span></span>${bad ? `<span class="badge warn">${th("models.check")}</span>` : ""}</button>`;
+    };
+    const chips = MODEL_SORTS.map(([k, l]) => `<button class="chip" data-act="models-sort" data-v="${k}" aria-pressed="${by === k}">${ic("check", "s18")}${th(l)}</button>`).join("");
+    return `<div class="card"><div class="card-header">${ic("chip")}<div><h2 class="ch">${th("models.title")}</h2><small>${th("models.subtitle", { n: all.length })}</small></div></div>
+      ${all.length > 1 ? `<div class="chips models-sort" role="group" aria-label="${esc(t("models.sort"))}">${chips}</div>` : ""}
+      ${shown.map(row).join("")}
+      <div class="models-note">${th("models.note")}</div>
+      ${shown.length < rows.length ? `<div class="card-actions"><button class="btn" data-act="models-all">${th("models.show_all", { n: rows.length })}</button></div>` : ""}</div>`;
   };
 
   // Spares in the drawer per battery type (state.data.battery_stock), matched without regard to case.
@@ -2880,6 +2919,9 @@
     "toggle-coord": (b) => { const o = state.openCoords; if (!o.delete(b.dataset.bt)) o.add(b.dataset.bt); renderHealth(); },
     "toggle-group": (b) => { const g = state.openGroups; if (!g.delete(b.dataset.ieee)) g.add(b.dataset.ieee); renderHealth(); },
     "dev-all"() { state.devAll = true; renderDevices(); },
+    "models-all"() { state.modelsAll = true; renderHealth(); },
+    "models-sort": (b) => { state.modelsSort = b.dataset.v; renderHealth(); document.querySelector(`[data-act="models-sort"][data-v="${CSS.escape(b.dataset.v)}"]`)?.focus(); },
+    "model-filter": (b) => { state.query = b.dataset.q || ""; state.chip = "all"; go("devices"); },
     "log-more"() { state.logLimit = (state.logLimit || LOG_PAGE) + LOG_PAGE; renderActivity(); },
     async copy(b) { try { await navigator.clipboard.writeText(b.dataset.ieee); snack(t("snack.ieee_copied")); } catch (e) { snack(b.dataset.ieee); } },
     async reconfigure(b) {

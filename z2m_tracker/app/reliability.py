@@ -1,0 +1,156 @@
+"""Reliability by model: the user's own devices grouped by manufacturer and model.
+
+Built from local records only (outages, battery changes, events), for the sidebar's
+"Reliability by model" card. Cheap enough to run on every snapshot: one pass over the
+devices and one over the event log.
+"""
+
+from __future__ import annotations
+
+import re
+from datetime import date, datetime
+from typing import Any
+
+from health import uptime
+
+WINDOW_DAYS = 30
+# A device seen for less than a day says nothing useful about dropouts per month.
+MIN_DROPOUT_DAYS = 1
+# Two re-pair records closer than this are the same re-pair (a re-paired event and its joined event).
+REPAIR_GAP = 600
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def _ts(value: Any) -> float | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value)).timestamp()
+    except ValueError:
+        return None
+
+
+def _model_key(record: dict) -> tuple[str, str] | None:
+    model = record.get("model") or record.get("model_id")
+    if not model:
+        return None
+    return (str(record.get("vendor") or record.get("manufacturer") or ""), str(model))
+
+
+def _battery_intervals(record: dict) -> list[int]:
+    """Days between consecutive battery changes, counting the install date as the first one."""
+    info = record.get("battery_info") or {}
+    days = {str(r.get("date") or "") for r in info.get("replacements") or [] if isinstance(r, dict)}
+    days.add(str(info.get("installed") or ""))
+    points = sorted(date.fromisoformat(d) for d in days if DATE_RE.match(d))
+    return [(b - a).days for a, b in zip(points, points[1:], strict=False) if (b - a).days > 0]
+
+
+def _dropouts(record: dict, now: float) -> tuple[int, float] | None:
+    """Outages that started in the window, and the days the device was watched in it."""
+    start = now - WINDOW_DAYS * 86400
+    first = _ts(record.get("first_seen"))
+    if first is not None:
+        start = max(start, first)
+    days = (now - start) / 86400
+    if days < MIN_DROPOUT_DAYS:
+        return None
+    count = sum(1 for o in record.get("outages") or [] if (_ts(o.get("start")) or 0) >= start)
+    return count, days
+
+
+def _repairs(times: list[float], first_seen: float | None) -> int:
+    """Separate re-pairs: joins after the first one, with near-simultaneous records merged."""
+    count, last = 0, None
+    for at in sorted(times):
+        if first_seen is not None and at <= first_seen + REPAIR_GAP:
+            continue
+        if last is None or at - last > REPAIR_GAP:
+            count += 1
+        last = at
+    return count
+
+
+def model_reliability(records: list[dict], events: list[dict], now: float) -> list[dict]:
+    """One row per vendor + model, worst first.
+
+    Covers active devices that aren't the coordinator. Each row has:
+    `vendor`, `model`, `devices` (count), `ieees`, `uptime_30d` (mean % over devices with
+    enough history, or None), `dropouts_30d` (outages started in the window),
+    `dropouts_per_month` (per device, or None with under a day of history),
+    `battery_life_days` (mean days between battery changes, or None) with `battery_samples`
+    (how many intervals that mean is from), `interview_failures` and `repairs`.
+    """
+    failures: dict[str, int] = {}
+    joins: dict[str, list[float]] = {}
+    for event in events:
+        ieee, kind = event.get("ieee"), event.get("kind")
+        if kind == "interview failed":
+            failures[ieee] = failures.get(ieee, 0) + 1
+        elif kind in ("joined", "re-paired"):
+            at = _ts(event.get("time"))
+            if at is not None:
+                joins.setdefault(ieee, []).append(at)
+
+    groups: dict[tuple[str, str], dict] = {}
+    for record in records:
+        if record.get("status") != "active" or record.get("type") == "Coordinator":
+            continue
+        key = _model_key(record)
+        if key is None:
+            continue
+        ieee = record["ieee"]
+        g = groups.setdefault(
+            key,
+            {
+                "ieees": [],
+                "uptimes": [],
+                "drops": 0,
+                "days": 0.0,
+                "watched": 0,
+                "battery": [],
+                "fails": 0,
+                "repairs": 0,
+            },
+        )
+        g["ieees"].append(ieee)
+        up = uptime(record, now)
+        if up is not None:
+            g["uptimes"].append(up)
+        drops = _dropouts(record, now)
+        if drops is not None:
+            g["drops"] += drops[0]
+            g["days"] += drops[1]
+            g["watched"] += 1
+        g["battery"].extend(_battery_intervals(record))
+        g["fails"] += failures.get(ieee, 0)
+        g["repairs"] += _repairs(joins.get(ieee, []), _ts(record.get("first_seen")))
+
+    rows = []
+    for (vendor, model), g in groups.items():
+        rows.append(
+            {
+                "vendor": vendor,
+                "model": model,
+                "devices": len(g["ieees"]),
+                "ieees": sorted(g["ieees"]),
+                "uptime_30d": round(sum(g["uptimes"]) / len(g["uptimes"]), 2) if g["uptimes"] else None,
+                "dropouts_30d": g["drops"],
+                "dropouts_per_month": round(g["drops"] / g["days"] * WINDOW_DAYS, 1) if g["watched"] else None,
+                "battery_life_days": round(sum(g["battery"]) / len(g["battery"])) if g["battery"] else None,
+                "battery_samples": len(g["battery"]),
+                "interview_failures": g["fails"],
+                "repairs": g["repairs"],
+            }
+        )
+    rows.sort(
+        key=lambda r: (
+            r["uptime_30d"] if r["uptime_30d"] is not None else 101.0,
+            -(r["dropouts_per_month"] or 0),
+            -(r["interview_failures"] + r["repairs"]) / r["devices"],
+            -r["devices"],
+            r["vendor"].lower(),
+            r["model"].lower(),
+        )
+    )
+    return rows
