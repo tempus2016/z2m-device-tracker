@@ -11,6 +11,7 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `alerts_enabled` | `true` | Master switch for alerts. |
 | `persistent_notifications` | `true` | Show alerts as Home Assistant notifications. |
 | `fire_events` | `true` | Fire `z2m_tracker_alert` events for automations. |
+| `ha_repairs` | `true` | With the integration installed, list problems in Home Assistant's **Settings → Repairs**. Set it in **Settings → Notifications**. See [Repairs](#repairs). |
 | `notify_service` | empty | Also send alerts to a notify service, e.g. `notify.mobile_app_phone`. Only `notify.` services are accepted; a bare name gets `notify.` added. |
 | `alert_actions` | `true` | Add buttons to alerts sent to `notify_service`, and open the device when the alert is tapped. See [Buttons on phone alerts](#buttons-on-phone-alerts). |
 | `alert_on_join` | `true` | Alert when a new device joins. |
@@ -202,7 +203,17 @@ Every night, the hour after the routing scan (04:00 when `networkmap_hour` is `-
 
 Ping uses Zigbee2MQTT's `bridge/request/action` API, so it needs Zigbee2MQTT 2.7 or newer. The time includes the trip through MQTT and Zigbee2MQTT, a few milliseconds.
 
-The integration can mirror warnings and notify-enabled checks into **Settings → Repairs**. Turn it off in the integration's options. Repairs also stay empty while `alerts_enabled` is off.
+## Repairs
+
+The integration can mirror warnings and notify-enabled checks into **Settings → Repairs** in Home Assistant. Each one closes itself when the problem is fixed. Three serious problems get their own wording and always make the list, even when many other issues are open:
+
+| Problem | Repairs title | Severity |
+|---|---|---|
+| A device marked **Critical device** is offline | "Back door is offline (critical device)", with buttons to mute the check | Error |
+| A Zigbee2MQTT network is offline | "Zigbee2MQTT offline: Main network" | Error |
+| A coordinator backup is missing, old, unreadable or doesn't match the network | "Coordinator backup problem: Main network" | Warning |
+
+Turn Repairs off with **Show problems in HA Repairs** in the app's **Settings → Notifications** (`ha_repairs`), or in the integration's options; either one off keeps Repairs empty. Repairs also stay empty while `alerts_enabled` is off.
 
 ## Maintenance tasks
 
