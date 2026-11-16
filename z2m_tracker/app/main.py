@@ -1617,6 +1617,12 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/maintenance":
                 result = tracker.set_maintenance_task(ieee, body.get("task"))
                 self._json(200 if result["ok"] else (404 if result["error"] == "Unknown device" else 400), result)
+            elif path == "/api/firmware_notes":
+                result = tracker.save_firmware_note(body.get("note"))
+                self._json(200 if result["ok"] else 400, result)
+            elif path == "/api/firmware_notes/delete":
+                ok = tracker.delete_firmware_note(str(body.get("id") or ""))
+                self._json(200 if ok else 404, {"ok": ok})
             elif path == "/api/maintenance/remove":
                 ok = tracker.remove_maintenance_task(ieee, str(body.get("id") or ""))
                 self._json(200 if ok else 404, {"ok": ok})

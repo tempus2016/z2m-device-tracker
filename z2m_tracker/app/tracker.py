@@ -19,6 +19,7 @@ from datetime import time as dtime
 from time import monotonic as _monotonic
 from typing import Any
 
+import firmware_notes
 from health import (
     FLAP_LEAVES,
     FLAP_OUTAGES,
@@ -2707,6 +2708,12 @@ class Tracker:
                 issue["name"] = _display_name(record) or record["ieee"]
                 issue["instance"] = record["instance"]
                 issues.append(issue)
+            notes = firmware_notes.clean_notes(self.data.get("firmware_notes"))
+            for issue in firmware_notes.note_issues(notes, self.data["devices"], self.options, now):
+                record = self.data["devices"][issue["ieee"]]
+                issue["name"] = _display_name(record) or record["ieee"]
+                issue["instance"] = record["instance"]
+                issues.append(issue)
             order = {"warning": 0, "info": 1}
             issues.sort(key=lambda i: (order.get(i["severity"], 2), i["name"].lower()))
 
@@ -2825,6 +2832,34 @@ class Tracker:
     def _oui_vendor(self, ieee: str) -> str | None:
         return self.oui.get(ieee[2:8].upper()) if ieee.startswith("0x") else None
 
+    def save_firmware_note(self, raw: Any) -> dict:
+        """Add or change a firmware note (see firmware_notes.py)."""
+        with self.lock:
+            notes = firmware_notes.clean_notes(self.data.get("firmware_notes"))
+            note, error = firmware_notes.save_note(notes, raw, _now())
+            if error:
+                return {"ok": False, "error": error}
+            self.data["firmware_notes"] = notes
+            self._changed(structural=True)
+        self.evaluate_health()
+        return {"ok": True, "note": note}
+
+    def delete_firmware_note(self, note_id: str) -> bool:
+        with self.lock:
+            notes = firmware_notes.clean_notes(self.data.get("firmware_notes"))
+            if not firmware_notes.delete_note(notes, str(note_id or "")):
+                return False
+            self.data["firmware_notes"] = notes
+            self._changed(structural=True)
+        self.evaluate_health()
+        return True
+
+    def firmware_note_block(self, record: dict | None) -> str | None:
+        """Why an update shouldn't be in "Update all" or the overnight run: you noted its version."""
+        with self.lock:
+            notes = firmware_notes.clean_notes(self.data.get("firmware_notes"))
+            return firmware_notes.ota_block(notes, record, self.data["devices"])
+
     def incidents(self) -> list[dict]:
         """Grouped problem events (see incidents.py), newest first. Call with the lock held.
 
@@ -2874,6 +2909,10 @@ class Tracker:
                 "devices": devices,
                 "events": self.data["events"],
                 "incidents": self.incidents(),
+                "firmware_notes": firmware_notes.clean_notes(self.data.get("firmware_notes")),
+                "firmware_note_devices": firmware_notes.matches(
+                    firmware_notes.clean_notes(self.data.get("firmware_notes")), self.data["devices"]
+                ),
                 "instances": self.base_topics,
                 "imported": self.data.get("imported"),
                 "issues": self.issues,

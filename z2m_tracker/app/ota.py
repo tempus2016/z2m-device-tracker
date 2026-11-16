@@ -114,7 +114,9 @@ class OtaManager:
             return "Device is offline"
         if (record.get("update") or {}).get("state") != "available":
             return "No update available"
-        return None if force else self._battery_block(record)
+        if force:
+            return None
+        return self.tracker.firmware_note_block(record) or self._battery_block(record)
 
     def _history(self) -> list[dict]:
         history = self.tracker.data.get("ota_history")
@@ -277,6 +279,13 @@ class OtaManager:
                     r["ieee"]: count
                     for r in self.tracker.data["devices"].values()
                     if (r.get("update") or {}).get("state") == "available" and (count := self._fail_count(r))
+                },
+                "note_blocked": {
+                    r["ieee"]: reason
+                    for r in self.tracker.data["devices"].values()
+                    if r["status"] == STATUS_ACTIVE
+                    and (r.get("update") or {}).get("state") == "available"
+                    and (reason := self.tracker.firmware_note_block(r))
                 },
                 "battery_blocked": {
                     r["ieee"]: reason

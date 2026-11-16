@@ -2984,6 +2984,7 @@
       ${pingResult(d)}
       ${u.state === "updating" ? `<div class="alerts"><div class="alert" style="--a:var(--info)">${ic("chip")}<div class="body"><b>${th("more.updating")}${u.progress !== undefined && u.progress !== null ? ` · ${Math.round(u.progress)} %` : ""}</b>${u.remaining ? ` · ${th("more.time_left", { duration: esc(span(u.remaining)) })}` : ""}. ${th("more.keep_powered")}<div class="bar"><i style="width:${Math.max(2, Math.min(100, u.progress || 0))}%"></i></div></div></div></div>` : ""}
       ${u.state === "available" && d.status !== "removed" ? `<div class="alerts"><div class="alert" style="--a:var(--info)">${ic("chip")}<div class="body"><b>${th("issue.update.title")}</b> · ${esc(u.installed_version)} → ${esc(u.latest_version)}</div><button class="btn" data-act="ota-update">${th("common.update")}</button></div></div>` : ""}
+      ${(() => { const fn = notesFor(d); return fn.runs.length || fn.offered.length ? `<div class="alerts">${fn.runs.map((n) => `<div class="alert" style="--a:var(--warning)">${ic("note-text-outline")}<div class="body">${th("fwnote.device_runs", { version: esc(n.version), text: esc(n.text) })}</div><button class="btn" data-view="updates">${th("fwnote.notes")}</button></div>`).join("")}${fn.offered.map((n) => `<div class="alert" style="--a:var(--warning)">${ic("note-text-outline")}<div class="body">${th("fwnote.device_offered", { version: esc(n.version), text: esc(n.text) })}</div><button class="btn" data-view="updates">${th("fwnote.notes")}</button></div>`).join("")}</div>` : ""; })()}
       ${kv([[th("devices.col.model"), deviceLine(d) || t("common.unknown")], [th("more.description"), d.description], [th("devices.col.area"), d.area], [th("more.network"), netLabel(d.instance)], [th("more.signal_24h"), lqi === null ? null : Math.round(lqi)],
         [th("devices.col.battery"), typeof d.battery === "number" ? `${Math.round(d.battery)} %` : power], [th("more.first_seen"), fmtDate(d.first_seen) || t("common.unknown")], [th("devices.col.last_seen"), fmtDate(d.last_seen) || t("time.never")],
         [th("more.availability"), d.availability ? t("more.availability_since", { state: tx(`more.availability.${d.availability}`, null, cap(d.availability)), date: fmtDate(d.availability_since) }) : null], [th("more.ieee"), d.ieee, true], [th("more.model_id"), d.model_id, true], [th("more.manufacturer"), d.manufacturer, true],
@@ -3893,7 +3894,8 @@
   const otaWin = (w) => String(w || "").replace("-", "–");
   // The app sends English reasons; translate the ones it can send, keep anything else as it came.
   const OTA_REASONS = [[/^Battery below (\d+)%$/, "battery_below", "limit"], [/^Battery is low$/, "battery_low"], [/^Device is not active in Zigbee2MQTT$/, "not_active"],
-    [/^Device is offline$/, "offline"], [/^No update available$/, "no_update"], [/^Already queued$/i, "already_queued"]];
+    [/^Device is offline$/, "offline"], [/^No update available$/, "no_update"], [/^Already queued$/i, "already_queued"],
+    [/^You noted problems with (.+)$/, "noted", "version"]];
   const otaReason = (text) => {
     const s = String(text || "");
     for (const [re, key, name] of OTA_REASONS) { const m = s.match(re); if (m) return t(`ota.reason.${key}`, name ? { [name]: m[1] } : undefined); }
@@ -3920,21 +3922,75 @@
       const label = th(fails > (O.auto_retries ?? 1) ? "ota.failed_twice" : auto ? "ota.failed_tonight" : "ota.failed");
       return [`<span class="st" style="--c:var(--error)">${label}</span>${reason ? `<div class="muted" style="font-size:12px">${esc(otaReason(reason))}</div>` : ""}`, `<button class="btn" data-act="ota-now" data-ieee="${esc(d.ieee)}" data-force="1">${th("ota.retry")}</button>`];
     }
+    const noted = O.note_blocked?.[d.ieee];
+    if (noted && s?.state !== "skipped") return [`<span class="st" style="--c:var(--warning)">${esc(otaReason(noted))}.</span><div class="muted" style="font-size:12px">${th("fwnote.left_out")}</div>`, `<button class="btn" data-act="ota-now" data-ieee="${esc(d.ieee)}" data-force="1">${th("ota.update_anyway")}</button>`];
     const block = s?.state === "skipped" ? s.reason : O.battery_blocked?.[d.ieee];
     if (block) {
-      const force = /battery/i.test(block);
+      const force = /battery|noted/i.test(block);
       return [`<span class="st" style="--c:var(--warning)">${th("ota.skipped", { reason: esc(otaReason(block)) })}</span>`, force || s?.state === "skipped" ? `<button class="btn" data-act="ota-now" data-ieee="${esc(d.ieee)}" data-force="1">${th(force ? "ota.update_anyway" : "ota.try_again")}</button>` : ""];
     }
     const label = th(O.window && O.window_valid ? (O.window_open ? "ota.next_tonight" : "ota.queued_tonight") : "ota.ready");
     return [`<span class="st" style="--c:var(--text-2)">${label}</span>`, `<button class="btn" data-act="ota-now" data-ieee="${esc(d.ieee)}">${th("ota.update_now")}</button>`];
   };
+  // Firmware notes (firmware_notes.py): your notes against a model + firmware version.
+  const fwNotes = () => (Array.isArray(state.data?.firmware_notes) ? state.data.firmware_notes : []);
+  const fwMatches = () => state.data?.firmware_note_devices || {};
+  const notesFor = (d) => { const m = fwMatches()[d.ieee] || {}, byId = new Map(fwNotes().map((n) => [n.id, n])); return { runs: (m.runs || []).map((id) => byId.get(id)).filter(Boolean), offered: (m.offered || []).map((id) => byId.get(id)).filter(Boolean) }; };
+  const firmwareNotesCard = () => {
+    const notes = [...fwNotes()].sort((a, b) => collator.compare(a.model, b.model) || collator.compare(a.version, b.version));
+    const M = fwMatches();
+    const rows = notes.map((n) => {
+      const on = [], offer = [];
+      for (const [ieee, m] of Object.entries(M)) {
+        const d = state.byIeee.get(ieee);
+        if (!d) continue;
+        if ((m.runs || []).includes(n.id)) on.push(t("fwnote.on_version", { name: nameOf(d) || ieee, version: n.version }));
+        if ((m.offered || []).includes(n.id)) offer.push(t("fwnote.update_offered", { name: nameOf(d) || ieee }));
+      }
+      const applies = [...on, ...offer];
+      return `<div class="row"><span class="state-ic ${on.length ? "warn" : ""}">${ic("note-text-outline")}</span>
+        <div class="text"><div class="t1">${th("fwnote.row_title", { model: esc(n.model), version: esc(n.version) })}</div><div class="t2">“${esc(n.text)}” ${th("fwnote.added", { date: esc(fmtDate(n.added, false)) })}</div>
+        <div class="t2">${applies.length ? th("fwnote.applies", { list: esc(listFmt.format(applies)) }) : th("fwnote.applies_none")}</div></div>
+        <div class="acts"><button class="btn" data-act="fwnote-edit" data-id="${esc(n.id)}">${th("fwnote.edit")}</button><button class="btn danger" data-act="fwnote-delete" data-id="${esc(n.id)}">${th("fwnote.delete")}</button></div></div>`;
+    }).join("");
+    return `<h2 class="section-title">${th("fwnote.title")} <span>${notes.length}</span></h2>
+      <div class="card">${rows || `<div class="card-content muted" style="padding-top:16px">${th("fwnote.empty")}</div>`}
+        <div class="card-actions"><button class="btn" data-act="fwnote-edit">${ic("plus", "s18")}${th("fwnote.add")}</button></div></div>`;
+  };
+  const fwNoteDialog = async (note) => {
+    const devs = state.data.devices.filter((d) => d.status !== "removed" && d.type !== "Coordinator" && d.model);
+    const models = [...new Set(devs.map((d) => d.model))].sort(collator.compare);
+    if (note && !models.includes(note.model)) models.unshift(note.model);
+    const versions = [...new Set(devs.flatMap((d) => [d.software_build_id, d.update?.installed_version, d.update?.latest_version]).filter((v) => v !== null && v !== undefined && v !== -1 && v !== "").map(String))].sort(collator.compare);
+    if (!models.length) { snack(t("fwnote.no_models"), 4000); return; }
+    const ok = await confirmDialog({ title: t(note ? "fwnote.edit_title" : "fwnote.add_title"), ok: t("common.save"), filled: true,
+      html: `<p>${th("fwnote.dialog_text")}</p><div class="form">
+        <label class="wide">${th("fwnote.model")}<select class="field" id="fwModel">${models.map((m) => `<option ${note?.model === m ? "selected" : ""}>${esc(m)}</option>`).join("")}</select></label>
+        <label class="wide">${th("fwnote.version")}<input class="field" id="fwVersion" maxlength="40" autocomplete="off" spellcheck="false" list="fwVersions" value="${esc(note?.version || "")}" placeholder="2.1.4"></label>
+        <datalist id="fwVersions">${versions.map((v) => `<option value="${esc(v)}">`).join("")}</datalist>
+        <label class="wide">${th("fwnote.text")}<textarea class="field" id="fwText" rows="3" maxlength="500" placeholder="${esc(t("fwnote.text_placeholder"))}">${esc(note?.text || "")}</textarea></label></div>` });
+    if (!ok) return;
+    const body = { id: note?.id, model: $("#fwModel").value, version: $("#fwVersion").value.trim(), text: $("#fwText").value.trim() };
+    try { await api("api/firmware_notes", { note: body }); snack(t("common.saved")); } catch (err) { snack(err.message, 5000); }
+    await load(); loadOta();
+  };
+  Object.assign(actions, {
+    "fwnote-edit"(b) { fwNoteDialog(b.dataset.id ? fwNotes().find((n) => n.id === b.dataset.id) : null); },
+    async "fwnote-delete"(b) {
+      const n = fwNotes().find((x) => x.id === b.dataset.id);
+      if (!n) return;
+      if (!(await confirmDialog({ title: t("fwnote.delete_title"), ok: t("fwnote.delete"), danger: true, html: `<p>${th("fwnote.row_title", { model: esc(n.model), version: esc(n.version) })}</p>` }))) return;
+      try { await api("api/firmware_notes/delete", { id: n.id }); } catch (err) { snack(err.message, 5000); }
+      await load(); loadOta();
+    },
+  });
   const renderUpdates = () => {
     const O = state.ota;
     if (!O) { $("#view").innerHTML = `<div class="card">${emptyState("update", th("ota.loading"), th("ota.loading_text"))}</div>`; loadOta(); return; }
     if (Date.now() - (state.otaAt || 0) > 30000) loadOta();
     const list = otaList().sort((a, b) => { const r = (d) => (d.update?.state === "updating" ? 0 : O.status?.[d.ieee]?.state === "queued" ? 1 : 2); return r(a) - r(b) || collator.compare(nameOf(a) || a.ieee, nameOf(b) || b.ieee); });
     const avail = list.filter((d) => ["available", "updating"].includes(d.update?.state)).length;
-    const ready = list.filter((d) => d.update?.state === "available" && !O.status?.[d.ieee] && !O.battery_blocked?.[d.ieee]).length;
+    const ready = list.filter((d) => d.update?.state === "available" && !O.status?.[d.ieee] && !O.battery_blocked?.[d.ieee] && !O.note_blocked?.[d.ieee]).length;
     const chk = O.check || {};
     const nextWin = O.next_window ? new Date(O.next_window) : null;
     const when = !nextWin ? "" : nextWin.getHours() < 6 || nextWin.getHours() >= 20 ? "ota.next_run_tonight" : nextWin.toDateString() === new Date().toDateString() ? "ota.next_run_today" : "ota.next_run_tomorrow";
@@ -3969,6 +4025,7 @@
         ${list.length ? `<div class="table-wrap"><table class="dt ota" style="min-width:760px"><thead><tr><th class="ic-cell"><span class="sr">${th("devices.col.type")}</span></th><th>${th("ota.col.device")}</th><th>${th("ota.col.installed")}</th><th>${th("ota.col.available")}</th><th>${th("ota.col.power")}</th><th>${th("ota.col.status")}</th><th><span class="sr">${th("ota.col.actions")}</span></th></tr></thead><tbody>${rows}</tbody></table></div>`
           : emptyState("check", th("ota.nothing"), th("ota.nothing_text"))}
       </div>
+      ${firmwareNotesCard()}
       <h2 class="section-title">${th("ota.recent")} <span>${(O.history || []).length}</span></h2>
       <div class="card">${hist || `<div class="card-content muted" style="padding-top:16px">${th("ota.no_history")}</div>`}</div>
       <h2 class="section-title">${th("settings.schedule")}</h2>
@@ -4005,7 +4062,7 @@
       loadOta();
     },
     async "ota-update-all"() {
-      const avail = otaList().filter((d) => d.update?.state === "available" && !state.ota?.status?.[d.ieee]);
+      const avail = otaList().filter((d) => d.update?.state === "available" && !state.ota?.status?.[d.ieee] && !state.ota?.note_blocked?.[d.ieee]);
       const go = avail.filter((d) => !state.ota?.battery_blocked?.[d.ieee]), low = avail.filter((d) => state.ota?.battery_blocked?.[d.ieee]);
       const n = go.length, name = (d) => esc(nameOf(d) || d.ieee);
       // Each update takes 10 to 60 minutes and they run one at a time, so the total is n times that.
