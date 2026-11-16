@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 
 DOMAIN = "z2m_tracker"
-VERSION = "1.5.1"
+VERSION = "1.5.2"
 
 CONF_APP_URL = "app_url"
 CONF_REPAIRS = "repairs"
