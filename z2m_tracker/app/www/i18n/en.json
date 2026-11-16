@@ -2030,6 +2030,18 @@
   "nets.same_name_title": "Same name on two networks:",
   "nets.same_name": "{name} is on {nets}. Home Assistant gives the second one entity IDs ending in {suffix}.",
   "nets.rename_one": "Rename one",
+  "ghist.show": "History",
+  "ghist.hide": "Hide history",
+  "ghist.no_changes": "no changes since {date}",
+  "ghist.added": "{name} added",
+  "ghist.removed": "{name} removed",
+  "ghist.removed_replaced": "{name} removed (device replaced)",
+  "ghist.created": {
+    "one": "Group created with {n} member",
+    "other": "Group created with {n} members"
+  },
+  "ghist.renamed": "Renamed from {from} to {to}",
+  "ghist.since": "History starts here, when the app first saw this group",
   "sub.empty_broker": "Nothing to clean up",
   "sub.empty_broker_text": "No Zigbee2MQTT devices are left behind in Home Assistant.",
   "sub.empty_radio": "No channel data yet",

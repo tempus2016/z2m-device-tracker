@@ -22,6 +22,10 @@ from typing import Any
 
 import firmware_notes
 from backup_history import BackupHistory
+from group_history import apply as apply_group_history
+from group_history import clean as clean_group_history
+from group_history import clean_state as clean_group_state
+from group_history import prune as prune_group_history
 from health import (
     FLAP_LEAVES,
     FLAP_OUTAGES,
@@ -944,6 +948,10 @@ class Tracker:
                     self.data["upgrades"] = clean_upgrades(self.data["upgrades"])
                 if "mesh_scores" in self.data:
                     self.data["mesh_scores"] = clean_mesh_scores(self.data["mesh_scores"])
+                if "group_history" in self.data:
+                    self.data["group_history"] = clean_group_history(self.data["group_history"])
+                if "group_state" in self.data:
+                    self.data["group_state"] = clean_group_state(self.data["group_state"])
             for record in self.data["devices"].values():
                 if _stamp_offline_since(record):
                     self.dirty = True
@@ -1238,6 +1246,26 @@ class Tracker:
             self.revision += 1
         self.groups[base_topic] = names
         self.group_members[base_topic] = members
+        self._record_group_history(base_topic, names, members)
+
+    def _record_group_history(self, base_topic: str, names: dict[str, str], members: dict[str, list[str]]) -> None:
+        """Membership, name and created/removed changes per group, kept in history.json (see group_history)."""
+        states = self.data.setdefault("group_state", {})
+        history = self.data.setdefault("group_history", {}).setdefault(base_topic, {})
+        devices = self.data["devices"]
+        new_state, changed = apply_group_history(
+            states.get(base_topic),
+            history,
+            names,
+            members,
+            _now(),
+            lambda ieee: _display_name(devices.get(ieee) or {}) or ieee,
+        )
+        if prune_group_history(history, set(members), datetime.fromtimestamp(time.time(), tz=timezone.utc)):
+            changed = True
+        if changed:
+            states[base_topic] = new_state
+            self._changed(structural=True)
 
     def group_health(self, now: float) -> list[dict]:
         """Each group with its members' state and members that left it recently (still on the network)."""
@@ -1257,7 +1285,7 @@ class Tracker:
             names = self.groups.get(bt) or {}
             for gid, ieees in (self.group_members.get(bt) or {}).items():
                 left = left_by.get((bt, gid), [])
-                if not ieees and not left:
+                if not ieees and not left and not ((self.data.get("group_history") or {}).get(bt) or {}).get(gid):
                     continue
                 members = []
                 for ieee in ieees:
@@ -1279,6 +1307,8 @@ class Tracker:
                             "offline_seconds": seconds,
                         }
                     )
+                state = ((self.data.get("group_state") or {}).get(bt) or {}).get(gid) or {}
+                history = ((self.data.get("group_history") or {}).get(bt) or {}).get(gid) or []
                 out.append(
                     {
                         "instance": bt,
@@ -1288,6 +1318,8 @@ class Tracker:
                         "total": len(members),
                         "offline": sum(1 for m in members if m["offline"]),
                         "left": left,
+                        "since": state.get("since"),
+                        "history": list(reversed(history)),
                     }
                 )
         out.sort(key=lambda g: (-g["offline"], not g["left"], g["name"].lower()))

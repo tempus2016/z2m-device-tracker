@@ -234,6 +234,8 @@ Zigbee2MQTT rewrites `coordinator_backup.json` in place, so a bad backup (a new 
 
 The copies contain the network key, like the original file. The app never logs or shows the key: it only keeps a short hash of it to tell whether it changed, and a copy is sent only when you click Download. The copies are in the app's data folder, so they are part of Home Assistant backups of the app.
 
+Each group also has a **History**: members added and removed (marked when the removed device was replaced), renames, and when the group was created. It starts when the app first sees the group; a group that already existed then has no "created" line. Zigbee2MQTT keeps its group list on the broker, so changes made while the app was stopped are picked up, dated when the app started again. The last 50 changes per group are kept in `history.json`, and the history of a deleted group is dropped 90 days after it was deleted.
+
 ## Effect of an upgrade
 
 When a network's Zigbee2MQTT version or coordinator firmware changes, the app records the upgrade (the last 20 per network, kept in `history.json` and in backups) and compares the week before it with the week after. Health → Coordinators → More details shows the latest upgrade, the before and after numbers, and a short list of earlier upgrades. Numbers appear once there is at least a day of data on both sides; until the week is over the card says how many days the "after" side has so far. The first hour after the upgrade is left out, because the restart itself drops devices for a moment. Two changes within an hour (firmware flashed, then Zigbee2MQTT updated) count as one upgrade.
