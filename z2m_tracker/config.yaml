@@ -69,6 +69,7 @@ options:
   escalate_critical_only: true
   naming_pattern: ""
   battery_shop_url: ""
+  retained_autoclear: false
   mqtt_host: ""
   mqtt_port: 1883
   mqtt_user: ""
@@ -114,6 +115,7 @@ schema:
   escalate_critical_only: bool?
   naming_pattern: str?
   battery_shop_url: str?
+  retained_autoclear: bool?
   mqtt_host: str?
   mqtt_port: port?
   mqtt_user: str?

@@ -195,6 +195,12 @@ CHECKS = [
         "A device runs a firmware version you wrote a firmware note about on the Updates tab.",
         False,
     ),
+    (
+        "stale_retained",
+        "Stale retained messages",
+        "Retained MQTT messages under an old device name, of a removed device, or Home Assistant discovery for a device no longer in Zigbee2MQTT.",
+        False,
+    ),
     ("joined", "Device joined", "A device joins one of your networks.", True),
     ("left", "Device left", "A device leaves one of your networks.", True),
     ("interview_failed", "Interview failed", "A newly joined device couldn't be identified.", True),
@@ -243,6 +249,7 @@ KIND_LABELS = {
     "reporting_config": "Reporting settings",
     "naming": "Naming",
     "firmware_note": "Firmware you noted",
+    "stale_retained": "Stale retained messages",
 }
 
 

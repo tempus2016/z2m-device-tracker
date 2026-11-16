@@ -37,6 +37,7 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `escalate_critical_only` | `true` | Only escalate alerts for devices marked **Critical device**. |
 | `naming_pattern` | empty | Naming pattern for devices, e.g. `{area} {type} {n}`. Fills in the name of each device that joins in **Pair device**, and drives the **Naming** check. Empty turns it off. See [Device names](#device-names). |
 | `battery_shop_url` | empty | Store search address for the cart buttons in **Batteries to buy**, with `{type}` where the battery type goes, e.g. `https://www.amazon.co.uk/s?k={type}` or `https://www.amazon.de/s?k={type}`. Any shop works. Empty hides the buttons. Set it in **Settings → Battery brands**. No affiliate tags are added. |
+| `retained_autoclear` | `false` | After a device is renamed, clear the retained messages the broker still keeps under its old name. Off lists them on **Network → Broker** for you to clear. See [Stale retained messages](#stale-retained-messages). |
 | `mqtt_host` | empty | Address of your MQTT broker, if it isn't the Mosquitto broker app. Empty uses the broker Home Assistant offers. See [MQTT broker](#mqtt-broker). |
 | `mqtt_port` | `1883` | Port of that broker. Usually `1883`, or `8883` with TLS. |
 | `mqtt_user` / `mqtt_password` | empty | Login for that broker. Leave empty if it allows anonymous connections. |
@@ -52,7 +53,7 @@ The sidebar has seven tabs. On a phone the last three sit behind **More** in the
 | --- | --- |
 | **Health** | Problems, worst first, then one line for each part of the app on another tab, so a glance says whether anything there needs a look. |
 | **Devices** | Every device, with its own page: info, health, trends, history, battery and notes. |
-| **Network** | **Map** (routing map, floor plan, what-if), **Coordinator** (each Zigbee2MQTT and its coordinator), **Broker** (devices left behind in Home Assistant), **Radio** (channels and Wi-Fi overlap) and **Groups**. |
+| **Network** | **Map** (routing map, floor plan, what-if), **Coordinator** (each Zigbee2MQTT and its coordinator), **Broker** (stale retained messages and devices left behind in Home Assistant), **Radio** (channels and Wi-Fi overlap) and **Groups**. |
 | **Upkeep** | **Batteries** (what to buy, and how long each brand lasts), **Maintenance** (recurring tasks) and **Models** (reliability by model). |
 | **Updates** | Firmware updates. |
 | **Activity** | The logbook and incidents. |
@@ -149,6 +150,7 @@ These checks show in Health but don't notify until you set them to **Show and no
 | Reporting settings | A device whose attribute reporting drains its battery, floods the mesh, or may never report a measurement. See Reporting settings below. |
 | Daily signal dip | Average link quality across a network drops at least 25% below that day's median in the same 1 to 4 hours on at least 4 of the last 7 days, and at least 30% of its devices dip then too. Usually something that switches on at that time: busy Wi-Fi on an overlapping channel, a microwave, or a USB 3 device near the coordinator. Health → Radio channels shows the hourly chart once a network has a week of link quality from at least 3 devices. |
 | Worse since an upgrade | After Zigbee2MQTT or the coordinator firmware changes, the week after the upgrade looks clearly worse than the week before, once at least 2 days of it have passed (shown for 30 days). Shows only; it doesn't notify unless you add it to `notify_checks`. See **Effect of an upgrade** below for what is compared and the thresholds. |
+| Stale retained messages | Retained MQTT messages that belong to no current device: topics under a device's old name, topics of removed devices, and Home Assistant discovery configs for devices no longer in Zigbee2MQTT. One low-priority line on Health that opens **Network → Broker**. See [Stale retained messages](#stale-retained-messages). |
 | Naming | A device still named by its IEEE address (`0x…`), or, when `naming_pattern` is set, a name that doesn't follow it. Low priority. See [Device names](#device-names). |
 | Firmware you noted | A device runs a firmware version you wrote a firmware note about. Low priority. See [Firmware notes](#firmware-notes). |
 
@@ -278,6 +280,20 @@ When quiet hours end, one notification sums up the night, titled "Zigbee overnig
 With `escalate_enabled` on and `escalate_service` set, an issue alert that nobody answers within `escalate_hours` is sent again to that second service, titled "Unanswered: ..." and ending "Nobody muted, pinged or fixed this in 2 h." Set it in **Settings → Notifications**.
 
 An alert counts as answered when the device is pinged (from the app or the **Ping** button on a phone alert), when any button on its phone alert is pressed, or when the problem goes away: fixed, muted or ignored. Each problem escalates once; if it clears and comes back, that is a new problem. With `escalate_critical_only` on (the default) only alerts for critical devices escalate. During quiet hours only critical devices escalate; the rest wait until quiet hours end. Nothing escalates while alerts are paused. Join, leave and interview alerts and the overnight summary never escalate. The `z2m_tracker_alert` event fires again with `escalated: true` and the `service` it went to.
+
+## Stale retained messages
+
+The MQTT broker keeps the last retained message on a topic until something deletes it. After a device is renamed or removed, its old topics can stay behind: `zigbee2mqtt/Hall Motion/availability` still saying offline while the renamed device is online, the state of a device removed months ago, or Home Assistant discovery configs that bring back ghost entities on every restart. **Network → Broker** lists them under **Stale retained messages**, with filters for **Old name**, **Removed device** and **HA discovery**.
+
+The app scans the broker with a second, short-lived MQTT connection: 30 seconds after it connects, 20 seconds after a device is renamed or removed, and every 6 hours. **Scan again** starts one by hand. A scan reads the retained messages under each tracked base topic and the discovery configs under `homeassistant/`, and keeps at most 20,000 topics with the first 160 characters of each payload, in memory only. A topic is listed when:
+
+- **Old name**: it sits under a name a device used to have, and no current device or group has that name now.
+- **Removed device**: it sits under a name or IEEE address of a device that is no longer in Zigbee2MQTT.
+- **HA discovery**: it is a discovery config (`homeassistant/<component>/<ieee>/…/config`) for an IEEE address that isn't an active device, and its payload points at a tracked base topic. Configs that point only at networks the app doesn't track are left alone.
+
+Topics of current devices and groups, `bridge/` topics, and names the app has never seen are never listed. MQTT doesn't record when a message was retained, so the age shown is when the device was renamed or removed.
+
+**Clear** publishes an empty retained message to the topic, which deletes it from the broker. Nothing is sent to the device. **Clear all** clears every message in the current filter. Both ask first, and the app checks each topic against the latest scan before clearing it. Turn on `retained_autoclear` (**Settings → Broker**) to clear a device's old-name topics automatically after each scan. When any stale messages exist, Health shows **Stale retained messages** under **Worth a look**.
 
 ## Leftover devices in Home Assistant
 

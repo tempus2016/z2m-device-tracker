@@ -98,6 +98,9 @@ configuration:
   battery_shop_url:
     name: Battery shop link
     description: Store search address with {type} where the battery type goes, e.g. https://www.amazon.co.uk/s?k={type}. Adds a cart button to each battery you need to buy. Empty hides the buttons.
+  retained_autoclear:
+    name: Clear old retained topics after a rename
+    description: After a device is renamed, delete the retained messages the broker still keeps under its old name. Off lists them on Network → Broker for you to clear.
   mqtt_host:
     name: MQTT broker address
     description: Your MQTT broker, if it isn't the Mosquitto broker app. Empty uses the broker Home Assistant offers.

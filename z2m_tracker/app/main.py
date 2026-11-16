@@ -31,6 +31,7 @@ import prometheus
 from battery_library import BatteryLibrary, clean_shop_url
 from discovery import AVAILABILITY, Discovery
 from discovery import BASE as DISCOVERY_BASE
+from discovery import PREFIX as DISCOVERY_PREFIX
 from ha import HomeAssistant
 from health import CHECKS, DEFAULT_NOTIFY, alert_title, mutes_of, nested, notify_kinds, offer_new_kinds
 from metrics import Metrics
@@ -38,6 +39,8 @@ from mqtt_status import NOTIFICATION_ID, NOTIFICATION_TITLE, MqttStatus, explain
 from naming import clean_pattern
 from ota import OtaManager, parse_window
 from reporting import clean_fix as clean_reporting_fix
+from retained import OLD_NAME, RetainedStore
+from retained import collect as collect_retained
 from tracker import IEEE_RE, Tracker, shopping_text
 from tracker import _display_name as tracker_display_name
 from usage import UsageRefresher
@@ -115,6 +118,7 @@ DEFAULT_OPTIONS = {
     "escalate_critical_only": True,
     "naming_pattern": "",
     "battery_shop_url": "",
+    "retained_autoclear": False,
 }
 
 CHECK_KEYS = {key for key, _, _, _ in CHECKS}
@@ -211,6 +215,7 @@ SETTINGS = {
     "escalate_critical_only": _bool,
     "naming_pattern": clean_pattern,
     "battery_shop_url": clean_shop_url,
+    "retained_autoclear": _bool,
 }
 
 
@@ -312,6 +317,8 @@ base_topics = [topic.strip().strip("/") for topic in options.get("base_topics") 
 metrics = Metrics(METRICS_PATH)
 tracker = Tracker(DATA_PATH, base_topics, CONFIG_DIR, local_timezone(), metrics, options, load_oui())
 home_assistant = HomeAssistant(CONFIG_DIR)
+retained_store = RetainedStore()
+tracker.retained = retained_store
 tracker.battery_lib = BatteryLibrary(APP_DIR / "battery_library.json")
 discovery = Discovery(tracker, VERSION, bool(options.get("ha_entities", True)))
 stop_event = threading.Event()
@@ -655,6 +662,7 @@ def on_connect(client, userdata, flags, reason_code, properties):
     )
     client.publish(AVAILABILITY, "online", qos=1, retain=True)
     threading.Thread(target=discovery.sync, kwargs={"force": True}, name="discovery", daemon=True).start()
+    retained_scan_soon(RETAINED_FIRST_DELAY)
 
 
 def on_disconnect(client, userdata, flags, reason_code, properties):
@@ -755,8 +763,9 @@ def _internal_broker(host: str) -> bool:
     return "." not in host or host.endswith(".local.hass.io") or host.startswith("172.30.")
 
 
-def start_mqtt() -> mqtt.Client:
-    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f"z2m-tracker-{tracker.boot_id}")
+def new_client(client_id: str) -> mqtt.Client:
+    """An MQTT client with the broker login and TLS settings, not yet connected."""
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id)
     user = os.environ.get("MQTT_USER")
     if user:
         client.username_pw_set(user, os.environ.get("MQTT_PASS") or None)
@@ -774,6 +783,12 @@ def start_mqtt() -> mqtt.Client:
             client.tls_set(cert_reqs=ssl.CERT_NONE)
             client.tls_insecure_set(True)
     client.suppress_exceptions = True
+    return client
+
+
+def start_mqtt() -> mqtt.Client:
+    global publish_retained
+    client = new_client(f"z2m-tracker-{tracker.boot_id}")
     client.on_connect = on_connect
     client.on_disconnect = on_disconnect
     client.on_connect_fail = on_connect_fail
@@ -786,7 +801,140 @@ def start_mqtt() -> mqtt.Client:
     client.connect_async(MQTT_HOST, MQTT_PORT, keepalive=60)
     client.loop_start()
     tracker.publish = lambda topic, payload: client.publish(topic, json.dumps(payload), qos=0)
+
+    def clear_topic(topic: str) -> bool:
+        return client.publish(topic, b"", qos=1, retain=True).rc == mqtt.MQTT_ERR_SUCCESS
+
+    publish_retained = clear_topic
     return client
+
+
+# ------------------------------------------------------- retained messages
+
+# First scan after connecting: long enough for every network's device list to arrive.
+RETAINED_FIRST_DELAY = 30
+# After a rename or removal: a short wait, so a burst of renames costs one scan.
+RETAINED_CHANGE_DELAY = 20
+RETAINED_RESCAN = 6 * 3600
+# A scan ends once no retained message has arrived for this long, or after RETAINED_MAX_WAIT.
+RETAINED_SETTLE = 2.0
+RETAINED_MAX_WAIT = 30.0
+retained_lock = threading.Lock()
+retained_next = 0.0
+# Publishes an empty retained message (deletes the topic on the broker). Set by start_mqtt.
+publish_retained = None
+
+
+def retained_scan_soon(delay: float = 0) -> None:
+    global retained_next
+    due = time.time() + delay
+    if not retained_next or due < retained_next:
+        retained_next = due
+
+
+def scan_retained() -> bool:
+    """Start a scan of the broker's retained messages on its own thread. False if one is running."""
+    if not retained_lock.acquire(blocking=False):
+        return False
+    retained_store.running = True
+
+    def job() -> None:
+        try:
+            _scan_retained()
+        except Exception:  # noqa: BLE001 - scans are best effort
+            _LOGGER.exception("Scanning retained messages failed")
+            retained_store.failed("The scan failed, see the app log")
+        finally:
+            retained_store.running = False
+            with tracker.lock:
+                tracker.revision += 1
+            retained_lock.release()
+
+    threading.Thread(target=job, name="retained-scan", daemon=True).start()
+    return True
+
+
+def _scan_retained() -> None:
+    """Connect a second, short-lived client and collect what the broker sends as retained.
+
+    The broker replays every retained message on a fresh subscription. Doing it on a separate
+    connection leaves the tracker's own subscription alone, so old states aren't read again as
+    new messages. Live traffic arrives without the retain flag and is ignored."""
+    found: dict[str, dict] = {}
+    seen = {"last": 0.0, "subscribed": False, "full": False, "error": None}
+    client = new_client(f"z2m-tracker-scan-{tracker.boot_id}")
+    filters = [(f"{topic}/#", 0) for topic in base_topics] + [
+        (f"{DISCOVERY_PREFIX}/+/+/config", 0),
+        (f"{DISCOVERY_PREFIX}/+/+/+/config", 0),
+    ]
+
+    def connected(c, userdata, flags, reason_code, properties):
+        if reason_code.is_failure:
+            seen["error"] = explain_refusal(str(reason_code), manual=MQTT_MANUAL)
+            return
+        c.subscribe(filters)
+
+    def subscribed(c, userdata, mid, reason_codes, properties):
+        seen["subscribed"] = True
+        seen["last"] = time.monotonic()
+
+    def message(c, userdata, msg):
+        if not msg.retain:
+            return
+        seen["last"] = time.monotonic()
+        if not seen["full"] and not collect_retained(found, msg.topic, msg.payload, base_topics, DISCOVERY_PREFIX):
+            seen["full"] = True
+
+    client.on_connect = connected
+    client.on_subscribe = subscribed
+    client.on_message = message
+    client.connect_async(MQTT_HOST, MQTT_PORT, keepalive=30)
+    client.loop_start()
+    start = time.monotonic()
+    try:
+        while time.monotonic() - start < RETAINED_MAX_WAIT and not stop_event.is_set():
+            if seen["error"] or (seen["subscribed"] and time.monotonic() - seen["last"] >= RETAINED_SETTLE):
+                break
+            time.sleep(0.25)
+    finally:
+        client.disconnect()
+        client.loop_stop()
+    if not seen["subscribed"]:
+        retained_store.failed(seen["error"] or "Couldn't reach the MQTT broker")
+        _LOGGER.warning("Retained message scan: %s", seen["error"] or "couldn't reach the broker")
+        return
+    retained_store.replace(dict(found), seen["full"])
+    stale = tracker.stale_retained() or []
+    _LOGGER.info("Retained message scan: %d topics, %d stale", len(found), len(stale))
+    if options.get("retained_autoclear"):
+        old = [e["topic"] for e in stale if e["reason"] == OLD_NAME]
+        if old:
+            result = clear_retained(old)
+            _LOGGER.info("Cleared %d retained topics under old device names", len(result["cleared"]))
+
+
+def clear_retained(topics: list[str]) -> dict:
+    """Delete stale retained topics from the broker by publishing an empty retained message.
+
+    Only topics the last scan lists as stale right now are touched; anything else (a current
+    device, a bridge topic, a topic the app never saw) is refused."""
+    stale = tracker.stale_retained()
+    if stale is None:
+        return {"ok": False, "error": "The broker hasn't been scanned yet. Try again in a minute.", "cleared": []}
+    allowed = {entry["topic"] for entry in stale}
+    cleared, refused = [], []
+    for topic in dict.fromkeys(str(t) for t in topics):
+        if topic in allowed and publish_retained is not None and publish_retained(topic):
+            cleared.append(topic)
+        else:
+            refused.append(topic)
+    retained_store.forget(cleared)
+    if cleared:
+        _LOGGER.info("Cleared %d stale retained topic(s)", len(cleared))
+        tracker.evaluate_health()
+    with tracker.lock:
+        tracker.revision += 1
+    return {"ok": bool(cleared) or not refused, "cleared": cleared, "refused": refused}
 
 
 # ------------------------------------------------------------------ threads
@@ -1060,10 +1208,18 @@ def refresh_leftovers(usage: bool = False) -> list[dict] | None:
     return found
 
 
+def last_name_change() -> str | None:
+    """Time of the latest rename or removal, which can leave retained topics behind."""
+    with tracker.lock:
+        events = tracker.data["events"][-200:]
+        return next((e.get("time") for e in reversed(events) if e.get("kind") in ("renamed", "removed")), None)
+
+
 def scheduler() -> None:
-    global ha_changed_at
+    global ha_changed_at, retained_next
     last_save = last_metrics = last_ha = last_health = 0.0
     leftovers_due = False
+    name_change = last_name_change()
     last_scan_day = last_ping_day = None
     while not stop_event.wait(5):
         now = time.time()
@@ -1093,6 +1249,14 @@ def scheduler() -> None:
                 alerts.check()
                 discovery.sync()
                 last_health = now
+            # Retained messages: after connecting, shortly after a rename or removal, and every 6 hours.
+            changed_names = last_name_change()
+            if changed_names != name_change:
+                name_change = changed_names
+                retained_scan_soon(RETAINED_CHANGE_DELAY)
+            if retained_next and now >= retained_next and mqtt_status.connected and tracker.lists_ready.is_set():
+                if scan_retained():
+                    retained_next = now + RETAINED_RESCAN
             # What uses devices with a problem: after a registry refresh, for new issues,
             # and retries after a failure. Kept for the next round while a lookup runs.
             usage_refresher.start_due()
@@ -1466,6 +1630,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(502, {"error": str(err)})
             else:
                 self._json(200, {"ready": found is not None, "leftovers": found or []})
+        elif path == "/api/retained":
+            self._json(200, tracker.retained_payload())
         elif path == "/api/export.csv":
             stamp = datetime.now().strftime("%Y-%m-%d")
             self._send(
@@ -1703,6 +1869,18 @@ class Handler(BaseHTTPRequestHandler):
                     except Exception:  # noqa: BLE001 - the next refresh catches up
                         pass
                     self._json(200, result)
+            elif path == "/api/retained/clear":
+                topics = body.get("topics")
+                if not isinstance(topics, list) or not topics:
+                    self._json(400, {"ok": False, "error": "No topics chosen"})
+                else:
+                    result = clear_retained([str(t) for t in topics[:2000]])
+                    self._json(200 if result["ok"] else 409, result)
+            elif path == "/api/retained/scan":
+                started = scan_retained()
+                self._json(
+                    200 if started else 409, {"ok": started, "error": None if started else "A scan is already running"}
+                )
             elif path == "/api/summary":
                 self._json(200, {"ok": True, **send_weekly_summary()})
             elif path == "/api/import":
