@@ -17,6 +17,9 @@ configuration:
   notify_service:
     name: Notify service
     description: Also send alerts to a notify service, e.g. notify.mobile_app_phone.
+  alert_actions:
+    name: Buttons on phone alerts
+    description: Add Mute 24 h, Ping and Battery replaced buttons to alerts sent to the notify service, and open the device in the Zigbee Tracker when the alert is tapped.
   alert_on_join:
     name: Alert on join
     description: Alert when a new device joins.

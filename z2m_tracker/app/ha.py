@@ -17,6 +17,8 @@ API = "http://supervisor/core/api"
 WEBSOCKET = "ws://supervisor/core/websocket"
 # Registry changes that can alter a device's link, name, area or Battery Notes entities.
 REGISTRY_EVENTS = ("device_registry_updated", "area_registry_updated", "entity_registry_updated")
+# A button pressed on a Companion app notification.
+ACTION_EVENT = "mobile_app_notification_action"
 IDENT_RE = re.compile(r"zigbee2mqtt_(0x[0-9a-f]{16})$")
 # Discovery service name: Supervisor hands this app's address and API token to the integration in Core.
 DISCOVERY_SERVICE = "z2m_tracker"
@@ -446,16 +448,23 @@ class HomeAssistant:
                 battery.setdefault(ieee, {})["type" if key == "battery_type" else "last_replaced"] = state["state"]
         self.battery = battery
 
-    def watch(self, on_change: Callable[[], None], stop_event: threading.Event) -> None:
-        """Call on_change whenever HA's device, area or entity registry changes.
+    def watch(
+        self,
+        on_change: Callable[[], None],
+        stop_event: threading.Event,
+        on_action: Callable[[dict], None] | None = None,
+    ) -> None:
+        """Call on_change whenever HA's device, area or entity registry changes, and on_action with
+        the event data when a notification button is pressed.
         Runs until stop_event is set, reconnecting after a dropped connection."""
         import websocket  # websocket-client, installed in the Dockerfile
 
+        event_types = REGISTRY_EVENTS + ((ACTION_EVENT,) if on_action else ())
         while not stop_event.is_set():
             ws = None
             try:
                 ws = self._ws_connect()
-                for index, event_type in enumerate(REGISTRY_EVENTS, 1):
+                for index, event_type in enumerate(event_types, 1):
                     ws.send(json.dumps({"id": index, "type": "subscribe_events", "event_type": event_type}))
                 ws.settimeout(60)
                 _LOGGER.info("Watching Home Assistant's device registry for changes")
@@ -465,7 +474,16 @@ class HomeAssistant:
                         message = json.loads(ws.recv())
                     except websocket.WebSocketTimeoutException:
                         continue
-                    if message.get("type") == "event":
+                    if message.get("type") != "event":
+                        continue
+                    event = message.get("event") or {}
+                    if event.get("event_type") == ACTION_EVENT:
+                        if on_action is not None:
+                            try:
+                                on_action(event.get("data") or {})
+                            except Exception:  # noqa: BLE001 - a bad press must not drop the watch
+                                _LOGGER.exception("Handling a notification button failed")
+                    else:
                         on_change()
             except Exception as err:  # noqa: BLE001 - reconnect below
                 _LOGGER.warning("Home Assistant registry watch lost, retrying in 30 s: %s", err)

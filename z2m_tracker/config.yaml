@@ -30,6 +30,7 @@ options:
   persistent_notifications: true
   fire_events: true
   notify_service: ""
+  alert_actions: true
   alert_on_join: true
   disabled_checks: []
   notify_checks:
@@ -77,6 +78,7 @@ schema:
   persistent_notifications: bool
   fire_events: bool
   notify_service: str?
+  alert_actions: bool?
   alert_on_join: bool
   disabled_checks:
     - str
