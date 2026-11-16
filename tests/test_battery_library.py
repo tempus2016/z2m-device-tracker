@@ -72,3 +72,28 @@ def test_missing_or_broken_file(tmp_path, content):
 def test_bundled_library_loads():
     bundled = BatteryLibrary(APP_LIBRARY)
     assert bundled.count > 1000
+
+
+def _update_script():
+    import importlib.util
+
+    path = Path(__file__).parent.parent / "scripts" / "update_battery_library.py"
+    spec = importlib.util.spec_from_file_location("update_battery_library", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_update_script_converts_upstream_rows():
+    upstream = {
+        "version": 1,
+        "devices": [
+            {"manufacturer": "Acme", "model": "Door (DS-1)", "battery_type": "CR2032"},
+            {"manufacturer": "Acme", "model": "Hub", "model_id": "H2", "battery_type": "AA", "battery_quantity": 4},
+            {"manufacturer": "Acme", "model": "", "battery_type": "AA"},
+            {"manufacturer": "Acme", "model": "No type"},
+        ],
+    }
+    out = _update_script().convert(upstream)
+    assert out["devices"] == [["Acme", "Door (DS-1)", "", "CR2032", 1], ["Acme", "Hub", "H2", "AA", 4]]
+    assert "MIT" in out["source"]

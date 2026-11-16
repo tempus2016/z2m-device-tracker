@@ -1,0 +1,67 @@
+name: Battery library
+
+# Keeps z2m_tracker/app/battery_library.json in step with the Battery Notes device
+# library. Once a week it rebuilds the file from upstream and, if anything changed,
+# opens (or updates) one pull request on the branch below. Nothing is merged
+# automatically, and users get the new devices with the next release.
+#
+# Needs "Allow GitHub Actions to create and approve pull requests" switched on under
+# Settings > Actions > General. A pull request opened with GITHUB_TOKEN does not start
+# the other workflows; close and reopen it to run CI before merging.
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Update from Battery Notes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      BRANCH: automation/battery-library
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Rebuild the library
+        id: build
+        run: |
+          summary="$(python3 scripts/update_battery_library.py)"
+          echo "${summary}"
+          echo "summary=${summary}" >> "${GITHUB_OUTPUT}"
+          if git diff --quiet -- z2m_tracker/app/battery_library.json; then
+            echo "changed=false" >> "${GITHUB_OUTPUT}"
+          else
+            echo "changed=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Open or update the pull request
+        if: steps.build.outputs.changed == 'true'
+        env:
+          SUMMARY: ${{ steps.build.outputs.summary }}
+        run: |
+          gh auth setup-git
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "${BRANCH}"
+          git add z2m_tracker/app/battery_library.json
+          git commit -m "Update the battery library from Battery Notes" -m "${SUMMARY}"
+          git push --force origin "${BRANCH}"
+          if [ -z "$(gh pr list --head "${BRANCH}" --state open --json number --jq '.[].number')" ]; then
+            gh pr create --head "${BRANCH}" --base "${GITHUB_REF_NAME}" \
+              --title "Update the battery library from Battery Notes" \
+              --body "Weekly refresh of \`z2m_tracker/app/battery_library.json\` from the [Battery Notes library](https://github.com/andrew-codechimp/HA-Battery-Notes/blob/main/library/library.json) (MIT). ${SUMMARY}. Close and reopen this pull request to run CI before merging."
+          fi

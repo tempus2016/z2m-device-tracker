@@ -67,6 +67,10 @@ be, so it can be tested without MQTT.
   Home Assistant shows in the app store.
 - Stored history has to keep loading. A change to what is saved in `/data` must still read
   what the previous version wrote.
+- Don't edit `z2m_tracker/app/battery_library.json` by hand. It is rebuilt from the
+  [Battery Notes library](https://github.com/andrew-codechimp/HA-Battery-Notes) by
+  `python scripts/update_battery_library.py`, and the `Battery library` workflow opens a pull
+  request with the weekly refresh. A missing or wrong battery type is fixed upstream there.
 
 ## Translations
 
