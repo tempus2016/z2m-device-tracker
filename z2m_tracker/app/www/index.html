@@ -336,6 +336,43 @@
   @media (forced-colors: active) { select.field { appearance: auto; -webkit-appearance: auto; background-image: none; padding-right: 8px; } }
   .field.num { width: 96px; text-align: right; }
   .unit { color: var(--text-2); font-size: 14px; }
+  /* Device labels: on screen a preview, in print millimetre-exact sheets (Avery L7651, 29 mm tape). */
+  .lbl-opts { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; padding: 0 16px 8px; }
+  .lbl-opts label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-2); }
+  .lbl-opts .field.num { width: 80px; }
+  .labels { display: flex; flex-wrap: wrap; gap: 12px; padding: 8px 16px 16px; }
+  .labels .lbl { display: flex; gap: 10px; border: 1px dashed var(--disabled); border-radius: 6px; padding: 10px; width: 250px; background: #fff; color: #111; }
+  .lbl .qr { width: 64px; height: 64px; flex: none; }
+  .lbl-t { display: flex; flex-direction: column; font-size: 12px; line-height: 1.35; min-width: 0; }
+  .lbl-t b { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+  .lbl-t .mono { font-size: 11px; overflow-wrap: anywhere; }
+  .lbl-link { padding: 0 16px 12px; font-size: 13px; color: var(--text-2); overflow-wrap: anywhere; }
+  #printSheet { display: none; }
+  @media print {
+    body.printing-labels > *:not(#printSheet) { display: none !important; }
+    body.printing-labels { background: #fff !important; margin: 0; padding: 0; }
+    body.printing-labels #printSheet { display: block; color: #000; font-family: var(--font, sans-serif); }
+    #printSheet .sheet { break-after: page; display: grid; }
+    #printSheet .sheet:last-child { break-after: auto; }
+    #printSheet .lbl { display: flex; align-items: center; overflow: hidden; box-sizing: border-box; }
+    #printSheet .lbl-t { line-height: 1.15; }
+    #printSheet .lbl-t b { font-weight: 700; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    #printSheet .lbl-t .mono { font-family: var(--mono, monospace); overflow-wrap: anywhere; }
+    /* Avery L7651: A4, 5 x 13 labels of 38.1 x 21.2 mm, 10.7 mm top, 4.7 mm side, 2.5 mm column gap. */
+    #printSheet.avery .sheet { width: 210mm; height: 297mm; padding: 10.7mm 4.7mm 0; box-sizing: border-box; grid-template-columns: repeat(5, 38.1mm); grid-auto-rows: 21.2mm; column-gap: 2.5mm; }
+    #printSheet.avery .lbl { padding: 1mm 1.2mm; gap: 1mm; }
+    #printSheet.avery .qr { width: 17mm; height: 17mm; flex: none; }
+    #printSheet.avery .lbl-t { font-size: 5.3pt; }
+    #printSheet.avery .lbl-t b { font-size: 6.2pt; }
+    #printSheet.avery .lbl-t .mono { font-size: 4.1pt; letter-spacing: -0.1pt; }
+    /* 29 mm tape: one 62 x 29 mm label per page. */
+    #printSheet.tape .sheet { width: 62mm; height: 29mm; }
+    #printSheet.tape .lbl { width: 62mm; height: 29mm; padding: 1.5mm 2mm 1.5mm 1mm; gap: 1.5mm; }
+    #printSheet.tape .qr { width: 26mm; height: 26mm; flex: none; }
+    #printSheet.tape .lbl-t { font-size: 7pt; }
+    #printSheet.tape .lbl-t b { font-size: 8.5pt; }
+    #printSheet.tape .lbl-t .mono { font-size: 6pt; }
+  }
   .info-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--divider); }
   .info-grid > div { padding: 12px 16px; border-left: 1px solid var(--divider); min-width: 0; }
   .info-grid > div:first-child { border-left: 0; }
@@ -534,6 +571,16 @@
   .dt.bulk .name { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
   .dt.bulk td.new { font-weight: 500; color: var(--primary-text); }
   .dt.bulk tr.skip td { color: var(--text-2); }
+  /* Ticked devices (Devices list): row checkboxes and the selection bar that docks at the bottom. */
+  .dt .pick-cell { width: 40px; padding: 0 0 0 8px; }
+  .dt .pick-cell + .ic-cell { padding-left: 4px; }
+  .tick { display: grid; place-items: center; width: 40px; height: 40px; cursor: pointer; }
+  .tick input { width: 18px; height: 18px; margin: 0; accent-color: var(--primary); cursor: pointer; }
+  .sel-dock { position: sticky; bottom: 12px; z-index: 6; margin-top: 12px; }
+  .sel-dock:empty { display: none; }
+  .sel-bar { display: flex; align-items: center; gap: 4px; padding: 4px 4px 4px 16px; background: var(--card); background-image: linear-gradient(var(--chip-on), var(--chip-on)); border-radius: 12px; color: var(--primary-text); flex-wrap: wrap; box-shadow: var(--shadow); }
+  .sel-bar b { font-weight: 500; }
+  @media (max-width: 600px) { .sel-dock { bottom: calc(72px + var(--sab, env(safe-area-inset-bottom, 0px))); } .dt .pick-cell { padding-left: 4px; } }
   .rep-foot .count { margin-right: auto; font-size: 14px; color: var(--text-2); }
   @media (max-width: 520px) { .swap { grid-template-columns: minmax(0, 1fr); } .swap > .mdi { transform: rotate(90deg); justify-self: center; } .stepper .s span { display: none; } .stepper .s.cur span { display: inline; } }
 
@@ -953,6 +1000,8 @@
 </main>
 
 <dialog class="more" id="more" aria-labelledby="moreTitle"></dialog>
+<dialog class="more wide" id="labelsDlg" aria-labelledby="labelsTitle"></dialog>
+<div id="printSheet" hidden></div>
 <dialog class="more" id="pairDlg" aria-labelledby="pairTitle"></dialog>
 <dialog class="more" id="replaceDlg" aria-labelledby="repTitle"></dialog>
 <dialog class="more wide" id="bulkDlg" aria-labelledby="bulkTitle"></dialog>
@@ -1328,6 +1377,46 @@
     }).map(([, d]) => d);
   };
 
+  // ------------------------------------------------------------ ticked devices
+  // Row checkboxes in the Devices list pick devices for the selection bar's actions. Each action adds
+  // itself to SEL_ACTIONS as [action, label key, icon, enabled(n)]. Ticks last until cleared or reload.
+  state.picked = new Set();
+  const SEL_ACTIONS = [];
+  const pickedList = () => [...state.picked].filter((ieee) => state.byIeee?.has(ieee));
+  const selBarHtml = () => {
+    const n = pickedList().length;
+    if (!n) return "";
+    return `<div class="sel-bar" role="region" aria-label="${esc(t("select.bar"))}"><b aria-live="polite">${th("select.n", { n })}</b><span class="spacer"></span>${SEL_ACTIONS.map(([act, label, icon, ok]) => `<button class="btn" data-act="${act}" ${ok(n) ? "" : "disabled"}>${ic(icon, "s18")}${th(label)}</button>`).join("")}<button class="icon-btn" data-act="pick-clear" aria-label="${esc(t("select.clear"))}" title="${esc(t("select.clear"))}">${ic("close", "s20")}</button></div>`;
+  };
+  const syncPicks = () => {
+    const bar = $("#selBar");
+    if (bar) bar.innerHTML = selBarHtml();
+    const boxes = [...document.querySelectorAll(".dt [data-pick]")];
+    boxes.forEach((b) => { b.checked = state.picked.has(b.dataset.pick); });
+    const all = $("#pickAll");
+    if (all) { const on = boxes.filter((b) => b.checked).length; all.checked = on > 0 && on === boxes.length; all.indeterminate = on > 0 && on < boxes.length; }
+  };
+  document.addEventListener("change", (e) => {
+    const box = e.target.closest?.("[data-pick]");
+    if (box) { if (box.checked) state.picked.add(box.dataset.pick); else state.picked.delete(box.dataset.pick); syncPicks(); return; }
+    if (e.target.id === "pickAll") { document.querySelectorAll(".dt [data-pick]").forEach((b) => { if (e.target.checked) state.picked.add(b.dataset.pick); else state.picked.delete(b.dataset.pick); }); syncPicks(); }
+  });
+  // Space on a focused row ticks it; Enter still opens it.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== " " || !e.target.matches?.("tr[data-open]")) return;
+    const box = e.target.querySelector("[data-pick]");
+    if (!box) return;
+    e.preventDefault();
+    box.checked = !box.checked;
+    box.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest?.('[data-act="pick-clear"]')) return;
+    state.picked.clear();
+    syncPicks();
+    $("#q")?.focus();
+  });
+
   // ------------------------------------------------------------ views
   // title and text are HTML: pass th(...) or escaped text.
   const emptyState = (icon, title, text) => `<div class="empty">${ic(icon)}<b>${title}</b>${text}</div>`;
@@ -1348,7 +1437,7 @@
     const shown = state.devAll || list.length <= DEV_LIMIT ? list : list.slice(0, DEV_LIMIT);
     const rows = shown.map((d) => {
       const noArea = t("devices.no_area");
-      const head = state.group && (d.area || noArea) !== lastArea ? `<tr class="grp"><td colspan="8">${esc(d.area || noArea)} <span>${list.filter((x) => (x.area || noArea) === (d.area || noArea)).length}</span></td></tr>` : "";
+      const head = state.group && (d.area || noArea) !== lastArea ? `<tr class="grp"><td colspan="9">${esc(d.area || noArea)} <span>${list.filter((x) => (x.area || noArea) === (d.area || noArea)).length}</span></td></tr>` : "";
       lastArea = d.area || noArea;
       return head + rowHtml(d);
     }).join("");
@@ -1369,6 +1458,7 @@
       // Phones hide the battery, signal and last seen columns, so they move into the second line instead of the IEEE address.
       const phoneLine = d.status === "removed" ? esc(second) : [typeof d.battery === "number" ? bat : power ? esc(power) : null, lqi === null ? null : sigBars(lqi), `<span title="${seenTitle}">${seen}</span>`].filter(Boolean).join('<span class="sep"></span>');
       return `<tr class="${st === "removed" ? "removed" : ""}" data-open="${esc(d.ieee)}" tabindex="0" aria-selected="${state.open === d.ieee}">
+        <td class="pick-cell"><label class="tick"><input type="checkbox" data-pick="${esc(d.ieee)}" ${state.picked.has(d.ieee) ? "checked" : ""} aria-label="${esc(t("select.one", { name: nameOf(d) || d.ieee }))}"></label></td>
         <td class="ic-cell">${stateIc(d)}</td>
         <td><div class="name">${esc(nameOf(d) || t("devices.unnamed"))}${d.critical && d.status !== "removed" ? ` ${critTag()}` : ""}</div><div class="name-2 lg-only">${esc(second)}</div>${phoneLine ? `<div class="name-2 sm-only phone-line">${phoneLine}</div>` : ""}</td>
         <td class="cell-sub hide-sm col-area">${esc(d.area || "—")}</td>
@@ -1388,13 +1478,15 @@
       </div>
       <div class="${pane ? "split" : ""}"><div class="split-list">
       <div class="card">
-        <div class="table-wrap">${list.length ? `<table class="dt ${pane ? "compact" : ""}"><thead><tr><th class="ic-cell"><span class="sr">${th("devices.col.type")}</span></th>${col("name", "devices.col.name")}${col("area", "devices.col.area", "hide-sm col-area")}${col("model", "devices.col.model", "hide-md col-model")}${col("status", "devices.col.status")}${col("battery", "devices.col.battery", "num hide-sm")}${col("signal", "devices.col.signal", "num hide-md")}${col("last_seen", "devices.col.last_seen", "hide-md")}</tr></thead><tbody>${rows}</tbody></table>`
+        <div class="table-wrap">${list.length ? `<table class="dt ${pane ? "compact" : ""}"><thead><tr><th class="pick-cell"><label class="tick"><input type="checkbox" id="pickAll" aria-label="${esc(t("select.all"))}"></label></th><th class="ic-cell"><span class="sr">${th("devices.col.type")}</span></th>${col("name", "devices.col.name")}${col("area", "devices.col.area", "hide-sm col-area")}${col("model", "devices.col.model", "hide-md col-model")}${col("status", "devices.col.status")}${col("battery", "devices.col.battery", "num hide-sm")}${col("signal", "devices.col.signal", "num hide-md")}${col("last_seen", "devices.col.last_seen", "hide-md")}</tr></thead><tbody>${rows}</tbody></table>`
           : emptyState("magnify", th("devices.none_found"), state.query ? th("devices.no_match", { query: esc(state.query) }) : th("devices.empty_filter"))}</div>
       </div>
       ${shown.length < list.length ? `<div class="row-actions" style="justify-content:center;padding-top:12px"><button class="btn outlined" data-act="dev-all">${th("devices.show_all", { n: list.length })}</button></div>` : ""}
       <div class="count-line" style="margin:8px 4px 0;text-align:right">${th("devices.count", { shown: list.length, n: all.length })}</div>
+      <div class="sel-dock" id="selBar">${selBarHtml()}</div>
       </div>${pane ? `<aside class="card pane" id="pane" aria-label="${esc(t("more.details"))}"></aside>` : ""}</div>`;
     $("#page").classList.toggle("wide", pane);
+    syncPicks();
     if (pane) renderMore(true, true);
     const q = $("#q");
     q.addEventListener("input", () => { state.query = q.value; clearTimeout(q._t); q._t = setTimeout(() => { const pos = q.selectionStart; renderDevices(); const n = $("#q"); n.focus(); n.setSelectionRange(pos, pos); }, 120); });
@@ -4746,6 +4838,208 @@
       ["remove", t("replace.step.remove"), "", t(old.status === "removed" ? "replace.hint.already_gone" : "replace.hint.remove"), old.status === "removed"],
     ];
   };
+  // ------------------------------------------------------------ QR code
+  // A small QR code encoder for the device labels: byte mode, error correction level M, versions 1 to 20
+  // (up to 331 bytes), the mask with the lowest penalty. Follows the QR standard as laid out in
+  // Project Nayuki's reference encoder (MIT). qrGrid(text) returns rows of booleans (true = dark), or
+  // null when the text is too long.
+  const qrGrid = (() => {
+    const ECC = [0, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26, 30, 22, 22, 24, 24, 28, 28, 26, 26, 26];
+    const BLOCKS = [0, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5, 5, 8, 9, 9, 10, 10, 11, 13, 14, 16];
+    const rawModules = (v) => { let r = (16 * v + 128) * v + 64; if (v >= 2) { const n = Math.floor(v / 7) + 2; r -= (25 * n - 10) * n - 55; if (v >= 7) r -= 36; } return r; };
+    const dataCodewords = (v) => Math.floor(rawModules(v) / 8) - ECC[v] * BLOCKS[v];
+    const gfMul = (x, y) => { let z = 0; for (let i = 7; i >= 0; i--) { z = (z << 1) ^ ((z >>> 7) * 0x11d); z ^= ((y >>> i) & 1) * x; } return z & 0xff; };
+    const rsDivisor = (deg) => {
+      const r = new Array(deg).fill(0); r[deg - 1] = 1; let root = 1;
+      for (let i = 0; i < deg; i++) { for (let j = 0; j < deg; j++) { r[j] = gfMul(r[j], root); if (j + 1 < deg) r[j] ^= r[j + 1]; } root = gfMul(root, 2); }
+      return r;
+    };
+    const rsRemainder = (data, div) => {
+      const r = new Array(div.length).fill(0);
+      for (const b of data) { const f = b ^ r.shift(); r.push(0); div.forEach((d, i) => { r[i] ^= gfMul(d, f); }); }
+      return r;
+    };
+    const alignPos = (v, size) => {
+      if (v === 1) return [];
+      const n = Math.floor(v / 7) + 2, step = Math.ceil((v * 4 + 4) / (n * 2 - 2)) * 2, out = [6];
+      for (let p = size - 7; out.length < n; p -= step) out.splice(1, 0, p);
+      return out;
+    };
+    const MASKS = [(x, y) => (x + y) % 2 === 0, (x, y) => y % 2 === 0, (x) => x % 3 === 0, (x, y) => (x + y) % 3 === 0,
+      (x, y) => (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0, (x, y) => ((x * y) % 2) + ((x * y) % 3) === 0,
+      (x, y) => (((x * y) % 2) + ((x * y) % 3)) % 2 === 0, (x, y) => (((x + y) % 2) + ((x * y) % 3)) % 2 === 0];
+    const penalty = (m) => {
+      const n = m.length; let p = 0, dark = 0;
+      const lines = [...m, ...m.map((_, x) => m.map((row) => row[x]))];
+      const finder = [true, false, true, true, true, false, true];
+      for (const line of lines) {
+        let run = 1;
+        for (let i = 1; i <= n; i++) { if (i < n && line[i] === line[i - 1]) run++; else { if (run >= 5) p += run - 2; run = 1; } }
+        for (let i = 0; i + 7 <= n; i++) {
+          if (!finder.every((v, k) => line[i + k] === v)) continue;
+          const light = (a, b) => { for (let k = a; k < b; k++) if (k >= 0 && k < n && line[k]) return false; return true; };
+          if (light(i - 4, i) || light(i + 7, i + 11)) p += 40;
+        }
+      }
+      for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+        if (m[y][x]) dark++;
+        if (x < n - 1 && y < n - 1 && m[y][x] === m[y][x + 1] && m[y][x] === m[y + 1][x] && m[y][x] === m[y + 1][x + 1]) p += 3;
+      }
+      return p + (Math.ceil(Math.abs(dark * 20 - n * n * 10) / (n * n)) - 1) * 10;
+    };
+    return (text) => {
+      const bytes = [...new TextEncoder().encode(text)];
+      let v = 1;
+      while (v <= 20 && 4 + (v < 10 ? 8 : 16) + bytes.length * 8 > dataCodewords(v) * 8) v++;
+      if (v > 20) return null;
+      // Data bits: byte mode, length, the bytes, terminator, then pad bytes.
+      const bits = [];
+      const put = (val, len) => { for (let i = len - 1; i >= 0; i--) bits.push((val >>> i) & 1); };
+      put(4, 4); put(bytes.length, v < 10 ? 8 : 16); bytes.forEach((b) => put(b, 8));
+      const cap = dataCodewords(v) * 8;
+      put(0, Math.min(4, cap - bits.length)); put(0, (8 - (bits.length % 8)) % 8);
+      for (let pad = 0xec; bits.length < cap; pad ^= 0xec ^ 0x11) put(pad, 8);
+      const data = []; for (let i = 0; i < bits.length; i += 8) data.push(parseInt(bits.slice(i, i + 8).join(""), 2));
+      // Split into blocks, add error correction, interleave.
+      const nb = BLOCKS[v], eccLen = ECC[v], raw = Math.floor(rawModules(v) / 8), short = nb - (raw % nb), shortLen = Math.floor(raw / nb);
+      const div = rsDivisor(eccLen), blocks = [];
+      for (let i = 0, k = 0; i < nb; i++) {
+        const dat = data.slice(k, k + shortLen - eccLen + (i < short ? 0 : 1)); k += dat.length;
+        const ecc = rsRemainder(dat, div);
+        if (i < short) dat.push(0);
+        blocks.push(dat.concat(ecc));
+      }
+      const words = [];
+      for (let i = 0; i < blocks[0].length; i++) blocks.forEach((b, j) => { if (i !== shortLen - eccLen || j >= short) words.push(b[i]); });
+      // Function patterns.
+      const size = v * 4 + 17;
+      const mod = Array.from({ length: size }, () => new Array(size).fill(false));
+      const fn = Array.from({ length: size }, () => new Array(size).fill(false));
+      const set = (x, y, dark) => { mod[y][x] = dark; fn[y][x] = true; };
+      for (let i = 0; i < size; i++) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); }
+      for (const [cx, cy] of [[3, 3], [size - 4, 3], [3, size - 4]]) for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
+        const d = Math.max(Math.abs(dx), Math.abs(dy)), x = cx + dx, y = cy + dy;
+        if (x >= 0 && x < size && y >= 0 && y < size) set(x, y, d !== 2 && d !== 4);
+      }
+      const al = alignPos(v, size);
+      al.forEach((ax, i) => al.forEach((ay, j) => {
+        if ((i === 0 && j === 0) || (i === 0 && j === al.length - 1) || (i === al.length - 1 && j === 0)) return;
+        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) set(ax + dx, ay + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+      }));
+      const format = (mask) => {
+        const d = mask; let r = d; for (let i = 0; i < 10; i++) r = (r << 1) ^ ((r >>> 9) * 0x537);
+        const b = ((d << 10) | r) ^ 0x5412, bit = (i) => ((b >>> i) & 1) === 1;
+        for (let i = 0; i <= 5; i++) set(8, i, bit(i));
+        set(8, 7, bit(6)); set(8, 8, bit(7)); set(7, 8, bit(8));
+        for (let i = 9; i < 15; i++) set(14 - i, 8, bit(i));
+        for (let i = 0; i < 8; i++) set(size - 1 - i, 8, bit(i));
+        for (let i = 8; i < 15; i++) set(8, size - 15 + i, bit(i));
+        set(8, size - 8, true);
+      };
+      format(0);
+      if (v >= 7) {
+        let r = v; for (let i = 0; i < 12; i++) r = (r << 1) ^ ((r >>> 11) * 0x1f25);
+        const b = (v << 12) | r;
+        for (let i = 0; i < 18; i++) { const dark = ((b >>> i) & 1) === 1, a = size - 11 + (i % 3), c = Math.floor(i / 3); set(a, c, dark); set(c, a, dark); }
+      }
+      // Codewords in the zigzag order.
+      let i = 0;
+      for (let right = size - 1; right >= 1; right -= 2) {
+        if (right === 6) right = 5;
+        for (let vert = 0; vert < size; vert++) for (let j = 0; j < 2; j++) {
+          const x = right - j, y = ((right + 1) & 2) === 0 ? size - 1 - vert : vert;
+          if (!fn[y][x] && i < words.length * 8) { mod[y][x] = ((words[i >>> 3] >>> (7 - (i & 7))) & 1) === 1; i++; }
+        }
+      }
+      // Try each mask, keep the one with the lowest penalty.
+      let best = null, bestScore = Infinity;
+      MASKS.forEach((f, mask) => {
+        const grid = mod.map((row, y) => row.map((dark, x) => (fn[y][x] ? dark : dark !== f(x, y))));
+        const save = mod.map((row) => [...row]);
+        mod.forEach((row, y) => row.forEach((_, x) => { mod[y][x] = grid[y][x]; }));
+        format(mask);
+        const score = penalty(mod);
+        if (score < bestScore) { bestScore = score; best = mod.map((row) => [...row]); }
+        save.forEach((row, y) => row.forEach((dark, x) => { mod[y][x] = dark; }));
+      });
+      return best;
+    };
+  })();
+  // The grid as an SVG with the 4-module quiet zone, black on white whatever the theme.
+  const qrSvg = (text) => {
+    const g = qrGrid(text);
+    if (!g) return "";
+    const n = g.length + 8;
+    const d = g.flatMap((row, y) => row.map((dark, x) => (dark ? `M${x + 4} ${y + 4}h1v1h-1z` : ""))).join("");
+    return `<svg class="qr" viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" role="img" aria-label="${esc(t("labels.qr", { url: text }))}"><rect width="${n}" height="${n}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+  };
+
+  // ------------------------------------------------------------ print labels
+  // One sticker per ticked device: name, IEEE, battery, install date and a QR code that opens the
+  // device in this app. The link is Home Assistant's own page for the app (/app/<slug>/<ieee>, the
+  // same deep link the cards use); opened outside Home Assistant's sidebar, it falls back to this
+  // page's address plus #<ieee>, which only works while that ingress session lasts.
+  MDI.printer = "M18,3H6V7H18M19,12A1,1 0 0,1 18,11A1,1 0 0,1 19,10A1,1 0 0,1 20,11A1,1 0 0,1 19,12M16,19H8V14H16M19,8H5A3,3 0 0,0 2,11V17H6V21H18V17H22V11A3,3 0 0,0 19,8Z";
+  const LABEL_PRESETS = { avery: 65, tape: 1 };
+  const deviceLink = (ieee) => {
+    try {
+      const top = window.parent.location;
+      const m = window.parent !== window && top.pathname.match(/^\/app\/[a-z0-9_]+/i);
+      if (m) return { url: `${top.origin}${m[0]}/${ieee}`, stable: true };
+    } catch (e) { /* not inside Home Assistant */ }
+    return { url: `${location.origin}${location.pathname}#${ieee}`, stable: false };
+  };
+  const labelHtml = (d) => {
+    const bat = d.battery_record?.type ? t("labels.battery", { type: d.battery_record.type, n: d.battery_record.quantity || 1 }) : "";
+    const since = d.first_seen ? t("labels.installed", { date: intl((l) => new Date(d.first_seen).toLocaleDateString(l, { dateStyle: "short" })) }) : "";
+    return `<div class="lbl">${qrSvg(deviceLink(d.ieee).url)}<div class="lbl-t"><b>${esc(nameOf(d) || d.ieee)}</b><span class="mono">${esc(d.ieee)}</span>${bat ? `<span>${esc(bat)}</span>` : ""}${since ? `<span>${esc(since)}</span>` : ""}</div></div>`;
+  };
+  const renderLabels = () => {
+    const dlg = $("#labelsDlg"), L = state.labels;
+    if (!L) return;
+    const devs = pickedList().map((ieee) => state.byIeee.get(ieee));
+    const link = deviceLink(devs[0]?.ieee || "0x");
+    dlg.innerHTML = `
+      <div class="more-head"><button class="icon-btn" data-act="labels-close" aria-label="${esc(t("common.close"))}">${ic("close")}</button><div class="titles"><h2 id="labelsTitle">${th("labels.title")}</h2><small>${th("labels.n", { n: devs.length })}</small></div></div>
+      <div class="more-body">
+        <div class="lbl-opts"><label>${th("labels.sheet")}<select class="field" id="lblPreset">${Object.keys(LABEL_PRESETS).map((k) => `<option value="${k}" ${L.preset === k ? "selected" : ""}>${th(`labels.preset_${k}`)}</option>`).join("")}</select></label>
+          ${L.preset === "avery" ? `<label>${th("labels.start")}<input class="field num" id="lblStart" type="number" min="1" max="65" step="1" inputmode="numeric" value="${L.start}"></label>` : ""}</div>
+        <div class="labels">${devs.map(labelHtml).join("")}</div>
+        <div class="lbl-link">${th(link.stable ? "labels.link" : "labels.link_session")}</div>
+      </div>
+      <div class="rep-foot"><button class="btn" data-act="labels-close">${th("common.cancel")}</button><button class="btn filled" data-act="labels-print" ${devs.length ? "" : "disabled"}>${ic("printer", "s18")}${th("labels.print", { n: devs.length })}</button></div>`;
+  };
+  const printLabels = () => {
+    const L = state.labels, per = LABEL_PRESETS[L.preset];
+    const cells = [...Array(L.preset === "avery" ? L.start - 1 : 0).fill('<div class="lbl"></div>'), ...pickedList().map((ieee) => labelHtml(state.byIeee.get(ieee)))];
+    const sheets = [];
+    for (let i = 0; i < cells.length; i += per) sheets.push(`<div class="sheet">${cells.slice(i, i + per).join("")}</div>`);
+    const sheet = $("#printSheet");
+    sheet.className = L.preset;
+    sheet.hidden = false;
+    sheet.innerHTML = sheets.join("");
+    let page = $("#printPage");
+    if (!page) { page = document.createElement("style"); page.id = "printPage"; document.head.append(page); }
+    page.textContent = `@media print { @page { size: ${L.preset === "avery" ? "A4" : "62mm 29mm"}; margin: 0; } }`;
+    document.body.classList.add("printing-labels");
+    const done = () => { document.body.classList.remove("printing-labels"); sheet.innerHTML = ""; sheet.hidden = true; window.removeEventListener("afterprint", done); };
+    window.addEventListener("afterprint", done);
+    window.print();
+  };
+  SEL_ACTIONS.push(["labels-open", "labels.button", "printer", (n) => n > 0]);
+  Object.assign(actions, {
+    "labels-open"() { state.labels = { preset: store.get("z2mt.labels") === "tape" ? "tape" : "avery", start: 1 }; renderLabels(); $("#labelsDlg").showModal(); },
+    "labels-close"() { $("#labelsDlg").close(); },
+    "labels-print"() { printLabels(); },
+  });
+  $("#labelsDlg").addEventListener("close", () => { state.labels = null; });
+  $("#labelsDlg").addEventListener("change", (e) => {
+    const L = state.labels;
+    if (!L) return;
+    if (e.target.id === "lblPreset") { L.preset = e.target.value; store.set("z2mt.labels", L.preset); renderLabels(); $("#lblPreset")?.focus(); }
+    if (e.target.id === "lblStart") { const n = Math.round(Number(e.target.value)); L.start = n >= 1 && n <= 65 ? n : 1; e.target.value = L.start; }
+  });
+
   const renderReplace = () => {
     const dlg = $("#replaceDlg"), r = state.replace;
     const old = r && state.byIeee.get(r.old);
@@ -4981,6 +5275,7 @@
     const ms = e.target.closest("[data-mapsel]"); if (ms) { e.preventDefault(); MAP.sims[ms.dataset.net]?.select(ms.dataset.mapsel); document.getElementById(`map-${ms.dataset.net}`)?.scrollIntoView({ block: "center", behavior: "smooth" }); return; }
     const pf = e.target.closest("[data-pausefor]");
     if (pf) { pf.parentElement.querySelectorAll("[data-pausefor]").forEach((c) => c.setAttribute("aria-pressed", String(c === pf))); return; }
+    if (e.target.closest(".pick-cell")) return;
     const act = e.target.closest("[data-act]");
     if (act && actions[act.dataset.act]) { e.preventDefault(); closeMenu(); actions[act.dataset.act](act); return; }
     if (e.target.closest("#menu a")) { closeMenu(); return; }

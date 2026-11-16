@@ -361,6 +361,12 @@ Turn on **Critical device** on a device's Info tab for devices that must never f
 
 Alerts to `notify_service` for a critical device also carry the Companion app's high-priority data: `priority: high` and `ttl: 0` (Android, delivered straight away), and `push: interruption-level: time-sensitive` (iOS, shown through Focus modes).
 
+## Device labels
+
+Tick devices in the **Devices** list (the checkbox at the start of each row, the one in the header ticks every device shown, and Space ticks the focused row), then **Print labels** in the bar that appears. Each label has the device's name, IEEE address, battery type and count, the date the tracker first saw it, and a QR code that opens the device in this app (Home Assistant's `/app/<slug>/<ieee>` page, so it asks you to log in first). The QR code is made in the browser; nothing is sent anywhere.
+
+Two layouts: **Avery L7651** (65 labels of 38.1 × 21.2 mm on A4; **Start at label** skips labels already used on a sheet) and **29 mm tape**, one 62 × 29 mm label per page for label printers such as a Brother QL with 29 mm tape. Print at 100% scale ("Actual size"), not "Fit to page". Open the app from the Home Assistant sidebar before printing: anywhere else, the QR code can only link to the app's temporary ingress address.
+
 ## Buttons on phone alerts
 
 Alerts sent to `notify_service` through the Home Assistant Companion app come with buttons (turn them off with `alert_actions`):
