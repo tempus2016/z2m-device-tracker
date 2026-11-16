@@ -1637,6 +1637,18 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(400, {"error": "Unknown device"})
             else:
                 self._json(200, result)
+        elif path == "/api/messages":
+            query = dict(
+                part.split("=", 1)
+                for part in (self.path.split("?", 1)[1] if "?" in self.path else "").split("&")
+                if "=" in part
+            )
+            ieee = unquote(query.get("ieee", "")).lower()
+            messages = tracker.recent_messages(ieee) if IEEE_RE.match(ieee) else None
+            if messages is None:
+                self._json(404, {"error": "Unknown device"})
+            else:
+                self._json(200, {"ieee": ieee, "messages": messages, "now": time.time()})
         elif path == "/api/metrics":
             query = dict(
                 part.split("=", 1)

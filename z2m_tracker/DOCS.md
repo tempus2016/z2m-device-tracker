@@ -58,10 +58,19 @@ The sidebar has seven tabs. On a phone the last three sit behind **More** in the
 | **Network** | **Map** (routing map, floor plan, what-if), **Coordinator** (each Zigbee2MQTT and its coordinator), **Broker** (stale retained messages and devices left behind in Home Assistant), **Radio** (channels and Wi-Fi overlap) and **Groups**. |
 
 | **Network** | **Map** (routing map, floor plan, what-if), **Coordinator** (each Zigbee2MQTT and its coordinator), **Broker** (MQTT broker statistics and devices left behind in Home Assistant), **Radio** (channels and Wi-Fi overlap) and **Groups**. |
+
+| **Devices** | Every device, with its own page: info, health, trends, history, battery, messages and notes. |
+| **Network** | **Map** (routing map, floor plan, what-if), **Coordinator** (each Zigbee2MQTT and its coordinator), **Broker** (devices left behind in Home Assistant), **Radio** (channels and Wi-Fi overlap) and **Groups**. |
 | **Upkeep** | **Batteries** (what to buy, and how long each brand lasts), **Maintenance** (recurring tasks) and **Models** (reliability by model). |
 | **Updates** | Firmware updates. |
 | **Activity** | The logbook and incidents. |
 | **Settings** | Alerts, checks, limits, naming and the rest. |
+
+## Live messages
+
+A device's **Messages** tab shows the last 50 messages to and from it, newest first, and keeps updating while it's open: its state messages, availability changes, and commands sent to its `/set` topic with how long the device took to answer (or that it didn't answer within 10 seconds). Values that changed since the previous state message are highlighted, except link quality and `last_seen`, which change every time. The chips choose which kinds show, **Pause** stops the list moving, and **Copy** puts the shown messages on the clipboard.
+
+The messages are kept in memory only, for every device whether its tab is open or not, and nothing is saved: after a restart the lists start empty. Payloads longer than 2,000 characters are cut short.
 
 ## MQTT broker
 

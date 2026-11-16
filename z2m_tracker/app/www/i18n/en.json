@@ -194,6 +194,7 @@
   "more.tab.battery": "Battery",
   "more.tab.notes": "Notes",
   "more.tab.trends": "Trends",
+  "more.tab.messages": "Messages",
   "more.copy_ieee": "Copy IEEE address",
   "more.copy": "Copy {ieee}",
   "more.select": "Select a device",
@@ -2112,5 +2113,23 @@
   },
   "settings.broker": "Broker",
   "settings.broker_stats": "Read broker statistics",
-  "settings.broker_stats_desc": "Subscribes to $SYS/broker/# for Network → Broker. Mosquitto only."
+  "settings.broker_stats_desc": "Subscribes to $SYS/broker/# for Network → Broker. Mosquitto only.",
+  "msgs.filter": "Show messages",
+  "msgs.state": "State",
+  "msgs.availability": "Availability",
+  "msgs.commands": "Commands",
+  "msgs.pause": "Pause",
+  "msgs.resume": "Resume",
+  "msgs.copy": "Copy",
+  "msgs.copied": {
+    "one": "Copied 1 message",
+    "other": "Copied {n} messages"
+  },
+  "msgs.copy_failed": "Couldn't copy to the clipboard",
+  "msgs.answered": "answered in {time}",
+  "msgs.missed": "no answer within 10 s",
+  "msgs.none": "No messages since the app started. They show here as they arrive.",
+  "msgs.none_shown": "No messages of the chosen kinds. Turn on another kind above.",
+  "msgs.failed": "Couldn't load the messages: {error}",
+  "msgs.note": "The last {n} messages, live. Changed values are highlighted. Nothing is kept after a restart."
 }
