@@ -19,6 +19,7 @@ from datetime import time as dtime
 from time import monotonic as _monotonic
 from typing import Any
 
+from backup_history import BackupHistory
 from health import (
     FLAP_LEAVES,
     FLAP_OUTAGES,
@@ -818,6 +819,8 @@ class Tracker:
         self._placement_cache: dict[str, tuple] = {}
         self._backups: dict[str, dict] = {}
         self._backups_at = 0.0
+        # Last copies of each network's coordinator_backup.json, next to history.json.
+        self.backup_history = BackupHistory(os.path.join(os.path.dirname(data_path) or ".", "coordinator_backups"))
         self.started = time.time()
         self._late_checked: dict[str, float] = {}
         self._hours: dict[str, dict] = {}
@@ -2325,8 +2328,9 @@ class Tracker:
                     info["modified"] = datetime.fromtimestamp(os.path.getmtime(path), tz=timezone.utc).isoformat(
                         timespec="seconds"
                     )
-                    with open(path, encoding="utf-8") as handle:
-                        backup = json.load(handle)
+                    with open(path, "rb") as handle:
+                        raw = handle.read()
+                    backup = json.loads(raw)
                     meta = backup.get("metadata") or {}
                     info.update(
                         {
@@ -2338,12 +2342,22 @@ class Tracker:
                             "has_key": bool((backup.get("network_key") or {}).get("key")),
                         }
                     )
+                    self.backup_history.consider(bt, raw, backup, info["date"], time.time(), self._names_by_ieee())
                 except (OSError, ValueError, AttributeError) as err:
                     info["error"] = f"Couldn't read it: {err}"
             out[bt] = info
         self._backups = out
         self._backups_at = time.time()
         return out
+
+    def _names_by_ieee(self) -> dict[str, str]:
+        with self.lock:
+            return {ieee: name for ieee, record in self.data["devices"].items() if (name := _display_name(record))}
+
+    def backup_copies(self) -> dict[str, list[dict]]:
+        """Kept copies of each network's coordinator backup, newest first (see backup_history)."""
+        names = self._names_by_ieee()
+        return {bt: self.backup_history.rows(bt, names) for bt in self.base_topics}
 
     # English text of each backup problem; the sidebar translates the same keys (issue.<msg>.detail).
     BACKUP_TEXT = {
@@ -2891,6 +2905,7 @@ class Tracker:
                 "single_points": {bt: self.single_points(bt) for bt in self.base_topics},
                 "router_placement": {bt: self.router_placement(bt, now) for bt in self.base_topics},
                 "backups": self._backups,
+                "backup_copies": self.backup_copies(),
                 "groups": self.groups,
                 "group_health": self.group_health(now),
                 "scan_times": {bt: [x["at"] for x in self.scans.get(bt) or []] for bt in self.base_topics},

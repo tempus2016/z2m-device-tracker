@@ -1393,6 +1393,26 @@ class Handler(BaseHTTPRequestHandler):
                 "application/json",
                 {"Content-Disposition": f'attachment; filename="zigbee-tracker-backup-{stamp}.json"'},
             )
+        elif path == "/api/coordinator_backup":
+            query = dict(
+                part.split("=", 1)
+                for part in (self.path.split("?", 1)[1] if "?" in self.path else "").split("&")
+                if "=" in part
+            )
+            net, copy_id = unquote(query.get("net", "")), unquote(query.get("id", ""))
+            found = tracker.backup_history.path(net, copy_id) if net in base_topics else None
+            if not found:
+                self._json(404, {"error": "No such backup copy"})
+            else:
+                with open(found, "rb") as handle:
+                    body = handle.read()
+                name = re.sub(r"[^A-Za-z0-9_-]", "_", net)
+                self._send(
+                    200,
+                    body,
+                    "application/json",
+                    {"Content-Disposition": f'attachment; filename="coordinator_backup-{name}-{copy_id}.json"'},
+                )
         elif path == "/api/areas":
             try:
                 self._json(200, {"areas": home_assistant.list_areas(), "floors": home_assistant.list_floors()})

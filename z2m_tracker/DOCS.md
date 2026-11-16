@@ -148,6 +148,14 @@ These checks show in Health but don't notify until you set them to **Show and no
 
 **Network → Groups** lists every Zigbee2MQTT group with how many of its members are online. Groups with offline members show each member, with the offline ones in red. A device that dropped out of a group but is still on the network (for example after it left and was re-paired) is flagged for 30 days, until it's back in the group, or until the group is deleted. Leaving a group is only noticed while the app is running.
 
+## Coordinator backup copies
+
+Zigbee2MQTT rewrites `coordinator_backup.json` in place, so a bad backup (a new network key after starting a fresh network, devices missing after an adapter swap) replaces the last good one. When the app can read the file (the Zigbee2MQTT data folder is inside the HA config folder) it keeps its own copies in its data folder, `coordinator_backups/`: a new copy each time the backup's devices, network key, PAN ID or channel change, and one a week when nothing changed. The last 10 copies per network are kept.
+
+**Network → Coordinator** lists them with the date of each backup, how many devices it holds, and what changed from the copy before it: devices added or removed (by name, or IEEE address for a device the app doesn't know), and whether the network key, PAN ID or channel changed. **Download** saves that copy as a `coordinator_backup.json` you can give Zigbee2MQTT to restore the network.
+
+The copies contain the network key, like the original file. The app never logs or shows the key: it only keeps a short hash of it to tell whether it changed, and a copy is sent only when you click Download. The copies are in the app's data folder, so they are part of Home Assistant backups of the app.
+
 ## Effect of an upgrade
 
 When a network's Zigbee2MQTT version or coordinator firmware changes, the app records the upgrade (the last 20 per network, kept in `history.json` and in backups) and compares the week before it with the week after. Health → Coordinators → More details shows the latest upgrade, the before and after numbers, and a short list of earlier upgrades. Numbers appear once there is at least a day of data on both sides; until the week is over the card says how many days the "after" side has so far. The first hour after the upgrade is left out, because the restart itself drops devices for a moment. Two changes within an hour (firmware flashed, then Zigbee2MQTT updated) count as one upgrade.
