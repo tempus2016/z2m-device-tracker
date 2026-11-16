@@ -73,10 +73,17 @@ MAX_STOCK = 9999
 # doesn't take again. Changes dated further back than this are history being filled in
 # and leave today's stock alone.
 STOCK_WINDOW_DAYS = 3
+# Battery brand: short free text on each replacement ("Panasonic", "IKEA Ladda").
+MAX_BRAND = 40
+# A brand's average life is only shown once it has this many completed intervals.
+BRAND_MIN_INTERVALS = 2
+# Saved brands offered in the sidebar's brand list.
+MAX_BRANDS = 50
 
 # Other parts of history.json a backup may bring back, with the type each must have.
 RESTORE_KEYS = {
     "alerts_initialised": bool,
+    "battery_brand_list": list,
     "battery_stock": dict,
     "bridges": dict,
     "group_left": list,
@@ -125,6 +132,16 @@ def _text(value: Any, limit: int = MAX_TEXT) -> str | None:
     if not isinstance(value, str):
         return None
     return _CONTROL_RE.sub(" ", value).strip()[:limit] or None
+
+
+def _brand_list(values: Any) -> list[str]:
+    """Brand names cleaned, without repeats (ignoring case), at most MAX_BRANDS (the first ones), sorted."""
+    seen: dict[str, str] = {}
+    for value in values if isinstance(values, list) else []:
+        brand = _text(value, MAX_BRAND)
+        if brand and brand.casefold() not in seen and len(seen) < MAX_BRANDS:
+            seen[brand.casefold()] = brand
+    return sorted(seen.values(), key=str.casefold)
 
 
 def _ieee(value: Any) -> str | None:
@@ -184,6 +201,19 @@ def _clean_record(record: dict) -> dict:
     for key, default in (("readings", {}), ("asset", {}), ("battery_info", {})):
         if not isinstance(record.get(key), dict):
             record[key] = default
+    replacements = record["battery_info"].get("replacements")
+    if replacements is not None:
+        if not isinstance(replacements, list):
+            replacements = []
+        replacements = [entry for entry in replacements if isinstance(entry, dict)]
+        for entry in replacements:
+            if "brand" in entry:
+                brand = _text(entry["brand"], MAX_BRAND)
+                if brand:
+                    entry["brand"] = brand
+                else:
+                    del entry["brand"]
+        record["battery_info"]["replacements"] = replacements
     for key in ("sources", "outages", "predecessors", "muted", "lost_bindings", "features"):
         if not isinstance(record.get(key), list):
             record[key] = []
@@ -623,6 +653,8 @@ class Tracker:
                 for key, value in stored.items():
                     if key not in ("devices", "events", "imported", "networkmap", "alerted"):
                         self.data[key] = value
+                if isinstance(self.data.get("battery_brand_list"), list):
+                    self.data["battery_brand_list"] = _brand_list(self.data["battery_brand_list"])
             for record in self.data["devices"].values():
                 if _stamp_offline_since(record):
                     self.dirty = True
@@ -2258,6 +2290,8 @@ class Tracker:
                 "battery_shopping": self.battery_shopping(60),
                 "ha_leftovers": self.ha_leftovers,
                 "battery_stock": dict(self.data.get("battery_stock") or {}),
+                "battery_brands": self.battery_brands(),
+                "battery_brand_list": list(self.brand_list()),
                 "bridges": self.data.get("bridges") or {},
                 "radio": self.radio(),
                 "network_hours": self.network_hours(now),
@@ -2303,6 +2337,7 @@ class Tracker:
             "battery_installed",
             "battery_last_replaced",
             "battery_replacements",
+            "battery_brand",
             "uptime_30d",
             "area",
             "ha_name",
@@ -2353,6 +2388,7 @@ class Tracker:
                             battery["installed"],
                             battery["last_replaced"] or "",
                             len(battery["replacements"]),
+                            next((r.get("brand") for r in reversed(battery["replacements"]) if r.get("brand")), ""),
                             uptime(record, now) or "",
                             record.get("area") or "",
                             record.get("ha_name") or "",
@@ -2385,10 +2421,15 @@ class Tracker:
 
     # ---------------------------------------------------------------- battery
 
-    def _record_replacement(self, record: dict, date: str, source: str, note: str = "") -> dict:
+    def _record_replacement(
+        self, record: dict, date: str, source: str, note: str = "", brand: str | None = None
+    ) -> dict:
         info = record.setdefault("battery_info", {})
         replacements = info.setdefault("replacements", [])
         entry = {"date": date, "source": source, "note": note[:200], "recorded": _now()}
+        brand = _text(brand, MAX_BRAND)
+        if brand:
+            entry["brand"] = brand
         if replacements and replacements[-1].get("date") == date and source == "Detected":
             return replacements[-1]
         replacements.append(entry)
@@ -2505,16 +2546,171 @@ class Tracker:
             self._changed(structural=True)
             return True
 
-    def add_battery_replacement(self, ieee: str, date: str, source: str, note: str = "") -> dict | None:
+    def add_battery_replacement(
+        self, ieee: str, date: str, source: str, note: str = "", brand: str | None = None
+    ) -> dict | None:
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date or ""):
             return None
         with self.lock:
             record = self.data["devices"].get(ieee)
             if record is None:
                 return None
-            entry = self._record_replacement(record, date, source, note)
+            entry = self._record_replacement(record, date, source, note, brand)
+            if entry.get("brand"):
+                self._remember_brand(entry["brand"])
             self._changed(structural=True)
             return entry
+
+    def brand_list(self) -> list[str]:
+        """The saved brands. The first time, it starts from the brands already on recorded changes."""
+        with self.lock:
+            brands = self.data.get("battery_brand_list")
+            if not isinstance(brands, list):
+                used = [
+                    entry.get("brand")
+                    for record in self.data["devices"].values()
+                    for entry in (record.get("battery_info") or {}).get("replacements") or []
+                    if isinstance(entry, dict)
+                ]
+                self.data["battery_brand_list"] = _brand_list(used)
+                self._changed(structural=False)
+            return self.data["battery_brand_list"]
+
+    def _remember_brand(self, brand: str) -> bool:
+        """Add a brand to the saved list. False when the list is full; True when it is there already."""
+        brands = self.brand_list()
+        if any(b.casefold() == brand.casefold() for b in brands):
+            return True
+        if len(brands) >= MAX_BRANDS:
+            return False
+        self.data["battery_brand_list"] = _brand_list([*brands, brand])
+        return True
+
+    def add_brand(self, brand: Any) -> dict:
+        clean = _text(brand, MAX_BRAND)
+        if not clean:
+            return {"ok": False, "error": "Give a brand name"}
+        with self.lock:
+            if not self._remember_brand(clean):
+                return {"ok": False, "error": f"The list holds up to {MAX_BRANDS} brands. Remove one first."}
+            self._changed(structural=True)
+            return {"ok": True, "brands": list(self.brand_list())}
+
+    def remove_brand(self, brand: Any) -> dict:
+        """Take a brand off the saved list. Changes already recorded with it keep it."""
+        clean = _text(brand, MAX_BRAND)
+        with self.lock:
+            brands = self.brand_list()
+            kept = [b for b in brands if not clean or b.casefold() != clean.casefold()]
+            if len(kept) == len(brands):
+                return {"ok": False, "error": "That brand isn't in the list"}
+            self.data["battery_brand_list"] = kept
+            self._changed(structural=True)
+            return {"ok": True, "brands": list(kept)}
+
+    def set_battery_brand(self, ieee: str, index: Any, brand: Any) -> bool:
+        """Set or clear (empty text) the brand on one recorded battery change."""
+        if isinstance(index, bool) or not isinstance(index, int):
+            return False
+        if brand is not None and not isinstance(brand, str):
+            return False
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            replacements = ((record or {}).get("battery_info") or {}).get("replacements") or []
+            if not 0 <= index < len(replacements):
+                return False
+            clean = _text(brand, MAX_BRAND)
+            if clean:
+                replacements[index]["brand"] = clean
+                self._remember_brand(clean)
+            else:
+                replacements[index].pop("brand", None)
+            self._changed(structural=True)
+            return True
+
+    @staticmethod
+    def _battery_changes(replacements: list) -> list[tuple[date_cls, str | None]]:
+        """One (day, brand) per real battery change, oldest first.
+
+        Entries within STOCK_WINDOW_DAYS of each other are the same change seen twice (detected, then
+        ticked), so they merge; the merged change takes the latest brand given for it.
+        """
+        days = []
+        for entry in replacements:
+            if not isinstance(entry, dict):
+                continue
+            try:
+                day = date_cls.fromisoformat(str(entry.get("date"))[:10])
+            except ValueError:
+                continue
+            days.append((day, _text(entry.get("brand"), MAX_BRAND)))
+        days.sort(key=lambda x: x[0])
+        changes: list[tuple[date_cls, str | None]] = []
+        for day, brand in days:
+            if changes and (day - changes[-1][0]).days <= STOCK_WINDOW_DAYS:
+                changes[-1] = (changes[-1][0], brand or changes[-1][1])
+            else:
+                changes.append((day, brand))
+        return changes
+
+    def battery_brands(self) -> dict:
+        """Average life per battery brand, per battery type, from completed intervals only.
+
+        An interval runs from one change to the next on the same device and belongs to the brand put in
+        at the start of it. The battery in now hasn't run out yet, so it isn't counted. Also returns the
+        brand used most recently per type, to prefill the next change.
+        """
+        stats: dict[str, dict[str, dict]] = {}
+        latest: dict[str, tuple[str, str]] = {}
+        with self.lock:
+            for record in self.data["devices"].values():
+                replacements = (record.get("battery_info") or {}).get("replacements") or []
+                if not any(isinstance(r, dict) and r.get("brand") for r in replacements):
+                    continue
+                btype = self.battery_summary(record)["type"] or UNKNOWN_BATTERY_TYPE
+                tkey = btype.casefold()
+                for entry in replacements:
+                    brand = _text(entry.get("brand"), MAX_BRAND) if isinstance(entry, dict) else None
+                    when = f"{entry.get('date') or ''} {entry.get('recorded') or ''}" if brand else ""
+                    if brand and (tkey not in latest or when >= latest[tkey][0]):
+                        latest[tkey] = (when, brand)
+                changes = self._battery_changes(replacements)
+                per_type = stats.setdefault(tkey, {"type": btype, "brands": {}})
+                for i, (day, brand) in enumerate(changes):
+                    if not brand:
+                        continue
+                    item = per_type["brands"].setdefault(
+                        brand.casefold(), {"brand": brand, "days": [], "in_use": 0, "seen": day}
+                    )
+                    if day >= item["seen"]:
+                        item["brand"], item["seen"] = brand, day
+                    if i + 1 < len(changes):
+                        item["days"].append((changes[i + 1][0] - day).days)
+                    elif record.get("status") == STATUS_ACTIVE:
+                        item["in_use"] += 1
+        types = []
+        for per_type in stats.values():
+            brands = []
+            for item in per_type["brands"].values():
+                n = len(item["days"])
+                enough = n >= BRAND_MIN_INTERVALS
+                brands.append(
+                    {
+                        "brand": item["brand"],
+                        "intervals": n,
+                        "in_use": item["in_use"],
+                        "average_days": round(sum(item["days"]) / n) if enough else None,
+                        "shortest_days": min(item["days"]) if enough else None,
+                        "longest_days": max(item["days"]) if enough else None,
+                    }
+                )
+            if not brands:
+                continue
+            brands.sort(key=lambda b: (b["average_days"] is None, -(b["average_days"] or 0), b["brand"].casefold()))
+            types.append({"type": per_type["type"], "brands": brands})
+        types.sort(key=lambda x: (x["type"] == UNKNOWN_BATTERY_TYPE, x["type"].casefold()))
+        last = {stats[k]["type"] if k in stats else k: brand for k, (_, brand) in latest.items()}
+        return {"types": types, "last_brand": last}
 
     def remove_battery_replacement(self, ieee: str, index: int) -> bool:
         with self.lock:
@@ -3363,6 +3559,8 @@ class Tracker:
         for key, kind in RESTORE_KEYS.items():
             if isinstance(history.get(key), kind):
                 restored[key] = history[key]
+        if "battery_brand_list" in restored:
+            restored["battery_brand_list"] = _brand_list(restored["battery_brand_list"])
         with self.lock:
             # A pause is about now, not about when the backup was made.
             paused = self.data.get("alerts_paused")

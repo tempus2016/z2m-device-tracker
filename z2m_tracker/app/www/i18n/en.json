@@ -852,6 +852,36 @@
   "battery.saved_bn": "Saved and Battery Notes updated",
   "battery.remove_title": "Remove this entry?",
   "battery.remove_text": "Removes it from the tracker's history only. Battery Notes isn't changed.",
+  "battery.brand": "Brand (optional)",
+  "battery.brand_placeholder": "e.g. Panasonic",
+  "battery.no_brand": "No brand",
+  "battery.manage_brands": "Manage brands",
+  "battery.brand_add": "Add brand",
+  "battery.brand_edit": "Change brand",
+  "battery.brand_text": "The brand of the battery put in on {date}. Leave empty to clear it.",
+  "brands.title": "Battery life by brand",
+  "brands.subtitle": "Average time from one battery change to the next on the same device. Batteries still in use aren't counted yet.",
+  "brands.average": {
+    "one": "{n} day",
+    "other": "{n} days"
+  },
+  "brands.not_enough": "Not enough data yet",
+  "brands.used_up": {
+    "one": "{n} battery used up",
+    "other": "{n} batteries used up"
+  },
+  "brands.range": "{min}–{max}",
+  "brands.in_use": {
+    "one": "{n} in use now",
+    "other": "{n} in use now"
+  },
+  "brands.settings_title": "Battery brands",
+  "brands.settings_desc": "Brands to pick from when you record a battery change. Removing one here doesn't change changes already recorded.",
+  "brands.none": "No brands yet. Add the ones you buy.",
+  "brands.new": "New brand",
+  "brands.remove": "Remove {brand}",
+  "brands.added": "Added {brand}",
+  "brands.removed": "Removed {brand}",
   "history.replaces": "Replaces {device}",
   "history.possibly_replaces": "Possibly replaces {name}, removed {date}.",
   "history.earlier": "earlier",

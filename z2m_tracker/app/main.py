@@ -646,8 +646,8 @@ def run_router_pings() -> bool:
     return True
 
 
-def record_battery_replaced(ieee: str, date: str, source: str, note: str) -> dict | None:
-    entry = tracker.add_battery_replacement(ieee, date, source, note)
+def record_battery_replaced(ieee: str, date: str, source: str, note: str, brand: str | None = None) -> dict | None:
+    entry = tracker.add_battery_replacement(ieee, date, source, note, brand)
     if entry is None:
         return None
     device_id = tracker.ha_device_ids.get(ieee)
@@ -1325,7 +1325,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200 if ok else 404, {"ok": ok})
             elif path == "/api/battery/replaced":
                 date = str(body.get("date") or datetime.now(tracker.local_tz).date().isoformat())
-                entry = record_battery_replaced(ieee, date, "Zigbee Tracker", str(body.get("note") or ""))
+                brand = body.get("brand") if isinstance(body.get("brand"), str) else None
+                entry = record_battery_replaced(ieee, date, "Zigbee Tracker", str(body.get("note") or ""), brand)
                 self._json(
                     200 if entry else 400,
                     {"ok": bool(entry), "entry": entry, "error": None if entry else "Invalid device or date"},
@@ -1333,6 +1334,15 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/battery_stock":
                 result = tracker.set_battery_stock(str(body.get("type") or ""), body.get("count"), body.get("delta"))
                 self._json(200 if result["ok"] else 400, result)
+            elif path == "/api/battery_brands/add":
+                result = tracker.add_brand(body.get("brand"))
+                self._json(200 if result["ok"] else 400, result)
+            elif path == "/api/battery_brands/remove":
+                result = tracker.remove_brand(body.get("brand"))
+                self._json(200 if result["ok"] else 400, result)
+            elif path == "/api/battery/brand":
+                ok = tracker.set_battery_brand(ieee, body.get("index"), body.get("brand"))
+                self._json(200 if ok else 400, {"ok": ok, "error": None if ok else "Invalid device, entry or brand"})
             elif path == "/api/battery/remove":
                 ok = tracker.remove_battery_replacement(ieee, int(body.get("index", -1)))
                 threading.Thread(target=discovery.sync, daemon=True).start()

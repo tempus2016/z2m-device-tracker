@@ -57,6 +57,10 @@
         "battery_type": {
           "name": "Battery type",
           "description": "Saves the battery type for this device, for example CR2032. Leave empty to keep the current one."
+        },
+        "brand": {
+          "name": "Brand",
+          "description": "The brand of the new battery, for example Panasonic. Used to compare how long each brand lasts."
         }
       }
     },
