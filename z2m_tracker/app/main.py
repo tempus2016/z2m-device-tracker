@@ -667,7 +667,7 @@ def on_message(client, userdata, message):
             return
         for base_topic in base_topics:
             if topic.startswith(f"{base_topic}/"):
-                tracker.handle_message(base_topic, topic, message.payload)
+                tracker.handle_message(base_topic, topic, message.payload, bool(message.retain))
                 return
     except Exception:  # noqa: BLE001 - malformed input from the broker
         _LOGGER.exception("Handling an MQTT message failed")

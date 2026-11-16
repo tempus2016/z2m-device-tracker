@@ -229,7 +229,9 @@
         "single_point": "Single point of failure",
         "router_hopping": "Changes router often",
         "slow_router": "Router getting slower",
-        "maintenance_due": "Maintenance overdue"
+        "maintenance_due": "Maintenance overdue",
+        "slow_commands": "Slow to respond",
+        "missed_commands": "Misses commands"
       }
     }
   },

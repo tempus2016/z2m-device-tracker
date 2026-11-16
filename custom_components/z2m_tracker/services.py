@@ -47,6 +47,8 @@ DEVICE_CHECKS = [
     "router_hopping",
     "slow_router",
     "maintenance_due",
+    "slow_commands",
+    "missed_commands",
 ]
 
 DEVICE_FIELDS = {
