@@ -1400,8 +1400,9 @@
       const tone = i.severity !== "warning" ? "var(--info)" : severe(i, d) ? "var(--error)" : "var(--warning)";
       if (isNetIssue(i)) {
         const panel = state.data.panels?.[i.instance];
-        const icon = { network_offline: "lan-disconnect", coordinator_backup: "download", pairing_open: "link-variant" }[i.kind] || KIND_ICON[i.kind] || "refresh";
-        const close = i.kind === "pairing_open" ? `<button class="btn danger" data-act="pair-stop" data-net="${esc(i.instance)}">${th("health.close_now")}</button>` : "";
+        const icon = { network_offline: "lan-disconnect", coordinator_backup: "download", pairing_open: "link-variant", last_seen_off: "information-outline" }[i.kind] || KIND_ICON[i.kind] || "refresh";
+        const close = i.kind === "pairing_open" ? `<button class="btn danger" data-act="pair-stop" data-net="${esc(i.instance)}">${th("health.close_now")}</button>`
+          : i.kind === "last_seen_off" ? `<button class="btn filled" data-act="last-seen-on" data-net="${esc(i.instance)}">${th("advice.turn_on")}</button><button class="btn" data-act="advice-dismiss" data-key="${esc(i.key)}">${th("advice.dismiss")}</button>` : "";
         return `<div class="row"><span class="state-ic" style="color:${tone}">${ic(icon)}</span>
           <div class="text"><div class="t1">${esc(issueTitle(i))}: ${esc(issueName(i))}</div><div class="t2">${esc(issueDetail(i))}</div></div>
           <div class="acts">${close}${panel ? `<a class="btn" href="${esc(panel)}" target="_top">${th("health.open_z2m")}</a>` : ""}</div></div>`;
@@ -3540,6 +3541,16 @@
     "log-more"() { state.logLimit = (state.logLimit || LOG_PAGE) + LOG_PAGE; renderActivity(); },
     "log-mode"(b) { state.logMode = b.dataset.mode === "incidents" ? "incidents" : "all"; store.set("z2mt.logMode", state.logMode); renderActivity(); },
     "toggle-incident"(b) { const o = state.openIncidents; if (!o.delete(b.dataset.inc)) o.add(b.dataset.inc); renderActivity(); },
+    async "last-seen-on"(b) {
+      const net = b.dataset.net;
+      const ok = await confirmDialog({ title: t("advice.last_seen_title"), ok: t("advice.turn_on"), filled: true,
+        html: `<p>${th("advice.last_seen_text", { network: esc(netLabel(net)), setting: '<span class="mono">advanced.last_seen: ISO_8601</span>' })}</p><p>${th("advice.last_seen_effect")}</p>` });
+      if (!ok) return;
+      b.disabled = true; b.classList.add("busy");
+      try { const r = await api("api/z2m/last_seen", { instance: net }); snack(t(r.restart_required ? "advice.done_restart" : "advice.done"), 5000); setTimeout(load, 2500); }
+      catch (err) { snack(t("advice.failed", { error: err.message }), 6000); b.disabled = false; b.classList.remove("busy"); }
+    },
+    async "advice-dismiss"(b) { try { await api("api/advice/dismiss", { key: b.dataset.key }); snack(t("advice.dismissed")); load(); } catch (err) { snack(err.message); } },
     async copy(b) { try { await navigator.clipboard.writeText(b.dataset.ieee); snack(t("snack.ieee_copied")); } catch (e) { snack(b.dataset.ieee); } },
     async reconfigure(b) {
       const ieee = b.dataset.ieee, d = state.byIeee.get(ieee);

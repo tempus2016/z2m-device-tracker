@@ -1587,6 +1587,15 @@ class Handler(BaseHTTPRequestHandler):
                             tracker._changed(structural=True)
                     threading.Thread(target=discovery.sync, daemon=True).start()
                     self._json(200, {"ok": True})
+            elif path == "/api/z2m/last_seen":
+                result = tracker.turn_on_last_seen(str(body.get("instance") or ""))
+                if result["ok"]:
+                    # Zigbee2MQTT sends its new settings in bridge/info just after answering.
+                    threading.Timer(2, tracker.evaluate_health).start()
+                self._json(200 if result["ok"] else (400 if result["error"] == "Unknown network" else 502), result)
+            elif path == "/api/advice/dismiss":
+                ok = tracker.dismiss_advice(str(body.get("key") or ""))
+                self._json(200 if ok else 404, {"ok": ok})
             elif path == "/api/pairing":
                 instance = body.get("instance") if body.get("instance") in base_topics else base_topics[0]
                 result = tracker.start_pairing(

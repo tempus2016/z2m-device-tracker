@@ -251,6 +251,7 @@
   "issue.label.silent": "Not heard from",
   "issue.label.late": "Stopped reporting",
   "issue.label.frozen": "Frozen reading",
+  "issue.label.last_seen_off": "last_seen is off",
   "issue.label.weak_signal": "Weak signal",
   "issue.label.signal_drop": "Signal dropping",
   "issue.label.battery_low": "Low battery",
@@ -279,6 +280,8 @@
   "issue.unidentified.detail": "Interview didn't complete, so the model is unknown. Try re-pairing it.",
   "issue.frozen.title": "Reading not changing",
   "issue.frozen.detail": "{reading} stuck at {value} for {duration} across {n} reports. Try Reconfigure.",
+  "issue.last_seen_off.title": "last_seen is off in Zigbee2MQTT",
+  "issue.last_seen_off.detail": "Silent checks for battery devices are weaker without it: messages Zigbee2MQTT repeats from its cache look new, so a device that has gone quiet can still look alive.",
   "issue.weak_signal.title": "Weak signal",
   "issue.weak_signal.detail": "Average link quality {lqi} over 24 h.",
   "issue.signal_drop.title": "Signal dropping",
@@ -1955,5 +1958,14 @@
   "fine.models_bad": {
     "one": "1 model stands out",
     "other": "{n} models stand out"
-  }
+  },
+  "advice.turn_on": "Turn on",
+  "advice.dismiss": "Dismiss",
+  "advice.dismissed": "Dismissed. It won't show again.",
+  "advice.last_seen_title": "Turn on last_seen?",
+  "advice.last_seen_text": "This changes a Zigbee2MQTT setting on the {network} network: {setting}. Zigbee2MQTT saves it in its configuration.yaml.",
+  "advice.last_seen_effect": "Every device message then carries the time the device was last heard. Anything else reading those messages sees one extra value, last_seen.",
+  "advice.done": "last_seen is on in Zigbee2MQTT",
+  "advice.done_restart": "last_seen is on. Zigbee2MQTT says it needs a restart to use it.",
+  "advice.failed": "Couldn't change the setting: {error}"
 }

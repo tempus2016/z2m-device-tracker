@@ -138,8 +138,16 @@ RESTORE_KEYS = {
     "ota_last_check": (str, int, float),
     "summary_sent": (str, dict),
     "z2m_config": dict,
+    "dismissed_advice": list,
     "upgrades": dict,
 }
+
+# Settings advice on the Health tab: one-off notices, each dismissible for good (data["dismissed_advice"]).
+ADVICE_KINDS = frozenset({"last_seen_off"})
+LAST_SEEN_TEXT = (
+    "Silent checks for battery devices are weaker without it: messages Zigbee2MQTT repeats from its "
+    "cache look new, so a device that has gone quiet can still look alive."
+)
 
 # Anything on the broker can publish under the base topic, so incoming text and numbers are checked
 # before they are kept: text must be a string (control characters removed, length capped), numbers
@@ -2524,6 +2532,22 @@ class Tracker:
                 issue = self._upgrade_issue(bt, label, now)
                 if issue:
                     out.append(issue)
+            if self.last_seen_off(bt) and f"last_seen_off:{bt}" not in (self.data.get("dismissed_advice") or []):
+                out.append(
+                    {
+                        "key": f"last_seen_off:{bt}",
+                        "kind": "last_seen_off",
+                        "label": "last_seen is off",
+                        "severity": "info",
+                        "ieee": f"network:{bt}",
+                        "title": "last_seen is off in Zigbee2MQTT",
+                        "detail": LAST_SEEN_TEXT,
+                        "msg": "last_seen_off",
+                        "params": {},
+                        "name": f"{label} network",
+                        "instance": bt,
+                    }
+                )
             dips = (hours.get(bt) or {}).get("dips") or []
             if dips:
                 text, params = self._dip_text(dips[0])
@@ -2543,6 +2567,42 @@ class Tracker:
                     }
                 )
         return out
+
+    def last_seen_off(self, base_topic: str) -> bool:
+        """True when the network's Zigbee2MQTT settings say advanced.last_seen is "disable".
+        False while its settings haven't been seen, or don't mention it."""
+        value = ((self.data.get("z2m_config") or {}).get(base_topic) or {}).get("advanced.last_seen")
+        try:
+            return value is not None and json.loads(value) in ("disable", False)
+        except ValueError:
+            return False
+
+    def dismiss_advice(self, key: str) -> bool:
+        """Hide one piece of settings advice (such as last_seen_off:<base topic>) for good."""
+        with self.lock:
+            if not any(i["key"] == key and i["kind"] in ADVICE_KINDS for i in self.issues):
+                return False
+            dismissed = self.data.setdefault("dismissed_advice", [])
+            if key not in dismissed:
+                dismissed.append(key)
+            self.issues = [i for i in self.issues if i["key"] != key]
+            self._changed(structural=True)
+            return True
+
+    def turn_on_last_seen(self, base_topic: str) -> dict:
+        """Ask Zigbee2MQTT to add a last_seen time to every message (advanced.last_seen: ISO_8601)."""
+        if base_topic not in self.base_topics:
+            return {"ok": False, "error": "Unknown network"}
+        try:
+            reply = self.request(base_topic, "options", {"options": {"advanced": {"last_seen": "ISO_8601"}}}, 15)
+        except RuntimeError as err:
+            return {"ok": False, "error": str(err)}
+        if reply is None:
+            return {"ok": False, "error": "Zigbee2MQTT didn't answer within 15 s."}
+        if reply.get("status") != "ok":
+            return {"ok": False, "error": friendly_z2m_error(reply.get("error"))}
+        _LOGGER.info("Turned on last_seen in Zigbee2MQTT (%s)", base_topic)
+        return {"ok": True, "restart_required": bool((reply.get("data") or {}).get("restart_required"))}
 
     def radio(self) -> dict:
         """Zigbee/Wi-Fi channel overlap analysis."""
