@@ -1431,12 +1431,10 @@
       const tone = i.severity !== "warning" ? "var(--info)" : severe(i, d) ? "var(--error)" : "var(--warning)";
       if (isNetIssue(i)) {
         const panel = state.data.panels?.[i.instance];
-        const icon = { network_offline: "lan-disconnect", coordinator_backup: "download", pairing_open: "link-variant" }[i.kind] || KIND_ICON[i.kind] || "refresh";
-        const close = i.kind === "pairing_open" ? `<button class="btn danger" data-act="pair-stop" data-net="${esc(i.instance)}">${th("health.close_now")}</button>`
-          : i.kind === "stale_retained" ? `<button class="btn" data-view="network/broker">${th("ret.review")}</button>` : "";
         const icon = { network_offline: "lan-disconnect", coordinator_backup: "download", pairing_open: "link-variant", last_seen_off: "information-outline" }[i.kind] || KIND_ICON[i.kind] || "refresh";
         const close = i.kind === "pairing_open" ? `<button class="btn danger" data-act="pair-stop" data-net="${esc(i.instance)}">${th("health.close_now")}</button>`
-          : i.kind === "last_seen_off" ? `<button class="btn filled" data-act="last-seen-on" data-net="${esc(i.instance)}">${th("advice.turn_on")}</button><button class="btn" data-act="advice-dismiss" data-key="${esc(i.key)}">${th("advice.dismiss")}</button>` : "";
+          : i.kind === "last_seen_off" ? `<button class="btn filled" data-act="last-seen-on" data-net="${esc(i.instance)}">${th("advice.turn_on")}</button><button class="btn" data-act="advice-dismiss" data-key="${esc(i.key)}">${th("advice.dismiss")}</button>`
+          : i.kind === "stale_retained" ? `<button class="btn" data-view="network/broker">${th("ret.review")}</button>` : "";
         return `<div class="row"><span class="state-ic" style="color:${tone}">${ic(icon)}</span>
           <div class="text"><div class="t1">${esc(issueTitle(i))}: ${esc(issueName(i))}</div><div class="t2">${esc(issueDetail(i))}</div></div>
           <div class="acts">${close}${panel ? `<a class="btn" href="${esc(panel)}" target="_top">${th("health.open_z2m")}</a>` : ""}</div></div>`;
