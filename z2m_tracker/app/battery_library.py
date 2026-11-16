@@ -55,3 +55,25 @@ class BatteryLibrary:
             if values and len(values) == 1:
                 return next(iter(values))
         return None
+
+
+SHOP_URL_MAX = 200
+
+
+def clean_shop_url(value: object) -> str:
+    """Validate the battery_shop_url setting: a store search URL with {type} where the battery type goes.
+    Empty turns the cart buttons off."""
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise ValueError("enter a web address like https://www.amazon.co.uk/s?k={type}")
+    url = value.strip()
+    if not url:
+        return ""
+    if len(url) > SHOP_URL_MAX:
+        raise ValueError(f"use at most {SHOP_URL_MAX} characters")
+    if not re.match(r"https?://[^/\s]+", url, re.IGNORECASE) or re.search(r"[\s\"'<>`]", url):
+        raise ValueError("enter a web address starting with https://, with no spaces")
+    if "{type}" not in url:
+        raise ValueError("include {type} where the battery type goes")
+    return url

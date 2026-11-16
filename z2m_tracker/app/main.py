@@ -27,7 +27,7 @@ from zoneinfo import ZoneInfo
 import alert_actions
 import paho.mqtt.client as mqtt
 import prometheus
-from battery_library import BatteryLibrary
+from battery_library import BatteryLibrary, clean_shop_url
 from discovery import AVAILABILITY, Discovery
 from discovery import BASE as DISCOVERY_BASE
 from ha import HomeAssistant
@@ -108,6 +108,7 @@ DEFAULT_OPTIONS = {
     "quiet_start": "23:00",
     "quiet_end": "07:00",
     "naming_pattern": "",
+    "battery_shop_url": "",
 }
 
 CHECK_KEYS = {key for key, _, _, _ in CHECKS}
@@ -198,6 +199,7 @@ SETTINGS = {
     "quiet_start": _clock,
     "quiet_end": _clock,
     "naming_pattern": clean_pattern,
+    "battery_shop_url": clean_shop_url,
 }
 
 
@@ -224,6 +226,11 @@ def load_options() -> dict:
     except ValueError as err:
         _LOGGER.warning("Ignoring naming_pattern %r: %s", options.get("naming_pattern"), err)
         options["naming_pattern"] = ""
+    try:
+        options["battery_shop_url"] = clean_shop_url(options.get("battery_shop_url"))
+    except ValueError as err:
+        _LOGGER.warning("Ignoring battery_shop_url %r: %s", options.get("battery_shop_url"), err)
+        options["battery_shop_url"] = ""
     if not options.get("alert_on_join", True) and "joined" in options["notify_checks"]:
         options["notify_checks"] = [k for k in options["notify_checks"] if k != "joined"]
     return options

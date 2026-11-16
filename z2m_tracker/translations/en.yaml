@@ -80,6 +80,9 @@ configuration:
   naming_pattern:
     name: Naming pattern
     description: Pattern for device names, built from tokens in curly braces - area, type, model and n (a number that keeps names unique). Fills in the name of new devices when pairing and drives the Naming check. Empty turns it off.
+  battery_shop_url:
+    name: Battery shop link
+    description: Store search address with {type} where the battery type goes, e.g. https://www.amazon.co.uk/s?k={type}. Adds a cart button to each battery you need to buy. Empty hides the buttons.
   mqtt_host:
     name: MQTT broker address
     description: Your MQTT broker, if it isn't the Mosquitto broker app. Empty uses the broker Home Assistant offers.
