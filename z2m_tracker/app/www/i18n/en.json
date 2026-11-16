@@ -126,6 +126,14 @@
   "devices.search": "Search devices",
   "devices.group_by_area": "Group by area",
   "devices.pair": "Pair device",
+  "select.all": "Tick all devices shown",
+  "select.one": "Tick {name}",
+  "select.bar": "Ticked devices",
+  "select.n": {
+    "one": "{n} ticked",
+    "other": "{n} ticked"
+  },
+  "select.clear": "Untick all",
   "devices.col.name": "Name",
   "devices.col.area": "Area",
   "devices.col.model": "Model",
@@ -1056,6 +1064,25 @@
   "ota.failed_tonight": "Failed: tries again tonight",
   "ota.failed": "Failed",
   "ota.retry": "Retry",
+  "labels.button": "Print labels",
+  "labels.title": "Print labels",
+  "labels.n": {
+    "one": "{n} device",
+    "other": "{n} devices"
+  },
+  "labels.sheet": "Labels",
+  "labels.preset_avery": "Avery L7651 (65 per A4 sheet)",
+  "labels.preset_tape": "29 mm tape (62 mm long)",
+  "labels.start": "Start at label",
+  "labels.battery": "{type} × {n}",
+  "labels.installed": "Installed {date}",
+  "labels.qr": "QR code: {url}",
+  "labels.link": "The QR code opens the device in this app in Home Assistant.",
+  "labels.link_session": "Open this app from the Home Assistant sidebar before printing: from here the QR code can only link to this page's temporary address.",
+  "labels.print": {
+    "one": "Print {n} label",
+    "other": "Print {n} labels"
+  },
   "ota.skipped": "Skipped: {reason}",
   "ota.update_anyway": "Update anyway",
   "ota.try_again": "Try again",
