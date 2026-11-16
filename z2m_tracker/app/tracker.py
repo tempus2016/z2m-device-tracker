@@ -850,6 +850,8 @@ class Tracker:
         self.retained_commands: dict[str, dict] = {}
         # IEEE -> arrival times of its last few live messages (memory only), for the availability mismatch check.
         self._recent: dict[str, deque] = {}
+        # Mosquitto's $SYS statistics (broker_stats.BrokerStats), set by main.py.
+        self.broker_stats = None
 
     # ------------------------------------------------------------ persistence
 
@@ -3051,6 +3053,9 @@ class Tracker:
                 "model_reliability": model_reliability(list(self.data["devices"].values()), self.data["events"], now),
                 "ha_leftovers": self.ha_leftovers,
                 "retained": self.retained_payload(),
+                "broker": self.broker_stats.snapshot(bool(self.options.get("broker_stats", True)))
+                if self.broker_stats is not None
+                else None,
                 "battery_stock": dict(self.data.get("battery_stock") or {}),
                 "battery_brands": self.battery_brands(),
                 "battery_brand_list": list(self.brand_list()),

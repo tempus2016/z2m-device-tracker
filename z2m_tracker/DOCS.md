@@ -38,6 +38,8 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `naming_pattern` | empty | Naming pattern for devices, e.g. `{area} {type} {n}`. Fills in the name of each device that joins in **Pair device**, and drives the **Naming** check. Empty turns it off. See [Device names](#device-names). |
 | `battery_shop_url` | empty | Store search address for the cart buttons in **Batteries to buy**, with `{type}` where the battery type goes, e.g. `https://www.amazon.co.uk/s?k={type}` or `https://www.amazon.de/s?k={type}`. Any shop works. Empty hides the buttons. Set it in **Settings → Battery brands**. No affiliate tags are added. |
 | `retained_autoclear` | `false` | After a device is renamed, clear the retained messages the broker still keeps under its old name. Off lists them on **Network → Broker** for you to clear. See [Stale retained messages](#stale-retained-messages). |
+
+| `broker_stats` | `true` | Read Mosquitto's `$SYS/broker/#` statistics for **Network → Broker**. See [Broker statistics](#broker-statistics). |
 | `mqtt_host` | empty | Address of your MQTT broker, if it isn't the Mosquitto broker app. Empty uses the broker Home Assistant offers. See [MQTT broker](#mqtt-broker). |
 | `mqtt_port` | `1883` | Port of that broker. Usually `1883`, or `8883` with TLS. |
 | `mqtt_user` / `mqtt_password` | empty | Login for that broker. Leave empty if it allows anonymous connections. |
@@ -54,6 +56,8 @@ The sidebar has seven tabs. On a phone the last three sit behind **More** in the
 | **Health** | Problems, worst first, then one line for each part of the app on another tab, so a glance says whether anything there needs a look. |
 | **Devices** | Every device, with its own page: info, health, trends, history, battery and notes. |
 | **Network** | **Map** (routing map, floor plan, what-if), **Coordinator** (each Zigbee2MQTT and its coordinator), **Broker** (stale retained messages and devices left behind in Home Assistant), **Radio** (channels and Wi-Fi overlap) and **Groups**. |
+
+| **Network** | **Map** (routing map, floor plan, what-if), **Coordinator** (each Zigbee2MQTT and its coordinator), **Broker** (MQTT broker statistics and devices left behind in Home Assistant), **Radio** (channels and Wi-Fi overlap) and **Groups**. |
 | **Upkeep** | **Batteries** (what to buy, and how long each brand lasts), **Maintenance** (recurring tasks) and **Models** (reliability by model). |
 | **Updates** | Firmware updates. |
 | **Activity** | The logbook and incidents. |
@@ -66,6 +70,16 @@ By default the app uses the broker Home Assistant offers to apps, which is the M
 The app's Home Assistant entities use MQTT discovery, so they appear only if Home Assistant's MQTT integration is connected to the same broker.
 
 Without `mqtt_ssl`, the broker login and all Zigbee messages cross your network unencrypted. For a broker on another machine, turn on `mqtt_ssl` (usually port `8883`) and keep `mqtt_ssl_verify` on. Turn it off only for a self-signed certificate on a network you trust.
+
+## Broker statistics
+
+Mosquitto publishes statistics about itself under `$SYS/broker/` every 10 seconds (its `sys_interval` setting). With `broker_stats` on (the default; **Settings → Broker**), the app reads them and shows at the top of **Network → Broker**:
+
+- **Clients** connected, **Retained** messages held, messages **Dropped** in the last 24 hours, and broker **Uptime**.
+- **Messages per minute, last 24 h**: one bar per hour, worked out from Mosquitto's received-messages counter. Hours with dropped messages are red. The chart is kept in memory only, so it starts again when the app restarts.
+- A red line when messages were dropped, with the time of the latest drop. Mosquitto drops messages when a client's queue is full (`max_queued_messages`) or it runs short of memory; `$SYS` doesn't say which client.
+
+Health's **Broker** line shows the dropped messages too. Other brokers (EMQX, HiveMQ and others) don't publish Mosquitto's `$SYS` topics; after a minute without any the page says so. A broker whose access list doesn't let the app's login read `$SYS/#` looks the same.
 
 ## Prometheus metrics
 

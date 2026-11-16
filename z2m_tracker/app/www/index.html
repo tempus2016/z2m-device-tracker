@@ -1187,6 +1187,8 @@
     mtEdit: null,
     // Network > Broker: which stale retained messages show ("all" or a reason), and whether past the first page.
     retFilter: "all", retAll: false,
+    // Network > Broker statistics: { data, at, busy } from api/broker.
+    broker: null,
     logMode: store.get("z2mt.logMode") === "incidents" ? "incidents" : "all", openIncidents: new Set(),
   };
 
@@ -1229,7 +1231,11 @@
       render();
     } catch (err) { setLive(false, err.message); }
   };
-  const poll = async () => { try { const { version } = await api("api/version"); if (version !== state.version) await load(); else setLive(true); } catch (err) { setLive(false, err.message); } };
+  const poll = async () => {
+    try { const { version } = await api("api/version"); if (version !== state.version) await load(); else setLive(true); } catch (err) { setLive(false, err.message); }
+    // Broker statistics change every few seconds without a new version: refresh them while their tab is open.
+    if (state.view === "network" && state.sub.network === "broker" && !document.hidden && (!state.broker?.at || Date.now() - state.broker.at > 25000)) loadBroker();
+  };
 
   // ------------------------------------------------------------ sorting + filtering
   const DEFAULT_DIR = { last_seen: -1, signal: -1 };
@@ -1493,9 +1499,9 @@
     const newest = backups.map((b) => b.date).filter(Boolean).sort().pop();
     add("network/coordinator", down.length ? bad : oldBackup ? warn : ok, t("sub.coordinator"),
       down.length ? t("fine.coord_down", { name: down.map(netLabel).join(", ") }) : [t("fine.coord_online", { n: d.instances.length }), newest ? t("fine.backup_age", { when: relTime(newest) }) : backups.length ? t("fine.no_backup") : null].filter(Boolean).join(" · "));
-    const leftovers = (d.ha_leftovers || []).length, stale = d.retained?.total || 0;
-    add("network/broker", leftovers || stale ? warn : ok, t("sub.broker"), leftovers || stale
-      ? [stale ? t("fine.stale_retained", { n: stale }) : null, leftovers ? t("fine.leftovers", { n: leftovers }) : null].filter(Boolean).join(" · ") : t("fine.nothing_to_clean"));
+    const leftovers = (d.ha_leftovers || []).length, stale = d.retained?.total || 0, dropped = d.broker?.state === "ok" ? d.broker.dropped_24h || 0 : 0;
+    add("network/broker", leftovers || stale || dropped ? warn : ok, t("sub.broker"), leftovers || stale || dropped
+      ? [dropped ? t("fine.dropped", { n: dropped }) : null, stale ? t("fine.stale_retained", { n: stale }) : null, leftovers ? t("fine.leftovers", { n: leftovers }) : null].filter(Boolean).join(" · ") : t("fine.nothing_to_clean"));
     const r = d.radio;
     if (r && r.networks.length) {
       const sev = Math.max(0, ...r.findings.map((f) => f.sev || 0));
@@ -1537,7 +1543,7 @@
     const k = state.sub.network;
     if (k === "map") { renderMap(); return; }
     const body = k === "coordinator" ? coordinatorsCard()
-      : k === "broker" ? retainedCard() + (leftoverCard() || leftoverNone())
+      : k === "broker" ? brokerCard() + retainedCard() + (leftoverCard() || leftoverNone())
       : k === "radio" ? radioCard() || subEmpty("signal", "radio")
       : groupsCard() || subEmpty("lightbulb", "groups");
     $("#view").innerHTML = `${subNav("network")}${body}`;
@@ -1949,6 +1955,49 @@
       html: `<p>${th("ret.confirm_text")}</p>${topics.length <= 5 ? `<p>${topics.map((x) => `<span class="mono">${esc(x)}</span>`).join("<br>")}</p>` : ""}` });
     if (!ok) return;
     try { const r = await api("api/retained/clear", { topics }); snack(t("ret.cleared", { n: r.cleared.length })); load(); } catch (err) { snack(err.message, 5000); }
+  };
+  // ------------------------------------------------------------ MQTT broker statistics (Network > Broker)
+  // Mosquitto's $SYS topics: fetched on their own (api/broker) while the tab is open, since they change
+  // every few seconds and would otherwise reload the whole device list.
+  const brokerNow = () => state.broker?.data || state.data.broker || null;
+  const loadBroker = async () => {
+    if (state.broker?.busy) return;
+    state.broker = { ...(state.broker || {}), busy: true };
+    try { state.broker = { data: await api("api/broker"), at: Date.now() }; } catch (e) { state.broker = { ...(state.broker || {}), busy: false, at: Date.now() }; return; }
+    if (state.view === "network" && state.sub.network === "broker" && !$("#confirmDlg").open) renderNetwork();
+  };
+  const fmtUptime = (s) => { const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600); return d ? t("broker.uptime_dh", { d, h }) : span(s); };
+  const fmtNum = (n) => intl((l) => Number(n).toLocaleString(l, { maximumFractionDigits: 1 }));
+  const brokerCard = () => {
+    const b = brokerNow();
+    if (!state.broker?.at || Date.now() - state.broker.at > 25000) setTimeout(loadBroker, 0);
+    const head = (small) => `<div class="card-header">${ic("signal")}<div><h2 class="ch">${th("broker.title")}</h2><small>${small}</small></div></div>`;
+    if (!b || b.state === "waiting") return `<div class="card">${head(th("broker.subtitle"))}<p class="tnote">${th("broker.waiting")}</p></div>`;
+    if (b.state === "off") return `<div class="card">${head(th("broker.subtitle"))}<p class="tnote">${th("broker.off")}</p><div class="card-actions"><button class="btn" data-view="settings">${th("broker.open_settings")}</button></div></div>`;
+    if (b.state === "none") return `<div class="card">${head(th("broker.subtitle"))}<p class="tnote">${th("broker.none")}</p></div>`;
+    const cell = (label, value, bad = false) => `<div><small>${th(label)}</small><b${bad ? ' style="color:var(--error-text)"' : ""}>${value ?? "–"}</b></div>`;
+    const hours = b.hours || [];
+    const now = Math.floor(Date.now() / 3600000) * 3600;
+    const slots = Array.from({ length: 24 }, (_, i) => now - (23 - i) * 3600);
+    const byHour = new Map(hours.map((h) => [h.hour, h]));
+    const vals = hours.map((h) => h.per_min).filter((v) => v !== null);
+    const hi = Math.max(1, ...vals);
+    const hov = slots.map((ts) => { const h = byHour.get(ts); return [null, null, fmtHover(ts, true), !h || h.per_min === null ? t("chart.no_data") : `${t("broker.per_min", { n: fmtNum(h.per_min) })}${h.dropped ? ` · ${t("broker.dropped_n", { n: h.dropped })}` : ""}`]; });
+    const bars = slots.map((ts, i) => {
+      const h = byHour.get(ts), label = esc(`${hov[i][2]}: ${hov[i][3]}`);
+      if (!h || h.per_min === null) return `<i class="gap" role="img" aria-label="${label}"></i>`;
+      return `<i class="${h.dropped ? "bad" : ""}" style="height:${Math.max(2, (h.per_min / hi) * 100).toFixed(1)}%" role="img" aria-label="${label}"></i>`;
+    }).join("");
+    const drop = b.last_drop;
+    const sub = [b.version ? esc(b.version) : null, b.seen_at ? esc(t("broker.updated", { when: relTime(b.seen_at, true) })) : null].filter(Boolean).join(" · ");
+    return `<div class="card">${head(sub || th("broker.subtitle"))}
+      ${b.state === "stale" ? `<p class="tnote">${th("broker.stale")}</p>` : ""}
+      <div class="info-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">${cell("broker.clients", b.clients !== undefined ? fmtNum(b.clients) : null)}${cell("broker.retained", b.retained !== undefined ? fmtNum(b.retained) : null)}${cell("broker.dropped_24h", fmtNum(b.dropped_24h || 0), b.dropped_24h > 0)}${cell("broker.uptime", b.uptime !== undefined ? esc(fmtUptime(b.uptime)) : null)}</div>
+      <div class="sub-h">${th("broker.chart_title")}${b.received_1min !== undefined ? ` · ${th("broker.now", { n: esc(fmtNum(b.received_1min)) })}` : ""}</div>
+      ${vals.length ? `<div class="ping-bars" role="group" aria-label="${esc(t("broker.chart_title"))}" ${hoverAttrs("broker", { bars: true, p: hov })}>${bars}</div>
+      <div class="chart-axis"><span>${esc(fmtTick(slots[0], 86400))}</span><span>${esc(fmtTick(slots[23], 86400))}</span></div>` : `<p class="tnote">${th("broker.chart_empty")}</p>`}
+      ${drop ? `<div class="alerts" style="padding:0 16px 16px"><div class="alert" style="--a:var(--error)">${ic("alert")}<div class="body"><b>${th("broker.drop_head", { n: drop.n, time: esc(fmtTime(drop.at)) })}</b> ${th("broker.drop_text")}</div></div></div>` : ""}
+    </div>`;
   };
   const leftoverOk = () => { const n = document.querySelectorAll('#cText input[name="lo"]:checked').length; $("#cOk").textContent = t("leftover.remove_n", { n }); $("#cOk").disabled = !n; };
 
@@ -2758,6 +2807,7 @@
       </div>
       <div class="card"><div class="card-header"><h2 class="ch">${th("settings.broker")}</h2></div>
         ${sw("retained_autoclear", s.retained_autoclear, t("settings.retained_autoclear"), th("settings.retained_autoclear_desc"))}
+        ${sw("broker_stats", s.broker_stats !== false, t("settings.broker_stats"), th("settings.broker_stats_desc"))}
       </div>
       <div class="card"><div class="card-header"><h2 class="ch">${th("settings.entities")}</h2></div>
         ${sw("ha_entities", s.ha_entities, t("settings.entities_add"), th("settings.entities_desc", { n: S.entities }))}

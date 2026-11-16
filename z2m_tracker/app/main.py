@@ -29,6 +29,8 @@ import escalation
 import paho.mqtt.client as mqtt
 import prometheus
 from battery_library import BatteryLibrary, clean_shop_url
+from broker_stats import FILTER as SYS_FILTER
+from broker_stats import BrokerStats
 from discovery import AVAILABILITY, Discovery
 from discovery import BASE as DISCOVERY_BASE
 from discovery import PREFIX as DISCOVERY_PREFIX
@@ -119,6 +121,7 @@ DEFAULT_OPTIONS = {
     "naming_pattern": "",
     "battery_shop_url": "",
     "retained_autoclear": False,
+    "broker_stats": True,
 }
 
 CHECK_KEYS = {key for key, _, _, _ in CHECKS}
@@ -216,6 +219,7 @@ SETTINGS = {
     "naming_pattern": clean_pattern,
     "battery_shop_url": clean_shop_url,
     "retained_autoclear": _bool,
+    "broker_stats": _bool,
 }
 
 
@@ -319,6 +323,8 @@ tracker = Tracker(DATA_PATH, base_topics, CONFIG_DIR, local_timezone(), metrics,
 home_assistant = HomeAssistant(CONFIG_DIR)
 retained_store = RetainedStore()
 tracker.retained = retained_store
+broker_stats = BrokerStats()
+tracker.broker_stats = broker_stats
 tracker.battery_lib = BatteryLibrary(APP_DIR / "battery_library.json")
 discovery = Discovery(tracker, VERSION, bool(options.get("ha_entities", True)))
 stop_event = threading.Event()
@@ -660,6 +666,9 @@ def on_connect(client, userdata, flags, reason_code, properties):
         [(f"{topic}/#", 0) for topic in base_topics]
         + [(f"{DISCOVERY_BASE}/+/reconfigure", 0), (f"{DISCOVERY_BASE}/+/battery_replaced", 0)]
     )
+    if options.get("broker_stats", True):
+        client.subscribe(SYS_FILTER, 0)
+        broker_stats.subscribed()
     client.publish(AVAILABILITY, "online", qos=1, retain=True)
     threading.Thread(target=discovery.sync, kwargs={"force": True}, name="discovery", daemon=True).start()
     retained_scan_soon(RETAINED_FIRST_DELAY)
@@ -745,6 +754,9 @@ def on_message(client, userdata, message):
     # Never let an exception out: paho would stop its network thread, and with it all tracking.
     try:
         topic = message.topic
+        if topic.startswith("$SYS/"):
+            broker_stats.handle(topic, message.payload)
+            return
         if topic.startswith(f"{DISCOVERY_BASE}/"):
             parts = topic.split("/")
             if len(parts) == 3 and parts[2] in ("battery_replaced", "reconfigure"):
@@ -786,8 +798,12 @@ def new_client(client_id: str) -> mqtt.Client:
     return client
 
 
+# The tracker's MQTT client, once started.
+mqtt_client: mqtt.Client | None = None
+
+
 def start_mqtt() -> mqtt.Client:
-    global publish_retained
+    global publish_retained, mqtt_client
     client = new_client(f"z2m-tracker-{tracker.boot_id}")
     client.on_connect = on_connect
     client.on_disconnect = on_disconnect
@@ -806,6 +822,7 @@ def start_mqtt() -> mqtt.Client:
         return client.publish(topic, b"", qos=1, retain=True).rc == mqtt.MQTT_ERR_SUCCESS
 
     publish_retained = clear_topic
+    mqtt_client = client
     return client
 
 
@@ -1175,6 +1192,13 @@ def apply_settings(changes: dict) -> dict:
     options["alert_on_join"] = "joined" in (options.get("notify_checks") or [])
     if "ha_entities" in clean:
         discovery.enabled = clean["ha_entities"]
+    if "broker_stats" in clean and mqtt_client is not None and mqtt_client.is_connected():
+        if clean["broker_stats"]:
+            mqtt_client.subscribe(SYS_FILTER, 0)
+            broker_stats.subscribed()
+        else:
+            mqtt_client.unsubscribe(SYS_FILTER)
+            broker_stats.reset()
     if {
         "disabled_checks",
         "offline_alert_minutes",
@@ -1647,6 +1671,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, {"ready": found is not None, "leftovers": found or []})
         elif path == "/api/retained":
             self._json(200, tracker.retained_payload())
+        elif path == "/api/broker":
+            self._json(200, broker_stats.snapshot(bool(options.get("broker_stats", True))))
         elif path == "/api/export.csv":
             stamp = datetime.now().strftime("%Y-%m-%d")
             self._send(

@@ -70,6 +70,7 @@ options:
   naming_pattern: ""
   battery_shop_url: ""
   retained_autoclear: false
+  broker_stats: true
   mqtt_host: ""
   mqtt_port: 1883
   mqtt_user: ""
@@ -116,6 +117,7 @@ schema:
   naming_pattern: str?
   battery_shop_url: str?
   retained_autoclear: bool?
+  broker_stats: bool?
   mqtt_host: str?
   mqtt_port: port?
   mqtt_user: str?
