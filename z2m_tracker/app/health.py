@@ -195,6 +195,12 @@ CHECKS = [
         False,
     ),
     (
+        "warranty_ending",
+        "Warranty ending",
+        "The warranty date in the device's asset details (Notes tab) is 30 days away or less.",
+        False,
+    ),
+    (
         "reporting_config",
         "Reporting settings",
         "A device's attribute reporting is set to drain its battery, flood the mesh, or never report a measurement.",
@@ -281,6 +287,7 @@ KIND_LABELS = {
     "signal_dip": "Daily signal dip",
     "group_member_offline": "Group members offline",
     "maintenance_due": "Maintenance overdue",
+    "warranty_ending": "Warranty ending",
     "upgrade_worse": "Worse since upgrade",
     "reporting_config": "Reporting settings",
     "naming": "Naming",
@@ -1003,6 +1010,21 @@ def device_issues(
             "maintenance_due",
             titles=shown,
             n=days,
+        )
+    warranty = summary.get("warranty")
+    if warranty:
+        days = warranty["days"]
+        add(
+            "warranty_ending",
+            INFO,
+            "Warranty ending",
+            f"Warranty ends today ({warranty['until']}). Return or claim anything faulty now."
+            if days == 0
+            else f"Warranty ends in {days} day{'s' if days != 1 else ''} ({warranty['until']}). "
+            "Return or claim anything faulty before then.",
+            "warranty_ending_today" if days == 0 else "warranty_ending",
+            n=days,
+            date=warranty["until"],
         )
     cmd = summary.get("cmd") or {}
     slow_cmd = cmd.get("slow")

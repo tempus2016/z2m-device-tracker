@@ -984,7 +984,7 @@
     removed: { get label() { return t("status.removed"); }, c: "var(--disabled)" },
   };
   const KIND_ICON = { offline: "wifi-off", silent: "wifi-off", late: "history", frozen: "thermometer", impossible_reading: "alert", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
-    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb", slow_router: "router-wireless", maintenance_due: "calendar-clock", upgrade_worse: "update", slow_commands: "history", missed_commands: "gesture-tap-button", reporting_config: "tune", naming: "pencil", stale_retained: "content-copy", retained_command: "alert", availability_mismatch: "swap-horizontal", payload_changed: "pencil" };
+    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb", slow_router: "router-wireless", maintenance_due: "calendar-clock", upgrade_worse: "update", slow_commands: "history", missed_commands: "gesture-tap-button", reporting_config: "tune", naming: "pencil", stale_retained: "content-copy", retained_command: "alert", availability_mismatch: "swap-horizontal", payload_changed: "pencil", warranty_ending: "calendar-clock" };
   const EVENT_ICON = (k) => {
     if (k.startsWith("interview")) return k.endsWith("successful") ? ["check", "var(--success)"] : ["alert-circle", "var(--error)"];
     return ({ joined: ["plus", "var(--success)"], added: ["plus", "var(--success)"], rejoined: ["plus", "var(--success)"], online: ["wifi", "var(--success)"], offline: ["wifi-off", "var(--error)"],
@@ -1128,6 +1128,8 @@
       const parts = [p.origin === "frontend" || p.origin === "mqtt" ? t(`issue.pairing_open.${p.origin}`) : null, p.device ? t("issue.pairing_open.device", { device: p.device }) : null, p.left != null ? t("issue.pairing_open.left", { duration: span(p.left) }) : null];
       p.extra = parts.filter(Boolean).map((x) => ` · ${x}`).join("");
     },
+    warranty_ending: (p) => { p.date = mtDate(p.date); },
+    warranty_ending_today: (p) => { p.date = mtDate(p.date); },
     signal_dip: (p) => { p.period = tx(`issue.signal_dip.${p.period}`, null, p.period); },
     upgrade_worse: (p) => {
       p.date = fmtDate(p.at, false);
@@ -1600,9 +1602,11 @@
     if ((d.battery_shopping || []).length || d.devices.some((x) => x.battery_record && x.status === "active"))
       add("upkeep/batteries", buy ? warn : ok, t("sub.batteries"), buy ? t("fine.to_buy", { n: buy }) : t("fine.batteries_ok"));
     const mt = d.maintenance || [];
-    if (mt.length) {
+    const wEnding = warrantySoon().length;
+    if (mt.length || (d.warranties || []).length) {
       const over = mt.filter((x) => x.days < 0).length, soon = mt.filter((x) => x.days >= 0 && x.days <= MT_SOON).length;
-      add("upkeep/maintenance", over ? warn : ok, t("sub.maintenance"), over ? t("maint.n_overdue", { n: over }) : soon ? t("maint.n_soon", { n: soon }) : t("fine.maint_next", { date: mtDate(mt[0].due) }));
+      const mtLine = over ? t("maint.n_overdue", { n: over }) : soon ? t("maint.n_soon", { n: soon }) : mt.length ? t("fine.maint_next", { date: mtDate(mt[0].due) }) : null;
+      add("upkeep/maintenance", over || wEnding ? warn : ok, t("sub.maintenance"), [mtLine, wEnding ? t("warranty.n_ending", { n: wEnding }) : null].filter(Boolean).join(" · ") || t("warranty.none_soon"));
     }
     const models = d.model_reliability || [];
     if (models.length) { const flagged = models.filter(modelFlagged).length; add("upkeep/models", flagged ? warn : ok, t("sub.models"), flagged ? t("fine.models_bad", { n: flagged }) : t("fine.models_ok", { n: models.length })); }
@@ -1970,7 +1974,7 @@
   };
   const maintenanceCard = () => {
     const all = state.data.maintenance || [];
-    if (!all.length) return "";
+    if (!all.length) return warrantyCard();
     const due = all.filter((x) => x.days <= MT_SOON);
     const overdue = due.filter((x) => x.days < 0).length;
     const sub = due.length ? [overdue ? t("maint.n_overdue", { n: overdue }) : null, due.length - overdue ? t("maint.n_soon", { n: due.length - overdue }) : null].filter(Boolean).join(" · ")
@@ -1978,7 +1982,23 @@
     const row = (x) => `<div class="row"><span class="state-ic" style="color:${mtTone(x)}">${ic("calendar-clock")}</span>
       <div class="text"><div class="t1">${esc(x.title)}</div><div class="t2"><a href="#${esc(x.ieee)}" data-open="${esc(x.ieee)}">${esc(x.name)}</a> · ${esc(mtDue(x))} · ${esc(mtEvery(x))}</div></div>
       <span class="acts">${mtDoneBtn(x)}</span></div>`;
-    return `<div class="card"><div class="card-header">${ic("calendar-clock")}<div><h2 class="ch">${th("maint.title")}</h2><small>${esc(sub)}</small></div></div>${due.map(row).join("")}</div>`;
+    return `<div class="card"><div class="card-header">${ic("calendar-clock")}<div><h2 class="ch">${th("maint.title")}</h2><small>${esc(sub)}</small></div></div>${due.map(row).join("")}</div>${warrantyCard()}`;
+  };
+  // ------------------------------------------------------------ warranties
+  // state.data.warranties: devices whose warranty (asset details) ends in the next 60 days or ended
+  // in the last 90, with days until then (negative once ended). Within 30 days is a Health row too.
+  const WARRANTY_SOON = 30;
+  const warrantySoon = () => (state.data.warranties || []).filter((w) => w.days >= 0 && w.days <= WARRANTY_SOON);
+  const warrantyWhen = (days, until) => (days < 0 ? t("warranty.ended_on", { date: mtDate(until) }) : days === 0 ? t("warranty.ends_today") : days <= WARRANTY_SOON ? t("warranty.ends_in", { n: days }) : t("warranty.ends_on", { date: mtDate(until) }));
+  const warrantyCard = () => {
+    const all = state.data.warranties || [];
+    if (!all.length) return "";
+    const soon = warrantySoon().length;
+    const bought = (w) => (/^\d{4}-\d{2}/.test(w.purchase_date) ? t("warranty.bought", { date: intl((l) => new Date(`${w.purchase_date.slice(0, 7)}-15T12:00:00`).toLocaleDateString(l, { month: "short", year: "numeric" })) }) : null);
+    const row = (w) => `<div class="row"><span class="state-ic" style="color:${w.days < 0 ? "var(--text-2)" : w.days <= WARRANTY_SOON ? "var(--warning)" : "var(--info)"}">${ic("calendar-clock")}</span>
+      <div class="text"><div class="t1"><a href="#${esc(w.ieee)}" data-open="${esc(w.ieee)}">${esc(w.name)}</a></div><div class="t2">${esc([warrantyWhen(w.days, w.until), bought(w)].filter(Boolean).join(" · "))}</div></div>
+      <span class="acts"><button class="btn" data-act="open-notes" data-ieee="${esc(w.ieee)}">${th("warranty.details")}</button></span></div>`;
+    return `<div class="card"><div class="card-header">${ic("calendar-clock")}<div><h2 class="ch">${th("warranty.title")}</h2><small>${soon ? th("warranty.n_ending", { n: soon }) : th("warranty.subtitle")}</small></div></div>${all.map(row).join("")}</div>`;
   };
   // The device panel's Maintenance section (Notes tab): its tasks, then a form to add one or edit the chosen one.
   const maintSection = (d) => {
@@ -3633,12 +3653,20 @@
       ${isBat && (b.estimate_days === null || b.estimate_days === undefined) ? `<div class="card-content muted" style="font-size:13px">${th("trends.estimate_needs")}</div>` : ""}`;
   };
 
+  // Under the asset form: how long the warranty has left, or when it ended.
+  const warrantyLine = (a) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(a.warranty_until || "")) return "";
+    const end = new Date(`${a.warranty_until}T12:00:00`), now = new Date(`${todayIso()}T12:00:00`);
+    const days = Math.round((end - now) / 86400000);
+    return `<div class="card-content muted" style="font-size:13px">${th("warranty.line", { when: esc(warrantyWhen(days, a.warranty_until)) })}</div>`;
+  };
   const tabAsset = (d) => {
     const a = d.asset || {};
     const f = (k, key, type = "text", cls = "") => `<label class="${cls}">${th(key)}<input class="field" name="${k}" type="${type}" value="${esc(a[k] || "")}" autocomplete="off"></label>`;
     return `${maintSection(d)}
       <div class="sub-h">${th("asset.title")}</div>
       <form class="form" id="assetForm">${f("location", "asset.location", "text", "wide")}${f("purchase_date", "asset.purchased", "date")}${f("warranty_until", "asset.warranty", "date")}${f("shop", "asset.shop")}${f("price", "asset.price")}${f("serial", "asset.serial", "text", "wide")}</form>
+      ${warrantyLine(a)}
       <div class="row-actions"><button class="btn" data-act="save-asset">${th("common.save")}</button><span class="saved" id="savedAsset">${th("common.saved")}</span></div>
       <div class="sub-h">${th("asset.notes")}</div>
       <div class="form"><label class="wide"><textarea class="field" id="note" aria-label="${esc(t("asset.notes"))}" placeholder="${esc(t("asset.note_placeholder"))}">${esc(d.note || "")}</textarea></label></div>
@@ -4150,7 +4178,7 @@
     },
     async "clear-report-every"() { try { await api("api/report_every", { ieee: state.open, seconds: null }); snack(t("report.cleared")); load(); } catch (err) { snack(err.message); } },
     async "save-note"() { const note = $("#note").value; try { await api("api/note", { ieee: state.open, note }); state.byIeee.get(state.open).note = note; flash("#savedNote"); state.editing = false; } catch (err) { snack(err.message); } },
-    async "save-asset"() { const asset = Object.fromEntries(new FormData($("#assetForm")).entries()); try { await api("api/asset", { ieee: state.open, asset }); state.byIeee.get(state.open).asset = asset; flash("#savedAsset"); state.editing = false; } catch (err) { snack(err.message); } },
+    async "save-asset"() { const asset = Object.fromEntries(new FormData($("#assetForm")).entries()); try { await api("api/asset", { ieee: state.open, asset }); state.byIeee.get(state.open).asset = asset; flash("#savedAsset"); state.editing = false; load(); } catch (err) { snack(err.message); } },
     async "save-limits"() {
       const body = { ieee: state.open };
       document.querySelectorAll("[data-limit]").forEach((el) => { body[el.dataset.limit] = el.value.trim() === "" ? null : Number(el.value); });
@@ -4747,6 +4775,7 @@
     "rep-close"() { $("#replaceDlg").close(); },
     "rep-back"() { const r = state.replace; if (r && r.step > 1 && !r.busy) { r.step -= 1; renderReplace(); } },
     "rep-next"() { const r = state.replace; if (!r || (r.step === 1 && !r.new)) return; r.step = Math.min(3, r.step + 1); renderReplace(); },
+    "open-notes"(b) { state.moreTab = "asset"; openDevice(b.dataset.ieee, "asset"); },
     "open-history"(b) { state.moreTab = "history"; openDevice(b.dataset.ieee, "history"); },
     "open-health"(b) { state.moreTab = "health"; openDevice(b.dataset.ieee, "health"); },
     "rep-open"(b) { $("#replaceDlg").close(); openDevice(b.dataset.ieee, "history"); },

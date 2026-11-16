@@ -258,6 +258,7 @@
         "router_hopping": "Changes router often",
         "slow_router": "Router getting slower",
         "maintenance_due": "Maintenance overdue",
+        "warranty_ending": "Warranty ending",
         "slow_commands": "Slow to respond",
         "missed_commands": "Misses commands",
         "reporting_config": "Reporting settings",
