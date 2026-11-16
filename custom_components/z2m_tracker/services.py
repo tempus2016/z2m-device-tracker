@@ -50,6 +50,7 @@ DEVICE_CHECKS = [
     "slow_commands",
     "missed_commands",
     "reporting_config",
+    "naming",
 ]
 
 DEVICE_FIELDS = {

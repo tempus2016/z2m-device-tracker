@@ -30,6 +30,7 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `ota_min_battery` | `30` | Battery devices below this level are skipped by automatic and bulk updates. **Update anyway** overrides it for one device. |
 | `quiet_hours` | `false` | Hold alerts during quiet hours and send one summary when they end. |
 | `quiet_start` / `quiet_end` | `23:00` / `07:00` | Quiet hours in the app's time zone, as `HH:MM`. The window can cross midnight. |
+| `naming_pattern` | empty | Naming pattern for devices, e.g. `{area} {type} {n}`. Fills in the name of each device that joins in **Pair device**, and drives the **Naming** check. Empty turns it off. See [Device names](#device-names). |
 | `mqtt_host` | empty | Address of your MQTT broker, if it isn't the Mosquitto broker app. Empty uses the broker Home Assistant offers. See [MQTT broker](#mqtt-broker). |
 | `mqtt_port` | `1883` | Port of that broker. Usually `1883`, or `8883` with TLS. |
 | `mqtt_user` / `mqtt_password` | empty | Login for that broker. Leave empty if it allows anonymous connections. |
@@ -89,6 +90,23 @@ Some devices are left unticked:
 
 While pairing (permit join) is open, any nearby Zigbee device can join. The **Pairing left open** check warns and notifies when pairing stays open for 10 minutes, or straight away when something other than the Zigbee Tracker opened it (the Zigbee2MQTT frontend, Home Assistant or an automation). **Close now** on the Health tab closes it. Existing installs get this alert switched on once when they update; turn it off in Settings → Checks if you don't want it.
 
+## Device names
+
+Set a naming pattern in **Settings → Device names** (option `naming_pattern`), for example `{area} {type} {n}`. Tokens:
+
+| Token | Becomes |
+| --- | --- |
+| `{area}` | The device's Home Assistant area. |
+| `{type}` | A short kind worked out from what the device exposes, or else its description: Motion, Presence, Door, Leak, Smoke, Gas, CO, Vibration, Thermostat, Blind, Lock, Fan, Bulb, Button, Plug, Switch, Air, Temp, Light sensor, Repeater. |
+| `{model}` | The Zigbee2MQTT model, e.g. `RTCGQ11LM`. |
+| `{n}` | The lowest number from 1 that makes the name unique. Without `{n}`, a name that's taken gets ` 2`, ` 3` and so on added. |
+
+A token with no value (no area yet, or a kind that can't be worked out) is left out, along with the space or dash next to it. `/`, `+` and `#` in an area or model are replaced or dropped, since Zigbee2MQTT treats them as part of the MQTT topic. Names are kept unique across all your networks.
+
+While **Pair device** is open, each device that joins shows its progress: joined, interviewing, then identified or failed. Once identified, it gets a name field filled in from the pattern (it updates as you pick an area), an area picker and **Apply**, which renames it in Zigbee2MQTT and Home Assistant and sets its area. A failed interview shows the advice to re-pair it.
+
+The **Naming** check (off for alerts until you turn it on, low priority) lists devices still named by their IEEE address (`0x…`) and, when a pattern is set, active devices whose name doesn't follow it. A device is only checked against the pattern when every token it uses has a value. **Rename to pattern** on the Health card shows each device with its suggested name; untick any you want to keep, confirm, and they're renamed one at a time, Home Assistant included.
+
 ## More checks
 
 These checks show in Health but don't notify until you set them to **Show and notify** in Settings → Checks.
@@ -111,6 +129,7 @@ These checks show in Health but don't notify until you set them to **Show and no
 | Reporting settings | A device whose attribute reporting drains its battery, floods the mesh, or may never report a measurement. See Reporting settings below. |
 | Daily signal dip | Average link quality across a network drops at least 25% below that day's median in the same 1 to 4 hours on at least 4 of the last 7 days, and at least 30% of its devices dip then too. Usually something that switches on at that time: busy Wi-Fi on an overlapping channel, a microwave, or a USB 3 device near the coordinator. Health → Radio channels shows the hourly chart once a network has a week of link quality from at least 3 devices. |
 | Worse since an upgrade | After Zigbee2MQTT or the coordinator firmware changes, the week after the upgrade looks clearly worse than the week before, once at least 2 days of it have passed (shown for 30 days). Shows only; it doesn't notify unless you add it to `notify_checks`. See **Effect of an upgrade** below for what is compared and the thresholds. |
+| Naming | A device still named by its IEEE address (`0x…`), or, when `naming_pattern` is set, a name that doesn't follow it. Low priority. See [Device names](#device-names). |
 
 The Health tab's **Groups** card lists every Zigbee2MQTT group with how many of its members are online. Groups with offline members show each member, with the offline ones in red. A device that dropped out of a group but is still on the network (for example after it left and was re-paired) is flagged for 30 days, until it's back in the group, or until the group is deleted. Leaving a group is only noticed while the app is running.
 

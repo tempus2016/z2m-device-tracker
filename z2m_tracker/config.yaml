@@ -62,6 +62,7 @@ options:
   quiet_hours: false
   quiet_start: "23:00"
   quiet_end: "07:00"
+  naming_pattern: ""
   mqtt_host: ""
   mqtt_port: 1883
   mqtt_user: ""
@@ -100,6 +101,7 @@ schema:
   quiet_hours: bool?
   quiet_start: match(^([01]\d|2[0-3]):[0-5]\d$)?
   quiet_end: match(^([01]\d|2[0-3]):[0-5]\d$)?
+  naming_pattern: str?
   mqtt_host: str?
   mqtt_port: port?
   mqtt_user: str?

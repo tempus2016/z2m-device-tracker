@@ -34,6 +34,7 @@ from ha import HomeAssistant
 from health import CHECKS, DEFAULT_NOTIFY, alert_title, mutes_of, nested, notify_kinds, offer_new_kinds
 from metrics import Metrics
 from mqtt_status import NOTIFICATION_ID, NOTIFICATION_TITLE, MqttStatus, explain_error, explain_refusal, probe
+from naming import clean_pattern
 from ota import OtaManager, parse_window
 from reporting import clean_fix as clean_reporting_fix
 from tracker import IEEE_RE, Tracker, shopping_text
@@ -106,6 +107,7 @@ DEFAULT_OPTIONS = {
     "quiet_hours": False,
     "quiet_start": "23:00",
     "quiet_end": "07:00",
+    "naming_pattern": "",
 }
 
 CHECK_KEYS = {key for key, _, _, _ in CHECKS}
@@ -195,6 +197,7 @@ SETTINGS = {
     "quiet_hours": _bool,
     "quiet_start": _clock,
     "quiet_end": _clock,
+    "naming_pattern": clean_pattern,
 }
 
 
@@ -216,6 +219,11 @@ def load_options() -> dict:
     except ValueError:
         _LOGGER.warning("Ignoring notify_service %r: only notify services are allowed", options.get("notify_service"))
         options["notify_service"] = ""
+    try:
+        options["naming_pattern"] = clean_pattern(options.get("naming_pattern"))
+    except ValueError as err:
+        _LOGGER.warning("Ignoring naming_pattern %r: %s", options.get("naming_pattern"), err)
+        options["naming_pattern"] = ""
     if not options.get("alert_on_join", True) and "joined" in options["notify_checks"]:
         options["notify_checks"] = [k for k in options["notify_checks"] if k != "joined"]
     return options
@@ -943,6 +951,7 @@ def apply_settings(changes: dict) -> dict:
         "frozen_alert_hours",
         "battery_alert_percent",
         "chatty_per_hour",
+        "naming_pattern",
     } & set(clean):
         tracker.evaluate_health()
     if {"alerts_enabled", "notify_checks", "disabled_checks"} & set(clean):

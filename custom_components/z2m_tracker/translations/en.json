@@ -233,7 +233,8 @@
         "maintenance_due": "Maintenance overdue",
         "slow_commands": "Slow to respond",
         "missed_commands": "Misses commands",
-        "reporting_config": "Reporting settings"
+        "reporting_config": "Reporting settings",
+        "naming": "Name doesn't follow the pattern"
       }
     }
   },
