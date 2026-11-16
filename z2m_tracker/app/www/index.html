@@ -437,6 +437,8 @@
   .link-btn.manage-brands { margin: -4px 0 8px; }
   .link-btn { background: none; border: 0; padding: 4px 0; font: inherit; font-size: 14px; color: var(--primary); cursor: pointer; text-decoration: underline; align-self: flex-start; }
   .set-row.compact { min-height: 52px; padding-top: 4px; padding-bottom: 4px; }
+  .prof-sel { max-width: 240px; }
+  .set-row.sub-row { padding-left: 32px; border-top-style: dashed; }
   .brand-type { padding: 12px 16px 0; font-size: 14px; font-weight: 500; color: var(--text-2); }
   .brand-row { padding: 8px 16px; }
   .brand-row:last-child { padding-bottom: 16px; }
@@ -2955,14 +2957,14 @@
           <select class="field" id="sumHour" aria-label="${esc(t("settings.when_hour"))}" ${s.weekly_summary ? "" : "disabled"}>${[...Array(24).keys()].map((h) => `<option value="${h}" ${s.summary_hour === h ? "selected" : ""}>${String(h).padStart(2, "0")}:00</option>`).join("")}</select></div></div>
         <div class="card-actions"><button class="btn" data-act="send-summary">${th("settings.send_now")}</button></div>
       </div>
-      <div class="card"><div class="card-header"><div><h2 class="ch">${th("settings.checks")}</h2><small>${th("settings.checks_desc")}</small></div></div>${checks}</div>
+      <div class="card"><div class="card-header"><div><h2 class="ch">${th("settings.checks")}</h2><small>${th("settings.checks_desc")}</small></div></div>${profileDefaults()}${checks}</div>
       <div class="card"><div class="card-header"><h2 class="ch">${th("settings.thresholds")}</h2></div>
         ${num("offline_alert_minutes", t("settings.offline_for"), th("settings.offline_for_desc"), 0, 10080, th("settings.unit_min"))}
         ${num("critical_offline_minutes", t("settings.critical_offline_for"), th("settings.critical_offline_for_desc"), 0, 1440, th("settings.unit_min"))}
         ${num("frozen_alert_hours", t("settings.frozen_for"), th("settings.frozen_for_desc"), 1, 720, th("settings.unit_h"))}
         ${num("battery_alert_percent", t("settings.battery_at"), th("settings.battery_at_desc"), 0, 100, "%")}
         ${num("chatty_per_hour", t("settings.chatty_above"), th("settings.chatty_above_desc"), 60, 36000, th("settings.unit_per_h"))}
-        <div class="set-row"><div class="text"><div class="t1">${th("report.title")}</div><div class="t2">${th("bulk.desc", { n: state.data ? state.data.devices.filter((d) => d.report_every && d.status !== "removed").length : 0 })}</div></div><div class="ctl"><button class="btn" data-act="bulk-open" ${state.data ? "" : "disabled"}>${th("bulk.open")}</button></div></div>
+        <div class="set-row"><div class="text"><div class="t1">${th("report.title")}</div><div class="t2">${th("bulk.desc", { n: state.data ? state.data.devices.filter((d) => customEvery(d) && d.status !== "removed").length : 0 })}</div></div><div class="ctl"><button class="btn" data-act="bulk-open" ${state.data ? "" : "disabled"}>${th("bulk.open")}</button></div></div>
       </div>
       <div class="card"><div class="card-header"><div><h2 class="ch">${th("settings.limits")}</h2><small>${th("settings.limits_desc")}</small></div></div>
         <div class="set-row"><div class="text"><div class="t1">${th("settings.temp_range")}</div><div class="t2">${th("settings.temp_range_desc")}</div></div><div class="ctl">
@@ -3386,17 +3388,36 @@
 
   // Per-device "should report at least every" interval; stored in seconds, edited as a number + unit.
   const REPORT_UNITS = [["s", 1], ["min", 60], ["h", 3600]];
+  // Reporting profile (reporting_profiles.py): a silent limit picked per device, or its type's default from
+  // Settings > Checks. Custom keeps typing an interval, as devices set before profiles existed do.
+  const PROFILES = ["change", "regular", "chatty"];
+  const PROFILE_GROUPS = ["contact", "leak", "smoke", "button", "motion", "sensor", "plug", "bulb", "other"];
+  const profLabel = (p) => t(`profile.${p}`);
+  // The device's own Custom interval; one kept from before it picked another profile doesn't count.
+  const customEvery = (d) => (d.reporting_profile?.profile === "custom" ? d.report_every || 0 : 0);
   const reportEvery = (d) => {
     if (d.status === "removed" || d.type === "Coordinator") return "";
+    const rp = d.reporting_profile || {};
+    const cur = state.profCustom === d.ieee ? "custom" : rp.profile || "default";
     const every = d.report_every || 0;
     const [unitKey, size] = every ? [...REPORT_UNITS].reverse().find(([, n]) => every % n === 0) : ["min", 60];
-    const rate = d.metrics?.msg_rate_prev || d.metrics?.msg_rate_6h;
-    const hint = rate ? th("report.usual", { gap: esc(span(3600 / rate)) }) : th("report.desc");
-    return `<div class="sub-h">${th("report.title")}</div>
-      <div class="set-row"><div class="text"><div class="t1">${every ? th("report.on", { every: esc(span(every)) }) : th("report.off")}</div><div class="t2">${hint}</div></div><div class="ctl">
-        <input class="field" id="repN" type="number" min="1" step="1" style="width:80px" value="${every ? every / size : ""}" placeholder="—" inputmode="numeric" aria-label="${esc(t("report.title"))}">
+    const learned = rp.gap ? t("profile.learned", { gap: span(rp.gap) }) : t("profile.learning");
+    const now = rp.every ? t("report.on", { every: span(rp.every) }) : rp.waiting ? t("profile.waiting", { limit: span({ change: 10800, regular: 3600, chatty: 900 }[rp.default]) }) : t("profile.off_now");
+    const opts = [["default", t("profile.default", { profile: t(`profile.brief.${rp.default || "off"}`) })], ...PROFILES.map((p) => [p, profLabel(p)]), ["custom", t("profile.custom")], ["off", t("profile.off")]];
+    const custom = cur === "custom" ? `<div class="set-row"><div class="text"><div class="t1">${th("profile.custom_title")}</div><div class="t2">${th(rp.gap ? "report.usual" : "report.desc", { gap: esc(rp.gap ? span(rp.gap) : "") })}</div></div><div class="ctl">
+        <input class="field" id="repN" type="number" min="1" step="1" style="width:80px" value="${every ? every / size : ""}" placeholder="—" inputmode="numeric" aria-label="${esc(t("profile.custom_title"))}">
         <select class="field" id="repU" aria-label="${esc(t("report.unit_aria"))}">${REPORT_UNITS.map(([k]) => `<option value="${k}" ${k === unitKey ? "selected" : ""}>${th(`report.unit_${k}`)}</option>`).join("")}</select>
-        <button class="btn" data-act="save-report-every">${th("common.save")}</button>${every ? `<button class="btn" data-act="clear-report-every">${th("report.turn_off")}</button>` : ""}</div></div>`;
+        <button class="btn" data-act="save-report-every">${th("common.save")}</button></div></div>` : "";
+    return `<div class="sub-h">${th("report.title")}</div>
+      <div class="set-row"><div class="text"><div class="t1">${th("profile.title")}</div><div class="t2">${esc(learned)}. ${esc(now)}.</div>${cur === "default" ? `<div class="t2">${th("profile.default_from", { group: esc(t(`profile.group.${rp.group || "other"}`)) })}</div>` : ""}</div><div class="ctl">
+        <select class="field prof-sel" id="repProf" data-ieee="${esc(d.ieee)}" aria-label="${esc(t("profile.title"))}">${opts.map(([k, l]) => `<option value="${k}" ${k === cur ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></div></div>${custom}`;
+  };
+  // Settings > Checks: the default profile for each device type, summed up on one line, edited in place.
+  const profileDefaults = () => {
+    const defs = state.data?.report_defaults || {};
+    const line = [...PROFILES, "off"].map((p) => { const gs = PROFILE_GROUPS.filter((g) => defs[g] === p); return gs.length ? `${cap(gs.map((g) => t(`profile.gshort.${g}`)).join(", "))}: ${t(`profile.brief.${p}`)}` : ""; }).filter(Boolean).join(" · ");
+    const rows = state.profEdit ? PROFILE_GROUPS.map((g) => `<div class="set-row compact sub-row"><div class="text"><div class="t1">${th(`profile.group.${g}`)}</div></div><div class="ctl"><select class="field" data-profdef="${g}" aria-label="${esc(t(`profile.group.${g}`))}">${[...PROFILES, "off"].map((p) => `<option value="${p}" ${defs[g] === p ? "selected" : ""}>${esc(profLabel(p))}</option>`).join("")}</select></div></div>`).join("") : "";
+    return `<div class="set-row"><div class="text"><div class="t1">${th("profile.defaults")}</div><div class="t2">${esc(line)}</div><div class="t2">${th("profile.defaults_desc")}</div></div><div class="ctl"><button class="btn" data-act="profile-edit" aria-expanded="${!!state.profEdit}" ${state.data ? "" : "disabled"}>${th(state.profEdit ? "common.done" : "profile.edit")}</button></div></div>${rows}`;
   };
 
   const tabBattery = (d) => {
@@ -3770,6 +3791,17 @@
   $("#more").addEventListener("close", () => { if (state.open && !state.keepOpen) { flushNote(); state.open = null; syncHash(); } });
   $("#more").addEventListener("click", (e) => { if (e.target === e.currentTarget) closeDevice(); });
   document.addEventListener("change", async (e) => {
+    if (e.target.id === "repProf") {
+      const ieee = e.target.dataset.ieee, profile = e.target.value;
+      if (profile === "custom") { state.profCustom = ieee; renderMore(true); $("#repN")?.focus(); return; }
+      state.profCustom = null;
+      try { await api("api/report_profile", { ieee, profile }); snack(t("profile.saved", { profile: e.target.selectedOptions[0].textContent })); load(); } catch (err) { snack(err.message); }
+      return;
+    }
+    if (e.target.dataset.profdef) {
+      try { await api("api/report_defaults", { defaults: { [e.target.dataset.profdef]: e.target.value } }); snack(t("profile.defaults_saved")); await load(); if (state.view === "settings") renderSettings(false); } catch (err) { snack(err.message); }
+      return;
+    }
     if (e.target.id !== "critSw") return;
     const ieee = e.target.dataset.ieee, critical = e.target.checked;
     try {
@@ -4109,11 +4141,12 @@
     async scan() { try { await api("api/networkmap", {}); snack(t("snack.scan_started"), 4000); setTimeout(load, 1500); } catch (err) { snack(err.message); } },
     async import() { try { const r = await api("api/import", {}); snack(t("snack.import_done", { devices: r.new_devices, events: r.new_events }), 4000); load(); } catch (err) { snack(err.message); } },
     theme() { theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]; store.set("z2mt.theme", theme); applyTheme(); snack(t("menu.theme", { theme: t(`theme.${theme}`) })); if (state.view === "settings") renderSettings(false); },
+    "profile-edit"() { state.profEdit = !state.profEdit; renderSettings(false); },
     async "save-report-every"() {
       const n = Number($("#repN").value), size = REPORT_UNITS.find(([k]) => k === $("#repU").value)?.[1] || 60;
       const seconds = Math.round(n * size);
       if (!n || seconds < 30 || seconds > 604800) { snack(t("report.range")); return; }
-      try { await api("api/report_every", { ieee: state.open, seconds }); snack(t("report.saved", { every: span(seconds) })); load(); } catch (err) { snack(err.message); }
+      try { await api("api/report_every", { ieee: state.open, seconds }); state.profCustom = null; snack(t("report.saved", { every: span(seconds) })); load(); } catch (err) { snack(err.message); }
     },
     async "clear-report-every"() { try { await api("api/report_every", { ieee: state.open, seconds: null }); snack(t("report.cleared")); load(); } catch (err) { snack(err.message); } },
     async "save-note"() { const note = $("#note").value; try { await api("api/note", { ieee: state.open, note }); state.byIeee.get(state.open).note = note; flash("#savedNote"); state.editing = false; } catch (err) { snack(err.message); } },
@@ -4738,14 +4771,14 @@
   const BULK_MULTS = [2, 3, 5, 10];
   const isBattery = (d) => d.power_source === "Battery" || typeof d.battery === "number";
   const bulkRows = (b) => (state.data?.devices || [])
-    .filter((d) => d.status !== "removed" && d.type !== "Coordinator" && (isBattery(d) ? b.battery : b.mains) && (!b.unset || !d.report_every))
+    .filter((d) => d.status !== "removed" && d.type !== "Coordinator" && (isBattery(d) ? b.battery : b.mains) && (!b.unset || !customEvery(d)))
     .map((d) => {
       // The 6-hour rate alone is only trusted with a dozen messages behind it; one message from a new device isn't a pattern.
       const m = d.metrics || {}, rate = m.msg_rate_prev || ((m.msg_24h || 0) >= 12 && m.msg_rate_6h);
       const gap = rate ? 3600 / rate : null;
       const onChange = (d.features || []).length > 0 && !d.features.some((f) => PERIODIC.has(f));
       const next = gap && !onChange ? TIDY_SECONDS.find((s) => s >= gap * b.mult) ?? TIDY_SECONDS.at(-1) : null;
-      const now = d.report_every || 0;
+      const now = customEvery(d);
       const picked = (next || now) && (b.picks.has(d.ieee) ? b.picks.get(d.ieee) : !!next);
       return { d, name: nameOf(d) || d.ieee, gap, now, next, why: onChange ? "on_change" : "no_data", picked: !!picked };
     })

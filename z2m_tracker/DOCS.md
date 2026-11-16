@@ -137,11 +137,21 @@ With `ha_entities` on, each network also gets a sensor through MQTT discovery, o
 
 ## Expected reporting
 
-Zigbee2MQTT decides when a device is offline: by default after 10 minutes for mains devices and 25 hours for battery devices. For a device that should report more often, set your own limit on its **Health** tab under **Expected reporting**, from 30 seconds to 7 days. If the device sends nothing for that long, the **Stopped reporting** check flags it, even while Zigbee2MQTT still shows it online. The tab shows how often the device usually reports; set the limit a little above that.
+Zigbee2MQTT decides when a device is offline: by default after 10 minutes for mains devices and 25 hours for battery devices. The **Stopped reporting** check is quicker: it flags a device that has sent nothing for longer than its **reporting profile** allows, even while Zigbee2MQTT still shows it online. Pick the profile on the device's **Health** tab, under **Expected reporting**:
 
-The check is off for every device until you set a limit, and it notifies by default. It is skipped while that device's Zigbee2MQTT is offline, so a network outage raises one alert, not one per device.
+| Profile | Silent after | For |
+| --- | --- | --- |
+| Reports on change | 3 h | Devices that send when something happens plus a regular check-in: door and window sensors, leak and smoke alarms, buttons. |
+| Regular | 1 h | Sensors that report every few minutes: temperature, humidity, air quality. |
+| Chatty | 15 min | Devices that report all the time, such as plugs measuring power. |
+| Custom | your own time, 30 seconds to 7 days | Anything else. Devices that had an interval set before profiles existed keep it as Custom. |
+| Off | never | |
 
-To set it for many devices at once, go to **Settings → Thresholds → Expected reporting** and select **Set for many devices…**. Pick mains devices, battery devices or both, and a multiplier (2×, 3×, 5× or 10×). Each device gets its usual gap between messages times the multiplier, rounded up to a tidy value such as 3 min, 30 min or 6 h. The usual gap comes from the last week's message counts, or the last 6 hours for a device with less history. Untick any device you want to leave alone, then select **Apply**. **Turn off** clears the setting on the ticked devices.
+A device without its own profile uses the **default for its type**, set in **Settings → Checks → Default reporting profile by device type**: door and window, leak, smoke, buttons and motion sensors report on change; temperature, humidity, air and light sensors are regular; plugs and bulbs are chatty; everything else is off. A default only starts once the device has shown it reports often enough for it: over the last week its usual gap between messages, times 3, must fit inside the profile's time. Until then the Health tab says the default is waiting. That keeps a bulb that only reports when switched, or a remote that only sends when pressed, from being flagged by a default nobody picked for it. Picking a profile on the device itself always applies.
+
+The tab shows how often the device usually reports. The check notifies by default. It is skipped while that device's Zigbee2MQTT is offline, so a network outage raises one alert, not one per device.
+
+To set a Custom time for many devices at once, go to **Settings → Thresholds → Expected reporting** and select **Set for many devices…**. Pick mains devices, battery devices or both, and a multiplier (2×, 3×, 5× or 10×). Each device gets its usual gap between messages times the multiplier, rounded up to a tidy value such as 3 min, 30 min or 6 h. The usual gap comes from the last week's message counts, or the last 6 hours for a device with less history. Untick any device you want to leave alone, then select **Apply**. **Turn off** sets the ticked devices to Off.
 
 Some devices are left unticked:
 

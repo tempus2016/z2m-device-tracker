@@ -69,7 +69,7 @@ CHECKS = [
     (
         "late",
         "Stopped reporting",
-        "No messages for longer than the device's own report interval, set on its Health tab.",
+        "No messages for longer than the device's reporting profile allows, chosen on its Health tab or by its type's default.",
         False,
     ),
     (
@@ -353,13 +353,14 @@ def _span(seconds: float) -> str:
     return f"{int(seconds // 86400)} days"
 
 
-def late_deadline(record: dict, started: float) -> float | None:
+def late_deadline(record: dict, started: float, every: Any = None) -> float | None:
     """When an active device with a report interval counts as late, or None if it has no interval.
 
-    The clock starts no earlier than the app's own start, so a restart doesn't flag
-    devices whose messages arrived while the app was down.
+    `every` is the device's silent limit from its reporting profile (reporting_profiles.effective);
+    without it, the device's own report_every. The clock starts no earlier than the app's own start,
+    so a restart doesn't flag devices whose messages arrived while the app was down.
     """
-    every = record.get("report_every")
+    every = record.get("report_every") if every is None else every
     if not every or record.get("status") != "active" or record.get("type") == "Coordinator":
         return None
     try:
@@ -561,7 +562,9 @@ def _z2m_active(record: dict, major: int) -> bool:
     return power == "Mains (single phase)"
 
 
-def offline_timing(record: dict, availability: dict | None, options: dict, now: float) -> dict | None:
+def offline_timing(
+    record: dict, availability: dict | None, options: dict, now: float, report_every: Any = None
+) -> dict | None:
     """When each alert fires for a device, counted from its last message.
 
     Steps are in seconds after the last message. Zigbee2MQTT marks a device offline after its own
@@ -610,7 +613,7 @@ def offline_timing(record: dict, availability: dict | None, options: dict, now: 
         steps.append({"kind": "offline", "at": z2m + delay, "off": "offline" in off})
     else:
         steps.append({"kind": "silent", "at": SILENT_SECONDS, "off": "silent" in off})
-    every = record.get("report_every")
+    every = record.get("report_every") if report_every is None else report_every
     if every:
         steps.append({"kind": "late", "at": int(every), "off": "late" in off})
     out["steps"] = sorted(steps, key=lambda s: s["at"])
@@ -760,9 +763,11 @@ def device_issues(
         if age is not None and age > 2 * 86400:
             add("silent", WARNING, "Not heard from", f"No messages for {_span(age)}.", "silent", seconds=int(age))
 
-    deadline = late_deadline(record, summary.get("started", 0.0))
+    # summary["report_every"] is the limit from the reporting profile; 0 means none.
+    limit = summary.get("report_every", record.get("report_every"))
+    deadline = late_deadline(record, summary.get("started", 0.0), limit or 0)
     if deadline is not None and now >= deadline and not summary.get("network_down"):
-        every = int(record["report_every"])
+        every = int(limit)
         age = _age(record.get("last_seen"), now)
         quiet = int(age) if age is not None else every
         add(

@@ -71,6 +71,10 @@ from reporting import audit as reporting_audit
 from reporting import clean as clean_reportings
 from reporting import describe as describe_reporting
 from reporting import slim as slim_reportings
+from reporting_profiles import CHOICES as PROFILE_CHOICES
+from reporting_profiles import clean_defaults as clean_profile_defaults
+from reporting_profiles import defaults as profile_defaults
+from reporting_profiles import effective as effective_profile
 from retained import counts as retained_counts
 from retained import stale_entries
 from route_whatif import what_if
@@ -878,6 +882,8 @@ class Tracker:
         self.mesh: dict[str, dict] = {}
         self.started = time.time()
         self._late_checked: dict[str, float] = {}
+        # IEEE -> silent limit in seconds from its reporting profile (0 = none), set by evaluate_health.
+        self._report_limits: dict[str, int] = {}
         self._hours: dict[str, dict] = {}
         self._hours_at: int | None = None
         self.addresses: dict[str, dict] = {}
@@ -3101,6 +3107,9 @@ class Tracker:
                     and isinstance(summary.get("lqi_24h"), (int, float))
                 ):
                     lqi_by_net.setdefault(record.get("instance") or "", []).append(summary["lqi_24h"])
+                limit = self.report_profile(record, summary)["every"] or 0
+                self._report_limits[record["ieee"]] = limit
+                summary["report_every"] = limit
                 for issue in device_issues(record, summary, self.options, now, suggestions.get(record["ieee"], [])):
                     issue["name"] = _display_name(record) or record["ieee"]
                     issue["instance"] = record["instance"]
@@ -3365,8 +3374,13 @@ class Tracker:
                 item["battery_record"] = self.battery_summary(record) if self.is_battery_device(record) else None
                 item["suggestions"] = suggestions.get(ieee, [])
                 bridge_info = (self.data.get("bridges") or {}).get(record.get("instance")) or {}
+                item["reporting_profile"] = self.report_profile(record, item["metrics"])
                 item["offline_timing"] = offline_timing(
-                    record, (bridge_info.get("info") or {}).get("availability"), self.options, now
+                    record,
+                    (bridge_info.get("info") or {}).get("availability"),
+                    self.options,
+                    now,
+                    item["reporting_profile"]["every"] or 0,
                 )
                 item["can_ping"] = self.can_ping(record) is None
                 item["reporting_audit"] = self.reporting_audit(record, item["metrics"].get("msg_rate_6h"))
@@ -3405,6 +3419,7 @@ class Tracker:
                 "backups": self._backups,
                 "backup_copies": self.backup_copies(),
                 "mesh_scores": self.mesh,
+                "report_defaults": profile_defaults(self.data.get("report_profile_defaults")),
                 "groups": self.groups,
                 "group_health": self.group_health(now),
                 "scan_times": {bt: [x["at"] for x in self.scans.get(bt) or []] for bt in self.base_topics},
@@ -4014,6 +4029,49 @@ class Tracker:
             or record["ieee"] in self.ha_battery
         )
 
+    def report_profile(self, record: dict, summary: dict) -> dict:
+        """The device's reporting profile and silent limit (see reporting_profiles)."""
+        return effective_profile(record, kind_of(record), summary, self.data.get("report_profile_defaults"))
+
+    def set_report_profile(self, ieee: str, profile: Any, seconds: Any = None) -> dict:
+        """Pick a device's reporting profile. "default" goes back to its type's default; "custom" keeps
+        its own interval (seconds, or the one it has)."""
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            if record is None:
+                return {"ok": False, "error": "unknown device"}
+            if profile not in (*PROFILE_CHOICES, "default"):
+                return {"ok": False, "error": "unknown profile"}
+            if profile == "custom":
+                seconds = seconds if seconds is not None else record.get("report_every")
+                if isinstance(seconds, bool) or not isinstance(seconds, (int, float)):
+                    return {"ok": False, "error": "seconds must be a number"}
+                if not REPORT_EVERY_MIN <= seconds <= REPORT_EVERY_MAX:
+                    return {"ok": False, "error": f"seconds must be {REPORT_EVERY_MIN} to {REPORT_EVERY_MAX}"}
+                record["report_every"] = int(seconds)
+            if profile == "default":
+                record.pop("report_profile", None)
+                record.pop("report_every", None)
+            else:
+                record["report_profile"] = profile
+            self._changed(structural=True)
+        self.evaluate_health()
+        return {"ok": True}
+
+    def set_report_defaults(self, changes: Any) -> dict:
+        """Change the default profile of one or more device types: {group: profile}."""
+        try:
+            clean = clean_profile_defaults(changes)
+        except ValueError as err:
+            return {"ok": False, "error": str(err)}
+        with self.lock:
+            stored = dict(self.data.get("report_profile_defaults") or {})
+            stored.update(clean)
+            self.data["report_profile_defaults"] = stored
+            self._changed(structural=True)
+        self.evaluate_health()
+        return {"ok": True, "defaults": profile_defaults(stored)}
+
     def set_report_every(self, ieee: str, seconds: int | None) -> bool:
         """Per-device "should report at least every" interval in seconds; None or 0 turns it off."""
         return not self.set_report_every_many([{"ieee": ieee, "seconds": seconds}])["errors"]
@@ -4038,10 +4096,14 @@ class Tracker:
                 elif seconds and not REPORT_EVERY_MIN <= seconds <= REPORT_EVERY_MAX:
                     errors.append({"ieee": ieee, "error": f"seconds must be {REPORT_EVERY_MIN} to {REPORT_EVERY_MAX}"})
                 else:
+                    # Setting an interval makes it the device's Custom profile; turning it off turns the check off,
+                    # rather than falling back to the type default.
                     if seconds:
                         record["report_every"] = int(seconds)
+                        record["report_profile"] = "custom"
                     else:
                         record.pop("report_every", None)
+                        record["report_profile"] = "off"
                     applied += 1
             if applied:
                 self._changed(structural=True)
@@ -4054,7 +4116,7 @@ class Tracker:
         due = False
         with self.lock:
             for ieee, record in self.data["devices"].items():
-                deadline = late_deadline(record, self.started)
+                deadline = late_deadline(record, self.started, self._report_limits.get(ieee))
                 if deadline is not None and now >= deadline and self._late_checked.get(ieee) != deadline:
                     self._late_checked[ieee] = deadline
                     due = True
