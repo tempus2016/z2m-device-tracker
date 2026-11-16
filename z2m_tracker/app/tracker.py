@@ -67,7 +67,7 @@ from payload_keys import clean as clean_payload_keys
 from payload_keys import describe as describe_payload_change
 from payload_keys import merge as merge_payload_change
 from payload_keys import observe as observe_payload_keys
-from reliability import model_reliability
+from reliability import device_ages, model_reliability
 from reporting import audit as reporting_audit
 from reporting import clean as clean_reportings
 from reporting import describe as describe_reporting
@@ -1148,6 +1148,9 @@ class Tracker:
                 if record.get(key) != value:
                     if key == "model" and record.get(key):
                         self._add_event(now, base_topic, ieee, name, "model changed", f"{record[key]} → {value}")
+                    if key == "software_build_id" and record.get(key):
+                        # Device age view: when the firmware last changed (an update from anywhere).
+                        record["firmware_changed"] = now
                     record[key] = value
                     changed = True
             address = _ping_address(device)
@@ -1944,6 +1947,7 @@ class Tracker:
             previous = record.get("update") or {}
             if previous.get("state") == "updating" and slim["state"] == "idle":
                 self._add_event(now, base_topic, ieee, name, "firmware updated", f"Now on {slim['installed_version']}")
+                record["firmware_changed"] = now
             if slim != previous:
                 if slim["state"] == "available" and previous.get("state") != "available":
                     self._add_event(
@@ -3416,6 +3420,7 @@ class Tracker:
                 "permit": self.permit,
                 "battery_shopping": self.battery_shopping(60),
                 "model_reliability": model_reliability(list(self.data["devices"].values()), self.data["events"], now),
+                "device_ages": device_ages(list(self.data["devices"].values()), self.data["events"], self._today()),
                 "ha_leftovers": self.ha_leftovers,
                 "retained": self.retained_payload(),
                 "broker": self.broker_stats.snapshot(bool(self.options.get("broker_stats", True)))

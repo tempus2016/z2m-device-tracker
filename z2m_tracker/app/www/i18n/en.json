@@ -1771,6 +1771,36 @@
   "groups.chip_offline_now": "{name} · offline",
   "groups.chip_left": "{name} · left {date}",
   "models.title": "Reliability by model",
+  "age.view": "Models view",
+  "age.by_model": "By model",
+  "age.by_age": "By device age",
+  "age.title": "Device age",
+  "age.subtitle": {
+    "one": "{n} device, oldest first",
+    "other": "{n} devices, oldest first"
+  },
+  "age.n_stale": {
+    "one": "{n} device with firmware unchanged for 2 years or more",
+    "other": "{n} devices with firmware unchanged for 2 years or more"
+  },
+  "age.col_device": "Device",
+  "age.col_age": "Age",
+  "age.col_firmware": "Firmware",
+  "age.col_changed": "Last firmware change",
+  "age.bought": "Bought {date}",
+  "age.first_seen": "First seen {date}",
+  "age.not_updated": "Not updated in 2+ years",
+  "age.fw_not_seen": "No change seen",
+  "age.note": "Age comes from the purchase date on the device's Notes tab, or else the first time the tracker saw the device. Firmware changes are noticed while the app runs (a new build from Zigbee2MQTT, or a finished update), so older ones are missing.",
+  "age.ym": "{y} y {m} m",
+  "age.y": "{n} y",
+  "age.m": "{n} m",
+  "age.d": {
+    "one": "{n} day",
+    "other": "{n} days"
+  },
+  "age.line_bought": "Age {age} (bought {date}).",
+  "age.line_seen": "Age {age} (first seen {date}).",
   "models.subtitle": {
     "one": "{n} model on your network, last 30 days. Tap it to list its devices.",
     "other": "{n} models on your network, last 30 days. Tap one to list its devices."
@@ -2182,6 +2212,8 @@
   "sub.empty_maintenance": "No maintenance tasks",
   "sub.empty_maintenance_text": "Add recurring jobs, such as testing a smoke alarm, on a device's Notes tab.",
   "sub.empty_models": "Not enough data yet",
+  "sub.empty_ages": "No devices yet",
+  "sub.empty_ages_text": "Each device's age and firmware show here.",
   "sub.empty_models_text": "Each model's uptime and battery life show here after a few days.",
   "fine.coord_down": "{name} is offline",
   "fine.coord_online": {

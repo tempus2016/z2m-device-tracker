@@ -381,6 +381,10 @@ The app hears the button through Home Assistant's `mobile_app_notification_actio
 
 If your notify service isn't the Companion app and rejects the extra data, turn `alert_actions` off.
 
+## Device age
+
+**Upkeep → Models → By device age** lists every active device, oldest first: its age, its firmware version and when the firmware last changed. Age counts from the purchase date in the device's asset details (Notes tab), or else the day the tracker first saw the device; the Notes tab shows it too. A firmware change is noticed while the app runs, when Zigbee2MQTT reports a new build for the device or an update finishes; changes from before this version, or while the app was stopped and the log has since rolled over, aren't known. A device at least 2 years old whose firmware hasn't changed for 2 years is marked **Not updated in 2+ years**. Select a row to open the device.
+
 ## Quiet hours
 
 With `quiet_hours` on, new issue alerts and Device joined, Device left and Interview failed alerts are held between `quiet_start` and `quiet_end` instead of being sent. Alerts for critical devices still go out straight away.
