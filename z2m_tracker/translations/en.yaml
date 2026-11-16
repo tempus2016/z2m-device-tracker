@@ -83,6 +83,15 @@ configuration:
   battery_shop_url:
     name: Battery shop link
     description: Store search address with {type} where the battery type goes, e.g. https://www.amazon.co.uk/s?k={type}. Adds a cart button to each battery you need to buy. Empty hides the buttons.
+  impossible_temp_min:
+    name: Lowest believable temperature (°C)
+    description: A temperature below this counts as an impossible reading.
+  impossible_temp_max:
+    name: Highest believable temperature (°C)
+    description: A temperature above this counts as an impossible reading.
+  humidity_stuck_hours:
+    name: Humidity stuck delay (hours)
+    description: How long humidity must stay at exactly 0 or 100% before it counts as stuck.
   mqtt_host:
     name: MQTT broker address
     description: Your MQTT broker, if it isn't the Mosquitto broker app. Empty uses the broker Home Assistant offers.

@@ -64,6 +64,9 @@ options:
   quiet_end: "07:00"
   naming_pattern: ""
   battery_shop_url: ""
+  impossible_temp_min: -30
+  impossible_temp_max: 60
+  humidity_stuck_hours: 6
   mqtt_host: ""
   mqtt_port: 1883
   mqtt_user: ""
@@ -104,6 +107,9 @@ schema:
   quiet_end: match(^([01]\d|2[0-3]):[0-5]\d$)?
   naming_pattern: str?
   battery_shop_url: str?
+  impossible_temp_min: int(-100,100)?
+  impossible_temp_max: int(-100,100)?
+  humidity_stuck_hours: int(1,168)?
   mqtt_host: str?
   mqtt_port: port?
   mqtt_user: str?

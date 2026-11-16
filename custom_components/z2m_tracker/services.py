@@ -32,6 +32,7 @@ DEVICE_CHECKS = [
     "silent",
     "late",
     "frozen",
+    "impossible_reading",
     "battery_low",
     "battery_soon",
     "battery_drain",

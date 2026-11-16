@@ -73,6 +73,12 @@ DIP_MIN_SHARE = 0.3  # share of counted devices that must dip too
 DIP_DEVICE_DROP = 0.15  # a device dips when its usual level in those hours is this far below its own median
 
 
+def _real_battery(point: Any) -> bool:
+    """A stored [day, value] battery point with a real level. Older versions kept values like 255 %."""
+    value = point[1] if isinstance(point, (list, tuple)) and len(point) == 2 else None
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value <= 100
+
+
 class Metrics:
     """Per-device LQI hourly averages, hourly message counts and daily battery readings."""
 
@@ -199,7 +205,10 @@ class Metrics:
 
     def add_battery(self, ieee: str, value: Any, now: float | None = None) -> float | None:
         """Record a battery reading. Returns the previous day's value if this looks like a replacement."""
+        # Outside 0-100 % isn't a real battery level (see odd_readings): never part of an estimate.
         if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
+            return None
+        if not 0 <= value <= 100:
             return None
         now = now or time.time()
         day = int(now // 86400 * 86400)
@@ -348,7 +357,7 @@ class Metrics:
             data = self.series.get(ieee) or {}
             lqi = [list(p) for p in data.get("lqi", [])]
             msg = [list(p) for p in data.get("msg", [])]
-            bat = [list(p) for p in data.get("bat", [])]
+            bat = [list(p) for p in data.get("bat", []) if _real_battery(p)]
             ping = [list(p) for p in data.get("ping", [])]
             # Restored backups can hold anything: skip rows that aren't [hour, commands, missed, [ms, ...]].
             cmd = [
@@ -613,7 +622,7 @@ class Metrics:
             data = self.series.get(ieee) or {}
             hourly = [list(p) for p in data.get("lqi", [])]
             daily = [list(p) for p in data.get("lqid", [])] if "lqid" in data else self._daily_from_hourly(hourly)
-            bat = [list(p) for p in data.get("bat", [])]
+            bat = [list(p) for p in data.get("bat", []) if _real_battery(p)]
 
         in_range = [d for d in daily if d[0] + 86400 > start and d[3]]
         if days <= 7:

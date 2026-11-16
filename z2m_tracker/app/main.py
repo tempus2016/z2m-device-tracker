@@ -109,6 +109,9 @@ DEFAULT_OPTIONS = {
     "quiet_end": "07:00",
     "naming_pattern": "",
     "battery_shop_url": "",
+    "impossible_temp_min": -30,
+    "impossible_temp_max": 60,
+    "humidity_stuck_hours": 6,
 }
 
 CHECK_KEYS = {key for key, _, _, _ in CHECKS}
@@ -200,6 +203,9 @@ SETTINGS = {
     "quiet_end": _clock,
     "naming_pattern": clean_pattern,
     "battery_shop_url": clean_shop_url,
+    "impossible_temp_min": _int(-100, 100),
+    "impossible_temp_max": _int(-100, 100),
+    "humidity_stuck_hours": _int(1, 168),
 }
 
 
@@ -945,6 +951,11 @@ def apply_settings(changes: dict) -> dict:
             clean[key] = validator(value)
         except ValueError as err:
             errors[key] = str(err)
+    low = clean.get("impossible_temp_min", options.get("impossible_temp_min"))
+    high = clean.get("impossible_temp_max", options.get("impossible_temp_max"))
+    if {"impossible_temp_min", "impossible_temp_max"} & set(clean) and not low < high:
+        key = "impossible_temp_min" if "impossible_temp_min" in clean else "impossible_temp_max"
+        errors[key] = "the lowest temperature must be below the highest"
     if errors:
         return {"ok": False, "errors": errors}
     options.update(clean)
@@ -959,6 +970,9 @@ def apply_settings(changes: dict) -> dict:
         "battery_alert_percent",
         "chatty_per_hour",
         "naming_pattern",
+        "impossible_temp_min",
+        "impossible_temp_max",
+        "humidity_stuck_hours",
     } & set(clean):
         tracker.evaluate_health()
     if {"alerts_enabled", "notify_checks", "disabled_checks"} & set(clean):

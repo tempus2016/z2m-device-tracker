@@ -216,6 +216,7 @@
         "silent": "Not heard from",
         "late": "Stopped reporting",
         "frozen": "Frozen reading",
+        "impossible_reading": "Impossible reading",
         "battery_low": "Low battery",
         "battery_soon": "Battery running down",
         "battery_drain": "Battery draining fast",

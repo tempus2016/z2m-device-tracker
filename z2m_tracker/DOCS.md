@@ -32,6 +32,8 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `quiet_start` / `quiet_end` | `23:00` / `07:00` | Quiet hours in the app's time zone, as `HH:MM`. The window can cross midnight. |
 | `naming_pattern` | empty | Naming pattern for devices, e.g. `{area} {type} {n}`. Fills in the name of each device that joins in **Pair device**, and drives the **Naming** check. Empty turns it off. See [Device names](#device-names). |
 | `battery_shop_url` | empty | Store search address for the cart buttons in **Batteries to buy**, with `{type}` where the battery type goes, e.g. `https://www.amazon.co.uk/s?k={type}` or `https://www.amazon.de/s?k={type}`. Any shop works. Empty hides the buttons. Set it in **Settings → Battery brands**. No affiliate tags are added. |
+| `impossible_temp_min` / `impossible_temp_max` | `-30` / `60` | The believable temperature range in °C for the **Impossible readings** check. Set them in **Settings → Limits**. |
+| `humidity_stuck_hours` | `6` | How long humidity must stay at exactly 0 or 100% before the **Impossible readings** check flags it. |
 | `mqtt_host` | empty | Address of your MQTT broker, if it isn't the Mosquitto broker app. Empty uses the broker Home Assistant offers. See [MQTT broker](#mqtt-broker). |
 | `mqtt_port` | `1883` | Port of that broker. Usually `1883`, or `8883` with TLS. |
 | `mqtt_user` / `mqtt_password` | empty | Login for that broker. Leave empty if it allows anonymous connections. |
@@ -128,6 +130,7 @@ These checks show in Health but don't notify until you set them to **Show and no
 
 | Check | Flags |
 | --- | --- |
+| Impossible readings | A temperature outside `impossible_temp_min` to `impossible_temp_max` (−30 to 60 °C by default), humidity or battery outside 0–100%, at least once in the last 24 hours; or humidity stuck at exactly 0 or 100% for longer than `humidity_stuck_hours`. Shows the value, how many times in 24 hours, and the range of its other readings today and the day before. Often a failing battery or a bad contact. Battery values outside 0–100% are never stored and never count towards battery estimates. |
 | Flapping | A device that goes offline 4+ times or leaves the network twice in 24 hours, even when each drop is too short for the Offline alert. |
 | Chatty device | Message rate above `chatty_per_hour`, or 5 times its own usual rate (and at least 360 an hour). |
 | Battery draining fast | Battery fell at least 3 times faster over the last 14 days than its rate since the last battery change (needs about 5 weeks of history). |

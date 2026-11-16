@@ -42,6 +42,10 @@ from history_import import IEEE_RE, _features, collect_history
 from incidents import build_incidents
 from metrics import Metrics
 from naming import kind_of, naming_issues
+from odd_readings import CHECKED as ODD_KEYS
+from odd_readings import believable
+from odd_readings import clean as clean_odd_readings
+from odd_readings import note as note_odd_reading
 from reliability import model_reliability
 from reporting import audit as reporting_audit
 from reporting import clean as clean_reportings
@@ -350,6 +354,8 @@ def _clean_record(record: dict) -> dict:
         if not isinstance(record.get(key), list):
             record[key] = []
     record["maintenance"] = _clean_tasks(record.get("maintenance"))
+    if "odd_readings" in record:
+        record["odd_readings"] = clean_odd_readings(record["odd_readings"])
     if "reportings" in record:
         record["reportings"] = clean_reportings(record["reportings"])
     inputs = record.get("reporting_inputs")
@@ -1711,8 +1717,20 @@ class Tracker:
             record["lqi"] = lqi
             self.metrics.add_lqi(ieee, lqi)
 
+        # Impossible readings: the believable range of each checked reading, and when it wasn't believable.
+        checked = [(key, parsed[key]) for key in ODD_KEYS if _finite(parsed.get(key))]
+        if checked:
+            store = record.get("odd_readings")
+            if not isinstance(store, dict):
+                store = record["odd_readings"] = {}
+            day = self._today().isoformat()
+            for key, value in checked:
+                if note_odd_reading(store, key, value, self.options, time.time(), day):
+                    structural = True
+
         battery = parsed.get("battery")
-        if _finite(battery):
+        # A battery outside 0-100 % isn't a real level: kept out of the record and the battery estimates.
+        if _finite(battery) and believable("battery", battery, self.options):
             if record.get("battery") != battery:
                 structural = True
             record["battery"] = battery
@@ -2849,6 +2867,8 @@ class Tracker:
             for record in self.data["devices"].values():
                 ieee = record["ieee"]
                 item = dict(record)
+                # Only the health check reads it; the issue carries what the page shows.
+                item.pop("odd_readings", None)
                 item["metrics"] = self.metrics.summary(ieee, now)
                 item["uptime_30d"] = uptime(record, now)
                 item["oui_vendor"] = self._oui_vendor(ieee)

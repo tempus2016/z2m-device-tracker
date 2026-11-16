@@ -215,6 +215,7 @@
         "offline": "Offline",
         "silent": "Not heard from",
         "frozen": "Frozen reading",
+        "impossible_reading": "Impossible reading",
         "battery_low": "Low battery",
         "battery_soon": "Battery running down",
         "battery_drain": "Battery draining fast",
