@@ -834,6 +834,8 @@ class Tracker:
         # IEEE -> when its oldest unanswered command (<name>/set) arrived. Memory only.
         # ieee -> (when the first unanswered command was sent, the values a reply must show)
         self._commands: dict[str, tuple[float, dict]] = {}
+        # Mosquitto's $SYS statistics (broker_stats.BrokerStats), set by main.py.
+        self.broker_stats = None
 
     # ------------------------------------------------------------ persistence
 
@@ -2880,6 +2882,9 @@ class Tracker:
                 "battery_shopping": self.battery_shopping(60),
                 "model_reliability": model_reliability(list(self.data["devices"].values()), self.data["events"], now),
                 "ha_leftovers": self.ha_leftovers,
+                "broker": self.broker_stats.snapshot(bool(self.options.get("broker_stats", True)))
+                if self.broker_stats is not None
+                else None,
                 "battery_stock": dict(self.data.get("battery_stock") or {}),
                 "battery_brands": self.battery_brands(),
                 "battery_brand_list": list(self.brand_list()),

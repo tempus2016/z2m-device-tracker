@@ -1955,5 +1955,38 @@
   "fine.models_bad": {
     "one": "1 model stands out",
     "other": "{n} models stand out"
-  }
+  },
+  "broker.title": "MQTT broker",
+  "broker.subtitle": "Mosquitto's own statistics, from its $SYS/broker topics.",
+  "broker.waiting": "Waiting for the broker's statistics…",
+  "broker.off": "Broker statistics are off in Settings.",
+  "broker.open_settings": "Settings",
+  "broker.none": "This broker sends no statistics. Mosquitto publishes them under $SYS/broker/ every 10 seconds; other brokers don't, and a broker login without read access to $SYS gets nothing.",
+  "broker.stale": "No statistics for a few minutes. These are the last ones received.",
+  "broker.updated": "updated {when}",
+  "broker.clients": "Clients",
+  "broker.retained": "Retained",
+  "broker.dropped_24h": "Dropped (24 h)",
+  "broker.uptime": "Uptime",
+  "broker.uptime_dh": "{d} d {h} h",
+  "broker.chart_title": "Messages per minute, last 24 h",
+  "broker.now": "{n} now",
+  "broker.per_min": "{n} a minute",
+  "broker.dropped_n": {
+    "one": "1 dropped",
+    "other": "{n} dropped"
+  },
+  "broker.chart_empty": "The chart fills in as the broker reports. Kept in memory, so it starts again when the app restarts.",
+  "broker.drop_head": {
+    "one": "1 message dropped at {time}.",
+    "other": "{n} messages dropped at {time}."
+  },
+  "broker.drop_text": "Mosquitto drops messages when a client's queue is full (max_queued_messages) or it runs short of memory. It doesn't say which client.",
+  "fine.dropped": {
+    "one": "1 message dropped today",
+    "other": "{n} messages dropped today"
+  },
+  "settings.broker": "Broker",
+  "settings.broker_stats": "Read broker statistics",
+  "settings.broker_stats_desc": "Subscribes to $SYS/broker/# for Network → Broker. Mosquitto only."
 }

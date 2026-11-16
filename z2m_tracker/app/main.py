@@ -28,6 +28,8 @@ import alert_actions
 import paho.mqtt.client as mqtt
 import prometheus
 from battery_library import BatteryLibrary, clean_shop_url
+from broker_stats import FILTER as SYS_FILTER
+from broker_stats import BrokerStats
 from discovery import AVAILABILITY, Discovery
 from discovery import BASE as DISCOVERY_BASE
 from ha import HomeAssistant
@@ -109,6 +111,7 @@ DEFAULT_OPTIONS = {
     "quiet_end": "07:00",
     "naming_pattern": "",
     "battery_shop_url": "",
+    "broker_stats": True,
 }
 
 CHECK_KEYS = {key for key, _, _, _ in CHECKS}
@@ -200,6 +203,7 @@ SETTINGS = {
     "quiet_end": _clock,
     "naming_pattern": clean_pattern,
     "battery_shop_url": clean_shop_url,
+    "broker_stats": _bool,
 }
 
 
@@ -301,6 +305,8 @@ base_topics = [topic.strip().strip("/") for topic in options.get("base_topics") 
 metrics = Metrics(METRICS_PATH)
 tracker = Tracker(DATA_PATH, base_topics, CONFIG_DIR, local_timezone(), metrics, options, load_oui())
 home_assistant = HomeAssistant(CONFIG_DIR)
+broker_stats = BrokerStats()
+tracker.broker_stats = broker_stats
 tracker.battery_lib = BatteryLibrary(APP_DIR / "battery_library.json")
 discovery = Discovery(tracker, VERSION, bool(options.get("ha_entities", True)))
 stop_event = threading.Event()
@@ -592,6 +598,9 @@ def on_connect(client, userdata, flags, reason_code, properties):
         [(f"{topic}/#", 0) for topic in base_topics]
         + [(f"{DISCOVERY_BASE}/+/reconfigure", 0), (f"{DISCOVERY_BASE}/+/battery_replaced", 0)]
     )
+    if options.get("broker_stats", True):
+        client.subscribe(SYS_FILTER, 0)
+        broker_stats.subscribed()
     client.publish(AVAILABILITY, "online", qos=1, retain=True)
     threading.Thread(target=discovery.sync, kwargs={"force": True}, name="discovery", daemon=True).start()
 
@@ -676,6 +685,9 @@ def on_message(client, userdata, message):
     # Never let an exception out: paho would stop its network thread, and with it all tracking.
     try:
         topic = message.topic
+        if topic.startswith("$SYS/"):
+            broker_stats.handle(topic, message.payload)
+            return
         if topic.startswith(f"{DISCOVERY_BASE}/"):
             parts = topic.split("/")
             if len(parts) == 3 and parts[2] in ("battery_replaced", "reconfigure"):
@@ -694,7 +706,12 @@ def _internal_broker(host: str) -> bool:
     return "." not in host or host.endswith(".local.hass.io") or host.startswith("172.30.")
 
 
+# The tracker's MQTT client, once started.
+mqtt_client: mqtt.Client | None = None
+
+
 def start_mqtt() -> mqtt.Client:
+    global mqtt_client
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f"z2m-tracker-{tracker.boot_id}")
     user = os.environ.get("MQTT_USER")
     if user:
@@ -725,6 +742,7 @@ def start_mqtt() -> mqtt.Client:
     client.connect_async(MQTT_HOST, MQTT_PORT, keepalive=60)
     client.loop_start()
     tracker.publish = lambda topic, payload: client.publish(topic, json.dumps(payload), qos=0)
+    mqtt_client = client
     return client
 
 
@@ -951,6 +969,13 @@ def apply_settings(changes: dict) -> dict:
     options["alert_on_join"] = "joined" in (options.get("notify_checks") or [])
     if "ha_entities" in clean:
         discovery.enabled = clean["ha_entities"]
+    if "broker_stats" in clean and mqtt_client is not None and mqtt_client.is_connected():
+        if clean["broker_stats"]:
+            mqtt_client.subscribe(SYS_FILTER, 0)
+            broker_stats.subscribed()
+        else:
+            mqtt_client.unsubscribe(SYS_FILTER)
+            broker_stats.reset()
     if {
         "disabled_checks",
         "offline_alert_minutes",
@@ -1405,6 +1430,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(502, {"error": str(err)})
             else:
                 self._json(200, {"ready": found is not None, "leftovers": found or []})
+        elif path == "/api/broker":
+            self._json(200, broker_stats.snapshot(bool(options.get("broker_stats", True))))
         elif path == "/api/export.csv":
             stamp = datetime.now().strftime("%Y-%m-%d")
             self._send(

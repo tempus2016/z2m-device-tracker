@@ -83,6 +83,9 @@ configuration:
   battery_shop_url:
     name: Battery shop link
     description: Store search address with {type} where the battery type goes, e.g. https://www.amazon.co.uk/s?k={type}. Adds a cart button to each battery you need to buy. Empty hides the buttons.
+  broker_stats:
+    name: Read broker statistics
+    description: Subscribe to Mosquitto's $SYS/broker/# topics to show clients, retained messages, dropped messages, uptime and message rates on Network → Broker.
   mqtt_host:
     name: MQTT broker address
     description: Your MQTT broker, if it isn't the Mosquitto broker app. Empty uses the broker Home Assistant offers.
