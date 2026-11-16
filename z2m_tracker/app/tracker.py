@@ -38,6 +38,7 @@ from health import (
 )
 from history_import import IEEE_RE, _features, collect_history
 from metrics import Metrics
+from naming import kind_of, naming_issues
 
 _LOGGER = logging.getLogger("z2m_tracker")
 
@@ -514,6 +515,17 @@ def memory_growth(days: list, today: date, current: float | None = None) -> dict
         return None
     span_days = (today - date.fromisoformat(window[0][0])).days
     return {"percent": round(growth * 100), "days": max(1, span_days)}
+
+
+def _pairing_step(event_type: str, status: str | None) -> str | None:
+    """Where a device that joined during pairing has got to: joined, announced, interviewing, successful, failed."""
+    if event_type == "device_joined":
+        return "joined"
+    if event_type == "device_announce":
+        return "announced"
+    if event_type == "device_interview":
+        return {"started": "interviewing", "successful": "successful", "failed": "failed"}.get(status or "")
+    return None
 
 
 def _display_name(record: dict) -> str | None:
@@ -1187,6 +1199,16 @@ class Tracker:
             if event_type != "device_announce" and ieee not in session["joined"]:
                 session["joined"].append(ieee)
                 self.revision += 1
+            if ieee in session["joined"]:
+                progress = session.setdefault("progress", {})
+                step = _pairing_step(event_type, _text(data.get("status"), 40))
+                # An announce after the interview (the device waking up) doesn't undo its result.
+                if step and not (
+                    step == "announced" and progress.get(ieee) in ("interviewing", "successful", "failed")
+                ):
+                    if progress.get(ieee) != step:
+                        progress[ieee] = step
+                        self.revision += 1
         if event_type == "device_announce":
             self._changed(structural=False)
             return
@@ -1198,6 +1220,9 @@ class Tracker:
             status = _text(data.get("status"), 40) or "?"
             detail = ""
             definition = data.get("definition") if isinstance(data.get("definition"), dict) else {}
+            # bridge/devices follows with the same state; setting it now lets the pairing dialog move on at once.
+            if status in ("successful", "failed"):
+                record["interview_state"] = status.upper()
             if status == "successful" and definition:
                 for key in ("model", "vendor", "description"):
                     if _text(definition.get(key)):
@@ -2173,6 +2198,11 @@ class Tracker:
             group_router_outages(issues, self.data["devices"], self.options, now)
             issues.extend(self._network_issues(now))
             issues.extend(self._group_issues(now))
+            for issue in naming_issues(list(self.data["devices"].values()), self.options, now):
+                record = self.data["devices"][issue["ieee"]]
+                issue["name"] = _display_name(record) or record["ieee"]
+                issue["instance"] = record["instance"]
+                issues.append(issue)
             order = {"warning": 0, "info": 1}
             issues.sort(key=lambda i: (order.get(i["severity"], 2), i["name"].lower()))
 
@@ -2246,6 +2276,7 @@ class Tracker:
                     record, (bridge_info.get("info") or {}).get("availability"), self.options, now
                 )
                 item["can_ping"] = self.can_ping(record) is None
+                item["kind"] = kind_of(record)
                 devices.append(item)
             payload = {
                 "devices": devices,
@@ -2266,7 +2297,10 @@ class Tracker:
                 "groups": self.groups,
                 "group_health": self.group_health(now),
                 "scan_times": {bt: [x["at"] for x in self.scans.get(bt) or []] for bt in self.base_topics},
-                "pairing": {bt: {**s, "joined": list(s["joined"])} for bt, s in self.pairing_sessions.items()},
+                "pairing": {
+                    bt: {**s, "joined": list(s["joined"]), "progress": dict(s.get("progress") or {})}
+                    for bt, s in self.pairing_sessions.items()
+                },
                 "panels": self.options.get("_panels", {}),
                 "options": {k: v for k, v in self.options.items() if not k.startswith("_")},
                 "alerts_paused": self.alert_pause_state(),
@@ -3171,6 +3205,7 @@ class Tracker:
                     "via_name": via_name,
                     "target": target,
                     "rejoined": None,
+                    "progress": {},
                 }
                 end = datetime.fromtimestamp(time.time() + seconds, tz=timezone.utc).isoformat(timespec="seconds")
                 self.permit[base_topic] = {"on": True, "end": end}

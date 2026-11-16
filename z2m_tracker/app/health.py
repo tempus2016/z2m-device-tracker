@@ -148,6 +148,12 @@ CHECKS = [
         "A Zigbee2MQTT group has members that have been offline for longer than the offline threshold.",
         False,
     ),
+    (
+        "naming",
+        "Naming",
+        "A device still named by its IEEE address (0x…), or, when a naming pattern is set, a name that doesn't follow it.",
+        False,
+    ),
     ("joined", "Device joined", "A device joins one of your networks.", True),
     ("left", "Device left", "A device leaves one of your networks.", True),
     ("interview_failed", "Interview failed", "A newly joined device couldn't be identified.", True),
@@ -189,6 +195,7 @@ KIND_LABELS = {
     "z2m_memory": "Memory climbing",
     "signal_dip": "Daily signal dip",
     "group_member_offline": "Group members offline",
+    "naming": "Naming",
 }
 
 

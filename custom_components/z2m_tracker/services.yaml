@@ -49,6 +49,7 @@ mute_device:
             - single_point
             - router_hopping
             - slow_router
+            - naming
     duration:
       selector:
         duration:

@@ -633,6 +633,12 @@
   .map-key { padding-top: 0; }
   .map-ctl { position: absolute; top: 8px; left: 8px; z-index: 2; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--divider); border-radius: 20px; box-shadow: var(--shadow); }
   .pair-dev { border-top: 1px solid var(--divider); }
+  .pair-steps { display: flex; flex-wrap: wrap; gap: 4px 16px; list-style: none; margin: 0; padding: 0 16px 8px; font-size: 13px; color: var(--text-2); }
+  .pair-steps li { display: inline-flex; align-items: center; gap: 4px; }
+  .pair-steps li.now { color: var(--primary-text); font-weight: 500; }
+  .pair-steps li.done { color: var(--success); }
+  .pair-steps li.fail { color: var(--error); font-weight: 500; }
+  .lo-list .pick .t2 .to { color: var(--text); font-weight: 500; overflow-wrap: anywhere; }
   .sig { display: inline-flex; align-items: flex-end; gap: 2px; height: 16px; vertical-align: middle; }
   .sig i { width: 4px; border-radius: 1px; background: var(--divider); }
   .sig i:nth-child(1) { height: 25%; } .sig i:nth-child(2) { height: 50%; } .sig i:nth-child(3) { height: 75%; } .sig i:nth-child(4) { height: 100%; }
@@ -794,7 +800,7 @@
     removed: { get label() { return t("status.removed"); }, c: "var(--disabled)" },
   };
   const KIND_ICON = { offline: "wifi-off", silent: "wifi-off", late: "history", frozen: "thermometer", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
-    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb", slow_router: "router-wireless" };
+    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb", slow_router: "router-wireless", naming: "pencil" };
   const EVENT_ICON = (k) => {
     if (k.startsWith("interview")) return k.endsWith("successful") ? ["check", "var(--success)"] : ["alert-circle", "var(--error)"];
     return ({ joined: ["plus", "var(--success)"], added: ["plus", "var(--success)"], rejoined: ["plus", "var(--success)"], online: ["wifi", "var(--success)"], offline: ["wifi-off", "var(--error)"],
@@ -932,6 +938,8 @@
       p.extra = parts.filter(Boolean).map((x) => ` · ${x}`).join("");
     },
     signal_dip: (p) => { p.period = tx(`issue.signal_dip.${p.period}`, null, p.period); },
+    naming_ieee: (p) => { p.extra = p.suggested ? t("issue.naming.suggested", { name: p.suggested }) : ""; },
+    naming_pattern: (p) => { p.extra = p.suggested ? t("issue.naming.suggested", { name: p.suggested }) : ""; },
   };
   // Offline devices behind an offline router are shown inside the router's issue, not on their own.
   const nestedIssue = (i, keys) => Boolean(i.behind) && keys.has(`offline:${i.behind}`);
@@ -958,6 +966,29 @@
     return p;
   };
   const issueLabel = (i) => tx(`issue.label.${i.kind}`, null, i.label);
+
+  // ------------------------------------------------------------ naming pattern
+  // Same rules as naming.py (render/_tidy/_value): keep the two in step.
+  const tidyName = (v) => String(v ?? "").split(/\s+/).join(" ").trim().replace(/([-_·,:|])(\s*[-_·,:|])+/g, "$1").replace(/^[\s\-_·,:|/]+|[\s\-_·,:|/]+$/g, "").split(/\s+/).join(" ").trim().replace(/\s+([,:;.])/g, "$1");
+  const nameValue = (v) => tidyName(String(v ?? "").replace(/\//g, "-").replace(/[+#]/g, ""));
+  const renderPattern = (pattern, vals, taken) => {
+    if (!pattern) return null;
+    const base = pattern.replace(/\{([a-z]+)\}/g, (m, k) => (k === "n" ? "\0" : vals[k] || ""));
+    if (!tidyName(base.replace(/\0/g, ""))) return null;
+    const hasN = base.includes("\0");
+    for (let n = 1; n < 1000; n++) {
+      const name = (hasN ? tidyName(base.replace(/\0/g, String(n))) : n === 1 ? tidyName(base) : `${tidyName(base)} ${n}`).slice(0, 120).trimEnd();
+      if (!taken.has(name.toLowerCase())) return name;
+    }
+    return null;
+  };
+  // Names in use on active devices, lower case, leaving out the given device.
+  const takenNames = (except) => new Set((state.data?.devices || []).filter((d) => d.status === "active" && d.type !== "Coordinator" && d.friendly_name && d.ieee !== except).map((d) => d.friendly_name.toLowerCase()));
+  const NAME_TOKENS_HTML = Object.fromEntries(["area", "type", "model", "n"].map((k) => [k, `<span class="mono">{${k}}</span>`]));
+  // Naming issues with a suggested name: what Rename to pattern offers.
+  const namingRenames = () => (state.data?.issues || []).filter((i) => i.kind === "naming" && i.params?.suggested && state.byIeee.get(i.ieee)?.status === "active");
+  const namingOk = () => { const n = document.querySelectorAll('#cText input[name="nm"]:checked').length; $("#cOk").textContent = t("naming.rename_n", { n }); $("#cOk").disabled = !n; };
+  const namingExample = (pattern) => (pattern ? renderPattern(pattern, { area: t("settings.naming_sample_area"), type: "Motion", model: "RTCGQ11LM" }, new Set()) || t("settings.naming_example_none") : t("settings.naming_off"));
   const issueTitle = (i) => (i.msg ? tx(`issue.${i.msg}.title`, issueVars(i), i.title) : i.title);
   const issueDetail = (i) => (i.msg ? tx(`issue.${i.msg}.detail`, issueVars(i), i.detail) : i.detail);
   const isNetIssue = (i) => /^(network|group):/.test(String(i.ieee));
@@ -1003,7 +1034,7 @@
     sort: store.get("z2mt.sort") || "status", dir: Number(store.get("z2mt.dir")) || 0,
     open: null, moreTab: "info", settings: null, version: null, editing: false,
     layout: store.get("z2mt.layout") === "dialog" ? "dialog" : "pane",
-    group: store.get("z2mt.group") === "1", areas: null, pairNet: null, openGroups: new Set(), openCoords: new Set(),
+    group: store.get("z2mt.group") === "1", areas: null, pairNet: null, pairForm: {}, openGroups: new Set(), openCoords: new Set(),
   };
 
   const TOUCH = () => window.matchMedia?.("(pointer: coarse)").matches;
@@ -1233,6 +1264,7 @@
     const own = healthRows(issues);
     const warn = own.filter((g) => g[0].severity === "warning"), info = own.filter((g) => g[0].severity !== "warning");
     const warnIssues = warn.reduce((n, g) => n + g.length, 0);
+    const renames = namingRenames().length;
     // Problems come first: on a phone the status cards below would push them several screens down.
     // Severe warnings (offline, battery nearly flat) lead the list.
     warn.sort((a, b) => Number(severe(b[0])) - Number(severe(a[0])));
@@ -1247,7 +1279,7 @@
           <div><small>${th("health.thresholds")}</small><b>${th("health.thresholds_line", { offline: esc(o.offline_alert_minutes), frozen: esc(o.frozen_alert_hours), battery: esc(o.battery_alert_percent) })}</b></div>
           <div><small>${th("health.routing_scan")}</small><b>${esc(scans)}</b></div>
         </div>
-        <div class="card-actions"><button class="btn" data-view="settings">${th("health.alert_settings")}</button><button class="btn ${running ? "busy" : ""}" data-act="scan" ${running ? "disabled" : ""}>${ic(running ? "refresh" : "sitemap", "s18")}${running ? th("common.scanning") : th("menu.run_scan")}</button></div>
+        <div class="card-actions"><button class="btn" data-view="settings">${th("health.alert_settings")}</button>${renames ? `<button class="btn" data-act="naming-bulk">${ic("pencil", "s18")}${th("naming.bulk", { n: renames })}</button>` : ""}<button class="btn ${running ? "busy" : ""}" data-act="scan" ${running ? "disabled" : ""}>${ic(running ? "refresh" : "sitemap", "s18")}${running ? th("common.scanning") : th("menu.run_scan")}</button></div>
       </div>
       ${coordinatorsCard()}
       ${shoppingCard()}
@@ -2115,6 +2147,11 @@
         <div class="set-row"><div class="text"><div class="t1">${th("settings.schedule")}</div><div class="t2">${th("settings.last_scans", { scans: esc(scans) })}</div></div><div class="ctl"><select class="field" id="scanHour" aria-label="${esc(t("settings.schedule"))}">${hours}</select></div></div>
         <div class="card-actions"><button class="btn" data-act="scan">${ic("sitemap", "s18")}${th("settings.scan_now")}</button></div>
       </div>
+      <div class="card"><div class="card-header"><div><h2 class="ch">${th("settings.naming")}</h2><small>${th("settings.naming_desc")}</small></div></div>
+        <div class="set-row wide-ctl"><div class="text"><div class="t1">${th("settings.naming_pattern")}</div><div class="t2">${th("settings.naming_tokens", NAME_TOKENS_HTML)}</div></div>
+          <div class="ctl"><input class="field" id="namePattern" aria-label="${esc(t("settings.naming_pattern"))}" aria-describedby="nameExample" autocomplete="off" spellcheck="false" maxlength="80" value="${esc(s.naming_pattern || "")}" placeholder="{area} {type} {n}"><button class="btn" data-act="save-naming">${th("common.save")}</button></div></div>
+        <div class="set-row"><div class="text"><div class="t1">${th("settings.naming_example")}</div><div class="t2" id="nameExample" aria-live="polite">${esc(namingExample(s.naming_pattern))}</div></div></div>
+      </div>
       <div class="card"><div class="card-header"><h2 class="ch">${th("settings.entities")}</h2></div>
         ${sw("ha_entities", s.ha_entities, t("settings.entities_add"), th("settings.entities_desc", { n: S.entities }))}
       </div>
@@ -2762,6 +2799,7 @@
   });
   $("#more").addEventListener("input", () => { state.editing = true; });
   $("#view").addEventListener("input", (e) => { if (e.target.closest("#pane")) state.editing = true; });
+  $("#view").addEventListener("input", (e) => { if (e.target.id === "namePattern") $("#nameExample").textContent = namingExample(e.target.value.trim()); });
   $("#view").addEventListener("scroll", (e) => { if (e.target.classList?.contains("more-body")) state.paneScroll = e.target.scrollTop; }, true);
 
   // ------------------------------------------------------------ confirm dialog
@@ -2778,7 +2816,7 @@
     (danger ? dlg.querySelector('button[value="cancel"]') : $("#cOk")).focus();
   });
   $("#confirmDlg").addEventListener("click", (e) => { if (e.target.id === "confirmDlg") e.target.close("cancel"); });
-  $("#confirmDlg").addEventListener("change", (e) => { if (e.target.name === "lo") leftoverOk(); });
+  $("#confirmDlg").addEventListener("change", (e) => { if (e.target.name === "lo") leftoverOk(); else if (e.target.name === "nm") namingOk(); });
 
   // ------------------------------------------------------------ pause alerts
   // Times are shown in the browser's zone; "tomorrow 08:00" is worked out by the app in its own zone.
@@ -2972,6 +3010,7 @@
         if (name && name !== nameOf(d)) await api("api/rename", { ieee, name });
         if (area) await api("api/area", { ieee, area_id: area });
         if (btype) await api("api/battery", { ieee, info: { type: btype.replace(/^\d+\s*[x×]\s*/i, ""), quantity: (btype.match(/^(\d+)\s*[x×]/i) || [])[1] || 1, installed: todayIso() } });
+        delete state.pairForm[ieee];
         snack(t("common.saved")); await load();
       } catch (err) { snack(err.message, 5000); }
       b.disabled = false;
@@ -3063,6 +3102,31 @@
       try { await api("api/forget", { ieee }); closeDevice(); snack(t("forget.done")); load(); } catch (err) { snack(err.message); }
     },
     async "save-notify"() { await saveSettings({ notify_service: $("#notifySvc").value.trim() }); },
+    async "naming-bulk"(b) {
+      const list = namingRenames();
+      if (!list.length) { snack(t("naming.none")); return; }
+      const html = `<p>${th("naming.bulk_text", { pattern: `<span class="mono">${esc(state.data.options?.naming_pattern || "")}</span>` })}</p>
+        <div class="lo-list">${list.map((i) => { const d = state.byIeee.get(i.ieee); return `<label class="pick"><input type="checkbox" name="nm" value="${esc(i.ieee)}" checked>${d ? stateIc(d) : `<span class="state-ic">${ic("zigbee")}</span>`}<div class="text"><div class="t1">${esc(d?.friendly_name || i.ieee)}</div><div class="t2">${th("naming.to", { name: `<span class="to">${esc(i.params.suggested)}</span>` })}${d?.area ? ` · ${esc(d.area)}` : ""}</div></div></label>`; }).join("")}</div>`;
+      const pending = confirmDialog({ title: t("naming.bulk_title", { n: list.length }), html, ok: "", filled: true });
+      namingOk();
+      if (!(await pending)) return;
+      const picked = new Set([...document.querySelectorAll('#cText input[name="nm"]:checked')].map((x) => x.value));
+      const todo = list.filter((i) => picked.has(i.ieee));
+      if (!todo.length) return;
+      b.disabled = true; b.classList.add("busy");
+      let done = 0;
+      const failed = [];
+      // One at a time: each rename waits for Zigbee2MQTT's reply (it also renames in Home Assistant).
+      for (const i of todo) {
+        snack(t("naming.progress", { n: done + failed.length + 1, total: todo.length }), 20000);
+        try { await api("api/rename", { ieee: i.ieee, name: i.params.suggested }); done++; }
+        catch (err) { failed.push(`${state.byIeee.get(i.ieee)?.friendly_name || i.ieee}: ${err.message}`); }
+      }
+      b.disabled = false; b.classList.remove("busy");
+      snack(failed.length ? t("naming.partly", { n: done, failed: failed.length, error: failed[0] }) : t("naming.done", { n: done }), failed.length ? 8000 : 3000);
+      load();
+    },
+    async "save-naming"() { await saveSettings({ naming_pattern: $("#namePattern").value.trim() }); },
     async "test-notify"(b) { b.disabled = true; try { const r = await api("api/test-notification", {}); snack(r.channels.length ? t("snack.test_sent", { channels: r.channels.join(", ") }) : t("snack.all_off"), 4000); } catch (err) { snack(err.message); } b.disabled = false; },
   };
 
@@ -3223,6 +3287,27 @@
   const routerLabel = (r) => (r.type === "Coordinator" ? t("map.coordinator") : `${r.area ? `${r.area} · ` : ""}${nameOf(r) || r.ieee}`);
   const keepOpen = () => `<label>${th("pair.keep_open")}<select class="field" id="pairSecs">${[[120, 2], [180, 3], [254, 4]].map(([v, n]) => `<option value="${v}" ${v === 180 ? "selected" : ""}>${th("unit.minutes_long", { n })}</option>`).join("")}</select></label>`;
   const fmtLeft = (l) => `${Math.floor(l / 60)}:${String(l % 60).padStart(2, "0")}`;
+  // Where a device that joined in this session has got to. Zigbee2MQTT's own interview state wins once it has one.
+  const pairStep = (d, session) => (d.interview_state === "SUCCESSFUL" ? "successful" : d.interview_state === "FAILED" ? "failed" : session?.progress?.[d.ieee] || "joined");
+  const PAIR_STEPS = ["joined", "interviewing", "successful"];
+  const pairSteps = (step) => {
+    const at = step === "failed" ? 2 : step === "announced" ? 0 : PAIR_STEPS.indexOf(step);
+    return `<ol class="pair-steps">${PAIR_STEPS.map((k, n) => {
+      const fail = step === "failed" && n === 2;
+      const cls = fail ? "fail" : n < at || (n === at && step === "successful") ? "done" : n === at ? "now" : "";
+      return `<li class="${cls}" ${n === at ? 'aria-current="step"' : ""}>${ic(fail ? "close" : cls === "done" ? "check" : n === at ? "refresh" : "minus", "s18")}${th(fail ? "pair.step.failed" : `pair.step.${k}`)}</li>`;
+    }).join("")}</ol>`;
+  };
+  const areaName = (id) => (id ? (state.areas || []).find((a) => a.id === id)?.name ?? null : null);
+  // The pattern's name for a device still named by its address, or null (no pattern, or it already has a name).
+  const pairPrefill = (d, area, taken) => {
+    const pattern = state.data?.options?.naming_pattern;
+    // A device that has only just joined may have no name yet; Zigbee2MQTT will call it by its address.
+    const current = d.friendly_name || d.ieee || "";
+    if (!pattern || !IEEE_RE.test(current)) return null;
+    const own = new Set(taken); own.delete(current.toLowerCase());
+    return renderPattern(pattern, { area: nameValue(area), type: nameValue(d.kind), model: nameValue(d.model) }, own);
+  };
   const renderPair = () => {
     const dlg = $("#pairDlg");
     const move = state.move ? state.byIeee.get(state.move.target) : null;
@@ -3255,6 +3340,8 @@
              <div class="more-actions"><button class="btn filled" data-act="pair-start">${ic("swap-horizontal", "s18")}${th("pair.start")}</button></div>`;
     } else {
       const joined = (session?.joined || []).map((ieee) => state.byIeee.get(ieee) || { ieee });
+      // Prefilled names stay unique across the devices in this list too.
+      const taken = takenNames(null);
       body = `${permit.on ? `<div class="more-hero"><span class="state-ic" style="color:var(--primary)">${ic("cellphone-wireless")}</span><div class="big" id="pairLeft">${fmtLeft(left)}</div><div class="sub">${session?.via_name ? th("pair.open_on_via", { net: esc(netLabel(net)), via: `<b>${esc(session.via_name)}</b>` }) : th("pair.open_on", { net: esc(netLabel(net)) })}</div></div>
             <div class="more-actions"><button class="btn outlined danger" data-act="pair-stop">${th("pair.stop")}</button></div>`
           : `<div class="form"><label>${th("more.network")}<select class="field" id="pairNet">${state.data.instances.map((bt) => `<option value="${esc(bt)}" ${bt === net ? "selected" : ""}>${esc(netLabel(bt))}</option>`).join("")}</select></label>
@@ -3264,13 +3351,21 @@
              <div class="more-actions"><button class="btn filled" data-act="pair-start">${ic("plus", "s18")}${th("pair.start_pairing")}</button></div>`}
         <div class="sub-h">${th("pair.joined")}</div>
         ${joined.length ? joined.map((d) => {
-          const ready = d.interview_state === "SUCCESSFUL";
+          const step = pairStep(d, session);
+          const ready = step === "successful";
           const isBat = d.power_source === "Battery" || typeof d.battery === "number";
-          return `<div class="pair-dev"><div class="row" style="border:0;min-height:56px">${d.type ? stateIc(d) : `<span class="state-ic">${ic("zigbee")}</span>`}<div class="text"><div class="t1">${esc(nameOf(d) || d.ieee)}</div><div class="t2">${ready ? esc(deviceLine(d) || t("pair.identified")) : th("pair.interviewing")} · <span class="mono">${esc(d.ieee)}</span></div></div></div>
-            ${ready ? `<div class="form"><label>${th("devices.col.name")}<input class="field" name="name" value="${esc(nameOf(d) || "")}" autocomplete="off"></label>
-              <label>${th("devices.col.area")}<select class="field" name="area"><option value="">${th("common.choose")}</option>${(state.areas || []).map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("")}</select></label>
-              ${isBat ? `<label class="wide">${th("devices.col.battery")}<input class="field" name="btype" list="batTypes2" value="${esc(d.battery_record?.label || "")}" placeholder="${esc(t("pair.battery_placeholder"))}"></label>` : ""}</div>
-              <div class="row-actions"><button class="btn" data-act="pair-save" data-ieee="${esc(d.ieee)}">${th("common.save")}</button></div>` : ""}</div>`;
+          const f = state.pairForm[d.ieee] || {};
+          const areaId = f.area ?? (state.areas || []).find((a) => a.name === d.area)?.id ?? "";
+          const name = ready ? (f.touched ? f.name : pairPrefill(d, areaName(areaId) ?? d.area, taken) || nameOf(d) || "") : "";
+          if (ready && name) taken.add(name.toLowerCase());
+          const line = ready ? esc(deviceLine(d) || t("pair.identified")) : step === "failed" ? th("pair.step.failed") : th("pair.interviewing");
+          return `<div class="pair-dev" data-ieee="${esc(d.ieee)}"><div class="row" style="border:0;min-height:56px">${d.type ? stateIc(d) : `<span class="state-ic">${ic("zigbee")}</span>`}<div class="text"><div class="t1">${esc(nameOf(d) || d.ieee)}</div><div class="t2">${line} · <span class="mono">${esc(d.ieee)}</span></div></div></div>
+            ${pairSteps(step)}
+            ${step === "failed" ? `<div class="alerts"><div class="alert" style="--a:var(--warning)">${ic("alert")}<div class="body">${th("issue.unidentified.detail")} ${th("pair.failed_hint")}</div></div></div>` : ""}
+            ${ready ? `<div class="form"><label>${th("devices.col.name")}<input class="field" name="name" value="${esc(name)}" autocomplete="off" maxlength="120"></label>
+              <label>${th("devices.col.area")}<select class="field" name="area"><option value="">${th("common.choose")}</option>${(state.areas || []).map((a) => `<option value="${esc(a.id)}" ${a.id === areaId ? "selected" : ""}>${esc(a.name)}</option>`).join("")}</select></label>
+              ${isBat ? `<label class="wide">${th("devices.col.battery")}<input class="field" name="btype" list="batTypes2" value="${esc(f.btype ?? (d.battery_record?.label || ""))}" placeholder="${esc(t("pair.battery_placeholder"))}"></label>` : ""}</div>
+              <div class="row-actions"><button class="btn filled" data-act="pair-save" data-ieee="${esc(d.ieee)}">${th("pair.apply")}</button></div>` : ""}</div>`;
         }).join("") : `<div class="card-content muted">${permit.on ? th("pair.waiting_join") : th("pair.nothing_yet")}</div>`}
         <datalist id="batTypes2">${["CR2032", "CR2450", "CR2477", "CR1632", "CR123A", "AAA", "2× AAA", "AA", "2× AA", "4× AA"].map((t) => `<option value="${t}"></option>`).join("")}</datalist>`;
     }
@@ -3280,7 +3375,26 @@
     clearInterval(pairTick);
     if (permit.on) pairTick = setInterval(() => { const el = $("#pairLeft"); if (!el) return; const l = Math.max(0, Math.round((new Date(permit.end) - Date.now()) / 1000)); el.textContent = fmtLeft(l); if (!l) { clearInterval(pairTick); load(); } }, 1000);
   };
-  $("#pairDlg").addEventListener("close", () => { clearInterval(pairTick); state.move = null; });
+  $("#pairDlg").addEventListener("close", () => { clearInterval(pairTick); state.move = null; state.pairForm = {}; });
+  // Typed values survive the live re-renders; the name follows the area until it's edited by hand.
+  $("#pairDlg").addEventListener("input", (e) => {
+    const box = e.target.closest(".pair-dev");
+    if (!box || !["name", "btype"].includes(e.target.name)) return;
+    const f = (state.pairForm[box.dataset.ieee] ||= {});
+    if (e.target.name === "name") { f.name = e.target.value; f.touched = true; } else f.btype = e.target.value;
+  });
+  $("#pairDlg").addEventListener("change", (e) => {
+    const box = e.target.closest(".pair-dev");
+    if (!box || e.target.name !== "area") return;
+    const ieee = box.dataset.ieee, f = (state.pairForm[ieee] ||= {});
+    f.area = e.target.value;
+    const d = state.byIeee.get(ieee), input = box.querySelector("[name=name]");
+    if (!d || !input || f.touched) return;
+    const taken = takenNames(ieee);
+    $("#pairDlg").querySelectorAll(".pair-dev [name=name]").forEach((el) => { if (el !== input && el.value.trim()) taken.add(el.value.trim().toLowerCase()); });
+    const name = pairPrefill(d, areaName(f.area) ?? d.area, taken);
+    if (name) input.value = name;
+  });
   $("#pairDlg").addEventListener("change", (e) => { if (e.target.id === "pairVia") { if (state.move) state.move.via = e.target.value; else state.pairVia = e.target.value; } });
   $("#pairDlg").addEventListener("change", (e) => { if (e.target.id === "pairNet") { state.pairNet = e.target.value; renderPair(); } });
 
