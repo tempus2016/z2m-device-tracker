@@ -37,6 +37,7 @@ from mqtt_status import NOTIFICATION_ID, NOTIFICATION_TITLE, MqttStatus, explain
 from ota import OtaManager, parse_window
 from tracker import IEEE_RE, Tracker, shopping_text
 from tracker import _display_name as tracker_display_name
+from usage import UsageRefresher
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
 _LOGGER = logging.getLogger("z2m_tracker")
@@ -113,6 +114,8 @@ CRITICAL_PUSH = {"priority": "high", "ttl": 0, "push": {"interruption-level": "t
 EVENT_KEYS = {"joined": "joined", "left": "left", "interview failed": "interview_failed"}
 # Health checks a "Mute 24 h" button may mute (events like joined happen once, so there is nothing to mute).
 MUTABLE_KINDS = {key for key, _, _, event in CHECKS if not event}
+# Alerts that don't get a "Used by" line: nothing in HA uses a device that has only just joined.
+NO_USAGE_KINDS = {"joined", "interview failed", "test", "digest"}
 
 
 # Settings the web UI may change, with validators returning the clean value (or raising ValueError).
@@ -296,6 +299,7 @@ def ha_registry_changed() -> None:
 scan_lock = threading.Lock()
 ping_lock = threading.Lock()
 ota_manager = OtaManager(tracker, options, home_assistant.logbook)
+usage_refresher = UsageRefresher(tracker, home_assistant)
 
 
 # -------------------------------------------------------------------- alerts
@@ -345,6 +349,18 @@ class Alerts:
         _LOGGER.info("Alert: %s - %s", title, message)
 
         def job() -> None:
+            nonlocal message
+            # Say what the problem breaks: the automations, scripts and scenes that use the device.
+            if ieee and kind not in NO_USAGE_KINDS:
+                try:
+                    usage_refresher.refresh([ieee])
+                    line = tracker.usage_line(ieee)
+                except Exception:  # noqa: BLE001 - the alert still goes out without the line
+                    _LOGGER.exception("Looking up what uses %s failed", ieee)
+                    line = None
+                if line:
+                    message = f"{message}\n\n{line}"
+                    data["message"] = message
             if options.get("fire_events", True):
                 home_assistant.fire_event("z2m_tracker_alert", data)
             if options.get("persistent_notifications"):
@@ -986,6 +1002,7 @@ def scheduler() -> None:
                 ha_changed_at = 0.0
                 refresh_home_assistant()
                 leftovers_due = True
+                usage_refresher.request_full()
                 last_ha = now
             # Waits for every network's device list; until then all devices look unknown.
             if leftovers_due and tracker.lists_ready.is_set():
@@ -998,6 +1015,9 @@ def scheduler() -> None:
                 alerts.check()
                 discovery.sync()
                 last_health = now
+            # What uses devices with a problem: after a registry refresh, for new issues,
+            # and retries after a failure. Kept for the next round while a lookup runs.
+            usage_refresher.start_due()
             hour = int(options.get("networkmap_hour", -1))
             local = datetime.now(tracker.local_tz)
             if hour >= 0 and local.hour == hour and last_scan_day != local.date():

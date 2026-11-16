@@ -227,6 +227,23 @@
   "health.offline_for": "offline {duration}",
   "health.show_devices": "Show {n}",
   "health.hide_devices": "Hide",
+  "used_by.summary": "Used by {what}",
+  "used_by.automation": {
+    "one": "{n} automation",
+    "other": "{n} automations"
+  },
+  "used_by.script": {
+    "one": "{n} script",
+    "other": "{n} scripts"
+  },
+  "used_by.scene": {
+    "one": "{n} scene",
+    "other": "{n} scenes"
+  },
+  "used_by.type_automation": "Automation",
+  "used_by.type_script": "Script",
+  "used_by.type_scene": "Scene",
+  "used_by.no_editor": "Not editable in Home Assistant's editor",
   "issue.label.offline": "Offline",
   "issue.label.silent": "Not heard from",
   "issue.label.late": "Stopped reporting",

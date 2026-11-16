@@ -126,6 +126,34 @@ def plan_removal(requested: list[str], leftovers: list[dict]) -> tuple[list[dict
     return go, refused
 
 
+# What search/related lists for a device, and the key each list gets in the tracker's snapshot.
+USAGE_KINDS = (("automation", "automations"), ("script", "scripts"), ("scene", "scenes"))
+
+
+def build_usage(related: dict | None, states: dict[str, dict]) -> dict[str, list[dict]]:
+    """The automations, scripts and scenes from one search/related answer, each as
+    {"entity_id", "name", "id"}. id is what HA's editor needs in its URL: an automation's
+    or scene's "id" attribute (None when it isn't editable in the UI, such as YAML ones
+    without an id) or a script's object id. states maps entity id -> state object."""
+    out: dict[str, list[dict]] = {}
+    for domain, key in USAGE_KINDS:
+        items = []
+        for entity_id in sorted({str(x) for x in (related or {}).get(domain) or []}):
+            attributes = (states.get(entity_id) or {}).get("attributes") or {}
+            object_id = entity_id.split(".", 1)[-1]
+            edit_id = object_id if domain == "script" else attributes.get("id")
+            items.append(
+                {
+                    "entity_id": entity_id,
+                    "name": str(attributes.get("friendly_name") or object_id),
+                    "id": str(edit_id) if edit_id not in (None, "") else None,
+                }
+            )
+        items.sort(key=lambda x: x["name"].lower())
+        out[key] = items
+    return out
+
+
 class HomeAssistant:
     def __init__(self, config_dir: str) -> None:
         self.config_dir = config_dir
@@ -293,6 +321,22 @@ class HomeAssistant:
             except Exception as err:  # noqa: BLE001 - usage is extra info, unknown is shown as such
                 _LOGGER.warning("Looking up automations for leftover devices failed: %s", err)
         return found
+
+    def device_usage(self, device_ids: list[str]) -> dict[str, dict[str, list[dict]]]:
+        """The automations, scripts and scenes that use each HA device (see build_usage).
+        One WebSocket connection for the searches, plus one read of the states for names,
+        only when something was found. Raises when HA can't be asked."""
+        device_ids = list(dict.fromkeys(device_ids))
+        if not device_ids:
+            return {}
+        related = self._ws_call([{"type": "search/related", "item_type": "device", "item_id": d} for d in device_ids])
+        states: dict[str, dict] = {}
+        if any((hits or {}).get(domain) for hits in related for domain, _ in USAGE_KINDS):
+            # Without states the names fall back to entity ids and the edit links are left out.
+            listed = self._request("GET", "/states")
+            if isinstance(listed, list):
+                states = {s.get("entity_id"): s for s in listed if isinstance(s, dict)}
+        return {d: build_usage(hits, states) for d, hits in zip(device_ids, related, strict=True)}
 
     def remove_leftovers(self, device_ids: list[str], known: dict[str, dict]) -> dict:
         """Remove the given HA devices, but only those that are still leftovers now.
