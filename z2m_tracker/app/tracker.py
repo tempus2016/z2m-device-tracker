@@ -105,6 +105,11 @@ MAX_TASK_NOTE = 500
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TASK_ID_RE = re.compile(r"^[0-9a-f]{8}$")
 MAX_STOCK = 9999
+# Warranties (asset "warranty_until"): Upkeep lists those ending in the next WARRANTY_AHEAD_DAYS and
+# those that ended in the last WARRANTY_ENDED_DAYS. Health flags one ending within WARRANTY_SOON_DAYS.
+WARRANTY_AHEAD_DAYS = 60
+WARRANTY_ENDED_DAYS = 90
+WARRANTY_SOON_DAYS = 30
 # What uses a device in HA (automations, scripts, scenes): looked up again when a new issue
 # opens and the last answer is older than this; at most this many devices per lookup.
 USAGE_MAX_AGE = 600
@@ -293,6 +298,11 @@ def clean_task(raw: Any, today: date | None = None) -> tuple[dict | None, str | 
         "note": (_text(note, MAX_TASK_NOTE) or "") if note is not None else "",
     }
     return task, None
+
+
+def warranty_end(record: dict) -> date | None:
+    """The day a device's warranty ends, from its asset details. None when unset or not a date."""
+    return _iso_date(((record.get("asset") or {}).get("warranty_until") or "").strip()[:10])
 
 
 def task_due(task: dict) -> date:
@@ -2680,6 +2690,9 @@ class Tracker:
             ]
             if overdue:
                 extra["maintenance_overdue"] = sorted(overdue, key=lambda x: -x["days"])
+            ends = warranty_end(record)
+            if ends is not None and 0 <= (ends - today).days <= WARRANTY_SOON_DAYS:
+                extra["warranty"] = {"until": ends.isoformat(), "days": (ends - today).days}
             out[ieee] = extra
         return out
 
@@ -2884,6 +2897,7 @@ class Tracker:
                 "battery_brands": self.battery_brands(),
                 "battery_brand_list": list(self.brand_list()),
                 "maintenance": self.maintenance_list(),
+                "warranties": self.warranty_list(),
                 "bridges": self.data.get("bridges") or {},
                 "radio": self.radio(),
                 "network_hours": self.network_hours(now),
@@ -3060,7 +3074,9 @@ class Tracker:
             clean = {field: str(asset.get(field) or "").strip()[:200] for field in ASSET_FIELDS}
             record["asset"] = {k: v for k, v in clean.items() if v}
             self._changed(structural=True)
-            return True
+        # The warranty date drives the warranty_ending check.
+        self.evaluate_health()
+        return True
 
     # ------------------------------------------------------------ maintenance
 
@@ -3149,6 +3165,33 @@ class Tracker:
                         }
                     )
         return sorted(out, key=lambda x: (x["due"], x["name"].lower(), x["title"].lower()))
+
+    def warranty_list(self) -> list[dict]:
+        """Active devices whose warranty ends in the next WARRANTY_AHEAD_DAYS or ended in the last
+        WARRANTY_ENDED_DAYS: soonest first, then the ended ones, most recent first."""
+        today = self._today()
+        out = []
+        with self.lock:
+            for record in self.data["devices"].values():
+                if record["status"] != STATUS_ACTIVE or record.get("type") == "Coordinator":
+                    continue
+                ends = warranty_end(record)
+                if ends is None:
+                    continue
+                days = (ends - today).days
+                if not -WARRANTY_ENDED_DAYS <= days <= WARRANTY_AHEAD_DAYS:
+                    continue
+                asset = record.get("asset") or {}
+                out.append(
+                    {
+                        "ieee": record["ieee"],
+                        "name": _display_name(record) or record["ieee"],
+                        "until": ends.isoformat(),
+                        "days": days,
+                        "purchase_date": asset.get("purchase_date") or "",
+                    }
+                )
+        return sorted(out, key=lambda x: (x["days"] < 0, abs(x["days"]), x["name"].lower()))
 
     # ---------------------------------------------------------------- battery
 

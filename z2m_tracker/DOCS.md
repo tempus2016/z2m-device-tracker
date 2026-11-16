@@ -141,6 +141,7 @@ These checks show in Health but don't notify until you set them to **Show and no
 | Zigbee2MQTT memory | Zigbee2MQTT's own memory use grew more than 50% over the last 7 days (at least 5 days of readings). Usually a leak that ends in a crash; a restart clears it. Uses the `bridge/health` messages Zigbee2MQTT 2.5+ sends every 10 minutes by default (its `health.interval` setting). Health → Coordinators also shows its memory over the last 14 days, MQTT traffic and leaves this week. |
 | Group members offline | A Zigbee2MQTT group with members that have been offline for longer than `offline_alert_minutes`. One issue per group, listing the offline members. |
 | Maintenance overdue | A maintenance task on the device is past its due date. See Maintenance tasks below. |
+| Warranty ending | The warranty date in the device's asset details is 30 days away or less. See Warranties below. |
 | Reporting settings | A device whose attribute reporting drains its battery, floods the mesh, or may never report a measurement. See Reporting settings below. |
 | Daily signal dip | Average link quality across a network drops at least 25% below that day's median in the same 1 to 4 hours on at least 4 of the last 7 days, and at least 30% of its devices dip then too. Usually something that switches on at that time: busy Wi-Fi on an overlapping channel, a microwave, or a USB 3 device near the coordinator. Health → Radio channels shows the hourly chart once a network has a week of link quality from at least 3 devices. |
 | Worse since an upgrade | After Zigbee2MQTT or the coordinator firmware changes, the week after the upgrade looks clearly worse than the week before, once at least 2 days of it have passed (shown for 30 days). Shows only; it doesn't notify unless you add it to `notify_checks`. See **Effect of an upgrade** below for what is compared and the thresholds. |
@@ -211,6 +212,10 @@ Recurring physical jobs for a device, such as "Test smoke alarm" every month or 
 The next due date is the last done date plus the interval, or the day the task was added plus the interval if it was never done. **Mark done** sets today and adds a "maintenance done" entry to the device's logbook. **Upkeep → Maintenance** lists overdue tasks and those due in the next 14 days. An overdue task is the **Maintenance overdue** check; it shows in Health but doesn't notify unless you turn that on in Settings → Checks.
 
 With the integration, `todo.z2m_tracker_maintenance` lists the same tasks (ticking one marks it done) and `calendar.z2m_tracker_maintenance` shows each task's next due date and the day it was last done. Tasks are part of the device's history, so they are in backups.
+
+## Warranties
+
+Set **Warranty until** in a device's asset details on its **Notes** tab (next to the purchase date, shop and price). The Notes tab then says how long the warranty has left. **Upkeep → Maintenance** has a **Warranties** list: warranties ending in the next 60 days, soonest first, then those that ended in the last 90 days. **Details** opens the device's Notes tab. A warranty 30 days or less from its end is the **Warranty ending** check; it shows in Health but doesn't notify unless you turn that on in Settings → Checks.
 
 ## Pause alerts
 

@@ -1014,6 +1014,23 @@
   "asset.save_note": "Save note",
   "asset.forget": "Forget device",
   "asset.sources": "Sources: {sources}",
+  "warranty.title": "Warranties",
+  "warranty.subtitle": "Ending in the next 60 days, or ended in the last 90",
+  "warranty.n_ending": {
+    "one": "{n} warranty ending",
+    "other": "{n} warranties ending"
+  },
+  "warranty.none_soon": "No warranties ending",
+  "warranty.ends_in": {
+    "one": "Warranty ends in {n} day",
+    "other": "Warranty ends in {n} days"
+  },
+  "warranty.ends_today": "Warranty ends today",
+  "warranty.ends_on": "Warranty ends {date}",
+  "warranty.ended_on": "Warranty ended {date}",
+  "warranty.bought": "bought {date}",
+  "warranty.details": "Details",
+  "warranty.line": "{when}.",
   "reconfigure.title": "Reconfigure {name}?",
   "reconfigure.text1": "Zigbee2MQTT sends the binding and reporting setup to the device again. Names, settings and history aren't changed.",
   "reconfigure.text2": "Use it when a device stops updating a value. It can take up to 40 seconds.",
@@ -1450,6 +1467,16 @@
   },
   "check.maintenance_due.label": "Maintenance overdue",
   "check.maintenance_due.description": "A maintenance task set on the device (such as testing a smoke alarm) is past its due date.",
+  "issue.label.warranty_ending": "Warranty ending",
+  "issue.warranty_ending.title": "Warranty ending",
+  "issue.warranty_ending.detail": {
+    "one": "Warranty ends in {n} day ({date}). Return or claim anything faulty before then.",
+    "other": "Warranty ends in {n} days ({date}). Return or claim anything faulty before then."
+  },
+  "issue.warranty_ending_today.title": "Warranty ending",
+  "issue.warranty_ending_today.detail": "Warranty ends today ({date}). Return or claim anything faulty now.",
+  "check.warranty_ending.label": "Warranty ending",
+  "check.warranty_ending.description": "The warranty date in the device's asset details (Notes tab) is 30 days away or less.",
   "event.kind.maintenance_done": "maintenance done",
   "maint.title": "Maintenance",
   "maint.none": "No maintenance tasks. Add recurring jobs such as testing a smoke alarm or cleaning a sensor.",

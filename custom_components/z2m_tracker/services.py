@@ -47,6 +47,7 @@ DEVICE_CHECKS = [
     "router_hopping",
     "slow_router",
     "maintenance_due",
+    "warranty_ending",
     "slow_commands",
     "missed_commands",
     "reporting_config",
