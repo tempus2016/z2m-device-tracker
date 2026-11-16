@@ -51,6 +51,7 @@ DEVICE_CHECKS = [
     "missed_commands",
     "reporting_config",
     "naming",
+    "retained_command",
 ]
 
 DEVICE_FIELDS = {

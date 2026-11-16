@@ -72,6 +72,9 @@ MAX_EVENTS = 3000
 MAX_OUTAGES = 200
 # "Left the group" facts kept in history.json, and how long the Groups card shows one.
 MAX_GROUP_LEFT = 100
+# Retained /set topics remembered (memory only), and how much of each payload is kept for display.
+MAX_RETAINED_COMMANDS = 500
+RETAINED_COMMAND_PREVIEW = 120
 GROUP_LEFT_DAYS = 30
 STATUS_ACTIVE = "active"
 STATUS_REMOVED = "removed"
@@ -834,6 +837,9 @@ class Tracker:
         # IEEE -> when its oldest unanswered command (<name>/set) arrived. Memory only.
         # ieee -> (when the first unanswered command was sent, the values a reply must show)
         self._commands: dict[str, tuple[float, dict]] = {}
+        # Full topic -> {"ieee", "payload", "seen"} for each retained <name>/set the broker replayed when
+        # the tracker subscribed. Memory only: the broker sends them again on every connect.
+        self.retained_commands: dict[str, dict] = {}
 
     # ------------------------------------------------------------ persistence
 
@@ -1646,9 +1652,16 @@ class Tracker:
         timed from the first. A retained /set is an old message replayed by the broker, not a command.
         Devices Zigbee2MQTT already marks offline aren't timed: the offline check covers them.
         """
-        if retained:
+        topic = f"{base_topic}/{rest}"
+        if not text.strip():
+            # An empty /set is someone clearing a retained command, not a command.
+            if self.retained_commands.pop(topic, None) is not None:
+                self.revision += 1
             return
         name = rest[: -len("/set")] if rest.endswith("/set") else rest.rsplit("/set/", 1)[0]
+        if retained:
+            self._remember_retained_command(topic, base_topic, name, text)
+            return
         record = self._record_for(base_topic, name)
         if record is None and "/" in name:
             record = self._record_for(base_topic, name.rsplit("/", 1)[0])
@@ -1663,6 +1676,47 @@ class Tracker:
             pending = None
         # A burst is timed from its first command and answered by the state the last one asked for.
         self._commands[record["ieee"]] = (pending[0] if pending else now, _expected_reply(rest, text))
+
+    def _remember_retained_command(self, topic: str, base_topic: str, name: str, text: str) -> None:
+        """A retained /set: the broker replays it on every restart. Kept by name, since the broker may
+        send it before Zigbee2MQTT's device list; which device it belongs to is looked up when needed."""
+        if topic not in self.retained_commands and len(self.retained_commands) >= MAX_RETAINED_COMMANDS:
+            return
+        payload = text.strip()
+        if len(payload) > RETAINED_COMMAND_PREVIEW:
+            payload = payload[: RETAINED_COMMAND_PREVIEW - 1] + "…"
+        previous = self.retained_commands.get(topic)
+        if previous and previous["payload"] == payload:
+            return
+        self.retained_commands[topic] = {"base": base_topic, "name": name, "payload": payload, "seen": _now()}
+        self.revision += 1
+
+    def _retained_command_device(self, entry: dict) -> str | None:
+        """The active device a retained /set is for, by its current name (or IEEE address), or None."""
+        base_topic, name = entry["base"], entry["name"]
+        record = self._record_for(base_topic, name)
+        if record is None and "/" in name:
+            # <name>/<endpoint>/set
+            record = self._record_for(base_topic, name.rsplit("/", 1)[0])
+        if record is None and IEEE_RE.fullmatch(name.lower()):
+            # Zigbee2MQTT also takes a device's IEEE address in place of its name.
+            found = self.data["devices"].get(name.lower())
+            record = found if found and found.get("instance") == base_topic else None
+        if record is None or record.get("status") != STATUS_ACTIVE:
+            return None
+        return record["ieee"]
+
+    def retained_commands_of(self, ieee: str) -> list[str]:
+        with self.lock:
+            return sorted(
+                topic for topic, entry in self.retained_commands.items() if self._retained_command_device(entry) == ieee
+            )
+
+    def forget_retained_commands(self, topics: list[str]) -> None:
+        with self.lock:
+            for topic in topics:
+                self.retained_commands.pop(topic, None)
+            self.revision += 1
 
     def _command_answered(self, ieee: str, state: Any) -> None:
         pending = self._commands.get(ieee)
@@ -2681,6 +2735,12 @@ class Tracker:
             if overdue:
                 extra["maintenance_overdue"] = sorted(overdue, key=lambda x: -x["days"])
             out[ieee] = extra
+        for topic, entry in sorted(self.retained_commands.items()):
+            owner = self._retained_command_device(entry)
+            if owner in out:
+                out[owner].setdefault("retained_commands", []).append(
+                    {"topic": topic, "payload": entry["payload"], "seen": entry["seen"]}
+                )
         return out
 
     def evaluate_health(self) -> tuple[list[dict], bool]:

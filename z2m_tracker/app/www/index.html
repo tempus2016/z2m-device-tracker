@@ -939,7 +939,7 @@
     removed: { get label() { return t("status.removed"); }, c: "var(--disabled)" },
   };
   const KIND_ICON = { offline: "wifi-off", silent: "wifi-off", late: "history", frozen: "thermometer", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
-    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb", slow_router: "router-wireless", maintenance_due: "calendar-clock", upgrade_worse: "update", slow_commands: "history", missed_commands: "gesture-tap-button", reporting_config: "tune", naming: "pencil" };
+    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb", slow_router: "router-wireless", maintenance_due: "calendar-clock", upgrade_worse: "update", slow_commands: "history", missed_commands: "gesture-tap-button", reporting_config: "tune", naming: "pencil", retained_command: "alert" };
   const EVENT_ICON = (k) => {
     if (k.startsWith("interview")) return k.endsWith("successful") ? ["check", "var(--success)"] : ["alert-circle", "var(--error)"];
     return ({ joined: ["plus", "var(--success)"], added: ["plus", "var(--success)"], rejoined: ["plus", "var(--success)"], online: ["wifi", "var(--success)"], offline: ["wifi-off", "var(--error)"],
@@ -1349,6 +1349,7 @@
     if (i.kind === "single_point") out.push(`<button class="btn" data-view="network/map">${th("common.map")}</button>`);
     if (i.kind === "reporting_config" && !(state.open === i.ieee && state.moreTab === "health")) out.push(`<button class="btn" data-act="open-health" data-ieee="${esc(i.ieee)}">${th("more.tab.health")}</button>`);
     if (i.kind === "router_hopping" && !(state.open === i.ieee && state.moreTab === "history")) out.push(`<button class="btn" data-act="open-history" data-ieee="${esc(i.ieee)}">${th("more.tab.history")}</button>`);
+    if (i.kind === "retained_command") out.push(`<button class="btn danger" data-act="retcmd-clear" data-ieee="${esc(i.ieee)}">${th("retcmd.clear")}</button>`);
     if (i.kind === "replacement" && d?.suggestions?.[0]) out.push(`<button class="btn" data-act="link" data-old="${esc(d.suggestions[0].ieee)}" data-new="${esc(i.ieee)}">${th("common.link")}</button>`);
     out.push(`<button class="btn" data-act="mute" data-ieee="${esc(i.ieee)}" data-kind="${esc(i.kind)}">${th("common.ignore")}</button>`);
     return out.join("");
@@ -3623,6 +3624,15 @@
         html: `<p>${th("ota.text1", { latest: esc(u.latest_version), installed: esc(u.installed_version) })}</p><p>${th("ota.text2")}</p>` });
       if (!ok) return;
       try { await api("api/ota", { ieee: d.ieee, action: "update" }); snack(t("ota.started")); load(); } catch (err) { snack(err.message, 5000); }
+    },
+    async "retcmd-clear"(b) {
+      const d = state.byIeee.get(b.dataset.ieee);
+      const i = (d?.issues || []).find((x) => x.kind === "retained_command");
+      const topics = i?.params?.topics || [];
+      const ok = await confirmDialog({ title: t("retcmd.confirm_title", { n: topics.length || 1 }), ok: t("retcmd.clear"), danger: true, filled: true,
+        html: `<p>${th("retcmd.confirm_text")}</p><p>${topics.map((x) => `<span class="mono">${esc(x)}</span>`).join("<br>")}</p>` });
+      if (!ok) return;
+      try { const r = await api("api/retained_command/clear", { ieee: b.dataset.ieee }); snack(t("retcmd.cleared", { n: r.cleared.length })); load(); } catch (err) { snack(err.message, 5000); }
     },
     async leftovers(b) {
       b.disabled = true; b.classList.add("busy");

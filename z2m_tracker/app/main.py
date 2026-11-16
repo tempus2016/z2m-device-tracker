@@ -694,7 +694,12 @@ def _internal_broker(host: str) -> bool:
     return "." not in host or host.endswith(".local.hass.io") or host.startswith("172.30.")
 
 
+# Publishes an empty retained message (deletes the topic on the broker). Set by start_mqtt.
+publish_retained = None
+
+
 def start_mqtt() -> mqtt.Client:
+    global publish_retained
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=f"z2m-tracker-{tracker.boot_id}")
     user = os.environ.get("MQTT_USER")
     if user:
@@ -725,7 +730,27 @@ def start_mqtt() -> mqtt.Client:
     client.connect_async(MQTT_HOST, MQTT_PORT, keepalive=60)
     client.loop_start()
     tracker.publish = lambda topic, payload: client.publish(topic, json.dumps(payload), qos=0)
+
+    def clear_topic(topic: str) -> bool:
+        return client.publish(topic, b"", qos=1, retain=True).rc == mqtt.MQTT_ERR_SUCCESS
+
+    publish_retained = clear_topic
     return client
+
+
+def clear_retained_commands(ieee: str) -> dict:
+    """Delete a device's retained /set topics from the broker with an empty retained message.
+    Only topics the broker replayed as retained commands for this device are touched."""
+    topics = tracker.retained_commands_of(ieee)
+    if not topics:
+        return {"ok": False, "error": "No retained command for this device", "cleared": []}
+    cleared = [topic for topic in topics if publish_retained is not None and publish_retained(topic)]
+    tracker.forget_retained_commands(cleared)
+    if cleared:
+        _LOGGER.info("Cleared retained command(s): %s", ", ".join(cleared))
+        tracker.evaluate_health()
+    ok = len(cleared) == len(topics)
+    return {"ok": ok, "topics": topics, "cleared": cleared, "error": None if ok else "MQTT is not connected"}
 
 
 # ------------------------------------------------------------------ threads
@@ -1635,6 +1660,9 @@ class Handler(BaseHTTPRequestHandler):
                     except Exception:  # noqa: BLE001 - the next refresh catches up
                         pass
                     self._json(200, result)
+            elif path == "/api/retained_command/clear":
+                result = clear_retained_commands(ieee)
+                self._json(200 if result["ok"] else 404 if "topics" not in result else 502, result)
             elif path == "/api/summary":
                 self._json(200, {"ok": True, **send_weekly_summary()})
             elif path == "/api/import":
