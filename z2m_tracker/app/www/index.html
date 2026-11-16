@@ -569,6 +569,38 @@
   .row.compact .state-ic { width: 32px; height: 32px; margin: 0 4px; }
   @media (max-width: 520px) { .members { padding-left: 16px; } }
   .adv > .btn { flex: none; margin-top: 4px; }
+  .whatif { margin: 12px 16px 0; border: 1px solid var(--divider); border-radius: 12px; padding: 4px 8px 10px; }
+  .wi-head { display: flex; gap: 14px; align-items: flex-start; padding: 8px 0; }
+  .wi-head .state-ic { width: 36px; height: 36px; flex: none; }
+  .wi-head .text { flex: 1; min-width: 0; padding-top: 6px; line-height: 1.5; overflow-wrap: anywhere; }
+  .wi-head > .btn { flex: none; margin-top: 4px; }
+  .wi-legend { padding: 0 8px 6px 50px; }
+  .map-legend b.dashed.wi { background: repeating-linear-gradient(90deg, var(--warning) 0 5px, transparent 5px 9px); }
+  .wi-list { padding: 4px 8px 0 50px; }
+  .wi-h { font-size: 12px; color: var(--text-2); padding: 6px 0 2px; }
+  .wi-row { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+  .wi-row i { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--warning); transform: translateY(-1px); }
+  .wi-row.orphan i { background: var(--error); }
+  .wi-row small { color: var(--text-2); }
+  .wi-note { font-size: 12px; color: var(--text-2); padding: 6px 8px 0 50px; line-height: 1.4; }
+  .advice > .wi-note { padding-left: 58px; }
+  @media (max-width: 600px) { .whatif { margin: 8px 8px 0; } .wi-head { gap: 10px; flex-wrap: wrap; } .wi-head .text { flex-basis: calc(100% - 50px); } .wi-head > .btn { margin-left: 46px; margin-top: 0; } .wi-legend, .wi-list, .wi-note { padding-left: 8px; } .advice > .wi-note { padding-left: 8px; } }
+  svg.map .wil line { stroke: var(--warning); stroke-width: 2.2; stroke-dasharray: 6 4; pointer-events: none; }
+  svg.map.wi-on .links line { opacity: 0.3; }
+  svg.map.wi-on .links line.wi-cut { opacity: 0.12; }
+  .mnode.wi-gone circle { fill: var(--disabled); stroke-dasharray: 3 2; }
+  .mnode.wi-move circle { fill: var(--warning); }
+  .mnode.wi-orphan circle { fill: var(--error); }
+  .mnode.wi-gone, .mnode.wi-move, .mnode.wi-orphan { opacity: 1; }
+  svg.map:not(.names-off) .mnode.wi-gone text.lbl, svg.map:not(.names-off) .mnode.wi-orphan text.lbl { display: block; }
+  .fp-lines path.wi-line { stroke-width: 2.2; opacity: 0.95; }
+  .fp.wi-on .fp-dev:not(.wi-gone):not(.wi-move):not(.wi-orphan) { opacity: 0.45; }
+  .fp-dev.wi-gone i { background: var(--disabled); box-shadow: 0 0 0 2px var(--card), 0 0 0 3px var(--text-2); }
+  .fp-dev.wi-gone span { text-decoration: line-through; color: var(--text-2); }
+  .fp-dev.wi-move i { background: var(--warning); }
+  .fp-dev.wi-orphan i { background: var(--error); box-shadow: 0 0 0 2px var(--card), 0 0 0 3px var(--error); }
+  .fp-area.suggest { border: 2px dashed var(--primary); }
+  .fp-flag.sug { color: var(--primary-text); }
   @media (max-width: 600px) { svg.map { height: 420px; } .map-info { position: static; width: auto; margin: 8px; } }
   .map-stage.fp-mode { overflow: visible; display: flex; align-items: flex-start; }
   .map-stage.fp-mode .map-info { order: 2; position: sticky; top: 8px; flex: none; width: 300px; margin: 12px 12px 12px 0; }
@@ -1580,11 +1612,66 @@
     return out.sort((a, b) => b.sev - a.sev);
   };
 
+  // ------------------------------------------------------------ what if a router goes (latest scan only)
+  // MAP.whatif[bt] = { ieee, busy, res, err }. The app works it out from the last scan (api/whatif).
+  MAP.whatif = {};
+  const wiResult = (bt) => { const w = MAP.whatif[bt]; return w?.res && !MAP.scanSel[bt] && w.res.scanned_at === state.data.networkmap?.[bt]?.scanned_at ? w.res : null; };
+  const wiMarks = (bt) => { const r = wiResult(bt); return r ? { gone: r.ieee, move: new Map(r.moves.map((m) => [m.ieee, m.to])), orphan: new Set(r.orphans.map((o) => o.ieee)) } : null; };
+  const wiSummary = (r, link) => {
+    const name = `<b>${esc(r.name)}</b>`;
+    const orphans = r.orphans.map((o) => link(o.ieee, o.name)).join(", ");
+    if (!r.moves.length && !r.orphans.length) return th("whatif.summary_none", { name });
+    if (!r.moves.length) return th("whatif.summary_orphans_only", { name, n: r.orphans.length, names: orphans }) + ".";
+    const to = r.targets.map((x) => th("whatif.summary_to", { n: x.count, name: esc(x.name) })).join(", ");
+    return th("whatif.summary_moves", { name, n: r.moves.length, to }) + (r.orphans.length ? `, ${th("whatif.summary_orphans", { n: r.orphans.length, names: orphans })}` : "") + ".";
+  };
+  const whatifHtml = (bt) => {
+    const w = MAP.whatif[bt];
+    if (!w) return "";
+    const d = state.byIeee.get(w.ieee), who = nameOf(d) || w.ieee;
+    const clear = `<button class="btn" data-act="whatif-clear" data-net="${esc(bt)}">${ic("close", "s18")}${th("whatif.clear")}</button>`;
+    if (w.busy) return `<div class="wi-head"><span class="state-ic" style="color:var(--info)">${ic("refresh")}</span><div class="text">${th("whatif.working", { name: esc(who) })}</div>${clear}</div>`;
+    if (w.err) return `<div class="wi-head"><span class="state-ic" style="color:var(--error)">${ic("alert-circle")}</span><div class="text">${th("whatif.failed", { error: esc(w.err) })}</div>${clear}</div>`;
+    const r = wiResult(bt);
+    if (!r) return `<div class="wi-head"><span class="state-ic" style="color:var(--info)">${ic("information-outline")}</span><div class="text">${th("whatif.latest_only")}</div>${clear}</div>`;
+    // Same label as the map: a device still named by its address shows as "Unnamed device".
+    const label = (ieee, name) => nameOf(state.byIeee.get(ieee)) || (!name || IEEE_RE.test(name) ? t("devices.unnamed") : name);
+    const link = (ieee, name) => `<a href="#${esc(ieee)}" data-mapsel="${esc(ieee)}" data-net="${esc(bt)}">${esc(label(ieee, name))}</a>`;
+    const why = (x) => `<small>${th(`whatif.reason.${x.reason}`)}</small>`;
+    return `<div class="wi-head"><span class="state-ic" style="color:${r.orphans.length ? "var(--error)" : r.moves.length ? "var(--warning)" : "var(--success)"}">${ic("lan-disconnect")}</span><div class="text">${wiSummary(r, link)}</div>${clear}</div>
+      <div class="map-legend wi-legend"><span><i style="background:var(--disabled)"></i>${th("whatif.legend_gone")}</span><span><i style="background:var(--warning)"></i>${th("whatif.legend_move")}</span><span><i style="background:var(--error)"></i>${th("whatif.legend_orphan")}</span><span><b class="dashed wi"></b>${th("whatif.legend_line")}</span></div>
+      ${r.orphans.length ? `<div class="wi-list"><div class="wi-h">${th("whatif.orphans")}</div>${r.orphans.map((o) => `<div class="wi-row orphan"><i></i><span>${link(o.ieee, o.name)} ${why(o)}</span></div>`).join("")}</div>` : ""}
+      ${r.moves.length ? `<div class="wi-list"><div class="wi-h">${th("whatif.moves")}</div>${r.moves.map((m) => `<div class="wi-row move"><i></i><span>${th("whatif.move_row", { device: link(m.ieee, m.name), to: link(m.to, m.to_name), lqi: esc(m.lqi) })} ${why(m)}</span></div>`).join("")}</div>` : ""}
+      <div class="wi-note">${th("whatif.note", { when: esc(fmtDate(r.scanned_at)) })}</div>`;
+  };
+  const updateWhatIf = (bt, scroll = false) => {
+    const box = document.getElementById(`whatif-${bt}`);
+    if (box) { box.innerHTML = whatifHtml(bt); box.hidden = !MAP.whatif[bt]; if (scroll && MAP.whatif[bt]) box.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+    MAP.sims[bt]?.whatif?.();
+  };
+
+  // ------------------------------------------------------------ where to add a router (scored by the app)
+  const placeReasons = (a) => [["weak", a.weak], ["no_backup", a.no_backup], ["hopping", a.hopping], ["unstable", a.unstable]].filter(([, n]) => n).map(([k, n]) => th(`place.${k}`, { n })).join(", ");
+  const placementHtml = (bt) => {
+    const p = state.data.router_placement?.[bt];
+    if (!p) return "";
+    const link = (x) => `<a href="#${esc(x.ieee)}" data-mapsel="${esc(x.ieee)}" data-net="${esc(bt)}">${esc(x.name)}</a>`;
+    const rows = p.areas.map((a, i) => `<div class="adv"><span class="state-ic" style="color:${i ? "var(--info)" : "var(--warning)"}">${ic("power-plug")}</span><div class="text">${th("place.line", { area: `<b>${esc(a.area)}</b>`, reasons: placeReasons(a), action: a.routers ? th("place.add_more", { n: a.routers }) : th("place.add") })}
+        <div class="t2">${th("place.devices", { names: a.devices.slice(0, 6).map(link).join(", ") + (a.devices.length > 6 ? "…" : "") })}</div></div></div>`).join("");
+    const none = p.areas.length ? "" : `<div class="adv"><span class="state-ic" style="color:var(--success)">${ic("check")}</span><div class="text">${th("place.none")}</div></div>`;
+    const noArea = p.no_area ? `<div class="wi-note">${th("place.no_area", { n: p.no_area })}</div>` : "";
+    return `<div class="sub-h">${th("place.title")}</div><div class="advice">${rows}${none}${noArea}<div class="wi-note">${th("place.note")}</div></div>`;
+  };
+  // Area name -> 1-based rank among the suggested areas, for the floor plan flags.
+  const placeRank = (bt) => new Map((state.data.router_placement?.[bt]?.areas || []).map((a, i) => [a.area, i + 1]));
+
   const renderMap = (force = false) => {
     const nm = state.data.networkmap || {};
     const sig = JSON.stringify(state.data.instances.map((bt) => [bt, nm[bt]?.scanned_at, nm[bt]?.running_since, MAP.scanSel[bt], MAP.cmpSel[bt], (MAP.hist[bt] || []).length, MAP.opts[bt]])) + MAP.allLinks + MAP.layout + !!FP.floors + PHONE();
     if (!force && MAP.rendered === sig && $("#view .map-card")) { refreshMapInfo(); return; }
     MAP.rendered = sig;
+    // A what-if belongs to one scan; a newer scan makes it stale.
+    Object.keys(MAP.whatif).forEach((bt) => { const r = MAP.whatif[bt].res; if (r && r.scanned_at !== nm[bt]?.scanned_at) delete MAP.whatif[bt]; });
     Object.values(MAP.sims).forEach((s) => s.stop());
     MAP.sims = {};
     if (MAP.layout === "floor") loadFloors();
@@ -1629,12 +1716,14 @@
             <span class="spacer"></span>
             ${legend}</div>`;
         return `<div class="card map-card" data-net="${esc(bt)}">${head}${tools}
-          ${MAP.layout === "floor" ? `<div class="map-stage fp-mode"><div class="map-info" id="mapinfo-${esc(bt)}" hidden></div>${FP.floors ? fpHtml(bt) : `<div class="card-content muted">${th("map.loading_floors")}</div>`}</div>` : `<div class="map-stage">${phone ? `<div class="map-ctl">${zoom}<button class="icon-btn" data-mapreset="${esc(bt)}" aria-label="${esc(t("map.reset"))}">${ic("refresh")}</button></div>` : ""}<svg class="map names-${MAP.names}" id="map-${esc(bt)}" role="group" aria-label="${esc(t("map.aria", { name: netLabel(bt) }))}"><g class="vp"><g class="links"></g><g class="nodes"></g></g></svg>
+          ${MAP.layout === "floor" ? `<div class="map-stage fp-mode"><div class="map-info" id="mapinfo-${esc(bt)}" hidden></div>${FP.floors ? fpHtml(bt) : `<div class="card-content muted">${th("map.loading_floors")}</div>`}</div>` : `<div class="map-stage">${phone ? `<div class="map-ctl">${zoom}<button class="icon-btn" data-mapreset="${esc(bt)}" aria-label="${esc(t("map.reset"))}">${ic("refresh")}</button></div>` : ""}<svg class="map names-${MAP.names}" id="map-${esc(bt)}" role="group" aria-label="${esc(t("map.aria", { name: netLabel(bt) }))}"><g class="vp"><g class="links"></g><g class="wil"></g><g class="nodes"></g></g></svg>
             <div class="map-info" id="mapinfo-${esc(bt)}" hidden></div></div>`}
+          <div class="whatif" id="whatif-${esc(bt)}" aria-live="polite" ${MAP.whatif[bt] ? "" : "hidden"}>${whatifHtml(bt)}</div>
           ${diff ? `<div class="map-legend" style="padding:8px 16px 0"><span><b style="background:var(--info);height:4px"></b>${th("map.changed_router")}</span><span><b style="background:var(--success);height:4px"></b>${th("map.stronger")}</span><span><b style="background:var(--error);height:4px"></b>${th("map.weaker")}</span><span><b style="background:var(--disabled)"></b>${th("map.unchanged")}</span></div>` : ""}
           ${changes}
           <div class="sub-h">${th("map.advice")}</div>
           <div class="advice">${advice.map((a) => `<div class="adv"><span class="state-ic" style="color:${a.sev >= 2 ? "var(--warning)" : a.sev === 1 ? "var(--info)" : "var(--success)"}">${ic(a.icon)}</span><div class="text">${a.text}</div>${a.action || ""}</div>`).join("")}</div>
+          ${placementHtml(bt)}
         </div>`;
       }).join("")}`;
     state.data.instances.forEach((bt) => { const svg = document.getElementById(`map-${bt}`); if (svg) MAP.sims[bt] = startSim(bt, svg); });
@@ -1656,7 +1745,7 @@
     box.innerHTML = `<div class="mi-head">${stateIc(d)}<div class="text"><b>${esc(nameOf(d) || (d.type === "Coordinator" ? t("map.coordinator") : d.ieee))}</b><small>${esc([d.area, typeLabel(d.type)].filter(Boolean).join(" · "))}</small></div><button class="icon-btn" data-mapclose="${esc(bt)}" aria-label="${esc(t("common.close"))}">${ic("close", "s20")}</button></div>
       ${kv([[d.type === "EndDevice" ? th("map.connects_through") : null, parent ? `${nameOf(parent) || parent.ieee} (LQI ${r.parent.lqi ?? "?"})` : d.type === "EndDevice" ? t("map.not_found") : null],
         [d.type !== "EndDevice" ? th("map.kids") : null, d.type !== "EndDevice" ? kids : null], [th("more.signal_24h"), lqiOf(d) === null ? null : Math.round(lqiOf(d))], [th("devices.col.status"), statusOf(d) !== "active" ? STATUS[statusOf(d)].label : warnings(d)[0] ? issueLabel(warnings(d)[0]) : STATUS.active.label]].filter(([k]) => k))}
-      ${d.type !== "Coordinator" ? `<div class="row-actions"><button class="btn" data-open="${esc(d.ieee)}">${th("map.open_details")}</button></div>` : ""}`;
+      ${d.type !== "Coordinator" ? `<div class="row-actions">${d.type === "Router" && !MAP.scanSel[bt] && r.scanned_at && r.scanned_at === state.data.networkmap?.[bt]?.scanned_at ? `<button class="btn" data-act="whatif" data-net="${esc(bt)}" data-ieee="${esc(d.ieee)}" aria-pressed="${MAP.whatif[bt]?.ieee === d.ieee}">${ic("lan-disconnect", "s18")}${th("whatif.button")}</button>` : ""}<button class="btn" data-open="${esc(d.ieee)}">${th("map.open_details")}</button></div>` : ""}`;
   };
 
   const startSim = (bt, svg) => {
@@ -1678,7 +1767,7 @@
     const byId = new Map(nodes.map((n) => [n.id, n]));
     if (!saved[devs.find((d) => d.type === "Coordinator")?.ieee]) { const c = nodes.find((n) => n.d.type === "Coordinator"); if (c) { c.x = W / 2; c.y = H / 2; } }
     const L = visibleLinks.map((l) => ({ ...l, s: byId.get(l.a), t: byId.get(l.b) })).filter((l) => l.s && l.t);
-    const vp = svg.querySelector(".vp"), gl = svg.querySelector(".links"), gn = svg.querySelector(".nodes");
+    const vp = svg.querySelector(".vp"), gl = svg.querySelector(".links"), gn = svg.querySelector(".nodes"), gw = svg.querySelector(".wil");
     const diff = mapDiff(bt);
     const diffCol = (l) => { const st = diff.status[[l.a, l.b].sort().join("|")]; return st === "moved" ? "var(--info)" : st === "better" ? "var(--success)" : st === "worse" ? "var(--error)" : "var(--disabled)"; };
     gl.innerHTML = L.map((l, i) => { const changed = diff && diff.status[[l.a, l.b].sort().join("|")]; return `<line data-i="${i}" stroke="${diff ? diffCol(l) : lqiCol(l.lqi)}" stroke-width="${changed ? 3 : l.parent ? 1.6 : 1.1}" ${l.parent ? "" : 'stroke-dasharray="5 4"'} opacity="${diff && !changed ? 0.35 : l.parent ? 0.85 : 0.6}"><title>LQI ${esc(l.lqi ?? "?")}</title></line>`; }).join("");
@@ -1688,11 +1777,30 @@
     let view = MAP.view?.[bt] || { k: 1, x: 0, y: 0 };
     const applyView = () => { vp.setAttribute("transform", `translate(${view.x} ${view.y}) scale(${view.k})`); svg.classList.toggle("zoomed", view.k >= 1.4); (MAP.view ||= {})[bt] = view; };
     applyView();
+    // What-if: the removed router greyed, devices that move amber with a dashed line to their likely new router, orphans red.
+    let wiL = [], wiEls = [];
+    const placeLine = (e, a, b) => { e.setAttribute("x1", a.x.toFixed(1)); e.setAttribute("y1", a.y.toFixed(1)); e.setAttribute("x2", b.x.toFixed(1)); e.setAttribute("y2", b.y.toFixed(1)); };
+    const applyWhatIf = () => {
+      const m = wiMarks(bt);
+      wiL = m ? [...m.move].map(([a, b]) => ({ s: byId.get(a), t: byId.get(b) })).filter((l) => l.s && l.t) : [];
+      gw.innerHTML = wiL.map((l) => `<line class="wi-line"><title>${esc(t("whatif.legend_line"))}</title></line>`).join("");
+      wiEls = [...gw.children];
+      wiL.forEach((l, i) => placeLine(wiEls[i], l.s, l.t));
+      svg.classList.toggle("wi-on", !!m);
+      nodes.forEach((n, i) => {
+        nodeEls[i].classList.toggle("wi-gone", m?.gone === n.id);
+        nodeEls[i].classList.toggle("wi-move", !!m?.move.has(n.id));
+        nodeEls[i].classList.toggle("wi-orphan", !!m?.orphan.has(n.id));
+      });
+      L.forEach((l, i) => lineEls[i].classList.toggle("wi-cut", !!m && (l.a === m.gone || l.b === m.gone)));
+    };
     const draw = () => {
-      L.forEach((l, i) => { const e = lineEls[i]; e.setAttribute("x1", l.s.x.toFixed(1)); e.setAttribute("y1", l.s.y.toFixed(1)); e.setAttribute("x2", l.t.x.toFixed(1)); e.setAttribute("y2", l.t.y.toFixed(1)); });
+      L.forEach((l, i) => placeLine(lineEls[i], l.s, l.t));
       nodes.forEach((n, i) => nodeEls[i].setAttribute("transform", `translate(${n.x.toFixed(1)} ${n.y.toFixed(1)})`));
+      wiL.forEach((l, i) => placeLine(wiEls[i], l.s, l.t));
       highlight();
     };
+    applyWhatIf();
     const highlight = () => {
       const sel = MAP.sel[bt];
       const near = new Set(sel ? L.filter((l) => l.a === sel || l.b === sel).flatMap((l) => [l.a, l.b]) : []);
@@ -1807,6 +1915,7 @@
       reset() { delete MAP.pos[bt]; delete MAP.view[bt]; renderMap(true); },
       select(id) { MAP.sel[bt] = id; highlight(); showMapInfo(bt); },
       filter() { highlight(); },
+      whatif() { applyWhatIf(); showMapInfo(bt); },
     };
   };
 
@@ -1899,13 +2008,16 @@
       const label = [fpName(d.ieee), d.type === "EndDevice" ? t("map.battery_device") : typeLabel(d.type), u ? t("map.fp_via", { name: fpName(u.to), lqi: u.lqi ?? "?" }) : !isCoord ? t("map.fp_not_scanned") : ""].filter(Boolean).join(" · ");
       return `<button class="fp-dev ${isCoord ? "coord" : d.type === "Router" ? "router" : "end"} ${!u && !isCoord ? "noscan" : ""} ${!isCoord && statusOf(d) !== "active" ? "offline" : ""}" data-fpdev="${esc(d.ieee)}" aria-label="${esc(label)}"><i style="--c:${isCoord ? "var(--text)" : u ? lqiCol(u.lqi) : "var(--disabled)"}"></i><span>${esc(fpName(d.ieee))}</span></button>`;
     };
+    const ranks = g.historic ? new Map() : placeRank(bt);
     const areaBox = (area, list) => {
+      const rank = area === noArea ? 0 : ranks.get(area) || 0;
       const linked = list.map((d) => up.get(d.ieee)).filter((u) => u && u.lqi !== null && u.lqi !== undefined);
       const weak = linked.length && linked.every((u) => u.lqi < 50);
       const via = weak && new Set(linked.map((u) => u.to)).size === 1 ? state.byIeee.get(linked[0].to) : null;
       const viaName = via ? (via.type === "Coordinator" ? t("map.fp_the_coordinator") : nameOf(via) || via.ieee) : "";
       list.sort((a, b) => (kindOrder[a.type] ?? 3) - (kindOrder[b.type] ?? 3) || collator.compare(nameOf(a) || "~", nameOf(b) || "~"));
-      return `<div class="fp-area ${weak ? "weak" : ""} ${area === noArea ? "none" : ""}" data-fparea="${esc(area === noArea ? "" : area)}"><div class="fp-area-h">${esc(area)}<span class="n">${list.length}</span></div>
+      return `<div class="fp-area ${weak ? "weak" : ""} ${rank ? "suggest" : ""} ${area === noArea ? "none" : ""}" data-fparea="${esc(area === noArea ? "" : area)}"><div class="fp-area-h">${esc(area)}<span class="n">${list.length}</span></div>
+        ${rank ? `<div class="fp-flag sug">${ic("power-plug", "s18")}${th("place.flag", { rank })}</div>` : ""}
         ${weak ? `<div class="fp-flag">${ic("alert", "s18")}${via ? th("map.fp_weak_via", { n: linked.length, name: esc(viaName) }) : th("map.fp_weak", { n: linked.length })}</div>` : ""}
         <div class="fp-devs">${list.map(devBtn).join("")}</div></div>`;
     };
@@ -1985,6 +2097,10 @@
         lines.filter((l) => l.b === sel).forEach((l) => (out += plain(l, "")));
         route.slice(0, -1).forEach((id) => { const l = lineFrom.get(id); if (l) out += path(l, "var(--primary)", "route", !l.parent, lqiTitle(l)); });
       }
+      const wi = wiMarks(bt);
+      if (wi) wi.move.forEach((to, id) => { if (pos.has(id) && pos.has(to)) out += path({ a: id, b: to }, "var(--warning)", "wi-line", true, t("whatif.legend_line")); });
+      root.classList.toggle("wi-on", !!wi);
+      els.forEach((el, id) => { el.classList.toggle("wi-gone", wi?.gone === id); el.classList.toggle("wi-move", !!wi?.move.has(id)); el.classList.toggle("wi-orphan", !!wi?.orphan.has(id)); });
       svg.innerHTML = out;
       els.forEach((el, id) => {
         el.classList.toggle("dim", !!sel && !onRoute.has(id) && !kids.has(id));
@@ -2028,7 +2144,7 @@
     showMapInfo(bt);
     return {
       stop() { if (ro) ro.disconnect(); else window.removeEventListener("resize", draw); },
-      zoom() {}, reset() {}, relayout: draw, paint,
+      zoom() {}, reset() {}, relayout: draw, paint, whatif() { paint(); showMapInfo(bt); },
       // Live updates between scans: only online/offline can change, so the dots are patched in place.
       refresh() { els.forEach((el, id) => { const d = state.byIeee.get(id); if (d && d.type !== "Coordinator") el.classList.toggle("offline", statusOf(d) !== "active"); }); },
       select(id) { MAP.sel[bt] = id; paint(); showMapInfo(bt); els.get(id)?.scrollIntoView({ block: "nearest" }); },
@@ -2316,6 +2432,7 @@
       d.can_ping && { k: "ping", a: `data-act="ping" data-ieee="${id}" ${PING.get(d.ieee)?.busy ? "disabled" : ""}`, i: "refresh", l: th("ping.button") },
       canReplace(d) && { k: "replace", a: `data-act="replace" data-ieee="${id}"`, i: "swap-horizontal", l: th("replace.button") },
       !gone && d.type === "EndDevice" && { k: "move", a: `data-act="move" data-ieee="${id}"`, i: "swap-horizontal", l: th("more.change_router") },
+      !gone && d.type === "Router" && d.routing?.scanned_at && d.routing.scanned_at === state.data.networkmap?.[d.instance]?.scanned_at && { k: "whatif", a: `data-act="whatif" data-ieee="${id}"`, i: "lan-disconnect", l: th("whatif.button") },
       d.model && d.supported !== false && { href: `https://www.zigbee2mqtt.io/devices/${encodeURIComponent(String(d.model).replace(/\//g, "_"))}.html" target="_blank" rel="noopener`, i: "information-outline", l: th("more.docs") },
       d.ha_device_id && { href: `/config/devices/device/${esc(d.ha_device_id)}" target="_top`, i: "home-assistant", l: th("more.device_page") },
       z2m && !gone && { href: `${esc(z2m)}" target="_top`, i: "zigbee", l: "Zigbee2MQTT" },
@@ -3369,6 +3486,27 @@
       <div class="more-body">${body}</div>${foot ? `<div class="rep-foot">${foot}</div>` : ""}`;
     dlg.querySelector(".more-body").scrollTop = r.step === 1 ? scroll : 0;
   };
+  // What-if buttons on the map and the device panel (helpers next to the map code).
+  Object.assign(actions, {
+    async whatif(b) {
+      const ieee = b.dataset.ieee, bt = b.dataset.net || state.byIeee.get(ieee)?.instance;
+      if (!ieee || !bt) return;
+      const job = { ieee, busy: true };
+      MAP.whatif[bt] = job;
+      const older = MAP.scanSel[bt] || MAP.cmpSel[bt];
+      if (older) { MAP.scanSel[bt] = null; MAP.cmpSel[bt] = null; delete (MAP.pos || {})[bt]; }
+      if (state.view !== "map") { if ($("#more").open) closeDevice(); go("map"); }
+      else if (older) renderMap(true);
+      updateWhatIf(bt, true);
+      let next;
+      try { next = { ieee, res: await api(`api/whatif?net=${encodeURIComponent(bt)}&ieee=${encodeURIComponent(ieee)}`) }; }
+      catch (err) { next = { ieee, err: err.message }; }
+      if (MAP.whatif[bt] !== job) return;
+      MAP.whatif[bt] = next;
+      updateWhatIf(bt, true);
+    },
+    "whatif-clear"(b) { delete MAP.whatif[b.dataset.net]; updateWhatIf(b.dataset.net); },
+  });
   Object.assign(actions, {
     replace(b) {
       const old = state.byIeee.get(b.dataset.ieee || state.open);
