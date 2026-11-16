@@ -175,7 +175,9 @@ async def _mute_device(hass: HomeAssistant, call: ServiceCall) -> None:
 
 async def _run_network_scan(hass: HomeAssistant, call: ServiceCall) -> None:
     tracker = _tracker(hass)
-    base_topic = (call.data.get("base_topic") or "").strip() or None
+    raw = call.data.get("base_topic") or ""
+    # A base topic may end in a space ("Z2MQTT "), so only trim when the exact text isn't a known topic.
+    base_topic = (raw if raw in tracker.base_topics else raw.strip()) or None
     if base_topic and base_topic not in tracker.base_topics:
         raise ServiceValidationError(
             translation_domain=DOMAIN,
