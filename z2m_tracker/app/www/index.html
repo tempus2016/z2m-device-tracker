@@ -441,6 +441,13 @@
   .mt-picks .chip { height: auto; min-height: 32px; padding: 4px 12px; text-align: start; white-space: normal; }
   .mt-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .lost-all { display: flex; justify-content: flex-end; padding: 0 16px 8px; }
+  .rpt { display: grid; gap: 4px; padding: 0 4px 8px; }
+  .rpt > div { padding: 8px 12px; border-radius: 12px; min-width: 0; }
+  .rpt .t1 { overflow-wrap: anywhere; }
+  .rpt .t2 { font-size: 13px; color: var(--text-2); overflow-wrap: anywhere; }
+  .rpt .alert { flex-wrap: wrap; margin-top: 6px; row-gap: 4px; }
+  .rpt .alert .body { flex: 1 1 60%; }
+  .rpt .alert .btn { margin-left: auto; }
   dialog.confirm { width: min(420px, calc(100vw - 32px)); }
   .confirm-body { padding: 24px 24px 0; }
   .confirm-body h2 { margin: 0 0 16px; font-size: 24px; font-weight: 400; }
@@ -863,14 +870,15 @@
     removed: { get label() { return t("status.removed"); }, c: "var(--disabled)" },
   };
   const KIND_ICON = { offline: "wifi-off", silent: "wifi-off", late: "history", frozen: "thermometer", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
-    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb", slow_router: "router-wireless", maintenance_due: "calendar-clock", upgrade_worse: "update", slow_commands: "history", missed_commands: "gesture-tap-button" };
+    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb", slow_router: "router-wireless", maintenance_due: "calendar-clock", upgrade_worse: "update", slow_commands: "history", missed_commands: "gesture-tap-button", reporting_config: "tune" };
   const EVENT_ICON = (k) => {
     if (k.startsWith("interview")) return k.endsWith("successful") ? ["check", "var(--success)"] : ["alert-circle", "var(--error)"];
     return ({ joined: ["plus", "var(--success)"], added: ["plus", "var(--success)"], rejoined: ["plus", "var(--success)"], online: ["wifi", "var(--success)"], offline: ["wifi-off", "var(--error)"],
       left: ["minus", "var(--warning)"], removed: ["delete", "var(--text-2)"], renamed: ["pencil", "var(--state-icon)"], "model changed": ["swap-horizontal", "var(--state-icon)"], moved: ["swap-horizontal", "var(--state-icon)"],
       linked: ["link-variant", "var(--state-icon)"], replaced: ["swap-horizontal", "var(--state-icon)"], "replaced by": ["swap-horizontal", "var(--text-2)"], reconfigured: ["refresh", "var(--success)"], "reconfigure failed": ["refresh", "var(--error)"], "battery replaced": ["battery-sync", "var(--success)"], "maintenance done": ["calendar-clock", "var(--success)"],
       "update available": ["chip", "var(--info)"], "routing scanned": ["sitemap", "var(--state-icon)"],
-      "binding added": ["link-variant", "var(--success)"], "binding restored": ["link-variant", "var(--success)"], "binding removed": ["link-variant", "var(--error)"], unbound: ["link-variant", "var(--text-2)"], "binding change accepted": ["check", "var(--text-2)"], "settings changed": ["cog", "var(--state-icon)"] })[k] || ["information-outline", "var(--text-2)"];
+      "binding added": ["link-variant", "var(--success)"], "binding restored": ["link-variant", "var(--success)"], "binding removed": ["link-variant", "var(--error)"], unbound: ["link-variant", "var(--text-2)"], "binding change accepted": ["check", "var(--text-2)"],
+      "reporting changed": ["tune", "var(--success)"], "reporting change failed": ["tune", "var(--error)"], "settings changed": ["cog", "var(--state-icon)"] })[k] || ["information-outline", "var(--text-2)"];
   };
 
   const $ = (s) => document.querySelector(s);
@@ -1243,6 +1251,7 @@
       return out.join("");
     }
     if (i.kind === "single_point") out.push(`<button class="btn" data-view="map">${th("common.map")}</button>`);
+    if (i.kind === "reporting_config" && !(state.open === i.ieee && state.moreTab === "health")) out.push(`<button class="btn" data-act="open-health" data-ieee="${esc(i.ieee)}">${th("more.tab.health")}</button>`);
     if (i.kind === "router_hopping" && !(state.open === i.ieee && state.moreTab === "history")) out.push(`<button class="btn" data-act="open-history" data-ieee="${esc(i.ieee)}">${th("more.tab.history")}</button>`);
     if (i.kind === "replacement" && d?.suggestions?.[0]) out.push(`<button class="btn" data-act="link" data-old="${esc(d.suggestions[0].ieee)}" data-new="${esc(i.ieee)}">${th("common.link")}</button>`);
     out.push(`<button class="btn" data-act="mute" data-ieee="${esc(i.ieee)}" data-kind="${esc(i.kind)}">${th("common.ignore")}</button>`);
@@ -2750,6 +2759,7 @@
       ${outages.length ? `<div class="rep-list">${outages.map((o) => { const s = (new Date(o.end || Date.now()) - new Date(o.start)) / 1000; return `<div><span>${esc(fmtDate(o.start))}</span><span class="muted">${o.end ? esc(span(s)) : th("dhealth.ongoing", { duration: esc(span(s)) })}</span></div>`; }).join("")}</div>` : `<div class="card-content muted">${th(d.availability ? "dhealth.no_outages" : "dhealth.no_outages_no_avail")}</div>`}
       ${reportEvery(d)}
       ${cmdSection(d)}
+      ${reportingSection(d)}
       <div class="sub-h">${th("dhealth.readings")}</div>
       ${readings.length ? `<div class="rep-list">${readings.map(([k, r]) => `<div><span>${esc(readingName(k))}: ${esc(r.value)}</span><span class="muted">${th("dhealth.changed", { when: esc(relTime(r.changed_at, true)), n: esc(r.reports) })}</span></div>`).join("")}</div>` : `<div class="card-content muted">${th("dhealth.no_readings")}</div>`}
       ${limitsHtml(d, readings.length > 0)}
@@ -2787,6 +2797,37 @@
       : [row(th("timing.z2m_timeout"), th("timing.not_tracked")), row(th("timing.alert", { name: th("check.silent.label") }), th("timing.after", { time: esc(span(ot.steps.find((s) => s.kind === "silent").at)) }), true)];
     if (late) rows.push(row(th("timing.alert", { name: th("check.late.label") }), th("timing.after", { time: esc(span(late.at)) }), true));
     return `<div class="sub-h">${th("timing.title")}</div>${steps}<div class="kv">${rows.join("")}</div><p class="tnote">${th(ot.tracked ? "timing.hint" : "timing.hint_off")}</p>`;
+  };
+
+  // Attribute reporting Zigbee2MQTT set up (health.py / reporting.py audit it); bad ones get a warning and a fix.
+  const RPT_NEVER = 65535;
+  // Exact when it divides evenly, otherwise rounded like elsewhere (62000 s reads "17 h").
+  const rptDur = (s) => (s < 120 ? t("unit.seconds", { n: s }) : s % 3600 === 0 ? t("unit.hours", { n: s / 3600 }) : s % 60 === 0 && s < 7200 ? t("unit.minutes", { n: s / 60 }) : span(s));
+  const rptName = (r) => (r.key ? tx(`reporting.attr.${r.key}`, null, r.label) : r.label || `${r.cluster} ${r.attribute}`);
+  const rptWords = (r, v = r) => {
+    const parts = [];
+    if (typeof v.min === "number") parts.push(v.min === 0 ? t("reporting.min_any") : t("reporting.min", { every: rptDur(v.min) }));
+    if (typeof v.max === "number") parts.push(v.max === RPT_NEVER ? t("reporting.max_never") : v.max === 0 ? t("reporting.max_change_only") : t("reporting.max", { every: rptDur(v.max) }));
+    if (typeof v.change === "number") parts.push(v.change === 0 ? t("reporting.change_any") : t("reporting.change", { amount: `${Number((v.change * (r.scale || 1)).toPrecision(6))}${r.unit ? ` ${r.unit}` : ""}` }));
+    return parts.length ? parts.join(", ") : t("reporting.no_details");
+  };
+  const reportingSection = (d) => {
+    const a = d.reporting_audit;
+    if (!a || d.type === "Coordinator") return "";
+    const active = d.status === "active";
+    const eps = new Set([...a.items, ...a.missing].map((r) => r.ep));
+    const where = (r) => (eps.size > 1 || r.ep !== "1" ? ` <span class="muted">· ${th("bindings.endpoint", { ep: esc(r.ep) })}</span>` : "");
+    const ident = (r) => `data-ieee="${esc(d.ieee)}" data-ep="${esc(r.ep)}" data-cluster="${esc(r.cluster)}" data-attribute="${esc(r.attribute)}"`;
+    const warn = (body, btn) => `<div class="alert" style="--a:var(--warning)">${ic("alert")}<div class="body">${body}</div>${btn}</div>`;
+    const rows = a.items.map((r) => `<div><div class="t1">${esc(rptName(r))}${where(r)}</div><div class="t2">${esc(rptWords(r))}</div>${r.rule
+      ? warn(`<b>${th(`reporting.rule.${r.rule}`)}</b> ${th(`reporting.why.${r.rule}`)}${r.recommended ? ` ${th("reporting.recommended", { values: esc(rptWords(r, r.recommended)) })}` : ""}`,
+        active && r.recommended ? `<button class="btn" data-act="reporting-fix" ${ident(r)}>${ic("tune", "s18")}${th("reporting.use_recommended")}</button>` : "")
+      : ""}</div>`);
+    const missing = a.missing.map((r) => `<div><div class="t1">${esc(rptName(r))}${where(r)}</div><div class="t2">${th("reporting.not_set")}</div>${warn(`<b>${th("reporting.rule.never")}</b> ${th("reporting.why.missing")}`,
+      active ? `<button class="btn" data-act="reconfigure" data-ieee="${esc(d.ieee)}">${ic("refresh", "s18")}${th("common.reconfigure")}</button>` : "")}</div>`);
+    const body = rows.length || missing.length ? `<div class="rpt">${rows.join("")}${missing.join("")}</div>` : `<div class="card-content muted">${th("reporting.none")}</div>`;
+    const backed = a.confirmed ? `<p class="tnote">${th("reporting.confirmed", { n: esc(a.rate) })}</p>` : "";
+    return `<div class="sub-h">${th("reporting.title")}</div>${body}${backed}`;
   };
 
   // Per-device "should report at least every" interval; stored in seconds, edited as a number + unit.
@@ -3152,7 +3193,7 @@
 
   // A refresh redraws the view. Remember which control had keyboard focus so it can be focused again,
   // instead of focus dropping to the top of the page every minute.
-  const FOCUS_ATTRS = ["data-open", "data-act", "data-ieee", "data-view", "data-chip", "data-sort", "data-kind", "data-tab", "data-carry", "data-bt", "data-net", "data-type", "data-delta", "data-jump", "data-bulk", "data-n", "data-mode", "data-inc"];
+  const FOCUS_ATTRS = ["data-open", "data-act", "data-ieee", "data-view", "data-chip", "data-sort", "data-kind", "data-tab", "data-carry", "data-bt", "data-net", "data-type", "data-delta", "data-jump", "data-bulk", "data-n", "data-mode", "data-inc", "data-ep", "data-cluster", "data-attribute"];
   const focusKey = (el) => {
     if (!el || el === document.body || el === document.documentElement) return null;
     if (el.id) return `#${CSS.escape(el.id)}`;
@@ -3214,6 +3255,20 @@
       b.disabled = true; b.classList.add("busy");
       snack(t("reconfigure.running", { name: nameOf(d) || ieee }), 8000);
       try { await api("api/reconfigure", { ieee }); snack(t("reconfigure.done")); } catch (err) { snack(t("reconfigure.failed", { error: err.message }), 5000); }
+      b.disabled = false; b.classList.remove("busy"); load();
+    },
+    async "reporting-fix"(b) {
+      const { ieee, ep, cluster, attribute } = b.dataset, d = state.byIeee.get(ieee);
+      const r = (d?.reporting_audit?.items || []).find((x) => x.ep === ep && x.cluster === cluster && x.attribute === attribute);
+      if (!r?.recommended) { snack(t("reporting.gone")); return; }
+      const rec = r.recommended;
+      const battery = d?.power_source === "Battery" || typeof d?.battery === "number";
+      const ok = await confirmDialog({ title: t("reporting.fix_title", { name: rptName(r) }), ok: t("reporting.use_recommended"), filled: true,
+        html: `<p>${th("reporting.fix_text", { name: esc(nameOf(d) || ieee) })}</p><div class="facts">${th("reporting.now", { values: esc(rptWords(r)) })}<br>${th("reporting.new", { values: esc(rptWords(r, rec)) })}</div>${statusOf(d) === "offline" ? `<div class="alert" style="--a:var(--error)">${ic("wifi-off")}<div class="body">${th("reconfigure.offline", { when: esc(relTime(d.last_seen, true)) })}</div></div>` : ""}${battery ? `<div class="alert" style="--a:var(--warning)">${ic("alert")}<div class="body">${th("reconfigure.battery")}</div></div>` : ""}` });
+      if (!ok) return;
+      b.disabled = true; b.classList.add("busy");
+      snack(t("reporting.sending", { name: rptName(r) }), 30000);
+      try { await api("api/reporting", { ieee, ep, cluster, attribute, min: rec.min, max: rec.max, change: rec.change }); snack(t("reporting.done")); } catch (err) { snack(t("reporting.failed", { error: err.message }), 6000); }
       b.disabled = false; b.classList.remove("busy"); load();
     },
     async "restore-bindings"(b) {
@@ -3799,6 +3854,7 @@
     "rep-back"() { const r = state.replace; if (r && r.step > 1 && !r.busy) { r.step -= 1; renderReplace(); } },
     "rep-next"() { const r = state.replace; if (!r || (r.step === 1 && !r.new)) return; r.step = Math.min(3, r.step + 1); renderReplace(); },
     "open-history"(b) { state.moreTab = "history"; openDevice(b.dataset.ieee, "history"); },
+    "open-health"(b) { state.moreTab = "health"; openDevice(b.dataset.ieee, "health"); },
     "rep-open"(b) { $("#replaceDlg").close(); openDevice(b.dataset.ieee, "history"); },
     async "rep-apply"() {
       const r = state.replace; if (!r || r.busy) return;

@@ -7,6 +7,10 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
+from reporting import audit as reporting_audit
+from reporting import findings as reporting_findings
+from reporting import summary_text as reporting_summary
+
 WARNING = "warning"
 INFO = "info"
 
@@ -172,6 +176,12 @@ CHECKS = [
         "A maintenance task set on the device (such as testing a smoke alarm) is past its due date.",
         False,
     ),
+    (
+        "reporting_config",
+        "Reporting settings",
+        "A device's attribute reporting is set to drain its battery, flood the mesh, or never report a measurement.",
+        False,
+    ),
     ("joined", "Device joined", "A device joins one of your networks.", True),
     ("left", "Device left", "A device leaves one of your networks.", True),
     ("interview_failed", "Interview failed", "A newly joined device couldn't be identified.", True),
@@ -217,6 +227,7 @@ KIND_LABELS = {
     "group_member_offline": "Group members offline",
     "maintenance_due": "Maintenance overdue",
     "upgrade_worse": "Worse since upgrade",
+    "reporting_config": "Reporting settings",
 }
 
 
@@ -880,6 +891,31 @@ def device_issues(
             missed=missed_cmd["missed"],
             n=missed_cmd["n"],
             percent=missed_cmd["percent"],
+        )
+    battery = summary.get("battery_device")
+    if battery is None:
+        battery = record.get("power_source") == "Battery" or _finite(record.get("battery"))
+    result = reporting_audit(
+        record.get("reportings"),
+        record.get("reporting_inputs"),
+        record.get("features"),
+        bool(battery),
+        summary.get("msg_rate_6h") if _finite(summary.get("msg_rate_6h")) else None,
+    )
+    found = reporting_findings(result)
+    if found:
+        names = reporting_summary(found)
+        n = len(found)
+        backed = f" It sent about {result['rate']} messages an hour over the last 6 h." if result["confirmed"] else ""
+        add(
+            "reporting_config",
+            INFO,
+            "Reporting settings",
+            f"{n} reporting setting{'s' if n != 1 else ''} to check: {names}.{backed} The device's Health tab has recommended values.",
+            "reporting_config_rate" if backed else "reporting_config",
+            n=n,
+            names=names,
+            rate=result["rate"],
         )
 
     for suggestion in suggestions:

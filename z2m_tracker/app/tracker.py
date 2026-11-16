@@ -40,6 +40,10 @@ from history_import import IEEE_RE, _features, collect_history
 from incidents import build_incidents
 from metrics import Metrics
 from reliability import model_reliability
+from reporting import audit as reporting_audit
+from reporting import clean as clean_reportings
+from reporting import describe as describe_reporting
+from reporting import slim as slim_reportings
 from upgrade_impact import (
     ISSUE_MAX_DAYS,
     ISSUE_MIN_DAYS,
@@ -341,6 +345,18 @@ def _clean_record(record: dict) -> dict:
         if not isinstance(record.get(key), list):
             record[key] = []
     record["maintenance"] = _clean_tasks(record.get("maintenance"))
+    if "reportings" in record:
+        record["reportings"] = clean_reportings(record["reportings"])
+    inputs = record.get("reporting_inputs")
+    record["reporting_inputs"] = (
+        {
+            str(ep)[:64]: [c for c in clusters if isinstance(c, str)][:20]
+            for ep, clusters in inputs.items()
+            if isinstance(clusters, list)
+        }
+        if isinstance(inputs, dict)
+        else {}
+    )
     if record.get("instance") is not None and not isinstance(record["instance"], str):
         record["instance"] = None
     if record.get("status") not in (STATUS_ACTIVE, STATUS_REMOVED):
@@ -472,6 +488,8 @@ def _new_record(ieee: str, instance: str | None) -> dict[str, Any]:
         "battery_info": {},
         "bindings": None,
         "lost_bindings": [],
+        "reportings": None,
+        "reporting_inputs": {},
         "z2m_stats": None,
         "maintenance": [],
     }
@@ -1027,6 +1045,8 @@ class Tracker:
                 self.addresses[ieee] = address
             if self._update_bindings(base_topic, record, device, name, now, tracking_already):
                 changed = True
+            if self._update_reportings(record, device):
+                changed = True
             record["last_listed"] = now
             if "Z2M live" not in record["sources"]:
                 record["sources"].append("Z2M live")
@@ -1291,6 +1311,100 @@ class Tracker:
                         )
                 del lost[: max(0, len(lost) - 50)]
         return True
+
+    # ------------------------------------------------------------- reporting
+
+    def _update_reportings(self, record: dict, device: dict) -> bool:
+        """Keep a slim copy of the device's configured reportings. True when it changed."""
+        if record.get("type") == "Coordinator":
+            return False
+        interview = record.get("interview_state")
+        if interview and interview != "SUCCESSFUL":
+            return False
+        found = slim_reportings(device)
+        if found is None:
+            return False
+        items, inputs = found
+        if record.get("reportings") == items and record.get("reporting_inputs") == inputs:
+            return False
+        record["reportings"] = items
+        record["reporting_inputs"] = inputs
+        return True
+
+    def reporting_audit(self, record: dict, rate: float | None) -> dict | None:
+        """The reporting rules applied to one device, rate = its messages an hour over 6 h (caller holds the lock)."""
+        return reporting_audit(
+            record.get("reportings"),
+            record.get("reporting_inputs"),
+            record.get("features"),
+            self.is_battery_device(record),
+            rate,
+        )
+
+    def configure_reporting(self, ieee: str, fix: dict) -> dict:
+        """Send bridge/request/device/configure_reporting for one reporting Zigbee2MQTT listed for the device.
+
+        fix comes from reporting.clean_fix: {ep, cluster, attribute, min, max, change}.
+        """
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            if record is None:
+                return {"ok": False, "error": "Unknown device", "reason": "unknown"}
+            if record["status"] != STATUS_ACTIVE or not record.get("instance"):
+                return {"ok": False, "error": "Device is not active in Zigbee2MQTT", "reason": "invalid"}
+            match = next(
+                (
+                    item
+                    for item in record.get("reportings") or []
+                    if (item["ep"], item["cluster"], item["attribute"]) == (fix["ep"], fix["cluster"], fix["attribute"])
+                ),
+                None,
+            )
+            if match is None:
+                return {
+                    "ok": False,
+                    "error": "Zigbee2MQTT doesn't list that reporting setting for this device",
+                    "reason": "invalid",
+                }
+            base_topic = record["instance"]
+            name = record.get("friendly_name")
+        payload = {
+            "id": ieee,
+            "endpoint": int(fix["ep"]) if fix["ep"].isdigit() else fix["ep"],
+            "cluster": fix["cluster"],
+            "attribute": fix["attribute"],
+            "minimum_report_interval": fix["min"],
+            "maximum_report_interval": fix["max"],
+            "reportable_change": fix["change"],
+        }
+        result = self.request(base_topic, "device/configure_reporting", payload, timeout=30)
+        ok = bool(result and result.get("status") == "ok")
+        raw = None if ok else ((result or {}).get("error") or "No response from Zigbee2MQTT")
+        error = None if ok else friendly_z2m_error(raw)
+        new = {**match, "min": fix["min"], "max": fix["max"], "change": fix["change"]}
+        where = f" (endpoint {fix['ep']})" if fix["ep"] != "1" else ""
+        with self.lock:
+            rec = self.data["devices"].get(ieee)
+            if ok and rec is not None:
+                for item in rec.get("reportings") or []:
+                    if (item["ep"], item["cluster"], item["attribute"]) == (
+                        fix["ep"],
+                        fix["cluster"],
+                        fix["attribute"],
+                    ):
+                        item.update(min=fix["min"], max=fix["max"], change=fix["change"])
+            self._add_event(
+                _now(),
+                base_topic,
+                ieee,
+                name,
+                "reporting changed" if ok else "reporting change failed",
+                f"{describe_reporting(new)}{where}" if ok else f"{describe_reporting(match)}{where}: {error}",
+            )
+            self._changed(structural=True)
+        if ok:
+            self.evaluate_health()
+        return {"ok": ok, "error": error, "detail": raw, "reason": None if ok else "z2m"}
 
     def acknowledge_bindings(self, ieee: str) -> bool:
         with self.lock:
@@ -2421,6 +2535,7 @@ class Tracker:
                 "leaves_24h": leaves.get(ieee, 0),
                 "started": self.started,
                 "network_down": record.get("instance") in down,
+                "battery_device": self.is_battery_device(record),
             }
             parent = (record.get("routing") or {}).get("parent") or {}
             if parent.get("ieee"):
@@ -2621,6 +2736,7 @@ class Tracker:
                     record, (bridge_info.get("info") or {}).get("availability"), self.options, now
                 )
                 item["can_ping"] = self.can_ping(record) is None
+                item["reporting_audit"] = self.reporting_audit(record, item["metrics"].get("msg_rate_6h"))
                 devices.append(item)
             payload = {
                 "devices": devices,
