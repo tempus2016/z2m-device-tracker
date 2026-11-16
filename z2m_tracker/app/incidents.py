@@ -41,8 +41,11 @@ from typing import Any
 
 GAP = 600
 NETWORK_WIDE_SECONDS = 60
-# Power loss: mains devices in one area dropping within this many seconds of each other.
-POWER_WINDOW = 60
+# Power loss: mains devices in one area dropping within this many seconds of each other. Zigbee2MQTT
+# notices a mains device has gone by pinging it once it has been quiet for its availability timeout
+# (10 minutes by default), so devices that lost power at the same moment are marked offline up to that
+# long apart. The window covers the default timeout plus a minute.
+POWER_WINDOW = 660
 POWER_MIN_DEVICES = 3
 # All of them back within this many seconds of each other counts as "came back together".
 POWER_BACK_WINDOW = 300
