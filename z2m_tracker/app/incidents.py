@@ -24,9 +24,14 @@ Likely cause (first rule that matches)
 2. A router in the incident went down no later than the devices behind it (its parent chain in
    the last routing scan that saw them) and at least one of them followed: "router_offline",
    naming the router with the most devices behind it.
-3. No router explains it, and 3 or more devices dropped within NETWORK_WIDE_SECONDS of the
+3. Power loss in one Home Assistant area: POWER_MIN_DEVICES or more mains devices in the same area
+   went offline within POWER_WINDOW seconds of each other, and at least one battery device in that
+   area did not drop in the incident (so the mesh was fine and the mains power wasn't): "power_loss",
+   with `power` = {area, n, seconds, back_together}. A router outage (rule 2) still wins when the
+   router and the devices behind it cover every mains device that dropped in that area.
+4. No router explains it, and 3 or more devices dropped within NETWORK_WIDE_SECONDS of the
    incident's start through 2 or more different parents: "network_wide".
-4. Otherwise "unknown".
+5. Otherwise "unknown".
 """
 
 from __future__ import annotations
@@ -36,6 +41,11 @@ from typing import Any
 
 GAP = 600
 NETWORK_WIDE_SECONDS = 60
+# Power loss: mains devices in one area dropping within this many seconds of each other.
+POWER_WINDOW = 60
+POWER_MIN_DEVICES = 3
+# All of them back within this many seconds of each other counts as "came back together".
+POWER_BACK_WINDOW = 300
 MIN_DEVICES = 3
 MAX_INCIDENTS = 50
 MAX_INCIDENT_EVENTS = 200
@@ -82,9 +92,72 @@ def _back_now(ieee: str, devices: dict[str, dict]) -> bool:
     return record.get("status") == "active" and record.get("availability") != "offline"
 
 
-def _cause(inc: dict, devices: dict[str, dict]) -> tuple[str, dict | None]:
+def is_battery(record: dict) -> bool:
+    return (
+        record.get("power_source") == "Battery"
+        or isinstance(record.get("battery"), (int, float))
+        or bool((record.get("battery_info") or {}).get("type"))
+    )
+
+
+def is_mains(record: dict) -> bool:
+    if record.get("type") == "Router":
+        return True
+    source = str(record.get("power_source") or "")
+    return bool(source) and source not in ("Battery", "Unknown") and not is_battery(record)
+
+
+def _power_loss(inc: dict, devices: dict[str, dict]) -> dict | None:
+    """The area where POWER_MIN_DEVICES+ mains devices dropped together while its battery devices stayed up."""
+    members = inc["devices"]
+    by_area: dict[str, list[tuple[float, str]]] = {}
+    for ieee, member in members.items():
+        record = devices.get(ieee) or {}
+        area = record.get("area")
+        if area and "offline" in member["kinds"] and is_mains(record):
+            by_area.setdefault(str(area), []).append((member["first"], ieee))
+    best: dict | None = None
+    for area, drops in by_area.items():
+        if len(drops) < POWER_MIN_DEVICES:
+            continue
+        drops.sort()
+        cluster: list[tuple[float, str]] = []
+        start = 0
+        for end in range(len(drops)):
+            while drops[end][0] - drops[start][0] > POWER_WINDOW:
+                start += 1
+            if end - start + 1 > len(cluster):
+                cluster = drops[start : end + 1]
+        if len(cluster) < POWER_MIN_DEVICES:
+            continue
+        batteries = [
+            ieee
+            for ieee, record in devices.items()
+            if record.get("area") == area
+            and record.get("status") == "active"
+            and record.get("type") != "Coordinator"
+            and is_battery(record)
+            and "offline" not in (members.get(ieee) or {}).get("kinds", [])
+        ]
+        if not batteries:
+            continue
+        backs = [members[ieee].get("back_ts") for _ts, ieee in cluster]
+        together = all(b is not None for b in backs) and max(backs) - min(backs) <= POWER_BACK_WINDOW
+        found = {
+            "area": area,
+            "n": len(cluster),
+            "seconds": round(cluster[-1][0] - cluster[0][0]),
+            "back_together": together,
+            "ieees": [ieee for _ts, ieee in cluster],
+        }
+        if best is None or found["n"] > best["n"]:
+            best = found
+    return best
+
+
+def _cause(inc: dict, devices: dict[str, dict]) -> tuple[str, dict | None, dict | None]:
     if inc["network_level"]:
-        return "z2m_down", None
+        return "z2m_down", None, None
     members = inc["devices"]
     routers = [i for i in members if (devices.get(i) or {}).get("type") == "Router"]
     best: tuple[int, str] | None = None
@@ -96,14 +169,20 @@ def _cause(inc: dict, devices: dict[str, dict]) -> tuple[str, dict | None]:
         ]
         if followers and (best is None or len(followers) > best[0]):
             best = (len(followers), router)
+    power = _power_loss(inc, devices)
     if best:
         router = best[1]
-        return "router_offline", {"ieee": router, "name": members[router]["name"]}
+        covered = {router} | {i for i in members if i != router and router in _chain(i, devices)}
+        if power is None or set(power["ieees"]) <= covered:
+            return "router_offline", {"ieee": router, "name": members[router]["name"]}, None
+    if power:
+        power.pop("ieees")
+        return "power_loss", None, power
     early = [i for i, m in members.items() if m["first"] - inc["start_ts"] <= NETWORK_WIDE_SECONDS]
     parents = {_parent(devices.get(i)) for i in early}
     if len(early) >= MIN_DEVICES and len(parents) >= 2:
-        return "network_wide", None
-    return "unknown", None
+        return "network_wide", None, None
+    return "unknown", None, None
 
 
 def build_incidents(
@@ -163,6 +242,7 @@ def build_incidents(
                 if kind not in member["kinds"]:
                     member["kinds"].append(kind)
                 member["down"] = True
+                member.pop("back_ts", None)
                 member["name"] = member["name"] or event.get("name")
             _add(inc, event)
         elif kind == NETWORK_RECOVERY:
@@ -176,6 +256,7 @@ def build_incidents(
                 member = inc["devices"].get(ieee)
                 if member and member["down"] and ts - inc["last_problem_ts"] <= RECOVERY_WINDOW:
                     member["down"] = False
+                    member["back_ts"] = ts
                     _add(inc, event)
                     break
         # Old candidates can no longer take recovery events; drop them so the lookups stay short.
@@ -212,7 +293,7 @@ def _finish(inc: dict, devices: dict[str, dict], bridges: dict[str, dict]) -> di
         )
     network_down = inc["network_down"] and (bridges.get(inc["instance"]) or {}).get("state") == "offline"
     ongoing = network_down or any(not row["back"] and _still_down(row["ieee"], devices) for row in rows)
-    cause, router = _cause(inc, devices)
+    cause, router, power = _cause(inc, devices)
     return {
         "id": f"{inc['instance']}|{inc['start']}",
         "instance": inc["instance"],
@@ -222,6 +303,7 @@ def _finish(inc: dict, devices: dict[str, dict], bridges: dict[str, dict]) -> di
         "ongoing": ongoing,
         "cause": cause,
         "router": router,
+        "power": power,
         "network_level": inc["network_level"],
         "affected": len(rows),
         "recovered": sum(1 for row in rows if row["back"]),

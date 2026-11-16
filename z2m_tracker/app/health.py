@@ -7,6 +7,7 @@ import re
 from datetime import datetime, timezone
 from typing import Any
 
+from incidents import POWER_MIN_DEVICES, POWER_WINDOW, is_battery, is_mains
 from reporting import audit as reporting_audit
 from reporting import findings as reporting_findings
 from reporting import summary_text as reporting_summary
@@ -1013,6 +1014,91 @@ def group_router_outages(issues: list[dict], devices: dict[str, dict], options: 
         issue["devices"] = [i["ieee"] for i in behind]
 
 
+def group_power_loss(issues: list[dict], devices: dict[str, dict], options: dict, now: float) -> None:
+    """Fold the offline issues of mains devices in one area that dropped together into one issue.
+
+    POWER_MIN_DEVICES or more mains devices in the same Home Assistant area, offline now, that went
+    offline within POWER_WINDOW seconds of each other while at least one battery device in that area is
+    still online: most likely the power there went off, not the mesh. Runs after group_router_outages,
+    so devices already folded into a router's issue (and the router issues themselves) are left out:
+    the router grouping wins. Counts from the moment the devices drop, before their offline delay
+    passes, like the router grouping. The device that dropped first leads: its issue gets
+    `power_area`, `power_devices` and the "Power loss in <area>?" text; the others get `behind` = it,
+    so they don't alert on their own and the sidebar nests them. Changes the issues in place.
+    """
+    if "offline" in set(options.get("disabled_checks") or []):
+        return
+    offline_issue = {i["ieee"]: i for i in issues if i["kind"] == "offline"}
+    by_area: dict[str, list[tuple[float, str]]] = {}
+    batteries_up: dict[str, int] = {}
+    for ieee, record in devices.items():
+        area = record.get("area")
+        if not area or record.get("status") != "active" or record.get("type") == "Coordinator":
+            continue
+        if record.get("availability") != "offline":
+            if is_battery(record) and record.get("availability") is not None:
+                batteries_up[area] = batteries_up.get(area, 0) + 1
+            continue
+        if not is_mains(record) or "offline" in active_mutes(record, now):
+            continue
+        issue = offline_issue.get(ieee)
+        if issue is not None and (issue.get("behind") or issue.get("devices")):
+            continue
+        age = _age(record.get("availability_since"), now)
+        if age is None:
+            continue
+        by_area.setdefault(area, []).append((now - age, ieee))
+    for area, drops in by_area.items():
+        if len(drops) < POWER_MIN_DEVICES or not batteries_up.get(area):
+            continue
+        drops.sort()
+        cluster: list[tuple[float, str]] = []
+        start = 0
+        for end in range(len(drops)):
+            while drops[end][0] - drops[start][0] > POWER_WINDOW:
+                start += 1
+            if end - start + 1 > len(cluster):
+                cluster = drops[start : end + 1]
+        if len(cluster) < POWER_MIN_DEVICES:
+            continue
+        lead = cluster[0][1]
+        others = [ieee for _ts, ieee in cluster[1:]]
+        for ieee in others:
+            if ieee in offline_issue:
+                offline_issue[ieee]["behind"] = lead
+        issue = offline_issue.get(lead)
+        if issue is None:
+            continue
+        names = sorted(
+            (_display(devices.get(ieee) or {}) or ieee for _ts, ieee in cluster),
+            key=str.lower,
+        )
+        n = len(cluster)
+        spread = round(cluster[-1][0] - cluster[0][0])
+        issue["title"] = "Power loss?"
+        issue["detail"] = (
+            f"{n} mains devices in {area} went offline within {spread} s of each other: {_names(names)}. "
+            "Battery devices there are still online, so the Zigbee mesh is fine. Check the power in that area first."
+        )
+        issue["msg"] = "power_loss"
+        issue["params"] = {
+            **(issue.get("params") or {}),
+            "area": area,
+            "n": n,
+            "spread": spread,
+            "names": names[:3],
+            "more": max(0, n - 3),
+        }
+        issue["power_area"] = area
+        issue["power_devices"] = others
+        issue["notify_title"] = f"{'Critical: ' if issue.get('critical') else ''}Power loss in {area}?"
+        issue["notify_message"] = issue["detail"]
+
+
+def _display(record: dict) -> str | None:
+    return record.get("friendly_name") or record.get("ha_name")
+
+
 def nested(issue: dict, keys: set[str]) -> bool:
     """True when the issue is shown inside its router's grouped offline issue rather than on its own."""
     return bool(issue.get("behind")) and f"offline:{issue['behind']}" in keys
@@ -1020,6 +1106,8 @@ def nested(issue: dict, keys: set[str]) -> bool:
 
 def alert_title(issue: dict) -> str:
     prefix = "Critical" if issue.get("critical") else "Zigbee"
+    if issue.get("power_area"):
+        return f"{'Critical: ' if issue.get('critical') else ''}Power loss in {issue['power_area']}?"
     if issue.get("devices"):
         return f"{'Critical: ' if issue.get('critical') else ''}Router offline: {issue['name']}"
     return f"{prefix}: {issue['name']} - {issue['label']}"

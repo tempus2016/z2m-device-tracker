@@ -28,6 +28,7 @@ from health import (
     REPORT_EVERY_MIN,
     clean_limits,
     device_issues,
+    group_power_loss,
     group_router_outages,
     late_deadline,
     limit_of,
@@ -2698,6 +2699,7 @@ class Tracker:
                     issue["instance"] = record["instance"]
                     issues.append(issue)
             group_router_outages(issues, self.data["devices"], self.options, now)
+            group_power_loss(issues, self.data["devices"], self.options, now)
             issues.extend(self._network_issues(now))
             issues.extend(self._group_issues(now))
             for issue in naming_issues(list(self.data["devices"].values()), self.options, now):
@@ -2709,7 +2711,7 @@ class Tracker:
             issues.sort(key=lambda i: (order.get(i["severity"], 2), i["name"].lower()))
 
             def shape(items: list[dict]) -> list:
-                return [(i["key"], i.get("behind"), i.get("devices")) for i in items]
+                return [(i["key"], i.get("behind"), i.get("devices"), i.get("power_devices")) for i in items]
 
             changed = shape(issues) != shape(self.issues)
             self.issues = issues

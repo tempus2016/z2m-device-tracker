@@ -1072,6 +1072,7 @@
     single_point: (p) => { p.extra = p.devices ? t("issue.single_point.extra", { n: p.devices }) : ""; },
     late: (p) => { p.every = span(p.every); },
     router_offline: (p) => { p.names = listOf([...(p.names || []), ...(p.more ? [t("issue.router_offline.more", { n: p.more })] : [])]); },
+    power_loss: (p) => { p.names = listOf([...(p.names || []), ...(p.more ? [t("issue.router_offline.more", { n: p.more })] : [])]); },
     router_hopping: (p) => { p.quality = p.lqi_min === null || p.lqi_min === undefined ? "" : p.lqi_min === p.lqi_max ? t("issue.router_hopping.lqi", { lqi: p.lqi_min }) : t("issue.router_hopping.lqi_range", { min: p.lqi_min, max: p.lqi_max }); },
     pairing_open: (p) => {
       const parts = [p.origin === "frontend" || p.origin === "mqtt" ? t(`issue.pairing_open.${p.origin}`) : null, p.device ? t("issue.pairing_open.device", { device: p.device }) : null, p.left != null ? t("issue.pairing_open.left", { duration: span(p.left) }) : null];
@@ -1086,7 +1087,7 @@
     naming_ieee: (p) => { p.extra = p.suggested ? t("issue.naming.suggested", { name: p.suggested }) : ""; },
     naming_pattern: (p) => { p.extra = p.suggested ? t("issue.naming.suggested", { name: p.suggested }) : ""; },
   };
-  // Offline devices behind an offline router are shown inside the router's issue, not on their own.
+  // Offline devices behind an offline router (or folded into a power loss) are shown inside the lead issue, not on their own.
   const nestedIssue = (i, keys) => Boolean(i.behind) && keys.has(`offline:${i.behind}`);
   const ownIssues = (issues) => { const keys = new Set(issues.map((i) => i.key)); return issues.filter((i) => !nestedIssue(i, keys)); };
   const healthIssues = (issues) => ownIssues(issues).filter((i) => i.kind !== "update");
@@ -1406,7 +1407,8 @@
           <div class="text"><div class="t1">${esc(issueTitle(i))}: ${esc(issueName(i))}</div><div class="t2">${esc(issueDetail(i))}</div></div>
           <div class="acts">${close}${panel ? `<a class="btn" href="${esc(panel)}" target="_top">${th("health.open_z2m")}</a>` : ""}</div></div>`;
       }
-      const kids = i.devices?.length ? issues.filter((x) => x.behind === i.ieee && nestedIssue(x, keys)) : [];
+      const kids = i.devices?.length || i.power_devices?.length ? issues.filter((x) => x.behind === i.ieee && nestedIssue(x, keys)) : [];
+      if (i.power_area) return powerItem(i, d, kids, rest);
       if (kids.length) return routerItem(i, d, kids, rest);
       const off = i.kind === "offline" && d;
       const cause = off ? offlineCause(d) : null;
@@ -1414,6 +1416,20 @@
       return `<div class="row${rest.length || used ? " has-members" : ""}${off ? " triage" : ""}"><span class="state-ic" style="color:${tone}">${ic(KIND_ICON[i.kind] || "alert")}</span>
         <button type="button" class="text row-open open-btn" data-open="${esc(i.ieee)}"><span class="t1">${esc(issueTitle(i))}: ${esc(issueName(i))}${i.critical ? ` ${critTag()}` : ""}</span><span class="t2">${esc(issueDetail(i))}${d?.area ? ` · ${esc(d.area)}` : ""}</span>${cause ? `<span class="t2 cause">${esc(cause)}</span>` : ""}</button>
         <div class="acts">${off ? offlineActs(d) : ""}${issueActions(i)}</div></div>${alsoList(rest, off && nearlyFlat(d) ? new Set(["battery_low"]) : undefined, used)}`;
+    };
+    // Mains devices in one area that dropped together (health.group_power_loss): one row, the devices under it on demand.
+    const powerItem = (i, d, kids, rest = []) => {
+      const open = state.openGroups.has(i.ieee);
+      const all = [i, ...kids];
+      const kid = (x) => {
+        const k = state.byIeee.get(x.ieee);
+        return `<button type="button" class="row click open-btn" data-open="${esc(x.ieee)}"><span class="state-ic off">${ic(k ? kindIcon(k) : "zigbee", "s20")}</span>
+          <span class="text"><span class="t1">${esc(x.name)}</span><span class="t2">${esc(cap(t("health.offline_for", { duration: issueVars(x).duration })))}</span></span></button>`;
+      };
+      return `<div class="row${rest.length ? " has-members" : ""}"><span class="state-ic bad">${ic("power-plug")}</span>
+        <div class="text"><div class="t1">${th("issue.power_loss.title", { area: esc(i.power_area) })}${i.critical ? ` ${critTag()}` : ""}</div><div class="t2">${esc(issueDetail(i))}</div></div>
+        <div class="acts"><button class="btn" data-act="toggle-group" data-ieee="${esc(i.ieee)}" aria-expanded="${open}">${open ? th("health.hide_devices") : th("health.show_devices", { n: all.length })}</button></div></div>${alsoList(rest)}
+        ${open ? `<div class="group-list">${all.map(kid).join("")}</div>` : ""}`;
     };
     // A router that is offline with devices behind it: one row, and the devices listed under it on demand.
     const routerItem = (i, d, kids, rest = []) => {
@@ -1439,7 +1455,12 @@
     // Problems come first: on a phone the status cards below would push them several screens down.
     // Severe warnings (offline, battery nearly flat) lead the list.
     warn.sort((a, b) => Number(severe(b[0])) - Number(severe(a[0])));
+    // An open power-loss incident leads the page: it explains several of the offline rows below.
+    const powerIncs = (Array.isArray(state.data.incidents) ? state.data.incidents : []).filter((x) => x.ongoing && x.cause === "power_loss" && x.power);
     $("#view").innerHTML = `
+      ${powerIncs.length ? `<div class="card inc-banner">${powerIncs.map((x) => `<div class="row"><span class="state-ic bad">${ic("power-plug")}</span>
+        <div class="text"><div class="t1">${th("incident.power_open", { area: esc(x.power.area) })}</div><div class="t2">${th("incident.power_open_text", { n: x.power.n, seconds: x.power.seconds, time: esc(fmtTime(x.start)), area: esc(x.power.area) })}</div></div>
+        <div class="acts"><button class="btn" data-act="open-incident" data-inc="${esc(x.id)}">${th("common.open")}</button></div></div>`).join("")}</div>` : ""}
       ${warn.length ? `<h2 class="section-title">${th("health.needs_attention")} <span>${warn.length}</span></h2><div class="card">${warn.map(item).join("")}</div>` : ""}
       ${info.length ? `<h2 class="section-title">${th("health.worth_a_look")} <span>${info.length}</span></h2><div class="card">${info.map(item).join("")}</div>` : ""}
       ${!own.length ? `<div class="card">${emptyState("check", th("health.all_clear"), th("health.all_clear_text"))}</div>` : ""}
@@ -2573,6 +2594,7 @@
   // Incidents view: the server groups related problem events per network (incidents.py) and names a likely cause.
   const logModeChips = () => `<div class="chips log-mode" role="group" aria-label="${esc(t("incident.view"))}">${[["all", "incident.mode_all"], ["incidents", "incident.mode_incidents"]].map(([m, l]) => `<button class="chip" data-act="log-mode" data-mode="${m}" aria-pressed="${state.logMode === m}">${ic("check", "s18")}${th(l)}</button>`).join("")}</div>`;
   const incidentCause = (inc) => inc.cause === "router_offline" && inc.router ? th("incident.cause.router_offline", { name: esc(inc.router.name || inc.router.ieee) })
+    : inc.cause === "power_loss" && inc.power ? th("incident.cause.power_loss", { area: esc(inc.power.area) })
     : th(`incident.cause.${["z2m_down", "network_wide"].includes(inc.cause) ? inc.cause : "unknown"}`);
   const renderIncidents = () => {
     const list = Array.isArray(state.data.incidents) ? state.data.incidents : [];
@@ -2595,7 +2617,7 @@
       const more = (inc.events_total || 0) > evs.length ? `<div class="inc-ev muted">${th("incident.more_events", { n: inc.events_total - evs.length })}</div>` : "";
       return `<div class="inc${inc.ongoing ? " ongoing" : ""}">
         <button class="log inc-head" type="button" data-act="toggle-incident" data-inc="${esc(inc.id)}" aria-expanded="${open}"><span class="state-ic" style="color:${color}">${ic(inc.ongoing ? "alert-circle" : "history")}</span>
-        <span class="text"><span class="t1">${inc.ongoing ? `<span class="pill">${th("incident.ongoing")}</span> ` : ""}<b>${incidentCause(inc)}</b></span><span class="t2">${esc(fmtDate(inc.start, false))} · ${when}${secs > 0 ? ` · ${esc(span(secs))}` : ""}</span><span class="t2">${counts} · ${th("net.network", { name: esc(netLabel(inc.instance)) })}</span></span>
+        <span class="text"><span class="t1">${inc.ongoing ? `<span class="pill">${th("incident.ongoing")}</span> ` : ""}<b>${incidentCause(inc)}</b></span><span class="t2">${esc(fmtDate(inc.start, false))} · ${when}${secs > 0 ? ` · ${esc(span(secs))}` : ""}</span><span class="t2">${counts} · ${th("net.network", { name: esc(netLabel(inc.instance)) })}</span>${inc.cause === "power_loss" && inc.power ? `<span class="t2">${th("incident.power_detail", { n: inc.power.n, area: esc(inc.power.area), seconds: inc.power.seconds })}${inc.power.back_together ? ` ${th("incident.power_back_together")}` : ""}</span>` : ""}</span>
         ${ic(open ? "chevron-up" : "chevron-down", "s18")}</button>
         ${open ? `<div class="inc-events">${members}${more}</div>` : ""}</div>`;
     }).join("")}</div>`;
@@ -3539,6 +3561,7 @@
     "model-filter": (b) => { state.query = b.dataset.q || ""; state.chip = "all"; go("devices"); },
     "log-more"() { state.logLimit = (state.logLimit || LOG_PAGE) + LOG_PAGE; renderActivity(); },
     "log-mode"(b) { state.logMode = b.dataset.mode === "incidents" ? "incidents" : "all"; store.set("z2mt.logMode", state.logMode); renderActivity(); },
+    "open-incident"(b) { state.logMode = "incidents"; store.set("z2mt.logMode", "incidents"); state.openIncidents.add(b.dataset.inc); go("activity"); },
     "toggle-incident"(b) { const o = state.openIncidents; if (!o.delete(b.dataset.inc)) o.add(b.dataset.inc); renderActivity(); },
     async copy(b) { try { await navigator.clipboard.writeText(b.dataset.ieee); snack(t("snack.ieee_copied")); } catch (e) { snack(b.dataset.ieee); } },
     async reconfigure(b) {
