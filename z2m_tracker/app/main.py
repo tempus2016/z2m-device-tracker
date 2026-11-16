@@ -24,6 +24,7 @@ from pathlib import Path
 from urllib.parse import unquote
 from zoneinfo import ZoneInfo
 
+import alert_actions
 import paho.mqtt.client as mqtt
 from battery_library import BatteryLibrary
 from discovery import AVAILABILITY, Discovery
@@ -77,6 +78,7 @@ DEFAULT_OPTIONS = {
     "z2m_panels": [],
     "persistent_notifications": True,
     "notify_service": "",
+    "alert_actions": True,
     "alert_on_join": True,
     "offline_alert_minutes": 60,
     "critical_offline_minutes": 5,
@@ -105,6 +107,8 @@ CHECK_KEYS = {key for key, _, _, _ in CHECKS}
 # no time to live), iOS shows it as time-sensitive, which breaks through Focus modes.
 CRITICAL_PUSH = {"priority": "high", "ttl": 0, "push": {"interruption-level": "time-sensitive"}}
 EVENT_KEYS = {"joined": "joined", "left": "left", "interview failed": "interview_failed"}
+# Health checks a "Mute 24 h" button may mute (events like joined happen once, so there is nothing to mute).
+MUTABLE_KINDS = {key for key, _, _, event in CHECKS if not event}
 
 
 # Settings the web UI may change, with validators returning the clean value (or raising ValueError).
@@ -207,6 +211,13 @@ def load_options() -> dict:
     if not options.get("alert_on_join", True) and "joined" in options["notify_checks"]:
         options["notify_checks"] = [k for k in options["notify_checks"] if k != "joined"]
     return options
+
+
+def app_panel() -> str | None:
+    """This app's sidebar page, /app/<slug>. Supervisor names the container after the slug
+    (7066b6f6_z2m_tracker runs as 7066b6f6-z2m-tracker); None when that doesn't look like one."""
+    slug = socket.gethostname().replace("-", "_").lower()
+    return f"/app/{slug}" if re.fullmatch(r"[a-z0-9]+_z2m_tracker", slug) else None
 
 
 def offer_new_notify_kinds() -> None:
@@ -324,7 +335,9 @@ class Alerts:
         push = None
         if critical:
             data["critical"] = True
-            push = CRITICAL_PUSH
+            push = dict(CRITICAL_PUSH)
+        if options.get("notify_service") and options.get("alert_actions", True):
+            push = {**(push or {}), **self.phone_extras(key, kind, ieee)}
         _LOGGER.info("Alert: %s - %s", title, message)
 
         def job() -> None:
@@ -336,6 +349,39 @@ class Alerts:
                 home_assistant.notify(options["notify_service"], title, message, push)
 
         self.queue.put(job)
+
+    @staticmethod
+    def buttons(kind: str, ieee: str) -> list[str]:
+        """Buttons for one alert: none for network, group and event alerts, the digest or the test."""
+        if kind not in MUTABLE_KINDS or not IEEE_RE.fullmatch(ieee or ""):
+            return []
+        with tracker.lock:
+            record = tracker.data["devices"].get(ieee)
+            if record is None:
+                return []
+            verbs = ["MUTE24"]
+            if tracker.can_ping(record) is None:
+                verbs.append("PING")
+            if kind in alert_actions.BATTERY_KINDS and tracker.is_battery_device(record):
+                verbs.append("BATTERY")
+        return verbs
+
+    def phone_extras(self, key: str, kind: str, ieee: str) -> dict:
+        """Companion app data: buttons, a tag (a repeat of the same alert replaces the old one)
+        and the page that opens on tap."""
+        extras: dict = {"tag": "z2m_tracker_" + re.sub(r"[^A-Za-z0-9_]", "_", key)[:120]}
+        panel = app_panel()
+        if panel:
+            url = f"{panel}/{ieee}" if IEEE_RE.fullmatch(ieee or "") else panel
+            extras["url"] = url  # iOS
+            extras["clickAction"] = url  # Android
+        verbs = self.buttons(kind, ieee)
+        if verbs:
+            with tracker.lock:
+                store = tracker.data.setdefault("alert_actions", {})
+                extras["actions"] = alert_actions.issue(store, ieee, kind, verbs, time.time())
+                tracker.dirty = True
+        return extras
 
     def _dismiss(self, key: str) -> None:
         if options.get("persistent_notifications"):
@@ -442,6 +488,49 @@ class Alerts:
 
 alerts = Alerts()
 tracker.on_event = alerts.on_event
+
+
+def on_notification_action(data: dict) -> None:
+    """A button on a phone alert was pressed (HA's mobile_app_notification_action event).
+    Runs on the websocket thread: check the press here, do the work on its own thread."""
+    with tracker.lock:
+        store = tracker.data.get("alert_actions")
+        claimed = alert_actions.claim(store, data.get("action"), time.time()) if isinstance(store, dict) else None
+        if claimed:
+            tracker.dirty = True
+    if claimed is None:
+        if str(data.get("action") or "").startswith(alert_actions.PREFIX):
+            _LOGGER.warning("Ignored a notification button that is unknown, expired or already used")
+        return
+    threading.Thread(target=run_notification_action, args=claimed, name="alert-action", daemon=True).start()
+
+
+def run_notification_action(verb: str, ieee: str, kind: str) -> None:
+    with tracker.lock:
+        record = tracker.data["devices"].get(ieee)
+        name = (tracker_display_name(record) if record else None) or ieee
+    if verb == "MUTE24":
+        if kind in MUTABLE_KINDS and tracker.set_muted(ieee, kind, True, 1):
+            _LOGGER.info("Muted %s on %s for 24 h from a phone alert", kind, name)
+    elif verb == "PING":
+        result = tracker.ping(ieee)
+        if result.get("ok"):
+            message = f"{name} answered the ping in {result['ms']} ms."
+        elif result.get("timeout"):
+            message = f"{name} didn't answer the ping within {result.get('seconds')} s."
+        else:
+            message = f"Couldn't ping {name}: {result.get('error')}"
+        _LOGGER.info("Ping from a phone alert: %s", message)
+        if options.get("notify_service"):
+            tag = "z2m_tracker_ping_" + ieee
+            alerts.queue.put(
+                lambda: home_assistant.notify(options["notify_service"], "Zigbee ping", message, {"tag": tag})
+            )
+    elif verb == "BATTERY":
+        if kind in alert_actions.BATTERY_KINDS:
+            today = datetime.now(tracker.local_tz).date().isoformat()
+            if record_battery_replaced(ieee, today, "Phone notification", ""):
+                _LOGGER.info("Battery replaced on %s, from a phone alert", name)
 
 
 # ---------------------------------------------------------------------- MQTT
@@ -1444,7 +1533,10 @@ def main() -> None:
     ota_manager.start(stop_event)
     if home_assistant.available:
         threading.Thread(
-            target=home_assistant.watch, args=(ha_registry_changed, stop_event), name="ha-watch", daemon=True
+            target=home_assistant.watch,
+            args=(ha_registry_changed, stop_event, on_notification_action),
+            name="ha-watch",
+            daemon=True,
         ).start()
     if not tracker.data.get("imported"):
         threading.Thread(target=first_import, name="first-import", daemon=True).start()

@@ -12,6 +12,7 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `persistent_notifications` | `true` | Show alerts as Home Assistant notifications. |
 | `fire_events` | `true` | Fire `z2m_tracker_alert` events for automations. |
 | `notify_service` | empty | Also send alerts to a notify service, e.g. `notify.mobile_app_phone`. Only `notify.` services are accepted; a bare name gets `notify.` added. |
+| `alert_actions` | `true` | Add buttons to alerts sent to `notify_service`, and open the device when the alert is tapped. See [Buttons on phone alerts](#buttons-on-phone-alerts). |
 | `alert_on_join` | `true` | Alert when a new device joins. |
 | `disabled_checks` | empty | Health checks to turn off completely. |
 | `notify_checks` | most checks | Health checks that send alerts. |
@@ -122,6 +123,20 @@ Turn on **Critical device** on a device's Info tab for devices that must never f
 - alerts straight away during quiet hours.
 
 Alerts to `notify_service` for a critical device also carry the Companion app's high-priority data: `priority: high` and `ttl: 0` (Android, delivered straight away), and `push: interruption-level: time-sensitive` (iOS, shown through Focus modes).
+
+## Buttons on phone alerts
+
+Alerts sent to `notify_service` through the Home Assistant Companion app come with buttons (turn them off with `alert_actions`):
+
+- **Mute 24 h** mutes that check on that device for 24 hours, the same as muting it in the device panel. On a router outage alert it mutes the router's Offline check, which also quiets the devices behind it.
+- **Ping** pings the device and sends the answer time (or that it didn't answer) as a second notification. Only on mains devices that can be pinged (see [Ping](#ping)).
+- **Battery replaced** records a battery change today, the same as the button on the Battery tab (and in Battery Notes, if the device has it). Only on Low battery and Battery running down alerts.
+
+Tapping the alert opens the device in the Zigbee Tracker. Alerts about a whole network, a group, joins and leaves, the quiet hours digest and the weekly summary have no buttons; tapping them opens the Zigbee Tracker.
+
+The app hears the button through Home Assistant's `mobile_app_notification_action` event, so it works without the integration. Each alert's buttons carry a one-time code: a button works once, for 7 days, and only for the device and check it was sent for. Anything else is ignored and logged. Alerts carry a `tag`, so a repeat of the same alert replaces the old one on the phone.
+
+If your notify service isn't the Companion app and rejects the extra data, turn `alert_actions` off.
 
 ## Quiet hours
 
