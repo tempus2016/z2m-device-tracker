@@ -41,6 +41,8 @@ By default the app uses the broker Home Assistant offers to apps, which is the M
 
 The app's Home Assistant entities use MQTT discovery, so they appear only if Home Assistant's MQTT integration is connected to the same broker.
 
+Without `mqtt_ssl`, the broker login and all Zigbee messages cross your network unencrypted. For a broker on another machine, turn on `mqtt_ssl` (usually port `8883`) and keep `mqtt_ssl_verify` on. Turn it off only for a self-signed certificate on a network you trust.
+
 ## Expected reporting
 
 Zigbee2MQTT decides when a device is offline: by default after 10 minutes for mains devices and 25 hours for battery devices. For a device that should report more often, set your own limit on its **Health** tab under **Expected reporting**, from 30 seconds to 7 days. If the device sends nothing for that long, the **Stopped reporting** check flags it, even while Zigbee2MQTT still shows it online. The tab shows how often the device usually reports; set the limit a little above that.

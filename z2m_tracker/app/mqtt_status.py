@@ -50,7 +50,10 @@ def explain_error(err: Exception | None, host: str, port: int, manual: bool = Fa
         return f"No answer from the MQTT broker at {where}. Check it is running and reachable."
     if err is None:
         return f"The MQTT broker at {where} answered, but the MQTT connection still failed. " + (
-            "Check mqtt_ssl matches the port, and see the broker's log." if manual else "See the Mosquitto log."
+            "Check mqtt_ssl matches the port. With mqtt_ssl on, the broker's certificate must be trusted: "
+            "for a self-signed one, turn off mqtt_ssl_verify. See the broker's log."
+            if manual
+            else "See the Mosquitto log."
         )
     return f"Can't connect to the MQTT broker at {where}: {err}"
 
