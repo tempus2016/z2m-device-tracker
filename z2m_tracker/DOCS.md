@@ -182,10 +182,24 @@ These checks show in Health but don't notify until you set them to **Show and no
 | Retained command | A command for a current device (`<name>/set`, `<name>/set/<attribute>` or `<name>/<endpoint>/set`) that is retained on the broker. The broker sends it again every time it or Zigbee2MQTT restarts, so a light switches back on or a valve opens by itself. Usually an automation or Node-RED flow that publishes with retain on. Found when the app connects to the broker (retained messages are only marked as retained then). **Clear** publishes an empty retained message to the topic, which deletes it from the broker; nothing is sent to the device. **Ignore** mutes it for that device. |
 
 | Availability disagreement | Zigbee2MQTT's availability for a device contradicts its messages. **Offline** while 3 or more live messages arrived in the last 10 minutes, all after it went offline (and it has been offline for at least 5 minutes): the device is clearly talking, so the Offline check stays quiet for it and this shows instead. **Online** while it has sent nothing for at least 6 hours and 10 times its usual gap between messages (2 days without a week of history), when either Zigbee2MQTT doesn't track its availability or it's a battery device past Zigbee2MQTT's passive timeout plus an hour. Mains devices Zigbee2MQTT pings are not checked, since a ping keeps them online without a message, and devices with their own report interval are left to **Stopped reporting**. Usually a stale retained `<name>/availability` topic, for example one left from when availability was turned on. Live messages are only counted while the app is running. |
+
+| Sends different data | A device stopped sending a value it always sent, and an automation or script in Home Assistant uses that value's entity. See [Payload changes](#payload-changes). |
 | Naming | A device still named by its IEEE address (`0x…`), or, when `naming_pattern` is set, a name that doesn't follow it. Low priority. See [Device names](#device-names). |
 | Firmware you noted | A device runs a firmware version you wrote a firmware note about. Low priority. See [Firmware notes](#firmware-notes). |
 
 **Network → Groups** lists every Zigbee2MQTT group with how many of its members are online. Groups with offline members show each member, with the offline ones in red. A device that dropped out of a group but is still on the network (for example after it left and was re-paired) is flagged for 30 days, until it's back in the group, or until the group is deleted. Leaving a group is only noticed while the app is running.
+
+## Payload changes
+
+After a firmware update or a change in Zigbee2MQTT's converter for it, a device can start sending different data: a value is renamed, or one disappears. The app learns which values (keys) each device sends from its first 30 messages, then logs a change in the device's History tab, with the keys that are new and the keys that are gone, and the firmware version when the device was updated in the week before.
+
+- A key counts as gone when it was in at least 80% of the learning messages and then misses 20 messages in a row.
+- A key counts as new when it turns up in 5 messages within 50. Keys that only appear now and then are remembered and never reported, and `action`, `update`, `last_seen`, `linkquality` and the like are ignored.
+- Changes within a day of each other are one entry.
+
+The **Sends different data** check shows on Health for 30 days when a gone key's Home Assistant entity is still used by an automation or script. The app finds the entity from Zigbee2MQTT's discovery ids, so it needs the device to be in Home Assistant through MQTT discovery, and the app to have been running (or HA's registry to still hold the entity) when the key went.
+
+With Zigbee2MQTT's `cache_state` on (the default), Zigbee2MQTT keeps repeating the last cached value of a key the device no longer sends, and keeps it across restarts, so a gone key may only be noticed once that cached value is cleared. New keys are noticed either way.
 
 ## Effect of an upgrade
 

@@ -162,6 +162,8 @@ class HomeAssistant:
         self.areas: dict[str, str | None] = {}
         self.names: dict[str, str | None] = {}
         self.battery: dict[str, dict[str, Any]] = {}
+        # IEEE -> {the rest of a Zigbee2MQTT entity's unique id after "<ieee>_" -> entity id}.
+        self.entities: dict[str, dict[str, str]] = {}
 
     @property
     def available(self) -> bool:
@@ -338,6 +340,19 @@ class HomeAssistant:
                 states = {s.get("entity_id"): s for s in listed if isinstance(s, dict)}
         return {d: build_usage(hits, states) for d, hits in zip(device_ids, related, strict=True)}
 
+    def entity_usage(self, entity_ids: list[str]) -> dict[str, dict[str, list[dict]]]:
+        """The automations, scripts and scenes that use each entity, like device_usage."""
+        entity_ids = list(dict.fromkeys(entity_ids))
+        if not entity_ids:
+            return {}
+        related = self._ws_call([{"type": "search/related", "item_type": "entity", "item_id": e} for e in entity_ids])
+        states: dict[str, dict] = {}
+        if any((hits or {}).get(domain) for hits in related for domain, _ in USAGE_KINDS):
+            listed = self._request("GET", "/states")
+            if isinstance(listed, list):
+                states = {s.get("entity_id"): s for s in listed if isinstance(s, dict)}
+        return {e: build_usage(hits, states) for e, hits in zip(entity_ids, related, strict=True)}
+
     def remove_leftovers(self, device_ids: list[str], known: dict[str, dict]) -> dict:
         """Remove the given HA devices, but only those that are still leftovers now.
         Each is removed from the MQTT config entry that owns it, nothing else."""
@@ -472,6 +487,20 @@ class HomeAssistant:
         self.device_ids = ieee_to_device
         self.areas = areas
         self.names = names
+
+        # Zigbee2MQTT's discovery gives each entity the unique id "<ieee>_<object id>_<base topic>".
+        z2m_entities: dict[str, dict[str, str]] = {}
+        for entity in entities:
+            ieee = device_to_ieee.get(entity.get("device_id") or "")
+            unique_id = str(entity.get("unique_id") or "")
+            if (
+                ieee
+                and entity.get("platform") == "mqtt"
+                and unique_id.startswith(f"{ieee}_")
+                and entity.get("entity_id")
+            ):
+                z2m_entities.setdefault(ieee, {})[unique_id[len(ieee) + 1 :]] = entity["entity_id"]
+        self.entities = z2m_entities
 
         wanted: dict[str, tuple[str, str]] = {}
         for entity in entities:

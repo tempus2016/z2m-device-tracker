@@ -1239,6 +1239,8 @@ def refresh_home_assistant() -> None:
         with tracker.lock:
             tracker.ha_device_ids = dict(home_assistant.device_ids)
             tracker.ha_battery = dict(home_assistant.battery)
+            for ieee, found in home_assistant.entities.items():
+                tracker.ha_entities.setdefault(ieee, {}).update(found)
             for ieee, record in tracker.data["devices"].items():
                 if ieee in home_assistant.device_ids:
                     record["area"] = home_assistant.areas.get(ieee)
@@ -1266,6 +1268,23 @@ def last_name_change() -> str | None:
     with tracker.lock:
         events = tracker.data["events"][-200:]
         return next((e.get("time") for e in reversed(events) if e.get("kind") in ("renamed", "removed")), None)
+
+
+entity_usage_lock = threading.Lock()
+
+
+def refresh_entity_usage(entity_ids: list[str]) -> None:
+    """Look up what uses the entities of keys a device stopped sending. One lookup at a time."""
+    if not entity_usage_lock.acquire(blocking=False):
+        return
+    try:
+        found = home_assistant.entity_usage(entity_ids)
+    except Exception as err:  # noqa: BLE001 - tried again after USAGE_MAX_AGE
+        _LOGGER.warning("Looking up what uses %d entities in Home Assistant failed: %s", len(entity_ids), err)
+        found = {}
+    finally:
+        entity_usage_lock.release()
+    tracker.set_entity_usage(found, entity_ids)
 
 
 def scheduler() -> None:
@@ -1313,6 +1332,12 @@ def scheduler() -> None:
             # What uses devices with a problem: after a registry refresh, for new issues,
             # and retries after a failure. Kept for the next round while a lookup runs.
             usage_refresher.start_due()
+            if home_assistant.available and not entity_usage_lock.locked():
+                wanted = tracker.entity_usage_wanted()
+                if wanted:
+                    threading.Thread(
+                        target=refresh_entity_usage, args=(wanted,), name="ha-entity-usage", daemon=True
+                    ).start()
             hour = int(options.get("networkmap_hour", -1))
             local = datetime.now(tracker.local_tz)
             if hour >= 0 and local.hour == hour and last_scan_day != local.date():

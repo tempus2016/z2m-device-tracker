@@ -264,7 +264,8 @@
         "naming": "Name doesn't follow the pattern",
         "firmware_note": "Firmware you noted",
         "retained_command": "Retained command",
-        "availability_mismatch": "Availability disagreement"
+        "availability_mismatch": "Availability disagreement",
+        "payload_changed": "Sends different data"
       }
     }
   },

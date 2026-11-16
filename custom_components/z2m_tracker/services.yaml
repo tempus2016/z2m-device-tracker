@@ -62,6 +62,7 @@ mute_device:
             - firmware_note
             - retained_command
             - availability_mismatch
+            - payload_changed
     duration:
       selector:
         duration:

@@ -290,6 +290,10 @@
   .msgs .cmd .mono { color: var(--primary-text); }
   .msgs .muted { padding: 16px; }
   .msgs mark { background: color-mix(in srgb, var(--warning) 35%, transparent); color: inherit; border-radius: 3px; }
+  .diff { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; font-family: var(--mono); font-size: 12.5px; }
+  .diff span { padding: 2px 8px; border-radius: 4px; overflow-wrap: anywhere; }
+  .diff .add { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); }
+  .diff .del { background: color-mix(in srgb, var(--error) 14%, transparent); color: var(--error-text); }
   .inc { border-bottom: 1px solid var(--divider); }
   .inc:last-child { border-bottom: 0; }
   .inc-head { width: 100%; border: 0; background: none; font: inherit; color: inherit; text-align: start; padding-block: 10px; }
@@ -951,7 +955,7 @@
     removed: { get label() { return t("status.removed"); }, c: "var(--disabled)" },
   };
   const KIND_ICON = { offline: "wifi-off", silent: "wifi-off", late: "history", frozen: "thermometer", impossible_reading: "alert", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
-    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb", slow_router: "router-wireless", maintenance_due: "calendar-clock", upgrade_worse: "update", slow_commands: "history", missed_commands: "gesture-tap-button", reporting_config: "tune", naming: "pencil", stale_retained: "content-copy", retained_command: "alert", availability_mismatch: "swap-horizontal" };
+    flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb", slow_router: "router-wireless", maintenance_due: "calendar-clock", upgrade_worse: "update", slow_commands: "history", missed_commands: "gesture-tap-button", reporting_config: "tune", naming: "pencil", stale_retained: "content-copy", retained_command: "alert", availability_mismatch: "swap-horizontal", payload_changed: "pencil" };
   const EVENT_ICON = (k) => {
     if (k.startsWith("interview")) return k.endsWith("successful") ? ["check", "var(--success)"] : ["alert-circle", "var(--error)"];
     return ({ joined: ["plus", "var(--success)"], added: ["plus", "var(--success)"], rejoined: ["plus", "var(--success)"], online: ["wifi", "var(--success)"], offline: ["wifi-off", "var(--error)"],
@@ -959,7 +963,7 @@
       linked: ["link-variant", "var(--state-icon)"], replaced: ["swap-horizontal", "var(--state-icon)"], "replaced by": ["swap-horizontal", "var(--text-2)"], reconfigured: ["refresh", "var(--success)"], "reconfigure failed": ["refresh", "var(--error)"], "battery replaced": ["battery-sync", "var(--success)"], "maintenance done": ["calendar-clock", "var(--success)"],
       "update available": ["chip", "var(--info)"], "routing scanned": ["sitemap", "var(--state-icon)"],
       "binding added": ["link-variant", "var(--success)"], "binding restored": ["link-variant", "var(--success)"], "binding removed": ["link-variant", "var(--error)"], unbound: ["link-variant", "var(--text-2)"], "binding change accepted": ["check", "var(--text-2)"],
-      "reporting changed": ["tune", "var(--success)"], "reporting change failed": ["tune", "var(--error)"], "settings changed": ["cog", "var(--state-icon)"] })[k] || ["information-outline", "var(--text-2)"];
+      "payload changed": ["pencil", "var(--warning)"], "reporting changed": ["tune", "var(--success)"], "reporting change failed": ["tune", "var(--error)"], "settings changed": ["cog", "var(--state-icon)"] })[k] || ["information-outline", "var(--text-2)"];
   };
 
   const $ = (s) => document.querySelector(s);
@@ -1087,6 +1091,7 @@
     impossible_reading_no_range: (p) => { p.value = num1(p.value); p.unit = p.unit === "%" ? "%" : ` ${p.unit}`; },
     impossible_battery: (p) => { p.value = num1(p.value); },
     humidity_stuck: (p) => { p.cause = t(p.value === 100 ? "issue.humidity_stuck.cause_wet" : "issue.humidity_stuck.cause_dry"); p.value = num1(p.value); },
+    payload_changed: (p) => { p.lead = p.firmware ? t("issue.payload_changed.since", { version: p.firmware }) : ""; p.what = listOf([t("issue.payload_changed.gone", { keys: p.gone }), p.new ? t("issue.payload_changed.new", { keys: p.new }) : null].filter(Boolean)); },
     router_offline: (p) => { p.names = listOf([...(p.names || []), ...(p.more ? [t("issue.router_offline.more", { n: p.more })] : [])]); },
     power_loss: (p) => { p.names = listOf([...(p.names || []), ...(p.more ? [t("issue.router_offline.more", { n: p.more })] : [])]); },
     router_hopping: (p) => { p.quality = p.lqi_min === null || p.lqi_min === undefined ? "" : p.lqi_min === p.lqi_max ? t("issue.router_hopping.lqi", { lqi: p.lqi_min }) : t("issue.router_hopping.lqi_range", { min: p.lqi_min, max: p.lqi_max }); },
@@ -1373,8 +1378,8 @@
     }
     if (i.kind === "single_point") out.push(`<button class="btn" data-view="network/map">${th("common.map")}</button>`);
     if (i.kind === "reporting_config" && !(state.open === i.ieee && state.moreTab === "health")) out.push(`<button class="btn" data-act="open-health" data-ieee="${esc(i.ieee)}">${th("more.tab.health")}</button>`);
-    if (i.kind === "router_hopping" && !(state.open === i.ieee && state.moreTab === "history")) out.push(`<button class="btn" data-act="open-history" data-ieee="${esc(i.ieee)}">${th("more.tab.history")}</button>`);
     if (i.kind === "retained_command") out.push(`<button class="btn danger" data-act="retcmd-clear" data-ieee="${esc(i.ieee)}">${th("retcmd.clear")}</button>`);
+    if ((i.kind === "router_hopping" || i.kind === "payload_changed") && !(state.open === i.ieee && state.moreTab === "history")) out.push(`<button class="btn" data-act="open-history" data-ieee="${esc(i.ieee)}">${th("more.tab.history")}</button>`);
     if (i.kind === "replacement" && d?.suggestions?.[0]) out.push(`<button class="btn" data-act="link" data-old="${esc(d.suggestions[0].ieee)}" data-new="${esc(i.ieee)}">${th("common.link")}</button>`);
     out.push(`<button class="btn" data-act="mute" data-ieee="${esc(i.ieee)}" data-kind="${esc(i.kind)}">${th("common.ignore")}</button>`);
     return out.join("");
@@ -3296,6 +3301,14 @@
     return `<div class="sub-h">${th("hops.title", { n: h.scans.length })}</div><div>${rows}</div>${best ? `<div class="card-content muted" style="font-size:13px">${best}</div>` : ""}`;
   };
 
+  // A "payload changed" logbook entry: the keys as + and − chips, and what in HA still uses a gone one.
+  const payloadDiff = (d, e) => {
+    if (e.kind !== "payload changed") return "";
+    const keys = (v) => (Array.isArray(v) ? v.filter((k) => typeof k === "string") : []);
+    const chips = [...keys(e.added).map((k) => `<span class="add">+ ${esc(k)}</span>`), ...keys(e.removed).map((k) => `<span class="del">− ${esc(k)}</span>`)].join("");
+    const issue = d.payload_change?.at === e.time && (d.issues || []).find((i) => i.kind === "payload_changed");
+    return `${chips ? `<div class="diff">${chips}</div>` : ""}${e.firmware ? `<div class="t2">${th("history.payload_firmware", { version: esc(e.firmware) })}</div>` : ""}${issue ? `<div class="t2">${th("history.payload_used", { names: esc(issue.params?.names || ""), entities: esc(issue.params?.entities || "") })}</div>` : ""}`;
+  };
   const tabHistory = (d) => {
     const names = (d.names || []).filter((n) => n.name && !IEEE_RE.test(n.name)).slice().reverse();
     const events = (state.data.events || []).filter((e) => e.ieee === d.ieee).slice(-30).reverse();
@@ -3313,7 +3326,7 @@
       ${d.status !== "removed" && removed.length ? `<div class="row-actions"><select class="field" id="linkSel" aria-label="${esc(t("history.link_removed"))}" style="flex:1;min-width:0"><option value="">${th("history.link_removed")}</option>${removed.map((x) => `<option value="${esc(x.ieee)}">${esc(nameOf(x) || x.ieee)}${x.removed_at ? ` · ${th("history.removed_on", { date: esc(fmtDate(x.removed_at, false)) })}` : ""}</option>`).join("")}</select><button class="btn" data-act="link-sel">${th("common.link")}</button></div>` : ""}
       ${hopsHtml(d)}
       <div class="sub-h">${th("history.logbook")}</div>
-      ${events.length ? events.map((e) => { const [icon, color] = EVENT_ICON(e.kind); return `<div class="log" style="cursor:default"><span class="state-ic" style="color:${color}">${ic(icon)}</span><div class="text">${logLine(e)}</div></div>`; }).join("") : `<div class="card-content muted">${th("history.nothing_logged")}</div>`}`;
+      ${events.length ? events.map((e) => { const [icon, color] = EVENT_ICON(e.kind); return `<div class="log" style="cursor:default"><span class="state-ic" style="color:${color}">${ic(icon)}</span><div class="text">${logLine(e)}${payloadDiff(d, e)}</div></div>`; }).join("") : `<div class="card-content muted">${th("history.nothing_logged")}</div>`}`;
   };
 
   // ------------------------------------------------------------ long-range charts (Trends tab)

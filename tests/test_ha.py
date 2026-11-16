@@ -101,3 +101,37 @@ def test_watch_subscribes_and_reports_each_change(home, monkeypatch):
     assert [m["event_type"] for m in socket.sent] == list(ha.REGISTRY_EVENTS)
     # Once on connect (to catch up), once for the event.
     assert len(calls) == 2
+
+
+def test_refresh_maps_zigbee2mqtt_entities(home):
+    entities = [
+        {
+            "entity_id": "sensor.plug_power",
+            "device_id": "dev-plug",
+            "platform": "mqtt",
+            "unique_id": f"{PLUG}_power_zigbee2mqtt",
+        },
+        {"entity_id": "sensor.plug_other", "device_id": "dev-plug", "platform": "template", "unique_id": f"{PLUG}_x"},
+        {"entity_id": "sensor.hue", "device_id": "dev-other", "platform": "mqtt", "unique_id": "abc_power"},
+    ]
+    home._ws_call = lambda messages: [DEVICES, AREAS, entities]
+    home.refresh()
+    assert home.entities == {PLUG: {"power_zigbee2mqtt": "sensor.plug_power"}}
+
+
+def test_entity_usage_searches_each_entity(home):
+    asked = []
+
+    def ws(messages):
+        asked.extend(messages)
+        return [{"automation": ["automation.cost"]}, {}]
+
+    home._ws_call = ws
+    home._request = lambda method, path, body=None: [
+        {"entity_id": "automation.cost", "attributes": {"friendly_name": "Cost", "id": "17"}}
+    ]
+    found = home.entity_usage(["sensor.a", "sensor.b"])
+    assert [m["item_id"] for m in asked] == ["sensor.a", "sensor.b"]
+    assert all(m["item_type"] == "entity" for m in asked)
+    assert found["sensor.a"]["automations"] == [{"entity_id": "automation.cost", "name": "Cost", "id": "17"}]
+    assert found["sensor.b"]["automations"] == []

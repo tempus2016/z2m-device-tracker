@@ -99,6 +99,7 @@ def test_log_is_bounded_per_device_and_per_message():
 
 def test_messages_are_not_saved(tracker, clock, data_dir):
     setup(tracker)
-    send(tracker, "Door", {"contact": False})
+    send(tracker, "Door", {"contact": False, "label": "zz-live-message-zz"})
     tracker.save(force=True)
-    assert "contact" not in (data_dir / "history.json").read_text()
+    # Values never reach the saved file (other features may learn key names, so check a value).
+    assert "zz-live-message-zz" not in (data_dir / "history.json").read_text()

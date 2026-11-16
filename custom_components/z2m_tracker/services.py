@@ -55,6 +55,7 @@ DEVICE_CHECKS = [
     "firmware_note",
     "retained_command",
     "availability_mismatch",
+    "payload_changed",
 ]
 
 DEVICE_FIELDS = {
