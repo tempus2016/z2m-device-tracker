@@ -80,9 +80,22 @@ These checks show in Health but don't notify until you set them to **Show and no
 | Coordinator backup | `coordinator_backup.json` missing, without a network key, not matching the running channel/PAN ID, or more than 3 days old. Only checked when the Zigbee2MQTT data folder is inside the HA config folder. |
 | Zigbee2MQTT memory | Zigbee2MQTT's own memory use grew more than 50% over the last 7 days (at least 5 days of readings). Usually a leak that ends in a crash; a restart clears it. Uses the `bridge/health` messages Zigbee2MQTT 2.5+ sends every 10 minutes by default (its `health.interval` setting). Health → Coordinators also shows its memory over the last 14 days, MQTT traffic and leaves this week. |
 | Group members offline | A Zigbee2MQTT group with members that have been offline for longer than `offline_alert_minutes`. One issue per group, listing the offline members. |
+| Reporting settings | A device whose attribute reporting drains its battery, floods the mesh, or may never report a measurement. See Reporting settings below. |
 | Daily signal dip | Average link quality across a network drops at least 25% below that day's median in the same 1 to 4 hours on at least 4 of the last 7 days, and at least 30% of its devices dip then too. Usually something that switches on at that time: busy Wi-Fi on an overlapping channel, a microwave, or a USB 3 device near the coordinator. Health → Radio channels shows the hourly chart once a network has a week of link quality from at least 3 devices. |
 
 The Health tab's **Groups** card lists every Zigbee2MQTT group with how many of its members are online. Groups with offline members show each member, with the offline ones in red. A device that dropped out of a group but is still on the network (for example after it left and was re-paired) is flagged for 30 days, until it's back in the group, or until the group is deleted. Leaving a group is only noticed while the app is running.
+
+## Reporting settings
+
+Zigbee2MQTT tells each device when to report its values: no more often than a minimum interval, at least once per maximum interval, and whenever the value changes by the reportable change. The device's **Health** tab lists these under **Reporting** in plain words, for example "Temperature: at least every 10 s, at most every 1 h, on a 0.1 °C change". The **Reporting settings** check flags three things:
+
+| Rule | Flags | Recommended |
+| --- | --- | --- |
+| Drains the battery | A battery device with any maximum interval under 5 minutes, or a minimum interval of 0 on a measurement that changes often (temperature, humidity, pressure, illuminance, CO2, PM2.5, soil moisture). Every report wakes the radio. | Maximum 1 h, minimum 30 s, and a 0.2 °C / 1 % change instead of 0. Battery level: 1 h to 12 h. |
+| Floods the mesh | A mains device reporting power, energy, current or voltage with a maximum interval of 5 seconds or less, or on every change (reportable change 0) with a minimum interval under a minute. Every router has to carry that traffic. | Maximum 1 h, minimum 10 s, and a small change instead of 0 (power 5, current 10, voltage 5, energy 10, in the device's own units). |
+| May go silent | A measurement with a maximum interval of 65535 (reporting turned off), or a measurement the device has the cluster for but no reporting at all. The second only counts on devices that use configured reporting for something else: many (Aqara, most Tuya) send values without it. | Maximum 1 h. For a missing reporting, **Reconfigure** asks Zigbee2MQTT to set up its defaults again. |
+
+Recommended values change only the part that's wrong and keep the rest. **Use recommended** asks before it sends `bridge/request/device/configure_reporting` to Zigbee2MQTT, then logs a "reporting changed" event in History. A battery device may be asleep: press its button just before you confirm. When the device's message rate over the last 6 hours backs up a finding (more than 60 an hour on battery, 720 an hour on mains), the issue says so. The check is low severity and only shows in Health until you set it to notify in Settings → Checks.
 
 ## Router outages
 

@@ -33,6 +33,7 @@ from health import CHECKS, DEFAULT_NOTIFY, alert_title, mutes_of, nested, notify
 from metrics import Metrics
 from mqtt_status import NOTIFICATION_ID, NOTIFICATION_TITLE, MqttStatus, explain_error, explain_refusal, probe
 from ota import OtaManager, parse_window
+from reporting import clean_fix as clean_reporting_fix
 from tracker import IEEE_RE, Tracker, shopping_text
 from tracker import _display_name as tracker_display_name
 
@@ -1289,6 +1290,15 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/reconfigure":
                 result = tracker.reconfigure(ieee)
                 self._json(200 if result["ok"] else 502, result)
+            elif path == "/api/reporting":
+                # One configured reporting ({ieee, ep, cluster, attribute, min, max, change}) set through Z2M.
+                fix, error = clean_reporting_fix(body)
+                if fix is None:
+                    self._json(400, {"ok": False, "error": error})
+                    return
+                result = tracker.configure_reporting(ieee, fix)
+                status = {None: 200, "unknown": 404, "invalid": 400}.get(result.get("reason"), 502)
+                self._json(status, result)
             elif path == "/api/networkmap":
                 instance = body.get("instance") if body.get("instance") in base_topics else None
                 started = run_networkmap(instance)
