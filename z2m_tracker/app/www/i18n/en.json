@@ -2270,6 +2270,14 @@
     "one": "1 model, none stand out",
     "other": "{n} models, none stand out"
   },
+  "fine.community_rate": {
+    "one": "1 of your models has no rating yet. Rate it to help others choose",
+    "other": "{n} of your models have no rating yet. Rate them to help others choose"
+  },
+  "fine.community_ok": {
+    "one": "Your model has community ratings",
+    "other": "All {n} of your models have community ratings"
+  },
   "fine.models_bad": {
     "one": "1 model stands out",
     "other": "{n} models stand out"
@@ -2508,6 +2516,10 @@
     "other": "and {n} more: search to narrow it down"
   },
   "community.no_results": "No rated models match.",
+  "community.rate_title": "Rate your devices",
+  "community.rate_text": "Nobody has rated these models yet. Tell other users how they work for you: it takes a minute, the tracker fills in the details, and nothing is posted until you press Create on GitHub.",
+  "community.rate": "Rate",
+  "community.your_rated": "Your rated models",
   "community.none_yet": "No ratings yet",
   "community.none_yet_text": "Open a device and use its Community tab to share how it works for you.",
   "community.tag.pairs_easily": "Pairs easily",

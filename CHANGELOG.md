@@ -1,5 +1,49 @@
 # Changelog
 
+## 2.0.0
+
+The biggest release yet: a new seven-tab layout, community device ratings and 22 new features. Update the app and the integration together. The integration's Repairs wording, the new check names and the summary card's community section need the 2.0.0 app. New checks show on Health but don't notify until you turn them on under Settings → Checks. No settings or history are lost: 2.0.0 reads your 1.x data as it is.
+
+### Rate your devices (new)
+- Community device ratings: a device's **Community** tab shows what other Zigbee Tracker users think of its model (Recommended, Mixed or Avoid once 5 people have rated it), their measured uptime, drop-outs, link quality and battery life next to yours, the firmware they rate best and recent comments. **Upkeep → Community** lists your models, the ones nobody has rated yet, and every other rated model with a search box.
+- **Share your experience** on the Community tab fills in a GitHub issue form for you: verdict, tags, an optional comment and, if you choose, the stats the tracker measured. The dialog shows exactly what will be posted, nothing is posted until you press Create on GitHub, and device names, areas, IEEE addresses and anything else about your Home Assistant are never included. Ratings are public under CC0.
+- A new **Rated poorly by others** check (low priority, never notifies unless you turn it on), and an optional community section on the summary card (`show_community`). New option `community_ratings_fetch` (on) downloads the newest ratings once a day.
+
+### Changed
+- New layout: Health, Devices, Network (Map, Coordinator, Broker, Radio, Groups), Upkeep (Batteries, Maintenance, Models, Costs, Community), Updates, Activity and Settings. Health shows problems first, then one line for each part of the app that lives on another tab. On a phone the bottom bar has Health, Devices, Network, Upkeep and More.
+- Expected reporting uses profiles (Reports on change, Regular, Chatty, Custom, Off) with a default per device type, instead of typing a silent interval per device. Intervals you set before keep working as Custom.
+
+### Added
+- Mesh score: one 0 to 100 score per network at the top of Health, with a 30-day trend, the change since last week and a `sensor.<base topic>_mesh_score` entity.
+- Broker statistics on **Network → Broker** from Mosquitto's `$SYS` topics: clients, retained messages, dropped messages and messages per minute over 24 hours. New option `broker_stats` (on).
+- Stale retained messages: topics left under a device's old name, removed devices and orphaned Home Assistant discovery configs, with Clear and Clear all. New option `retained_autoclear` (off).
+- Retained command check: a `/set` command retained on the broker, which replays every time the broker or Zigbee2MQTT restarts.
+- Availability disagreement check: Zigbee2MQTT says offline while the device keeps talking, or online while it has been silent far too long.
+- Live messages: a **Messages** tab on each device with its last 50 messages, commands and how long it took to answer.
+- Impossible readings check: temperatures outside a range you set, humidity or battery outside 0 to 100%, humidity stuck at 0 or 100%. New options `impossible_temp_min`, `impossible_temp_max` and `humidity_stuck_hours`.
+- Payload changes: the device's History tab logs keys it started or stopped sending, and the **Sends different data** check flags a gone key that an automation or script still uses.
+- Settings advice: a Health note when Zigbee2MQTT's `last_seen` is off, with a one-click **Turn on**.
+- Power loss in an area: 3 or more mains devices in one area going offline together, while a battery device there stays online, become one "Power loss in Garage?" issue and one notification.
+- Home Assistant Repairs: a critical device offline, a Zigbee2MQTT network offline and a coordinator backup problem get their own wording and severity and always make the list. New option `ha_repairs` (on).
+- Escalation: an alert nobody answers within `escalate_hours` is sent again to a second notify service. New options `escalate_enabled`, `escalate_hours`, `escalate_service` and `escalate_critical_only`.
+- Firmware notes: your own notes against a model and firmware version. A noted version is flagged on the device and held back from Update all and the overnight window.
+- Warranties: a Warranty until date in a device's asset details, a Warranties list and a **Warranty ending** check.
+- Running costs on **Upkeep → Costs**: devices bought, batteries over the last 12 months and an estimate for the next 12, with battery prices per type.
+- Print labels: tick devices and print a sheet of labels with name, IEEE address, battery type and a QR code that opens the device (Avery L7651 or 29 mm tape).
+- Device age: **Upkeep → Models → By device age**, oldest first, with when the firmware last changed.
+- Compare devices: tick two devices and compare them side by side.
+- Coordinator backup copies: the last 10 versions of each network's `coordinator_backup.json`, with what changed between them and a Download button.
+- All networks: with more than one Zigbee2MQTT, a network picker and an overview card per network that warns about the same device name on two networks.
+- Group history: members added and removed, renames and when each Zigbee group was created.
+- Battery shop link: an optional cart button next to each battery to buy (`battery_shop_url`).
+- A Support this project link in the menu and Settings.
+- New option `networkmap_timeout_minutes` (60): how long to wait for a routing scan.
+
+### Fixed
+- Commands with `transition`, `brightness_step`, `effect`, `on_time` and similar options are no longer counted as missed ([#37](https://github.com/tempus2016/z2m-device-tracker/issues/37)).
+- Routing scans on large networks no longer time out after 10 minutes while Zigbee2MQTT is still scanning, and a second scan or the nightly router ping no longer starts on top of one ([#38](https://github.com/tempus2016/z2m-device-tracker/issues/38)).
+- Network events in Activity read "Main network online" instead of "Network network online".
+
 ## 1.5.2
 
 Update the app. The integration only changes how the `run_network_scan` action reads a base topic with a space, so updating it is optional.

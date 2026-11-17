@@ -39,9 +39,7 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `naming_pattern` | empty | Naming pattern for devices, e.g. `{area} {type} {n}`. Fills in the name of each device that joins in **Pair device**, and drives the **Naming** check. Empty turns it off. See [Device names](#device-names). |
 | `battery_shop_url` | empty | Store search address for the cart buttons in **Batteries to buy**, with `{type}` where the battery type goes, e.g. `https://www.amazon.co.uk/s?k={type}` or `https://www.amazon.de/s?k={type}`. Any shop works. Empty hides the buttons. Set it in **Settings → Battery brands**. No affiliate tags are added. |
 | `retained_autoclear` | `false` | After a device is renamed, clear the retained messages the broker still keeps under its old name. Off lists them on **Network → Broker** for you to clear. See [Stale retained messages](#stale-retained-messages). |
-
 | `broker_stats` | `true` | Read Mosquitto's `$SYS/broker/#` statistics for **Network → Broker**. See [Broker statistics](#broker-statistics). |
-
 | `impossible_temp_min` / `impossible_temp_max` | `-30` / `60` | The believable temperature range in °C for the **Impossible readings** check. Set them in **Settings → Limits**. |
 | `humidity_stuck_hours` | `6` | How long humidity must stay at exactly 0 or 100% before the **Impossible readings** check flags it. |
 | `mqtt_host` | empty | Address of your MQTT broker, if it isn't the Mosquitto broker app. Empty uses the broker Home Assistant offers. See [MQTT broker](#mqtt-broker). |
@@ -59,25 +57,20 @@ The sidebar has seven tabs. On a phone the last three sit behind **More** in the
 | Tab | What it holds |
 | --- | --- |
 | **Health** | Problems, worst first, then one line for each part of the app on another tab, so a glance says whether anything there needs a look. |
-| **Devices** | Every device, with its own page: info, health, trends, history, battery and notes. |
-| **Network** | **Map** (routing map, floor plan, what-if), **Coordinator** (each Zigbee2MQTT and its coordinator), **Broker** (stale retained messages and devices left behind in Home Assistant), **Radio** (channels and Wi-Fi overlap) and **Groups**. |
-
-| **Network** | **Map** (routing map, floor plan, what-if), **Coordinator** (each Zigbee2MQTT and its coordinator), **Broker** (MQTT broker statistics and devices left behind in Home Assistant), **Radio** (channels and Wi-Fi overlap) and **Groups**. |
-
-| **Devices** | Every device, with its own page: info, health, trends, history, battery, messages and notes. |
-| **Network** | **Map** (routing map, floor plan, what-if), **Coordinator** (each Zigbee2MQTT and its coordinator), **Broker** (devices left behind in Home Assistant), **Radio** (channels and Wi-Fi overlap) and **Groups**. |
-| **Upkeep** | **Batteries** (what to buy, and how long each brand lasts), **Maintenance** (recurring tasks), **Models** (reliability by model) and **Costs** (running costs). |
+| **Devices** | Every device, with its own page: info, health, trends, history, battery, messages, community and notes. |
+| **Network** | **Map** (routing map, floor plan, what-if), **Coordinator** (each Zigbee2MQTT and its coordinator, and copies of its backup), **Broker** (MQTT broker statistics, stale retained messages and devices left behind in Home Assistant), **Radio** (channels and Wi-Fi overlap) and **Groups**. |
+| **Upkeep** | **Batteries** (what to buy, and how long each brand lasts), **Maintenance** (recurring tasks and warranties), **Models** (reliability by model and device age), **Costs** (running costs) and **Community** (community ratings, and your models nobody has rated yet). |
 | **Updates** | Firmware updates. |
 | **Activity** | The logbook and incidents. |
 | **Settings** | Alerts, checks, limits, naming and the rest. |
+
+With more than one Zigbee2MQTT, **Network** starts with a network picker. **All networks** shows a card for each network (devices, how many are online, open problems, channel and Zigbee2MQTT version) and warns when the same device name is used on two networks, because Home Assistant then gives the second device's entities IDs ending in `_2`. Picking one network shows its map, coordinator, broker leftovers, radio channel and groups on their own. The app remembers the choice in this browser.
 
 ## Live messages
 
 A device's **Messages** tab shows the last 50 messages to and from it, newest first, and keeps updating while it's open: its state messages, availability changes, and commands sent to its `/set` topic with how long the device took to answer (or that it didn't answer within 10 seconds). Values that changed since the previous state message are highlighted, except link quality and `last_seen`, which change every time. The chips choose which kinds show, **Pause** stops the list moving, and **Copy** puts the shown messages on the clipboard.
 
 The messages are kept in memory only, for every device whether its tab is open or not, and nothing is saved: after a restart the lists start empty. Payloads longer than 2,000 characters are cut short.
-
-With more than one Zigbee2MQTT, **Network** starts with a network picker. **All networks** shows a card for each network (devices, how many are online, open problems, channel and Zigbee2MQTT version) and warns when the same device name is used on two networks, because Home Assistant then gives the second device's entities IDs ending in `_2`. Picking one network shows its map, coordinator, broker leftovers, radio channel and groups on their own. The app remembers the choice in this browser.
 
 ## MQTT broker
 
@@ -217,16 +210,15 @@ These checks show in Health but don't notify until you set them to **Show and no
 | Worse since an upgrade | After Zigbee2MQTT or the coordinator firmware changes, the week after the upgrade looks clearly worse than the week before, once at least 2 days of it have passed (shown for 30 days). Shows only; it doesn't notify unless you add it to `notify_checks`. See **Effect of an upgrade** below for what is compared and the thresholds. |
 | Stale retained messages | Retained MQTT messages that belong to no current device: topics under a device's old name, topics of removed devices, and Home Assistant discovery configs for devices no longer in Zigbee2MQTT. One low-priority line on Health that opens **Network → Broker**. See [Stale retained messages](#stale-retained-messages). |
 | Rated poorly by others | Other Zigbee Tracker users rate the device's model **Avoid** in the [community ratings](#community-ratings), from at least 5 reports. Low priority, and never notifies unless you add `community_avoid` to `notify_checks`. |
-
 | Retained command | A command for a current device (`<name>/set`, `<name>/set/<attribute>` or `<name>/<endpoint>/set`) that is retained on the broker. The broker sends it again every time it or Zigbee2MQTT restarts, so a light switches back on or a valve opens by itself. Usually an automation or Node-RED flow that publishes with retain on. Found when the app connects to the broker (retained messages are only marked as retained then). **Clear** publishes an empty retained message to the topic, which deletes it from the broker; nothing is sent to the device. **Ignore** mutes it for that device. |
-
 | Availability disagreement | Zigbee2MQTT's availability for a device contradicts its messages. **Offline** while 3 or more live messages arrived in the last 10 minutes, all after it went offline (and it has been offline for at least 5 minutes): the device is clearly talking, so the Offline check stays quiet for it and this shows instead. **Online** while it has sent nothing for at least 6 hours and 10 times its usual gap between messages (2 days without a week of history), when either Zigbee2MQTT doesn't track its availability or it's a battery device past Zigbee2MQTT's passive timeout plus an hour. Mains devices Zigbee2MQTT pings are not checked, since a ping keeps them online without a message, and devices with their own report interval are left to **Stopped reporting**. Usually a stale retained `<name>/availability` topic, for example one left from when availability was turned on. Live messages are only counted while the app is running. |
-
 | Sends different data | A device stopped sending a value it always sent, and an automation or script in Home Assistant uses that value's entity. See [Payload changes](#payload-changes). |
 | Naming | A device still named by its IEEE address (`0x…`), or, when `naming_pattern` is set, a name that doesn't follow it. Low priority. See [Device names](#device-names). |
 | Firmware you noted | A device runs a firmware version you wrote a firmware note about. Low priority. See [Firmware notes](#firmware-notes). |
 
 **Network → Groups** lists every Zigbee2MQTT group with how many of its members are online. Groups with offline members show each member, with the offline ones in red. A device that dropped out of a group but is still on the network (for example after it left and was re-paired) is flagged for 30 days, until it's back in the group, or until the group is deleted. Leaving a group is only noticed while the app is running.
+
+Each group also has a **History**: members added and removed (marked when the removed device was replaced), renames, and when the group was created. It starts when the app first sees the group; a group that already existed then has no "created" line. Zigbee2MQTT keeps its group list on the broker, so changes made while the app was stopped are picked up, dated when the app started again. The last 50 changes per group are kept in `history.json`, and the history of a deleted group is dropped 90 days after it was deleted.
 
 ## Payload changes
 
@@ -247,8 +239,6 @@ Zigbee2MQTT rewrites `coordinator_backup.json` in place, so a bad backup (a new 
 **Network → Coordinator** lists them with the date of each backup, how many devices it holds, and what changed from the copy before it: devices added or removed (by name, or IEEE address for a device the app doesn't know), and whether the network key, PAN ID or channel changed. **Download** saves that copy as a `coordinator_backup.json` you can give Zigbee2MQTT to restore the network.
 
 The copies contain the network key, like the original file. The app never logs or shows the key: it only keeps a short hash of it to tell whether it changed, and a copy is sent only when you click Download. The copies are in the app's data folder, so they are part of Home Assistant backups of the app.
-
-Each group also has a **History**: members added and removed (marked when the removed device was replaced), renames, and when the group was created. It starts when the app first sees the group; a group that already existed then has no "created" line. Zigbee2MQTT keeps its group list on the broker, so changes made while the app was stopped are picked up, dated when the app started again. The last 50 changes per group are kept in `history.json`, and the history of a deleted group is dropped 90 days after it was deleted.
 
 ## Effect of an upgrade
 

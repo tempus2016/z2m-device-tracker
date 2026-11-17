@@ -216,7 +216,7 @@ class Z2MTracker:
             "battery_shopping": payload.get("battery_shopping") or [],
             "maintenance": payload.get("maintenance") or [],
             "networks": _network_summary(payload),
-            # Community ratings for the models on these networks (app 1.6+; None from older apps).
+            # Community ratings for the models on these networks (app 2.0+; None from older apps).
             "community": payload.get("community"),
         }
         if self.repairs:

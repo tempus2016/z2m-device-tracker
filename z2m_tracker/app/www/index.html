@@ -1746,6 +1746,12 @@
     }
     const models = d.model_reliability || [];
     if (models.length) { const flagged = models.filter(modelFlagged).length; add("upkeep/models", flagged ? warn : ok, t("sub.models"), flagged ? t("fine.models_bad", { n: flagged }) : t("fine.models_ok", { n: models.length })); }
+    // Community ratings: a nudge to rate the models nobody has rated yet, so the shared list grows.
+    const cm = d.community;
+    if (cm) {
+      const unrated = cmUnrated().length, rated = Object.keys(cm.models || {}).length;
+      if (unrated || rated) add("upkeep/community", unrated ? "var(--primary)" : ok, t("sub.community"), unrated ? t("fine.community_rate", { n: unrated }) : t("fine.community_ok", { n: rated }));
+    }
     return lines.length ? `<div class="fine-list">${lines.join("")}</div>` : "";
   };
 
@@ -2133,6 +2139,16 @@
   const cmName = (m) => [m.vendor, m.model].filter(Boolean).join(" ");
   const cmIssues = (m) => `${REPO}/issues?q=${encodeURIComponent(`label:rating "${m.model}"`)}`;
   const cmTopTags = (m, n = 2) => Object.keys(m.tags || {}).slice(0, n).map((k) => t(`community.tag.${k}`));
+  // Models on this install's networks that nobody has rated yet, most devices first: the "Rate your devices" list.
+  const cmUnrated = () => {
+    const by = new Map();
+    state.data.devices.filter((x) => x.status === "active" && x.type !== "Coordinator" && (x.model || x.model_id) && !x.community_key).forEach((x) => {
+      const name = [x.vendor || x.manufacturer, x.model || x.model_id].filter(Boolean).join(" ");
+      if (!by.has(name)) by.set(name, []);
+      by.get(name).push(x.ieee);
+    });
+    return [...by.entries()].map(([name, ieees]) => ({ name, ieees })).sort((a, b) => b.ieees.length - a.ieees.length || a.name.localeCompare(b.name));
+  };
   const cmOwn = (d) => (state.data.model_reliability || []).find((r) => (r.ieees || []).includes(d.ieee)) || null;
   const tabCommunity = (d) => {
     if (!d.model && !d.model_id) return `<div class="card-content">${emptyState("account-group-outline", th("community.no_model"), th("community.no_model_text"))}</div>`;
@@ -2242,9 +2258,13 @@
         <div class="cm-search"><input class="field" id="cmSearch" type="search" autocomplete="off" value="${esc(state.cmQuery || "")}" placeholder="${esc(t("community.search"))}" aria-label="${esc(t("community.search"))}"></div>
         <div id="cmRest">${cmRestRows(all, row)}</div>`;
     }
-    const empty = !c.total ? `<div class="card-content">${emptyState("account-group-outline", th("community.none_yet"), th("community.none_yet_text"))}</div>` : "";
+    const unrated = cmUnrated();
+    const rate = unrated.length ? `<div class="sub-h">${th("community.rate_title")}</div><p class="cm-note" style="padding-top:0">${th("community.rate_text")}</p>
+      ${unrated.map((u) => `<button type="button" class="row click open-btn" data-act="cm-open" data-ieee="${esc(u.ieees[0])}"><span class="state-ic" style="color:var(--primary)">${ic("account-group-outline")}</span><span class="text"><span class="t1">${esc(u.name)}</span><span class="t2">${th("community.not_rated")} · ${th("community.you_have", { n: u.ieees.length })}</span></span><span class="badge">${th("community.rate")}</span></button>`).join("")}
+      ${owned.length ? `<div class="sub-h">${th("community.your_rated")}</div>` : ""}` : "";
+    const empty = !c.total && !unrated.length ? `<div class="card-content">${emptyState("account-group-outline", th("community.none_yet"), th("community.none_yet_text"))}</div>` : "";
     return `<div class="card" id="cmCard"><div class="card-header">${ic("account-group-outline")}<div><h2 class="ch">${th("community.title")}</h2><small>${th("community.subtitle", { n: owned.length, total: c.total })}</small></div></div>
-      ${empty}${owned.map((m) => row(m, true)).join("")}${rest}
+      ${empty}${rate}${owned.map((m) => row(m, true)).join("")}${rest}
       ${c.total && !state.cmAll ? `<div class="card-actions"><button class="btn" data-act="cm-all">${th("community.browse_all", { n: c.total })}</button></div>` : ""}</div>`;
   };
   const cmRestRows = (all, row) => (all.length ? all.slice(0, CM_LIMIT).map((m) => row(m, false)).join("") + (all.length > CM_LIMIT ? `<div class="models-note">${th("community.more_results", { n: all.length - CM_LIMIT })}</div>` : "") : `<div class="models-note">${th("community.no_results")}</div>`);
