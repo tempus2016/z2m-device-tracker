@@ -39,7 +39,7 @@ Every option is on the **Documentation** tab. Most can also be changed on the si
 
 ## Optional integration
 
-The Z2M Device Tracker integration (from HACS) adds summary sensors, a battery to-do list and calendar, dashboard cards, actions for automations and fixable Repairs issues. See the [README](https://github.com/tempus2016/z2m-device-tracker#install-the-integration-optional).
+The Z2M Device Tracker integration (from the Home Assistant Marketplace) adds summary sensors, a battery to-do list and calendar, dashboard cards, actions for automations and fixable Repairs issues. See the [README](https://github.com/tempus2016/z2m-device-tracker#install-the-integration-optional).
 
 ## Help
 

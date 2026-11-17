@@ -1,9 +1,12 @@
 name: Label issues on comment
 
-# Marks who commented last: the developer, whoever opened the issue, or
-# somebody else. The developer opening an issue still counts as the developer.
+# Marks who spoke last: the developer, whoever opened the issue, or somebody
+# else. Opening an issue counts as the author's reply, so a new issue starts
+# with Author Reply. The developer opening an issue still counts as the developer.
 
 on:
+  issues:
+    types: [opened]
   issue_comment:
     types: [created]
 
@@ -18,11 +21,12 @@ jobs:
       - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
-            const comment = context.payload.comment;
             const issue = context.payload.issue;
+            // A new issue has no comment: the issue body is the author's post.
+            const post = context.payload.comment ?? issue;
             const addLabel =
-              comment.author_association === 'OWNER' ? 'Developer Reply'
-              : comment.user.login === issue.user.login ? 'Author Reply'
+              post.author_association === 'OWNER' ? 'Developer Reply'
+              : post.user.login === issue.user.login ? 'Author Reply'
               : 'User Reply';
             const { owner, repo } = context.repo;
             const issue_number = issue.number;
