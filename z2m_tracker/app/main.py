@@ -98,6 +98,7 @@ DEFAULT_OPTIONS = {
     "frozen_alert_hours": 24,
     "battery_alert_percent": 15,
     "networkmap_hour": 3,
+    "networkmap_timeout_minutes": 60,
     "ha_entities": True,
     "weekly_summary": True,
     "summary_day": 0,
@@ -202,6 +203,7 @@ SETTINGS = {
     "frozen_alert_hours": _int(0, 720),
     "battery_alert_percent": _int(0, 100),
     "networkmap_hour": _int(-1, 23),
+    "networkmap_timeout_minutes": _int(5, 240),
     "ha_entities": _bool,
     "weekly_summary": _bool,
     "summary_day": _int(0, 6),
@@ -982,6 +984,15 @@ def clear_retained_commands(ieee: str) -> dict:
 # ------------------------------------------------------------------ threads
 
 
+def networkmap_timeout() -> int:
+    """Seconds to wait for Zigbee2MQTT's routing scan answer. Large meshes can take over 20 minutes."""
+    try:
+        minutes = int(options.get("networkmap_timeout_minutes", 60))
+    except (TypeError, ValueError):
+        minutes = 60
+    return min(max(minutes, 5), 240) * 60
+
+
 def run_networkmap(instance: str | None = None) -> bool:
     if not scan_lock.acquire(blocking=False):
         return False
@@ -989,7 +1000,7 @@ def run_networkmap(instance: str | None = None) -> bool:
     def job() -> None:
         try:
             _LOGGER.info("Routing scan started (%s)", instance or "all networks")
-            result = tracker.scan_networkmap(instance)
+            result = tracker.scan_networkmap(instance, timeout=networkmap_timeout())
             _LOGGER.info("Routing scan finished: %s", result)
         except Exception:  # noqa: BLE001 - scans are best effort
             _LOGGER.exception("Routing scan failed")
@@ -1006,8 +1017,8 @@ def run_router_pings() -> bool:
 
     def job() -> None:
         try:
-            # Don't overlap a routing scan that's still running.
-            if scan_lock.acquire(timeout=900):
+            # Don't overlap a routing scan that's still running: wait as long as the scan may take.
+            if scan_lock.acquire(timeout=networkmap_timeout() + 60):
                 scan_lock.release()
             _LOGGER.info("Nightly router ping started")
             result = tracker.ping_routers(stop_event.wait)

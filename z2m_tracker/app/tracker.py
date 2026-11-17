@@ -991,6 +991,10 @@ class Tracker:
                 self.data["events"] = list(stored.get("events") or [])
                 self.data["imported"] = stored.get("imported")
                 self.data["networkmap"] = stored.get("networkmap") or {}
+                # A scan that was running when the app stopped will never answer this run.
+                for info in self.data["networkmap"].values():
+                    if isinstance(info, dict):
+                        info.pop("running_since", None)
                 self.data["alerted"] = list(stored.get("alerted") or [])
                 for ieee, record in (stored.get("devices") or {}).items():
                     if isinstance(record, dict):
@@ -1746,6 +1750,12 @@ class Tracker:
             pending = self._pending[transaction]
             pending["result"] = payload
             pending["event"].set()
+        elif kind == "networkmap" and str(transaction or "").startswith("z2mt-"):
+            _LOGGER.info(
+                "Routing scan on %s answered after the time limit (status %s); saved it",
+                base_topic,
+                _text(payload.get("status"), 40),
+            )
         if kind == "networkmap":
             self._ingest_networkmap(base_topic, payload)
         elif kind == "permit_join" and payload.get("status") == "ok":
@@ -2323,14 +2333,14 @@ class Tracker:
             self._changed(structural=True)
         return {"ok": ok, "error": error, "detail": raw}
 
-    def scan_networkmap(self, base_topic: str | None = None) -> dict:
+    def scan_networkmap(self, base_topic: str | None = None, timeout: float = 3600) -> dict:
         topics = [base_topic] if base_topic else list(self.base_topics)
         results = {}
         for topic in topics:
             with self.lock:
                 self.data["networkmap"].setdefault(topic, {})["running_since"] = _now()
                 self._changed(structural=True)
-            result = self.request(topic, "networkmap", {"type": "raw", "routes": False}, timeout=600)
+            result = self.request(topic, "networkmap", {"type": "raw", "routes": False}, timeout=timeout)
             with self.lock:
                 self.data["networkmap"].setdefault(topic, {}).pop("running_since", None)
                 if result is None:

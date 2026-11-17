@@ -47,6 +47,9 @@ configuration:
   networkmap_hour:
     name: Routing scan hour
     description: Hour of the nightly routing scan, or -1 to turn it off.
+  networkmap_timeout_minutes:
+    name: Routing scan time limit (minutes)
+    description: How long to wait for Zigbee2MQTT to finish a routing scan. Raise it for large networks.
   ha_entities:
     name: Tracker sensors
     description: Add tracker sensors to each Zigbee2MQTT device via MQTT discovery.
