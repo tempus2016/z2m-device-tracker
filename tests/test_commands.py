@@ -382,3 +382,54 @@ def test_unanswered_command_before_a_later_one_is_missed(tracker, clock):
     clock.advance(0.3)
     send(tracker, "Lamp", {"state": "OFF"})
     assert cmd(tracker)[0][1:4] == [2, 1, [300]]
+
+
+# ------------------------------------------------------------------ command options Zigbee2MQTT never echoes (#37)
+
+
+def test_transition_is_not_expected_in_the_reply(tracker, clock):
+    setup(tracker)
+    send(tracker, "Lamp/set", {"state": "ON", "brightness": 128, "transition": 5})
+    clock.advance(0.4)
+    send(tracker, "Lamp", {"state": "ON", "brightness": 128, "linkquality": 120})
+    assert cmd(tracker) == [[HOUR_NOW, 1, 0, [400]]]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"brightness_step": 40},
+        {"brightness_move": -60},
+        {"brightness_step_onoff": 40, "transition": 1},
+        {"color_temp_step": 20},
+        {"color_temp_move": "stop"},
+        {"hue_move": 40},
+        {"saturation_step": 10},
+        {"effect": "blink"},
+        {"alert": "select"},
+        {"flash": 2},
+        {"state": "ON", "on_time": 30, "off_wait_time": 5},
+    ],
+)
+def test_command_options_are_not_expected_in_the_reply(tracker, clock, payload):
+    setup(tracker)
+    send(tracker, "Lamp/set", payload)
+    clock.advance(0.3)
+    send(tracker, "Lamp", {"state": "ON", "brightness": 90, "color_temp": 300})
+    assert cmd(tracker) == [[HOUR_NOW, 1, 0, [300]]]
+
+
+def test_attribute_topic_for_an_option_accepts_any_state(tracker, clock):
+    setup(tracker)
+    send(tracker, "Lamp/set/brightness_step", "40")
+    send(tracker, "Lamp", {"state": "ON", "brightness": 90})
+    assert cmd(tracker)[0][1:3] == [1, 0]
+
+
+def test_other_keys_still_have_to_appear(tracker, clock):
+    setup(tracker)
+    send(tracker, "Lamp/set", {"state": "ON", "transition": 2, "color": {"x": 0.3, "y": 0.3}})
+    send(tracker, "Lamp", {"state": "ON"})
+    assert cmd(tracker) == []
+    send(tracker, "Lamp", {"state": "ON", "color": {"x": 0.3, "y": 0.3}})
+    assert cmd(tracker)[0][1:3] == [1, 0]
