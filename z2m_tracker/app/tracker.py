@@ -580,6 +580,28 @@ def _new_record(ieee: str, instance: str | None) -> dict[str, Any]:
 
 # Command values a reply has to echo before it counts as the answer; other keys only need to appear.
 _ECHOED = ("state", "brightness", "color_temp", "position")
+# Command options and relative moves: Zigbee2MQTT acts on them but never publishes them in the device
+# state, so a reply can't show them. Expecting them made every such command count as missed (#37).
+_NOT_ECHOED = frozenset(
+    {
+        "transition",
+        "brightness_step",
+        "brightness_step_onoff",
+        "brightness_move",
+        "brightness_move_onoff",
+        "color_temp_step",
+        "color_temp_move",
+        "hue_step",
+        "hue_move",
+        "saturation_step",
+        "saturation_move",
+        "effect",
+        "alert",
+        "flash",
+        "on_time",
+        "off_wait_time",
+    }
+)
 
 
 def _expected_reply(rest: str, text: str) -> dict:
@@ -590,12 +612,16 @@ def _expected_reply(rest: str, text: str) -> dict:
             value = json.loads(text)
         except ValueError:
             value = text.strip()
+        if key in _NOT_ECHOED:
+            return {}
         return {key: value if key in _ECHOED else None}
     parsed = _loads(text) if text[:1] == "{" else None
     if not isinstance(parsed, dict):
         return {}
     out = {}
     for key, value in list(parsed.items())[:10]:
+        if key in _NOT_ECHOED:
+            continue
         if key in _ECHOED and isinstance(value, (str, int, float)) and not isinstance(value, bool):
             # TOGGLE flips whatever the state was, so any state answers it.
             out[key] = None if isinstance(value, str) and value.upper() == "TOGGLE" else value
