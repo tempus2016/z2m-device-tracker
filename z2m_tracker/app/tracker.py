@@ -22,6 +22,7 @@ from typing import Any
 
 import firmware_notes
 from backup_history import BackupHistory
+from community import build_report, community_issues, issue_url, model_key, record_model, report_text
 from costs import clean_battery_prices, running_costs
 from group_history import apply as apply_group_history
 from group_history import clean as clean_group_history
@@ -913,6 +914,8 @@ class Tracker:
         self._usage_keys: set[str] = set()
         self._pending: dict[str, dict] = {}
         self.battery_lib = None
+        # community.CommunityRatings, set by main.py.
+        self.community = None
         self.permit: dict[str, dict] = {}
         self.scans: dict[str, list] = {}
         self.scans_path: str | None = None
@@ -2458,6 +2461,46 @@ class Tracker:
 
     # ------------------------------------------------- single points of failure
 
+    def community_report(self, ieee: str, choice: dict) -> dict | None:
+        """The rating report for the model of `ieee`, as it will be posted, and the GitHub link that posts it.
+
+        Covers every active device of that model on all networks. None for an unknown device or one
+        without a model. `problems` lists choices that still need fixing (only the verdict can be missing).
+        """
+        if self.community is None:
+            return None
+        now = time.time()
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            found = record_model(record) if record else None
+            if found is None or record.get("type") == "Coordinator":
+                return None
+            same = [
+                r
+                for r in self.data["devices"].values()
+                if r.get("status") == STATUS_ACTIVE and r.get("type") != "Coordinator" and record_model(r) == found
+            ] or [record]
+            bridge = ((self.data.get("bridges") or {}).get(record.get("instance")) or {}).get("info") or {}
+            rows = model_reliability(same, self.data["events"], now)
+            lqis = []
+            for r in same:
+                summary = self.metrics.summary(r["ieee"], now)
+                value = summary.get("lqi_prev_7d")
+                if value is None:
+                    value = summary.get("lqi_24h")
+                if isinstance(value, (int, float)):
+                    lqis.append(float(value))
+        # Keyed by the model as this install names it, so it stays the same once the model is in the file.
+        reporter = self.community.reporter(model_key(*found))
+        fields, comment, problems = build_report(same, bridge, rows[0] if rows else None, lqis, reporter, choice, now)
+        return {
+            "fields": [[k, v] for k, v in fields],
+            "text": report_text(fields),
+            "comment": comment,
+            "url": issue_url(fields, comment),
+            "problems": problems,
+        }
+
     def single_points(self, base_topic: str) -> list[dict]:
         """Routers that are the only path to the coordinator for other routers, from the latest scan."""
         scanned_at = (self.data.get("networkmap") or {}).get(base_topic, {}).get("scanned_at")
@@ -3199,6 +3242,12 @@ class Tracker:
                 issue["name"] = _display_name(record) or record["ieee"]
                 issue["instance"] = record["instance"]
                 issues.append(issue)
+            if self.community is not None:
+                for issue in community_issues(list(self.data["devices"].values()), self.community, self.options, now):
+                    record = self.data["devices"][issue["ieee"]]
+                    issue["name"] = _display_name(record) or record["ieee"]
+                    issue["instance"] = record["instance"]
+                    issues.append(issue)
             order = {"warning": 0, "info": 1}
             issues.sort(key=lambda i: (order.get(i["severity"], 2), i["name"].lower()))
 
@@ -3454,6 +3503,8 @@ class Tracker:
                 item["can_ping"] = self.can_ping(record) is None
                 item["reporting_audit"] = self.reporting_audit(record, item["metrics"].get("msg_rate_6h"))
                 item["kind"] = kind_of(record)
+                if self.community is not None:
+                    item["community_key"] = self.community.key_for(record)
                 devices.append(item)
             payload = {
                 "devices": devices,
@@ -3471,6 +3522,11 @@ class Tracker:
                 "battery_shopping": self.battery_shopping(60),
                 "model_reliability": model_reliability(list(self.data["devices"].values()), self.data["events"], now),
                 "device_ages": device_ages(list(self.data["devices"].values()), self.data["events"], self._today()),
+                "community": self.community.snapshot(
+                    list(self.data["devices"].values()), bool(self.options.get("community_ratings_fetch", True))
+                )
+                if self.community is not None
+                else None,
                 "ha_leftovers": self.ha_leftovers,
                 "retained": self.retained_payload(),
                 "broker": self.broker_stats.snapshot(bool(self.options.get("broker_stats", True)))

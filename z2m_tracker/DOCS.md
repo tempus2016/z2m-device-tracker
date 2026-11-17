@@ -50,6 +50,7 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `mqtt_ssl` | `false` | Connect to that broker over TLS. |
 | `mqtt_ssl_verify` | `true` | Check the broker's TLS certificate. Turn off for a self-signed certificate. |
 | `metrics_token` | empty | Token for the Prometheus endpoint, 16 characters or more. Empty keeps the endpoint off. See [Prometheus metrics](#prometheus-metrics). |
+| `community_ratings_fetch` | `true` | Download the newest community device ratings from GitHub once a day. Off uses the copy that comes with the app, updated with each release. See [Community ratings](#community-ratings). |
 
 ## Where things are
 
@@ -215,6 +216,7 @@ These checks show in Health but don't notify until you set them to **Show and no
 | Daily signal dip | Average link quality across a network drops at least 25% below that day's median in the same 1 to 4 hours on at least 4 of the last 7 days, and at least 30% of its devices dip then too. Usually something that switches on at that time: busy Wi-Fi on an overlapping channel, a microwave, or a USB 3 device near the coordinator. Health → Radio channels shows the hourly chart once a network has a week of link quality from at least 3 devices. |
 | Worse since an upgrade | After Zigbee2MQTT or the coordinator firmware changes, the week after the upgrade looks clearly worse than the week before, once at least 2 days of it have passed (shown for 30 days). Shows only; it doesn't notify unless you add it to `notify_checks`. See **Effect of an upgrade** below for what is compared and the thresholds. |
 | Stale retained messages | Retained MQTT messages that belong to no current device: topics under a device's old name, topics of removed devices, and Home Assistant discovery configs for devices no longer in Zigbee2MQTT. One low-priority line on Health that opens **Network → Broker**. See [Stale retained messages](#stale-retained-messages). |
+| Rated poorly by others | Other Zigbee Tracker users rate the device's model **Avoid** in the [community ratings](#community-ratings), from at least 5 reports. Low priority, and never notifies unless you add `community_avoid` to `notify_checks`. |
 
 | Retained command | A command for a current device (`<name>/set`, `<name>/set/<attribute>` or `<name>/<endpoint>/set`) that is retained on the broker. The broker sends it again every time it or Zigbee2MQTT restarts, so a light switches back on or a valve opens by itself. Usually an automation or Node-RED flow that publishes with retain on. Found when the app connects to the broker (retained messages are only marked as retained then). **Clear** publishes an empty retained message to the topic, which deletes it from the broker; nothing is sent to the device. **Ignore** mutes it for that device. |
 
@@ -448,6 +450,20 @@ The **Updates** tab lists every device with a firmware update from Zigbee2MQTT, 
 - A device of that model whose firmware build (Zigbee2MQTT's `software_build_id`) or installed OTA file version is the noted version shows the note on its page, and gets a **Firmware you noted** row in Health under **Worth a look**.
 - An update on offer to the noted version is marked "You noted problems with ..." and left out of **Update all** and the overnight `ota_window` run. **Update anyway** on that row installs it. Zigbee2MQTT only knows the OTA file version of an update before it's installed, so a note on a build such as `2.1.4` matches an offered update once a device of the same model runs `2.1.4` and reports its file version; a note on the file version itself matches straight away.
 - The models come from Zigbee2MQTT's device definitions, so a note covers every device of that model on every network.
+
+## Community ratings
+
+What other Zigbee Tracker users think of each device model, in the spirit of the Battery Notes device library. A device's **Community** tab shows its model's verdict (**Recommended**, **Mixed** or **Avoid**, once at least 5 people have rated it), how many people rated it, the measured numbers they shared (median uptime, drop-outs a month, link quality and battery life) next to your own, the most common tags, the firmware version people rate best, and a few recent comments. **Upkeep → Community** lists every model on your networks first, then every other rated model, with a search box: useful before buying a device.
+
+**Share your experience** on the Community tab rates a model:
+
+1. Pick **Recommend**, **It's OK** or **Avoid**, any tags that fit, and an optional comment.
+2. Turn on **Attach my stats** to add the numbers the tracker measured for that model (uptime over 30 days, drop-outs a month, median link quality, battery life between changes). They make the ratings much more useful.
+3. The dialog shows exactly what will be posted. **Continue on GitHub** opens a pre-filled GitHub issue in a new tab. You need a GitHub account, and nothing is posted until you press **Create** there.
+
+A report holds the vendor, model, firmware version, Zigbee2MQTT version, adapter type, how many of the model you have and for how many months, your verdict, tags and comment, the stats if you chose to share them, and a reporter code. It never holds device names, areas, IEEE addresses or anything about your Home Assistant. The reporter code is a hash of a random ID kept in the app's data folder and the model, so a newer report from you replaces your older one for the same model; it can't be linked back to you or across models. Reports are public GitHub issues released under CC0.
+
+A bot checks each report and closes the issue. Once a week the reports are rebuilt into `community_ratings.json` (newest report per person per model), which ships with the app and, unless `community_ratings_fetch` is off, is downloaded from GitHub once a day.
 
 ## Security
 

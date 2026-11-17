@@ -88,3 +88,14 @@
 - name: implemented
   color: "0e8a16"
   description: Out in a published release
+
+# Community ratings (see scripts/community_ratings.py)
+- name: rating
+  color: "0e8a16"
+  description: A community device rating
+- name: invalid-rating
+  color: "e4e669"
+  description: A rating whose report couldn't be read; left out of the ratings
+- name: rating-rejected
+  color: "b60205"
+  description: A rating left out of the ratings by the maintainer (spam or abuse)

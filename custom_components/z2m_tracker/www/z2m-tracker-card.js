@@ -13,7 +13,7 @@ const nameOf = (d) => {
 };
 const I18N = () => window.Z2MTrackerI18n;
 const T = (key, vars, fallback) => I18N()?.t(key, vars, fallback) ?? fallback ?? key;
-const KIND_ICON = { offline: "mdi:wifi-off", silent: "mdi:wifi-off", late: "mdi:timer-sand", frozen: "mdi:thermometer-alert", weak_signal: "mdi:signal-cellular-1", signal_drop: "mdi:signal-cellular-2", battery_low: "mdi:battery-alert-variant-outline", battery_soon: "mdi:battery-clock-outline", update: "mdi:chip", unidentified: "mdi:help-circle-outline", replacement: "mdi:link-variant", router_hopping: "mdi:swap-horizontal", slow_router: "mdi:router-wireless", maintenance_due: "mdi:wrench-clock", slow_commands: "mdi:timer-sand", missed_commands: "mdi:gesture-tap-button", reporting_config: "mdi:tune", naming: "mdi:rename" };
+const KIND_ICON = { offline: "mdi:wifi-off", silent: "mdi:wifi-off", late: "mdi:timer-sand", frozen: "mdi:thermometer-alert", weak_signal: "mdi:signal-cellular-1", signal_drop: "mdi:signal-cellular-2", battery_low: "mdi:battery-alert-variant-outline", battery_soon: "mdi:battery-clock-outline", update: "mdi:chip", unidentified: "mdi:help-circle-outline", replacement: "mdi:link-variant", router_hopping: "mdi:swap-horizontal", slow_router: "mdi:router-wireless", maintenance_due: "mdi:wrench-clock", slow_commands: "mdi:timer-sand", missed_commands: "mdi:gesture-tap-button", reporting_config: "mdi:tune", naming: "mdi:rename", community_avoid: "mdi:thumb-down-outline" };
 
 class Z2MTrackerCard extends HTMLElement {
   setConfig(config) {
@@ -40,6 +40,18 @@ class Z2MTrackerCard extends HTMLElement {
   getCardSize() { return 5; }
   getGridOptions() { return { columns: 6, min_columns: 4, rows: "auto" }; }
   static getStubConfig() { return {}; }
+  // Home Assistant draws the visual editor from this schema (labels from the cards' translations).
+  static getConfigForm() {
+    return {
+      schema: [
+        { name: "title", selector: { text: {} } },
+        { name: "max_items", selector: { number: { min: 1, max: 50, mode: "box" } } },
+        { name: "show_community", selector: { boolean: {} } },
+      ],
+      computeLabel: (s) => T(`card.editor.${s.name}`, null, s.name),
+      computeHelper: (s) => (s.name === "show_community" ? T("card.editor.show_community_help") : undefined),
+    };
+  }
 
   _start() {
     if (!this._root) {
@@ -81,6 +93,24 @@ class Z2MTrackerCard extends HTMLElement {
     this._render();
   }
 
+  // Optional (show_community): the user's models other Zigbee Tracker users rate Avoid or Mixed, worst first.
+  _community(cfg) {
+    const models = Object.values(this._data?.community?.models || {});
+    const order = { avoid: 0, mixed: 1 };
+    const flagged = models.filter((m) => m.verdict in order).sort((a, b) => order[a.verdict] - order[b.verdict] || b.reports - a.reports);
+    const good = models.filter((m) => m.verdict === "recommended").length;
+    const row = (m) => {
+      const color = m.verdict === "avoid" ? "var(--error-color, #db4437)" : "var(--warning-color, #ffa600)";
+      const name = [m.vendor, m.model].filter(Boolean).join(" ");
+      const facts = [T(`card.community.${m.verdict}`), T("card.community.reports", { n: m.reports }), T("card.community.you_have", { n: (m.ieees || []).length })].join(" · ");
+      return `<div class="row" style="--c:${color}"><ha-icon icon="${m.verdict === "avoid" ? "mdi:thumb-down-outline" : "mdi:thumbs-up-down-outline"}"></ha-icon><div class="t"><div class="t1">${esc(name)}</div><div class="t2">${esc(facts)}</div></div></div>`;
+    };
+    const rows = flagged.slice(0, cfg.max_items).map(row).join("")
+      + (flagged.length > cfg.max_items ? `<div class="empty">${esc(T("card.more", { n: flagged.length - cfg.max_items }))}</div>` : "");
+    const goodRow = good ? `<div class="row" style="--c:var(--success-color, #43a047)"><ha-icon icon="mdi:thumb-up-outline"></ha-icon><div class="t"><div class="t1">${esc(T("card.community.recommended", { n: good }))}</div></div></div>` : "";
+    return `<div class="section">${esc(T("card.community.title"))}</div>${rows}${goodRow}${rows || goodRow ? "" : `<div class="empty">${esc(T("card.community.none"))}</div>`}`;
+  }
+
   _render() {
     const body = this._root?.getElementById("body");
     if (!body) return;
@@ -115,6 +145,7 @@ class Z2MTrackerCard extends HTMLElement {
         + (issues.length > cfg.max_items ? `<div class="empty">${esc(T("card.more", { n: issues.length - cfg.max_items }))}</div>` : "")
         : `<div class="empty">${esc(T("card.nothing"))}</div>`}
       ${buy ? `<div class="section">${esc(T("card.summary.to_buy"))}</div><div class="row" style="--c:var(--state-icon-color)"><ha-icon icon="mdi:battery-plus-outline"></ha-icon><div class="t"><div class="t1">${esc(buy)}</div><div class="t2">${esc(T("card.summary.to_buy_for", { n: due.length }))}</div></div></div>` : ""}
+      ${cfg.show_community ? this._community(cfg) : ""}
       <div class="actions"><a href="${esc(cfg.panel)}">${esc(T("card.summary.open"))}</a></div>`;
     body.querySelectorAll("[data-go]").forEach((el) => el.addEventListener("click", () => { history.pushState(null, "", cfg.panel); window.dispatchEvent(new CustomEvent("location-changed")); }));
     body.querySelector(".actions a").addEventListener("click", (e) => { e.preventDefault(); history.pushState(null, "", cfg.panel); window.dispatchEvent(new CustomEvent("location-changed")); });

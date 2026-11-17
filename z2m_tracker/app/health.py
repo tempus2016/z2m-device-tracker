@@ -242,6 +242,12 @@ CHECKS = [
         "Zigbee2MQTT says the device is offline while it keeps sending messages (3 in 10 minutes), or online while it has sent nothing for far longer than usual. Usually a stale retained availability topic.",
         False,
     ),
+    (
+        "community_avoid",
+        "Rated poorly by others",
+        "Other Zigbee Tracker users rate the device's model Avoid in the community ratings (at least 5 reports).",
+        False,
+    ),
     ("joined", "Device joined", "A device joins one of your networks.", True),
     ("left", "Device left", "A device leaves one of your networks.", True),
     ("interview_failed", "Interview failed", "A newly joined device couldn't be identified.", True),
@@ -296,6 +302,7 @@ KIND_LABELS = {
     "retained_command": "Retained command",
     "availability_mismatch": "Availability disagreement",
     "payload_changed": "Sends different data",
+    "community_avoid": "Rated poorly by others",
 }
 
 

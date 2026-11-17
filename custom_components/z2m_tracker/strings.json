@@ -266,7 +266,8 @@
         "firmware_note": "Firmware you noted",
         "retained_command": "Retained command",
         "availability_mismatch": "Availability disagreement",
-        "payload_changed": "Sends different data"
+        "payload_changed": "Sends different data",
+        "community_avoid": "Rated poorly by others"
       }
     }
   },

@@ -137,3 +137,6 @@ configuration:
   metrics_token:
     name: Prometheus metrics token
     description: Set a token of 16 or more characters to serve Prometheus metrics on port 9099. Empty keeps it off.
+  community_ratings_fetch:
+    name: Fetch community ratings
+    description: Download the newest community device ratings from GitHub once a day. Off uses the copy that comes with the app.

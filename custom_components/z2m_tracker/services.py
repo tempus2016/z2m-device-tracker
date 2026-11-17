@@ -57,6 +57,7 @@ DEVICE_CHECKS = [
     "retained_command",
     "availability_mismatch",
     "payload_changed",
+    "community_avoid",
 ]
 
 DEVICE_FIELDS = {

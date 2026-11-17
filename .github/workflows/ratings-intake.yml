@@ -1,0 +1,56 @@
+name: Rating intake
+
+# Checks each community device rating issue (opened from the sidebar's "Share your experience").
+# A readable report closes the issue as done; it's counted at the next weekly rebuild
+# (community-ratings.yml). One that can't be read gets the invalid-rating label and a comment,
+# and is checked again when its author edits it.
+#
+# The issue text is untrusted: it's only read from the event file by the script, never put
+# into a shell command.
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check the report
+    if: ${{ contains(github.event.issue.labels.*.name, 'rating') && !contains(github.event.issue.labels.*.name, 'rating-rejected') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      NUMBER: ${{ github.event.issue.number }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read the report
+        id: check
+        run: |
+          python3 scripts/community_ratings.py check "${GITHUB_EVENT_PATH}" > result.json
+          jq -r '.message' result.json > comment.md
+          echo "valid=$(jq -r '.valid' result.json)" >> "${GITHUB_OUTPUT}"
+
+      - name: Accept
+        if: steps.check.outputs.valid == 'true'
+        run: |
+          gh issue edit "${NUMBER}" --remove-label invalid-rating || true
+          gh issue close "${NUMBER}" --reason completed --comment "$(cat comment.md)"
+
+      - name: Ask for a fix
+        if: steps.check.outputs.valid != 'true'
+        run: |
+          gh issue edit "${NUMBER}" --add-label invalid-rating
+          gh issue comment "${NUMBER}" --body-file comment.md

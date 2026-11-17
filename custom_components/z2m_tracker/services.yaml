@@ -64,6 +64,7 @@ mute_device:
             - retained_command
             - availability_mismatch
             - payload_changed
+            - community_avoid
     duration:
       selector:
         duration:

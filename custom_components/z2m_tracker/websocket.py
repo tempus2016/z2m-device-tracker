@@ -54,6 +54,7 @@ def ws_devices(hass: HomeAssistant, connection: websocket_api.ActiveConnection, 
             "panel": tracker.panel,
             "battery_alert_percent": tracker.battery_alert_percent(),
             "networks": tracker.data.get("networks") or [],
+            "community": tracker.data.get("community"),
         },
     )
 
