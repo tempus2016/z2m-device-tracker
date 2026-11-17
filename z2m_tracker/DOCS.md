@@ -21,6 +21,7 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `frozen_alert_hours` | `24` | How long a sensor reading must stay the same before it counts as frozen. A device can have its own value (Health tab, **Limits for this device**). |
 | `battery_alert_percent` | `15` | Battery level for a low battery alert. A device can have its own value (Health tab, **Limits for this device**). |
 | `networkmap_hour` | `3` | Hour of the nightly routing scan, or `-1` to turn it off. |
+| `networkmap_timeout_minutes` | `60` | How long to wait for Zigbee2MQTT to finish a routing scan (5 to 240). A scan of a network with 100 devices can take over 20 minutes. The scan counts as running until it answers or this limit passes, so no second scan starts and the nightly router ping waits for it. An answer that comes after the limit is still saved. |
 | `ha_entities` | `true` | Add tracker sensors to each Zigbee2MQTT device via MQTT discovery. |
 | `weekly_summary` | `true` | Send a weekly summary notification. |
 | `summary_day` / `summary_hour` | `0` / `9` | When to send it (0 = Monday). |

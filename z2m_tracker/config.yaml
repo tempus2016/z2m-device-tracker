@@ -51,6 +51,7 @@ options:
   frozen_alert_hours: 24
   battery_alert_percent: 15
   networkmap_hour: 3
+  networkmap_timeout_minutes: 60
   ha_entities: true
   weekly_summary: true
   summary_day: 0
@@ -90,6 +91,7 @@ schema:
   frozen_alert_hours: int(0,720)
   battery_alert_percent: int(0,100)
   networkmap_hour: int(-1,23)
+  networkmap_timeout_minutes: int(5,240)?
   ha_entities: bool
   weekly_summary: bool
   summary_day: int(0,6)
