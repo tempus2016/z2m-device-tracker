@@ -1118,6 +1118,8 @@
   const checkLabel = (c) => tx(`check.${c.key}.label`, null, c.label);
   const checkDesc = (c) => tx(`check.${c.key}.description`, null, c.description);
   // Event kinds and the fixed English details the app writes (stored in history, so matched by text).
+  // A network event is named after the network ("Main network online"), so its kind drops the word "network".
+  const netKind = (e) => (e.ieee === "network" ? String(e.kind || "").replace(/^network /, "") : e.kind);
   const eventKind = (k) => tx(`event.kind.${String(k).replace(/[^a-z0-9]+/gi, "_").toLowerCase()}`, null, k);
   const EVENT_DETAILS = [
     [/^Appeared in the Z2M device list$/, "appeared"], [/^Back in the Z2M device list$/, "back"], [/^Gone from the Z2M device list$/, "gone"],
@@ -2494,8 +2496,8 @@
       const members = evs.map((e) => {
         const d = state.byIeee.get(e.ieee);
         const [icon, c] = EVENT_ICON(String(e.kind || ""));
-        const who = e.ieee === "network" ? esc(t("incident.network")) : d ? devLink(e.ieee) : esc(e.name && !IEEE_RE.test(e.name) ? e.name : e.ieee);
-        return `<div class="inc-ev"><span class="inc-ic" style="color:${c}">${ic(icon, "s18")}</span><span class="text">${who} ${esc(eventKind(e.kind))}</span><time datetime="${esc(e.time)}">${esc(fmtTime(e.time))}</time></div>`;
+        const who = e.ieee === "network" ? esc(netLabel(e.instance)) : d ? devLink(e.ieee) : esc(e.name && !IEEE_RE.test(e.name) ? e.name : e.ieee);
+        return `<div class="inc-ev"><span class="inc-ic" style="color:${c}">${ic(icon, "s18")}</span><span class="text">${who} ${esc(eventKind(netKind(e)))}</span><time datetime="${esc(e.time)}">${esc(fmtTime(e.time))}</time></div>`;
       }).join("");
       const more = (inc.events_total || 0) > evs.length ? `<div class="inc-ev muted">${th("incident.more_events", { n: inc.events_total - evs.length })}</div>` : "";
       return `<div class="inc${inc.ongoing ? " ongoing" : ""}">
@@ -2514,11 +2516,11 @@
     events.forEach((e) => { const day = fmtDate(e.time, false); if (!groups.length || groups[groups.length - 1].day !== day) groups.push({ day, items: [] }); groups[groups.length - 1].items.push(e); });
     $("#view").innerHTML = `<div class="card">${logModeChips()}${groups.map((g) => `<div class="logday">${esc(g.day)}</div>` + g.items.map((e) => {
       const d = state.byIeee.get(e.ieee);
-      const who = e.name && !IEEE_RE.test(e.name) ? e.name : nameOf(d) || e.ieee;
+      const who = e.ieee === "network" ? netLabel(e.instance) : e.name && !IEEE_RE.test(e.name) ? e.name : nameOf(d) || e.ieee;
       const [icon, color] = EVENT_ICON(e.kind);
       const tag = d ? "button" : "div";
       return `<${tag} class="log${d ? " open-btn" : ""}" ${d ? `type="button" data-open="${esc(e.ieee)}"` : ""}><span class="state-ic" style="color:${color}">${ic(icon)}</span>
-        <span class="text"><span class="t1"><b>${esc(who)}</b> ${esc(eventKind(e.kind))}${e.detail ? ` · ${esc(eventDetail(e))}` : ""}</span><span class="t2">${th("net.network", { name: esc(netLabel(e.instance)) })}${d?.area ? ` · ${esc(d.area)}` : ""}</span></span>
+        <span class="text"><span class="t1"><b>${esc(who)}</b> ${esc(eventKind(netKind(e)))}${e.detail ? ` · ${esc(eventDetail(e))}` : ""}</span><span class="t2">${th("net.network", { name: esc(netLabel(e.instance)) })}${d?.area ? ` · ${esc(d.area)}` : ""}</span></span>
         <time datetime="${esc(e.time)}">${esc(fmtTime(e.time))}</time></${tag}>`;
     }).join("")).join("")}${events.length < all.length ? `<div class="row-actions" style="justify-content:center;padding-top:12px"><button class="btn outlined" data-act="log-more">${th("activity.show_more", { n: Math.min(LOG_PAGE, all.length - events.length) })}</button></div>` : ""}</div>`;
   };
