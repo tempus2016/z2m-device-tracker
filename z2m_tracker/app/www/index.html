@@ -3065,7 +3065,7 @@
       const members = evs.map((e) => {
         const d = state.byIeee.get(e.ieee);
         const [icon, c] = EVENT_ICON(String(e.kind || ""));
-        const who = e.ieee === "network" ? esc(netLabel(e.instance)) : d ? devLink(e.ieee) : esc(e.name && !IEEE_RE.test(e.name) ? e.name : e.ieee);
+        const who = e.ieee === "network" ? esc(t("net.network", { name: netLabel(e.instance) })) : d ? devLink(e.ieee) : esc(e.name && !IEEE_RE.test(e.name) ? e.name : e.ieee);
         return `<div class="inc-ev"><span class="inc-ic" style="color:${c}">${ic(icon, "s18")}</span><span class="text">${who} ${esc(eventKind(netKind(e)))}</span><time datetime="${esc(e.time)}">${esc(fmtTime(e.time))}</time></div>`;
       }).join("");
       const more = (inc.events_total || 0) > evs.length ? `<div class="inc-ev muted">${th("incident.more_events", { n: inc.events_total - evs.length })}</div>` : "";
@@ -3085,7 +3085,7 @@
     events.forEach((e) => { const day = fmtDate(e.time, false); if (!groups.length || groups[groups.length - 1].day !== day) groups.push({ day, items: [] }); groups[groups.length - 1].items.push(e); });
     $("#view").innerHTML = `<div class="card">${logModeChips()}${groups.map((g) => `<div class="logday">${esc(g.day)}</div>` + g.items.map((e) => {
       const d = state.byIeee.get(e.ieee);
-      const who = e.ieee === "network" ? netLabel(e.instance) : e.name && !IEEE_RE.test(e.name) ? e.name : nameOf(d) || e.ieee;
+      const who = e.ieee === "network" ? t("net.network", { name: netLabel(e.instance) }) : e.name && !IEEE_RE.test(e.name) ? e.name : nameOf(d) || e.ieee;
       const [icon, color] = EVENT_ICON(e.kind);
       const tag = d ? "button" : "div";
       return `<${tag} class="log${d ? " open-btn" : ""}" ${d ? `type="button" data-open="${esc(e.ieee)}"` : ""}><span class="state-ic" style="color:${color}">${ic(icon)}</span>
