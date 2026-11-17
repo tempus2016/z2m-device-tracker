@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://github.com/tempus2016/z2m-device-tracker/releases"><img src="https://img.shields.io/github/v/release/tempus2016/z2m-device-tracker" alt="Latest Release"></a>
   <a href="https://github.com/tempus2016/z2m-device-tracker/releases"><img src="https://img.shields.io/github/downloads/tempus2016/z2m-device-tracker/total" alt="Downloads"></a>
-  <a href="https://hacs.xyz/docs/faq/custom_repositories/"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg" alt="HACS Custom"></a>
+  <a href="https://hacs.xyz/"><img src="https://img.shields.io/badge/HACS-Default-41BDF5.svg" alt="HACS Default"></a>
   <a href="https://github.com/tempus2016/z2m-device-tracker/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License"></a>
   <img src="https://img.shields.io/badge/Home%20Assistant-2025.1+-blue" alt="HA Version">
   <img src="https://img.shields.io/badge/arch-amd64%20%7C%20aarch64-blue" alt="Supported architectures">
@@ -33,7 +33,7 @@ It has two parts, both in this repository:
 | Part | What it does | Install from |
 | --- | --- | --- |
 | **App** (`z2m_tracker/`) | Listens to Zigbee2MQTT over MQTT, stores the history and runs the web interface in the sidebar. | Settings → Apps → App store → Repositories |
-| **Integration** (`custom_components/z2m_tracker/`) | Optional. Adds summary sensors, a battery to-do list and calendar, a dashboard card and Repairs issues. | HACS (custom repository) |
+| **Integration** (`custom_components/z2m_tracker/`) | Optional. Adds summary sensors, a battery to-do list and calendar, a dashboard card and Repairs issues. | HACS |
 
 ## Features
 
@@ -104,9 +104,10 @@ If your Zigbee2MQTT uses a different base topic, or you run more than one instan
 
 [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=tempus2016&repository=z2m-device-tracker&category=integration)
 
-1. HACS → ⋮ → Custom repositories, add `https://github.com/tempus2016/z2m-device-tracker` as **Integration**.
-2. Download **Z2M Device Tracker** and restart Home Assistant.
-3. Settings → Devices & services → Add integration → **Z2M Device Tracker**. The app's address is filled in for you.
+1. Open HACS, search for **Z2M Device Tracker**, download it and restart Home Assistant. The button above opens the right page.
+2. Settings → Devices & services → Add integration → **Z2M Device Tracker**. The app's address is filled in for you.
+
+If it doesn't show up in the search, your HACS may not have refreshed its list yet. Add it by hand: HACS → ⋮ → Custom repositories, add `https://github.com/tempus2016/z2m-device-tracker` as **Integration**, then carry on from step 1.
 
 The integration also lists the app's problems in **Settings → Repairs**, and clears each one when it's fixed. Device problems have a **Fix** button with the actions that suit them: restore or accept a lost binding, record a battery change, reconfigure, install a firmware update, or mute the check for 24 hours or until you unmute it. Turn Repairs off in the integration's options. They also stay empty while **Send alerts** is off in the app.
 
