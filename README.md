@@ -32,12 +32,17 @@ Ever had a device show up as `0x30eb5affff5cf5ca` and had no idea what it used t
 > **New in 2.0: rate your Zigbee devices and help everyone choose better ones.**
 > Open a device in the sidebar, go to its **Community** tab and press **Share your experience**. Pick Recommend, It's OK or Avoid, add tags or a comment, and choose whether to attach the uptime, drop-outs, link quality and battery life the tracker measured. The tracker fills in a GitHub issue form for you. Nothing is posted until you press **Create** on GitHub, and no names, areas or addresses are ever included. **Upkeep → Community** lists the models on your network that nobody has rated yet. Every report makes the ratings more useful for the next person buying a sensor. You can also [rate a device on GitHub](https://github.com/tempus2016/z2m-device-tracker/issues/new?template=device_rating.yml) directly.
 
-It has two parts, both in this repository:
+## Two parts, installed in two places
 
-| Part | What it does | Install from |
-| --- | --- | --- |
-| **App** (`z2m_tracker/`) | Listens to Zigbee2MQTT over MQTT, stores the history and runs the web interface in the sidebar. | Settings → Apps → App store → Repositories |
-| **Integration** (`custom_components/z2m_tracker/`) | Optional. Adds summary sensors, a battery to-do list and calendar, a dashboard card and Repairs issues. | Marketplace |
+Z2M Device Tracker comes in two parts, and they install from different places in Home Assistant. Both live in this repository.
+
+| Part | Needed? | What it does | Where to get it |
+| --- | --- | --- | --- |
+| **1. App** (`z2m_tracker/`) | **Yes** | Does the actual tracking. It listens to Zigbee2MQTT, keeps the history and gives you the **Zigbee Tracker** page in the sidebar. | **Settings → Apps → App store**, after adding this repository. It isn't in the Marketplace. |
+| **2. Integration** (`custom_components/z2m_tracker/`) | Optional | Brings the app's data into Home Assistant: summary sensors, a battery to-do list and calendar, a dashboard card and Repairs issues. | **Settings → Marketplace** (HACS before Home Assistant 2026.11) |
+
+> [!IMPORTANT]
+> Start with the app. The integration only shows what the app has collected, so on its own it does nothing. If you found this page in the Marketplace, install the app first ([step 1](#step-1-install-the-app)), then come back for the integration ([step 2](#step-2-install-the-integration-optional)).
 
 ## Features
 
@@ -101,7 +106,9 @@ It has two parts, both in this repository:
 
 The screenshots use made-up demo devices. More are in the [wiki](https://github.com/tempus2016/z2m-device-tracker/wiki).
 
-## Install the app
+## Step 1: install the app
+
+The app is what you need. It comes from the App store, not the Marketplace.
 
 [![Add repository](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Ftempus2016%2Fz2m-device-tracker)
 
@@ -111,9 +118,9 @@ The screenshots use made-up demo devices. More are in the [wiki](https://github.
 
 If your Zigbee2MQTT uses a different base topic, or you run more than one instance, set `base_topics` in the app's configuration. See the app's Documentation tab for every option.
 
-## Install the integration (optional)
+## Step 2: install the integration (optional)
 
-The integration is in the Home Assistant Marketplace:
+Do this once the app from step 1 is installed and running. The integration is in the Home Assistant Marketplace:
 
 [![Open your Home Assistant instance and show Z2M Device Tracker in the Marketplace.](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=tempus2016&repository=z2m-device-tracker&category=integration)
 

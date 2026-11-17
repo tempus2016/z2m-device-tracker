@@ -2,6 +2,8 @@
 
 History, health checks and alerts for every device on your Zigbee2MQTT networks.
 
+This app is the main part of Z2M Device Tracker and does all the tracking. There is also an optional integration, installed separately from the Marketplace. See [Optional integration](#optional-integration).
+
 Ever had a device show up as `0x30eb5affff5cf5ca` and had no idea what it used to be? This app records every name, model, area and change, keeps the record after the device is gone, and tells you when something needs attention.
 
 ![The Zigbee Tracker sidebar: every device with its area, model, status, battery and signal](https://raw.githubusercontent.com/tempus2016/z2m-device-tracker/main/docs/images/devices.png)
@@ -39,7 +41,7 @@ Every option is on the **Documentation** tab. Most can also be changed on the si
 
 ## Optional integration
 
-The Z2M Device Tracker integration (from the Home Assistant Marketplace) adds summary sensors, a battery to-do list and calendar, dashboard cards, actions for automations and fixable Repairs issues. See the [README](https://github.com/tempus2016/z2m-device-tracker#install-the-integration-optional).
+The second, optional part is the Z2M Device Tracker integration. It installs from **Settings → Marketplace** (HACS before Home Assistant 2026.11), not from the App store. It adds summary sensors, a battery to-do list and calendar, dashboard cards, actions for automations and fixable Repairs issues, all from the data this app collects. See the [README](https://github.com/tempus2016/z2m-device-tracker#step-2-install-the-integration-optional).
 
 ## Help
 

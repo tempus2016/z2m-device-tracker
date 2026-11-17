@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Z2M Device Tracker",
-        "description": "Connects to the Z2M Device Tracker app, which records every Zigbee2MQTT device's history. Adds summary sensors and the z2m-tracker-card. The app URL is filled in automatically when the app is installed.",
+        "description": "Connects to the Z2M Device Tracker app, which records every Zigbee2MQTT device's history. The app is a separate install from Settings → Apps → App store, and this integration needs it running. Adds summary sensors and the z2m-tracker-card. The app URL is filled in automatically when the app is installed.",
         "data": {
           "app_url": "App URL"
         }
