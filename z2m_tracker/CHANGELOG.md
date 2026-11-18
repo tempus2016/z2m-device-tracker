@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.1.0
+
+Update the app: the Replace wizard now works on any device, plus four fixes. Everything is in the app. The integration has no changes in this release: its version moves to 2.1.0 only so the two parts keep matching numbers.
+
+### Added
+- **Replace…** works on working devices and on another model, not only on dead ones ([#53](https://github.com/tempus2016/z2m-device-tracker/pull/53)). Use it to swap a device for a different brand or model. For the old device you choose between **Remove the old device** and **Rename the old device**. Remove asks a working device to leave the network, then removes it from Zigbee2MQTT. If it doesn't answer, it's force-removed, and you need to factory-reset it or it stays paired. Rename keeps it in Zigbee2MQTT as "<name> (old)", so its name is free for the new device, and it keeps its maintenance tasks. Bindings are fitted to the new model's endpoints, and any that don't fit are listed so you can set them up in Zigbee2MQTT. When the models differ, the wizard warns that some Home Assistant entity names can change. **Remove the old device** starts ticked for an offline device or a working one, because Zigbee2MQTT won't let two devices share a name. For a silent or ghost device it starts unticked, because that device may still work.
+
+### Fixed
+- A missing reporting setting is no longer flagged as **May go silent** when the device sends that value anyway ([#53](https://github.com/tempus2016/z2m-device-tracker/pull/53)). Some plugs (Tuya TS011F and similar) only have reporting set for current and voltage, and send power in the same messages. If the value changed in the device's messages in the last 7 days, the Health tab now lists it as coming with the device's other reports instead. A value that never changes doesn't count, because Zigbee2MQTT's `cache_state` repeats the last value in every message.
+- On **Devices**, the filter chip counts follow the search ([#53](https://github.com/tempus2016/z2m-device-tracker/pull/53)). Before, a search under Needs attention could show nothing, with no hint that All had matches. An empty result now offers a **Show N matches in All** button. The search also matches the vendor and model as the list shows them (Tuya for `_TZ` manufacturers), the device type and the kind of device (bulb, plug, door…).
+- **Upkeep → Costs** no longer counts one battery change twice when it was logged a few days apart ([#54](https://github.com/tempus2016/z2m-device-tracker/pull/54)). A change that was detected and then ticked, or logged twice, two days apart counted as a two-day battery life, so a thermostat with 4 AA batteries showed 730 batteries a year. Changes within 3 days now merge into one, as the brand stats already do, for both battery life and the last-12-months count.
+- The app reports its real version ([#54](https://github.com/tempus2016/z2m-device-tracker/pull/54)). Since 2.0.1 the startup log, the web server header, the version endpoint and the MQTT discovery device all said 2.0.0, and the summary card said 2.0.0 too.
+
 ## 2.0.2
 
 Update the app: two fixes, both in the app. The integration has no changes in this release: its version moves to 2.0.2 only so the two parts keep matching numbers.
