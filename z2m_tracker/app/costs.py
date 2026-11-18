@@ -16,6 +16,7 @@ MAX_PRICE = 100000.0
 MAX_BATTERY_PRICE = 1000.0
 MAX_BATTERY_TYPES = 50
 YEAR_DAYS = 365
+SAME_CHANGE_DAYS = 3  # entries this close are one change seen twice (as tracker.STOCK_WINDOW_DAYS)
 NUMBER_RE = re.compile(r"\d[\d.,']*")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -81,10 +82,20 @@ def _day(value: Any) -> date | None:
         return None
 
 
+def change_days(dates: list[str]) -> list[date]:
+    """One day per real battery change, oldest first. Entries within SAME_CHANGE_DAYS of the change
+    before them are the same change logged twice (detected, then ticked), so they merge into it."""
+    out: list[date] = []
+    for day in sorted({d for d in (_day(x) for x in dates) if d}):
+        if not out or (day - out[-1]).days > SAME_CHANGE_DAYS:
+            out.append(day)
+    return out
+
+
 def intervals(dates: list[str]) -> list[int]:
     """Days between consecutive battery changes (the install date counts as the first)."""
-    points = sorted({d for d in (_day(x) for x in dates) if d})
-    return [(b - a).days for a, b in zip(points, points[1:], strict=False) if (b - a).days > 0]
+    points = change_days(dates)
+    return [(b - a).days for a, b in zip(points, points[1:], strict=False)]
 
 
 def running_costs(devices: list[dict], prices: dict[str, float], today: date) -> dict:
@@ -130,7 +141,7 @@ def running_costs(devices: list[dict], prices: dict[str, float], today: date) ->
         btype = item.get("type") or ""
         quantity = int(item.get("quantity") or 1)
         price = price_of(prices, btype)
-        recent = sum(1 for d in item.get("changes") or [] if (day := _day(d)) and year_ago < day <= today)
+        recent = sum(1 for day in change_days(item.get("changes") or []) if year_ago < day <= today)
         if recent:
             last_count += recent * quantity
             if price is None:

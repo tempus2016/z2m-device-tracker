@@ -105,6 +105,20 @@ def test_installed_date_counts_as_first_change():
     assert out["models"][0]["per_year"] == 1.8  # 200 days
 
 
+def test_changes_days_apart_are_one_change():
+    # Logged 14 Nov, detected again 16 Nov: one change, not a 2-day battery life.
+    dup = item(type="AA", quantity=4, changes=["2026-05-14", "2026-05-16"])
+    out = running_costs([dup], {"AA": 0.7}, TODAY)
+    assert out["models"] == []
+    assert out["unestimated"] == 1
+    assert out["battery_last_count"] == 4
+
+
+def test_merged_change_keeps_the_real_life():
+    out = running_costs([item(changes=["2026-01-01", "2026-04-11", "2026-04-13"])], {}, TODAY)
+    assert out["models"][0]["per_year"] == 3.6  # 100 days, not the 2-day gap
+
+
 # ------------------------------------------------------------------ tracker
 
 
