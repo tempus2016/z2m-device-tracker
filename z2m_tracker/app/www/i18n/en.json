@@ -145,6 +145,10 @@
   "devices.none_found": "No devices found",
   "devices.no_match": "Nothing matches “{query}”.",
   "devices.empty_filter": "Nothing in this filter.",
+  "devices.match_elsewhere": {
+    "one": "Show the match in All",
+    "other": "Show {n} matches in All"
+  },
   "devices.count": {
     "one": "{shown} of {n} device",
     "other": "{shown} of {n} devices"

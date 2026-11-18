@@ -1196,7 +1196,10 @@
     const tone = st === "removed" ? "off" : st !== "active" ? "bad" : w ? (severe(w, d) ? "bad" : "warn") : "";
     return `<span class="state-ic ${tone} ${cls}">${ic(kindIcon(d))}</span>`;
   };
-  const haystack = (d) => [d.ieee, d.friendly_name, ...(d.names || []).map((n) => n.name), d.model, d.vendor, d.description, d.model_id, d.manufacturer, d.oui_vendor, d.z2m_description, d.ha_name, d.area, d.note, d.instance, netLabel(d.instance), d.type, ...Object.values(d.asset || {})].filter(Boolean).join(" ").toLowerCase();
+  // Search text: names, vendor + model (as shown in the list and the models card), type and the kind of device (bulb, plug, door...).
+  const haystack = (d) => [d.ieee, nameOf(d), d.friendly_name, ...(d.names || []).map((n) => n.name), deviceLine(d), d.model, vendorOf(d), d.vendor, d.description, d.model_id, d.manufacturer, d.oui_vendor, d.z2m_description, d.ha_name, d.area, d.note, d.instance, netLabel(d.instance), d.type, typeLabel(d.type), kindIcon(d).replace(/-/g, " "), ...Object.values(d.asset || {})].filter(Boolean).join(" ").toLowerCase();
+  const queryTerms = () => state.query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const matchesQuery = (terms) => (d) => { if (!terms.length) return true; const h = haystack(d); return terms.every((x) => h.includes(x)); };
 
   // ------------------------------------------------------------ server-made text
   // The app sends English text (also used for HA notifications) plus msg + params. These translate it
@@ -1397,9 +1400,7 @@
   ];
   const filtered = () => {
     const pred = (CHIPS.find((c) => c[0] === state.chip) || CHIPS[0])[2];
-    const terms = state.query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    let list = visible().filter(pred);
-    if (terms.length) list = list.filter((d) => { const h = haystack(d); return terms.every((t) => h.includes(t)); });
+    const list = visible().filter(pred).filter(matchesQuery(queryTerms()));
     const clean = (v) => (v ? String(v).replace(/^[^\p{L}\p{N}]+/u, "") || null : null);
     const time = (v) => { const t = v ? Date.parse(v) : NaN; return isNaN(t) ? null : t; };
     const order = { ghost: 0, offline: 1, active: 2, removed: 3 };
@@ -1467,6 +1468,8 @@
     const all = visible();
     const list = filtered();
     const warnCount = all.filter(CHIPS[1][2]).length;
+    // Chip counts follow the search, so a search that finds nothing under one chip shows where its matches are.
+    const matched = all.filter(matchesQuery(queryTerms()));
     const col = (k, key, cls = "") => {
       const label = th(key);
       const on = state.sort === k, up = on ? sortDir() > 0 : (DEFAULT_DIR[k] || 1) > 0;
@@ -1514,13 +1517,13 @@
       ${warnCount && state.chip !== "attention" ? `<div class="alert" style="--a: var(--warning)">${ic("alert")}<div class="body"><b>${th("devices.attention", { n: warnCount })}</b> ${th("devices.attention_text")}</div><button class="btn" data-chip="attention">${th("devices.show")}</button></div>` : ""}
       <div class="tools">
         <label class="search">${ic("magnify")}<input id="q" type="search" placeholder="${esc(t("devices.search"))}" value="${esc(state.query)}" autocomplete="off" spellcheck="false" aria-label="${esc(t("devices.search"))}"></label>
-        <div class="chips">${CHIPS.filter(([k, , p]) => k !== "critical" || state.chip === k || all.some(p)).map(([k, l, p]) => `<button class="chip" data-chip="${k}" aria-pressed="${state.chip === k}">${ic("check", "s18")}${th(l)} <span class="n">${all.filter(p).length}</span></button>`).join("")}</div>
+        <div class="chips">${CHIPS.filter(([k, , p]) => k !== "critical" || state.chip === k || all.some(p)).map(([k, l, p]) => `<button class="chip" data-chip="${k}" aria-pressed="${state.chip === k}">${ic("check", "s18")}${th(l)} <span class="n">${matched.filter(p).length}</span></button>`).join("")}</div>
         <div class="tools-right"><button class="chip toggle" data-act="group" aria-pressed="${state.group}">${ic("map-marker-outline", "s18")}${th("devices.group_by_area")}</button><button class="btn filled" data-act="pair">${ic("plus", "s18")}${th("devices.pair")}</button></div>
       </div>
       <div class="${pane ? "split" : ""}"><div class="split-list">
       <div class="card">
         <div class="table-wrap">${list.length ? `<table class="dt ${pane ? "compact" : ""}"><thead><tr><th class="pick-cell"><label class="tick"><input type="checkbox" id="pickAll" aria-label="${esc(t("select.all"))}"></label></th><th class="ic-cell"><span class="sr">${th("devices.col.type")}</span></th>${col("name", "devices.col.name")}${col("area", "devices.col.area", "hide-sm col-area")}${col("model", "devices.col.model", "hide-md col-model")}${col("status", "devices.col.status")}${col("battery", "devices.col.battery", "num hide-sm")}${col("signal", "devices.col.signal", "num hide-md")}${col("last_seen", "devices.col.last_seen", "hide-md")}</tr></thead><tbody>${rows}</tbody></table>`
-          : emptyState("magnify", th("devices.none_found"), state.query ? th("devices.no_match", { query: esc(state.query) }) : th("devices.empty_filter"))}</div>
+          : emptyState("magnify", th("devices.none_found"), (state.query ? th("devices.no_match", { query: esc(state.query) }) : th("devices.empty_filter")) + (state.query && state.chip !== "all" && matched.filter(CHIPS[0][2]).length ? `<button class="btn outlined" data-chip="all" style="margin-top:12px">${th("devices.match_elsewhere", { n: matched.filter(CHIPS[0][2]).length })}</button>` : ""))}</div>
       </div>
       ${shown.length < list.length ? `<div class="row-actions" style="justify-content:center;padding-top:12px"><button class="btn outlined" data-act="dev-all">${th("devices.show_all", { n: list.length })}</button></div>` : ""}
       <div class="count-line" style="margin:8px 4px 0;text-align:right">${th("devices.count", { shown: list.length, n: all.length })}</div>
