@@ -22,10 +22,12 @@
         "title": "Z2M Device Tracker",
         "data": {
           "app_url": "App URL",
-          "repairs": "Show problems in Settings > Repairs"
+          "repairs": "Show problems in Settings > Repairs",
+          "calendar_todo": "Battery and maintenance calendars and to-do lists"
         },
         "data_description": {
-          "repairs": "Mirrors the app's warnings and the checks set to notify. Each one clears itself when the problem is fixed. Nothing shows while alerts, or Show problems in HA Repairs, are off in the app's settings."
+          "repairs": "Mirrors the app's warnings and the checks set to notify. Each one clears itself when the problem is fixed. Nothing shows while alerts, or Show problems in HA Repairs, are off in the app's settings.",
+          "calendar_todo": "Home Assistant adds Calendar and To-do to the sidebar while any integration provides them. After turning this off, restart Home Assistant to remove them from the sidebar (unless another integration still uses them). To keep the lists but hide the sidebar items, long-press the Home Assistant title at the top of the sidebar."
         }
       }
     },

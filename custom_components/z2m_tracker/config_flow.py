@@ -9,7 +9,15 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
 
-from .const import APP_PORT, APP_SLUG_SUFFIX, CONF_APP_URL, CONF_REPAIRS, DEFAULT_APP_URL, DOMAIN
+from .const import (
+    APP_PORT,
+    APP_SLUG_SUFFIX,
+    CONF_APP_URL,
+    CONF_CALENDAR_TODO,
+    CONF_REPAIRS,
+    DEFAULT_APP_URL,
+    DOMAIN,
+)
 
 
 def detect_app_url(hass) -> str:
@@ -85,6 +93,9 @@ class Z2MTrackerOptionsFlow(OptionsFlow):
                 {
                     vol.Required(CONF_APP_URL, default=current): str,
                     vol.Required(CONF_REPAIRS, default=self.config_entry.options.get(CONF_REPAIRS, True)): bool,
+                    vol.Required(
+                        CONF_CALENDAR_TODO, default=self.config_entry.options.get(CONF_CALENDAR_TODO, True)
+                    ): bool,
                 }
             ),
             errors=errors,

@@ -133,6 +133,8 @@ If it doesn't show up in the search, the Marketplace may not have refreshed its 
 
 The integration also lists the app's problems in **Settings → Repairs**, and clears each one when it's fixed. Device problems have a **Fix** button with the actions that suit them: restore or accept a lost binding, record a battery change, reconfigure, install a firmware update, or mute the check for 24 hours or until you unmute it. Critical devices offline, offline Zigbee2MQTT networks and coordinator backup problems get their own wording and always make the list. Turn Repairs off with **Show problems in HA Repairs** in the app's settings or in the integration's options. They also stay empty while **Send alerts** is off in the app.
 
+The battery and maintenance calendars and to-do lists make Home Assistant add **Calendar** and **To-do** to the sidebar. If you don't want them, turn off **Battery and maintenance calendars and to-do lists** in the integration's options (Settings → Devices & services → Z2M Device Tracker → ⚙), then restart Home Assistant. To keep the lists and only hide the sidebar items, long-press the Home Assistant title at the top of the sidebar.
+
 It also adds actions you can use in automations and scripts: `z2m_tracker.battery_replaced`, `z2m_tracker.mute_device`, `z2m_tracker.run_network_scan`, `z2m_tracker.reconfigure`, `z2m_tracker.ota_update`, `z2m_tracker.add_note`, `z2m_tracker.pause_alerts` and `z2m_tracker.resume_alerts`. For example, record a battery change when you scan an NFC tag stuck on the device:
 
 ```yaml

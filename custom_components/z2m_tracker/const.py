@@ -9,6 +9,8 @@ VERSION = "2.0.0"
 
 CONF_APP_URL = "app_url"
 CONF_REPAIRS = "repairs"
+# Off: no calendar or to-do entities, so Home Assistant adds no Calendar or To-do sidebar panel for them.
+CONF_CALENDAR_TODO = "calendar_todo"
 DEFAULT_APP_URL = "http://local-z2m-tracker:8099"
 APP_SLUG_SUFFIX = "z2m_tracker"
 APP_PORT = 8099
