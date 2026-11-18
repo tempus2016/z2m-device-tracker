@@ -1,9 +1,12 @@
 # Changelog
 
-## Unreleased
+## 2.0.2
+
+Update the app: two fixes, both in the app. The integration has no changes in this release: its version moves to 2.0.2 only so the two parts keep matching numbers.
 
 ### Fixed
 - Ignored alerts are kept when the app restarts or updates ([#48](https://github.com/tempus2016/z2m-device-tracker/issues/48)). Since 1.4.0 the app cleared every ignored alert each time it started, so **Settings → Ignored alerts** came back empty after an update and the alerts returned. Alerts you ignored before this fix are already gone and need ignoring once more; from now on they stay ignored.
+- Deleting a device's retained availability message now clears its stale Online/Offline state ([discussion #21](https://github.com/tempus2016/z2m-device-tracker/discussions/21)). If Zigbee2MQTT stops checking a device's availability, the last retained `offline` can stay on the broker and the tracker kept showing the device as offline. Removing `zigbee2mqtt/<device>/availability` (in MQTT Explorer, for example) did nothing until something published `online` again. Now the tracker treats the empty message as "no longer known": the offline alert clears, the open outage is closed, and the device shows no availability until Zigbee2MQTT reports one.
 
 ## 2.0.1
 
