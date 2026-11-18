@@ -63,6 +63,28 @@ def test_older_file_list_mutes_still_work(make_tracker, data_dir, clock):
     assert [i["kind"] for i in t.issues if i["ieee"] == SENSOR] == ["battery_low"]
 
 
+def test_mutes_survive_restart(tracker, make_tracker, clock):
+    # Issue #48: loading reset the dict of mutes to [], so every restart or update dropped them.
+    send(tracker, "bridge/devices", [z2m_device(SENSOR, "Hall sensor")])
+    tracker.set_muted(SENSOR, "battery_low", True)
+    tracker.set_muted(SENSOR, "weak_signal", True, days=7)
+    expected = tracker.data["devices"][SENSOR]["muted"]
+    assert tracker.save()
+
+    fresh = make_tracker()
+    assert fresh.load() == "saved"
+    assert fresh.data["devices"][SENSOR]["muted"] == expected
+    assert fresh.data == tracker.data
+
+
+def test_bad_mutes_are_cleaned_on_load(make_tracker, data_dir):
+    rec = {**_new_record(SENSOR, "zigbee2mqtt"), "muted": {"battery_low": None, "Bad Kind!": None, "offline": 5}}
+    (data_dir / "history.json").write_text(json.dumps({"devices": {SENSOR: rec}}), encoding="utf-8")
+    t = make_tracker()
+    t.load()
+    assert t.data["devices"][SENSOR]["muted"] == {"battery_low": None}
+
+
 def test_migrate_from_ha_storage(make_tracker, config_dir):
     storage = config_dir / ".storage"
     storage.mkdir()

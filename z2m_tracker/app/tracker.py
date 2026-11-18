@@ -414,9 +414,15 @@ def _clean_record(record: dict) -> dict:
                 else:
                     del entry["brand"]
         record["battery_info"]["replacements"] = replacements
-    for key in ("sources", "outages", "predecessors", "muted", "lost_bindings", "features"):
+    for key in ("sources", "outages", "predecessors", "lost_bindings", "features"):
         if not isinstance(record.get(key), list):
             record[key] = []
+    # Mutes are {kind: until_iso or None}; older files stored a plain list of kinds.
+    record["muted"] = {
+        kind: until
+        for kind, until in mutes_of(record if isinstance(record.get("muted"), (dict, list)) else {}).items()
+        if isinstance(kind, str) and re.fullmatch(r"[a-z_]{2,30}", kind) and (until is None or isinstance(until, str))
+    }
     record["maintenance"] = _clean_tasks(record.get("maintenance"))
     if "odd_readings" in record:
         record["odd_readings"] = clean_odd_readings(record["odd_readings"])
@@ -568,7 +574,7 @@ def _new_record(ieee: str, instance: str | None) -> dict[str, Any]:
         "asset": {},
         "predecessors": [],
         "successor": None,
-        "muted": [],
+        "muted": {},
         "battery_info": {},
         "bindings": None,
         "lost_bindings": [],
