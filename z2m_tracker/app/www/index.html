@@ -5449,7 +5449,7 @@
       const old = state.byIeee.get(b.dataset.ieee || state.open);
       if (!old) return;
       const items = repItems(old, null);
-      // Removing is the one step that can't be undone, so it starts ticked only when the old device is already offline.
+      // Removing can't be undone, but Zigbee2MQTT won't let two devices share a name, so it starts ticked while the old device is still there.
       const carry = Object.fromEntries(items.map(([k, , , , dis]) => [k, !dis && k !== "battery" && (k !== "remove" || old.status !== "removed")]));
       state.replace = { old: old.ieee, step: 1, new: null, showAll: false, carry, result: null, busy: false };
       if (!repCandidates(old, false).length) state.replace.showAll = repCandidates(old, true).some((d) => d.model && d.model === old.model);
