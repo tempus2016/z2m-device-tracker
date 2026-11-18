@@ -1791,6 +1791,17 @@ class Tracker:
             return
         self.messages.add(record["ieee"], "availability", payload.strip())
         state = payload.strip()
+        if not state:
+            # An empty message is someone deleting the retained topic: Zigbee2MQTT no longer
+            # says anything about this device, so forget the old state instead of keeping it.
+            if record["availability"] is not None:
+                outages = record.get("outages") or []
+                if outages and not outages[-1].get("end"):
+                    outages[-1]["end"] = _now()
+                record["availability"] = None
+                record["availability_since"] = None
+                self._changed(structural=True)
+            return
         if state.startswith("{"):
             parsed = _loads(state)
             state = parsed.get("state", "") if isinstance(parsed, dict) else ""

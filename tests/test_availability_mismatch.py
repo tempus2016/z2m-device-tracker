@@ -167,3 +167,22 @@ def test_tracker_counts_live_messages_only(tracker, clock):
     assert [i for i in issues if i["ieee"] == SENSOR] == []
     assert tracker.forget(SENSOR)
     assert SENSOR not in tracker._recent
+
+
+def test_cleared_retained_availability_resets_state(tracker, clock):
+    """Deleting the retained availability topic (an empty message) drops the stale offline state."""
+    send(tracker, "bridge/devices", [coordinator(), z2m_device(SENSOR, "Hall")])
+    send(tracker, "Hall/availability", {"state": "offline"})
+    record = tracker.data["devices"][SENSOR]
+    assert record["availability"] == "offline"
+    clock.advance(minutes=30)
+    send(tracker, "Hall/availability", "")
+    assert record["availability"] is None
+    assert record["availability_since"] is None
+    assert record["outages"][-1]["end"]
+    issues, _ = tracker.evaluate_health()
+    assert [i for i in issues if i["ieee"] == SENSOR and i["kind"] == "offline"] == []
+    # A second clear changes nothing.
+    revision = tracker.revision
+    send(tracker, "Hall/availability", "")
+    assert tracker.revision == revision
