@@ -5167,6 +5167,7 @@
       ["notes", t("replace.step.notes"), assetBits.join(", "), t(assetBits.length ? "replace.hint.notes" : "replace.hint.nothing"), !assetBits.length],
       ["battery", t("replace.step.battery"), rec?.type ? [rec.label || rec.type, rec.last_replaced ? t("replace.battery_replaced", { date: rec.last_replaced }) : ""].filter(Boolean).join(", ") : "", t("replace.hint.battery"), !old.battery_info || !Object.keys(old.battery_info).length],
       ["remove", t("replace.step.remove"), "", t(old.status === "removed" ? "replace.hint.already_gone" : canReplace(old) ? "replace.hint.remove" : "replace.hint.remove_working"), old.status === "removed"],
+      ["rename_old", t("replace.step.rename_old"), nameOf(old) ? t("replace.old_name", { name: nameOf(old) }) : "", t("replace.hint.rename_old"), old.status === "removed" || !nameOf(old)],
     ];
   };
   // ------------------------------------------------------------ QR code
@@ -5387,7 +5388,7 @@
       foot = `<label class="opt"><input type="checkbox" id="repAll" ${r.showAll ? "checked" : ""}>${th("replace.show_all")}</label><button class="btn" data-act="rep-close">${th("common.cancel")}</button><button class="btn filled" data-act="rep-next" ${r.new ? "" : "disabled"}>${th("replace.next")}</button>`;
     } else if (r.step === 2) {
       const items = repItems(old, neu);
-      const clash = r.carry.name && nameOf(old) && old.status !== "removed" && !r.carry.remove;
+      const clash = r.carry.name && nameOf(old) && old.status !== "removed" && !r.carry.remove && !r.carry.rename_old;
       body = `<p class="rep-intro">${th("replace.choose", { name: esc(oldName) })}</p>${repStepper(2)}
         <div class="swap">${repBox(old, [deviceLine(old), repStatus(old)].filter(Boolean).join(" · "), false)}${ic("swap-horizontal")}${repBox(neu, [deviceLine(neu), neu.first_seen ? t("replace.joined", { when: relTime(neu.first_seen, true) }) : ""].filter(Boolean).join(" · "), true)}</div>
         <div class="carry">${items.map(([k, title, value, hint, dis]) => `<label class="ln ${dis ? "dis" : ""} ${k === "remove" && !dis ? "danger" : ""}"><input type="checkbox" data-carry="${k}" ${r.carry[k] && !dis ? "checked" : ""} ${dis ? "disabled" : ""}><div class="text"><b>${esc(title)}</b>${value ? ` <span class="muted">${esc(value)}</span>` : ""}${hint ? `<div class="t2">${esc(hint)}</div>` : ""}</div></label>`).join("")}</div>
@@ -5409,7 +5410,7 @@
       } else {
         body = `<p class="rep-intro">${th("replace.ready", { old: esc(oldName), new: esc(nameOf(neu) || neu.ieee) })}</p>${repStepper(3)}
           <div class="carry rep-steps">${items.length ? items.map(([k, title, value, hint]) => k === "remove" ? `<div class="ln danger"><span>${ic("delete", "s20")}</span><div class="text"><b>${esc(title)}</b><div class="t2">${esc(hint)}</div></div></div>` : `<div class="ln"><span class="muted">${ic("check", "s20")}</span><div class="text"><b>${esc(title)}</b>${value ? ` <span class="muted">${esc(value)}</span>` : ""}</div></div>`).join("") : ""}<div class="ln"><span class="muted">${ic("link-variant", "s20")}</span><div class="text"><b>${th("replace.step.link")}</b></div></div></div>
-          ${items.some(([k]) => k === "name") && !items.some(([k]) => k === "remove") && old.status !== "removed" ? `<div class="alerts"><div class="alert" style="--a:var(--warning)">${ic("alert")}<div class="body">${th("replace.clash", { name: esc(oldName) })}</div></div></div>` : ""}
+          ${items.some(([k]) => k === "name") && !items.some(([k]) => k === "remove" || k === "rename_old") && old.status !== "removed" ? `<div class="alerts"><div class="alert" style="--a:var(--warning)">${ic("alert")}<div class="body">${th("replace.clash", { name: esc(oldName) })}</div></div></div>` : ""}
           ${r.carry.bindings && bat && items.some(([k]) => k === "bindings") ? `<div class="alerts"><div class="alert" style="--a:var(--warning)">${ic("alert")}<div class="body">${th("replace.battery_warn", { name: esc(nameOf(neu) || t("replace.the_new_device")) })}</div></div></div>` : ""}`;
         const removing = items.some(([k]) => k === "remove");
         foot = `<button class="btn" data-act="rep-back">${th("replace.back")}</button><button class="btn filled ${removing ? "danger" : ""}" data-act="rep-apply">${ic(removing ? "delete" : "swap-horizontal", "s18")}${th(removing ? "replace.apply_remove" : "replace.apply")}</button>`;
@@ -5449,9 +5450,11 @@
       const old = state.byIeee.get(b.dataset.ieee || state.open);
       if (!old) return;
       const items = repItems(old, null);
-      // Removing can't be undone, so it starts ticked for a dead (offline) device, or a working one swapped on purpose:
-      // Zigbee2MQTT won't let two devices share a name. A silent or ghost device may still work, so it's left to the user.
-      const carry = Object.fromEntries(items.map(([k, , , , dis]) => [k, !dis && k !== "battery" && (k !== "remove" || statusOf(old) === "offline" || !canReplace(old))]));
+      // Zigbee2MQTT won't let two devices share a name, so the old device either goes or is renamed "<name> (old)".
+      // Removing can't be undone: it starts ticked for a dead (offline) device or a working one swapped on purpose.
+      // A silent or ghost device may still work, so it's renamed instead.
+      const removeIt = statusOf(old) === "offline" || !canReplace(old);
+      const carry = Object.fromEntries(items.map(([k, , , , dis]) => [k, !dis && k !== "battery" && (k === "remove" ? removeIt : k === "rename_old" ? !removeIt : true)]));
       state.replace = { old: old.ieee, step: 1, new: null, showAll: false, carry, result: null, busy: false };
       if (!repCandidates(old, false).length) state.replace.showAll = repCandidates(old, true).some((d) => d.model && d.model === old.model);
       renderReplace();
@@ -5548,7 +5551,13 @@
     const r = state.replace; if (!r) return;
     if (e.target.name === "repNew") { r.new = e.target.value; $("#replaceDlg [data-act=rep-next]")?.removeAttribute("disabled"); }
     else if (e.target.id === "repAll") { r.showAll = e.target.checked; renderReplace(); }
-    else if (e.target.dataset.carry) { r.carry[e.target.dataset.carry] = e.target.checked; if (["name", "remove"].includes(e.target.dataset.carry)) renderReplace(); }
+    else if (e.target.dataset.carry) {
+      const k = e.target.dataset.carry;
+      r.carry[k] = e.target.checked;
+      // The old device either goes or stays under another name, not both.
+      if (e.target.checked && (k === "remove" || k === "rename_old")) r.carry[k === "remove" ? "rename_old" : "remove"] = false;
+      if (["name", "remove", "rename_old"].includes(k)) renderReplace();
+    }
   });
 
   // ------------------------------------------------------------ events

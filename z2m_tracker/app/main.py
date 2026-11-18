@@ -1058,11 +1058,14 @@ def record_battery_replaced(ieee: str, date: str, source: str, note: str, brand:
     return entry
 
 
-REPLACE_CARRY = ("name", "area", "bindings", "notes", "battery", "remove")
+REPLACE_CARRY = ("name", "area", "bindings", "notes", "battery", "remove", "rename_old")
 
 
 def replace_device(old_ieee: str, new_ieee: str, carry: dict) -> dict:
-    """Swap a dead device for a new one: carry over what was chosen, then link both histories."""
+    """Swap a device (dead, or working and swapped on purpose) for a new one: carry over what was chosen, then link both histories.
+
+    The old device either goes (remove) or stays under "<name> (old)" (rename_old), so its name is free for the new one.
+    """
     problem = tracker.replace_problem(old_ieee, new_ieee)
     if problem:
         return {"ok": False, "error": problem, "steps": []}
@@ -1081,16 +1084,36 @@ def replace_device(old_ieee: str, new_ieee: str, carry: dict) -> dict:
         if old["status"] != "active":
             step("remove", "Remove the old device", True, "Already gone from Zigbee2MQTT")
         else:
-            result = tracker.remove_from_z2m(old_ieee)
-            step(
-                "remove",
-                "Remove the old device",
-                result["ok"],
-                "Removed from Zigbee2MQTT" if result["ok"] else result["error"],
-            )
+            # A working device is asked to leave the network; a dead one can't answer, so it's force-removed.
+            result = tracker.remove_from_z2m(old_ieee, leave=old.get("availability") != "offline")
+            if not result["ok"]:
+                detail = result["error"]
+            elif result.get("forced") and old.get("availability") != "offline":
+                detail = (
+                    "It didn't answer, so it was force-removed. Factory-reset it, or it stays paired to the network"
+                )
+            else:
+                detail = "Removed from Zigbee2MQTT"
+            step("remove", "Remove the old device", result["ok"], detail)
             if result["ok"]:
                 # Give Home Assistant a moment to drop the old entities so their IDs are free for the new device.
                 time.sleep(3)
+    elif want["rename_old"] and old["status"] == "active" and old_name:
+        old_new_name = tracker.old_name_for(old_ieee)
+        result = (
+            tracker.rename(old_ieee, old_new_name)
+            if old_new_name
+            else {"ok": False, "error": "No free name for the old device"}
+        )
+        step(
+            "rename_old",
+            "Rename the old device",
+            result["ok"],
+            f"Renamed to {old_new_name}" if result["ok"] else result["error"],
+        )
+        if result["ok"]:
+            # Give Home Assistant a moment to rename the old entities so their IDs are free for the new device.
+            time.sleep(3)
     new_name = None
     if want["name"]:
         if not old_name:
@@ -1138,6 +1161,8 @@ def replace_device(old_ieee: str, new_ieee: str, carry: dict) -> dict:
                 parts.append(f"{'; '.join(failure['labels'])}: {failure['error']}")
             if result.get("skipped"):
                 parts.append(f"{result['skipped']} skipped because the target is no longer in Zigbee2MQTT")
+            if result.get("unfit"):
+                parts.append(f"{result['unfit']} don't fit the new model's endpoints. Set them up in Zigbee2MQTT")
             if result.get("error"):
                 parts.append(result["error"])
             if result.get("done"):
@@ -1145,7 +1170,8 @@ def replace_device(old_ieee: str, new_ieee: str, carry: dict) -> dict:
             step(
                 "bindings", "Bindings", result["ok"], ". ".join(p.rstrip(".") for p in parts) or "Nothing to re-create"
             )
-    copied = tracker.carry_over(old_ieee, new_ieee, want["notes"], want["battery"])
+    keep_old = old["status"] == "active" and not want["remove"]
+    copied = tracker.carry_over(old_ieee, new_ieee, want["notes"], want["battery"], keep_old=keep_old)
     if want["notes"]:
         got = [x for x in copied if x in ("note", "asset")]
         carried += ["notes"] if got else []
