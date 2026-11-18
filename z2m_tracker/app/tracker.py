@@ -71,7 +71,10 @@ from payload_keys import observe as observe_payload_keys
 from reliability import device_ages, model_reliability
 from reporting import audit as reporting_audit
 from reporting import clean as clean_reportings
+from reporting import clean_sent as clean_reporting_sent
 from reporting import describe as describe_reporting
+from reporting import note_sent as note_reporting_sent
+from reporting import sending as reporting_sending
 from reporting import slim as slim_reportings
 from reporting_profiles import CHOICES as PROFILE_CHOICES
 from reporting_profiles import clean_defaults as clean_profile_defaults
@@ -437,6 +440,8 @@ def _clean_record(record: dict) -> dict:
         record["payload_change"] = None
     if "reportings" in record:
         record["reportings"] = clean_reportings(record["reportings"])
+    if "reporting_sent" in record:
+        record["reporting_sent"] = clean_reporting_sent(record["reporting_sent"])
     inputs = record.get("reporting_inputs")
     record["reporting_inputs"] = (
         {
@@ -1545,6 +1550,7 @@ class Tracker:
             record.get("features"),
             self.is_battery_device(record),
             rate,
+            reporting_sending(record.get("reporting_sent"), time.time()),
         )
 
     def configure_reporting(self, ieee: str, fix: dict) -> dict:
@@ -1993,6 +1999,10 @@ class Tracker:
         if not isinstance(keys_state, dict):
             keys_state = record["payload_keys"] = {}
         added, removed = observe_payload_keys(keys_state, parsed.keys())
+        sent_state = record.get("reporting_sent")
+        if not isinstance(sent_state, dict):
+            sent_state = record["reporting_sent"] = {}
+        note_reporting_sent(sent_state, parsed, time.time())
         if added or removed:
             self._payload_changed(base_topic, record, name, added, removed, now)
             structural = True
@@ -3513,6 +3523,7 @@ class Tracker:
                 item.pop("odd_readings", None)
                 # The learning counts only matter to the tracker.
                 item.pop("payload_keys", None)
+                item.pop("reporting_sent", None)
                 item["metrics"] = self.metrics.summary(ieee, now)
                 item["uptime_30d"] = uptime(record, now)
                 item["oui_vendor"] = self._oui_vendor(ieee)

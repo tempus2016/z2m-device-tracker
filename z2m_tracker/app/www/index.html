@@ -3773,7 +3773,7 @@
       ? warn(`<b>${th(`reporting.rule.${r.rule}`)}</b> ${th(`reporting.why.${r.rule}`)}${r.recommended ? ` ${th("reporting.recommended", { values: esc(rptWords(r, r.recommended)) })}` : ""}`,
         active && r.recommended ? `<button class="btn" data-act="reporting-fix" ${ident(r)}>${ic("tune", "s18")}${th("reporting.use_recommended")}</button>` : "")
       : ""}</div>`);
-    const missing = a.missing.map((r) => `<div><div class="t1">${esc(rptName(r))}${where(r)}</div><div class="t2">${th("reporting.not_set")}</div>${warn(`<b>${th("reporting.rule.never")}</b> ${th("reporting.why.missing")}`,
+    const missing = a.missing.map((r) => `<div><div class="t1">${esc(rptName(r))}${where(r)}</div><div class="t2">${th(r.sent ? "reporting.not_set_sent" : "reporting.not_set")}</div>${r.sent ? "" : warn(`<b>${th("reporting.rule.never")}</b> ${th("reporting.why.missing")}`,
       active ? `<button class="btn" data-act="reconfigure" data-ieee="${esc(d.ieee)}">${ic("refresh", "s18")}${th("common.reconfigure")}</button>` : "")}</div>`);
     const body = rows.length || missing.length ? `<div class="rpt">${rows.join("")}${missing.join("")}</div>` : `<div class="card-content muted">${th("reporting.none")}</div>`;
     const backed = a.confirmed ? `<p class="tnote">${th("reporting.confirmed", { n: esc(a.rate) })}</p>` : "";

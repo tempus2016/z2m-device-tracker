@@ -2140,6 +2140,7 @@
   "reporting.title": "Reporting",
   "reporting.none": "Zigbee2MQTT set up no attribute reporting for this device. Many devices send their values without it.",
   "reporting.not_set": "No reporting set",
+  "reporting.not_set_sent": "No reporting set, but it comes with the device's other reports",
   "reporting.no_details": "no details",
   "reporting.min": "at least every {every}",
   "reporting.min_any": "as often as it changes",
