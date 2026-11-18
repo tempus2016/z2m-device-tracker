@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.0.1
+
+Update the integration. The app has no changes in this release: its version moves to 2.0.1 only so the two parts keep matching numbers.
+
+### Added
+- The integration's battery and maintenance calendars and to-do lists can be turned off ([#43](https://github.com/tempus2016/z2m-device-tracker/issues/43)). Home Assistant adds **Calendar** and **To-do** to the sidebar while any integration provides them, so the tracker added both even for people who don't use them. Turn off **Battery and maintenance calendars and to-do lists** under Settings → Devices & services → Z2M Device Tracker → ⚙. The four entities (`calendar.z2m_tracker_batteries`, `calendar.z2m_tracker_maintenance`, `todo.z2m_tracker_batteries`, `todo.z2m_tracker_maintenance`) are removed, and after a restart of Home Assistant the sidebar items go too, unless another integration still provides a calendar or to-do list. Turning the option back on brings the entities back with the same IDs. It is on by default, so nothing changes until you turn it off. To keep the lists and only hide the sidebar items, long-press the Home Assistant title at the top of the sidebar.
+
 ## 2.0.0
 
 The biggest release yet: a new seven-tab layout, community device ratings and 22 new features. Update the app and the integration together. The integration's Repairs wording, the new check names and the summary card's community section need the 2.0.0 app. New checks show on Health but don't notify until you turn them on under Settings → Checks. No settings or history are lost: 2.0.0 reads your 1.x data as it is.
