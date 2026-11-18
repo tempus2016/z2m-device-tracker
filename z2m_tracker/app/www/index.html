@@ -5166,7 +5166,7 @@
       ["bindings", t("replace.step.bindings"), binds.length ? t("replace.bindings_value", { n: binds.length, names: `${bindNames.slice(0, 2).join(", ")}${bindNames.length > 2 ? "…" : ""}` }) : "", t(!sameNet ? "replace.hint.other_network" : binds.length ? "replace.hint.bindings" : "replace.hint.no_bindings"), !binds.length || !sameNet],
       ["notes", t("replace.step.notes"), assetBits.join(", "), t(assetBits.length ? "replace.hint.notes" : "replace.hint.nothing"), !assetBits.length],
       ["battery", t("replace.step.battery"), rec?.type ? [rec.label || rec.type, rec.last_replaced ? t("replace.battery_replaced", { date: rec.last_replaced }) : ""].filter(Boolean).join(", ") : "", t("replace.hint.battery"), !old.battery_info || !Object.keys(old.battery_info).length],
-      ["remove", t("replace.step.remove"), "", t(old.status === "removed" ? "replace.hint.already_gone" : "replace.hint.remove"), old.status === "removed"],
+      ["remove", t("replace.step.remove"), "", t(old.status === "removed" ? "replace.hint.already_gone" : canReplace(old) ? "replace.hint.remove" : "replace.hint.remove_working"), old.status === "removed"],
     ];
   };
   // ------------------------------------------------------------ QR code
@@ -5449,8 +5449,9 @@
       const old = state.byIeee.get(b.dataset.ieee || state.open);
       if (!old) return;
       const items = repItems(old, null);
-      // Removing can't be undone, but Zigbee2MQTT won't let two devices share a name, so it starts ticked while the old device is still there.
-      const carry = Object.fromEntries(items.map(([k, , , , dis]) => [k, !dis && k !== "battery" && (k !== "remove" || old.status !== "removed")]));
+      // Removing can't be undone, so it starts ticked for a dead (offline) device, or a working one swapped on purpose:
+      // Zigbee2MQTT won't let two devices share a name. A silent or ghost device may still work, so it's left to the user.
+      const carry = Object.fromEntries(items.map(([k, , , , dis]) => [k, !dis && k !== "battery" && (k !== "remove" || statusOf(old) === "offline" || !canReplace(old))]));
       state.replace = { old: old.ieee, step: 1, new: null, showAll: false, carry, result: null, busy: false };
       if (!repCandidates(old, false).length) state.replace.showAll = repCandidates(old, true).some((d) => d.model && d.model === old.model);
       renderReplace();

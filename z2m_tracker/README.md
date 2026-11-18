@@ -15,7 +15,7 @@ Ever had a device show up as `0x30eb5affff5cf5ca` and had no idea what it used t
 - **Firmware updates**: every device with an update in one list, installed one at a time, with an optional overnight window that skips low batteries.
 - **Network map**: which router each device uses and how strong the link is, as a graph or a floor plan by Home Assistant floor and area, with advice on better routers and nightly routing scans.
 - **Trends**: each device's link quality and battery over up to 90 days, with a projection of when the battery runs low.
-- **Device actions**: pair through a chosen router, move a device to a closer router, rename, set area, reconfigure, restore lost bindings, and replace a dead device with a new one.
+- **Device actions**: pair through a chosen router, move a device to a closer router, rename, set area, reconfigure, restore lost bindings, and replace a dead or working device with a new one, even another brand or model.
 - **Batteries**: battery types from a built-in library, replacement records, estimates and a shopping list that counts your spares.
 - **Coordinator and radio**: Zigbee2MQTT and coordinator versions, uptime, outages, backups and memory use, and your Zigbee channels checked against your Wi-Fi.
 - **Home Assistant entities**: tracker sensors added to each Zigbee2MQTT device, for automations.

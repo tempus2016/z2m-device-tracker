@@ -1597,6 +1597,7 @@
   "replace.hint.battery": "Off by default: a new device comes with a fresh battery.",
   "replace.hint.already_gone": "Already gone from Zigbee2MQTT.",
   "replace.hint.remove": "Force remove from Zigbee2MQTT. Its history here is kept.",
+  "replace.hint.remove_working": "Force remove from Zigbee2MQTT. Its history here is kept. The device stays paired to your network until you factory-reset it or take its power or battery out.",
   "replace.carried.name": "name",
   "replace.carried.area": "area",
   "replace.carried.bindings": "bindings",
