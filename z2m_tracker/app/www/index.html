@@ -3615,14 +3615,14 @@
       !gone && { k: "rename", a: 'data-act="rename"', i: "pencil", l: th("more.rename") },
       lowBat && { k: "battery", a: 'data-act="battery-replaced"', i: "battery-sync", l: th("battery.replaced") },
       d.can_ping && { k: "ping", a: `data-act="ping" data-ieee="${id}" ${PING.get(d.ieee)?.busy ? "disabled" : ""}`, i: "refresh", l: th("ping.button") },
-      canReplace(d) && { k: "replace", a: `data-act="replace" data-ieee="${id}"`, i: "swap-horizontal", l: th("replace.button") },
+      canSwap(d) && { k: "replace", a: `data-act="replace" data-ieee="${id}"`, i: "swap-horizontal", l: th("replace.button") },
       !gone && d.type === "EndDevice" && { k: "move", a: `data-act="move" data-ieee="${id}"`, i: "swap-horizontal", l: th("more.change_router") },
       !gone && d.type === "Router" && d.routing?.scanned_at && d.routing.scanned_at === state.data.networkmap?.[d.instance]?.scanned_at && { k: "whatif", a: `data-act="whatif" data-ieee="${id}"`, i: "lan-disconnect", l: th("whatif.button") },
       d.model && d.supported !== false && { href: `https://www.zigbee2mqtt.io/devices/${encodeURIComponent(String(d.model).replace(/\//g, "_"))}.html" target="_blank" rel="noopener`, i: "information-outline", l: th("more.docs") },
       d.ha_device_id && { href: `/config/devices/device/${esc(d.ha_device_id)}" target="_top`, i: "home-assistant", l: th("more.device_page") },
       z2m && !gone && { href: `${esc(z2m)}" target="_top`, i: "zigbee", l: "Zigbee2MQTT" },
     ].filter(Boolean);
-    const lead = ["replace", "battery", "rename"].map((k) => all.find((x) => x.k === k)).filter(Boolean);
+    const lead = [canReplace(d) && "replace", "battery", "rename"].map((k) => k && all.find((x) => x.k === k)).filter(Boolean);
     const shown = lead.slice(0, 2), rest = all.filter((x) => !shown.includes(x));
     if (rest.length === 1) shown.push(rest.pop());
     const el = (x, cls, extra = "") => x.href ? `<a class="${cls}" href="${x.href}" ${extra}>${ic(x.i, "s18")}${x.l}</a>` : `<button class="${cls}" ${x.a} ${extra}>${ic(x.i, "s18")}${x.l}</button>`;
@@ -5133,6 +5133,8 @@
 
   // ------------------------------------------------------------ replacement wizard
   const canReplace = (d) => d.type !== "Coordinator" && !d.successor && (["offline", "removed", "ghost"].includes(statusOf(d)) || (d.issues || []).some((i) => i.kind === "silent"));
+  // Any device can be swapped on purpose (a test device, another brand); only broken ones get Replace… as the main button.
+  const canSwap = (d) => d.type !== "Coordinator" && !d.successor;
   const logLine = (e) => {
     const ref = e.ref && state.byIeee.get(e.ref);
     if (!ref) return `<div class="t1">${esc(cap(eventKind(e.kind)))}${e.detail ? ` · ${esc(eventDetail(e))}` : ""}</div><div class="t2">${esc(fmtDate(e.time))}</div>`;
@@ -5390,6 +5392,7 @@
         <div class="swap">${repBox(old, [deviceLine(old), repStatus(old)].filter(Boolean).join(" · "), false)}${ic("swap-horizontal")}${repBox(neu, [deviceLine(neu), neu.first_seen ? t("replace.joined", { when: relTime(neu.first_seen, true) }) : ""].filter(Boolean).join(" · "), true)}</div>
         <div class="carry">${items.map(([k, title, value, hint, dis]) => `<label class="ln ${dis ? "dis" : ""} ${k === "remove" && !dis ? "danger" : ""}"><input type="checkbox" data-carry="${k}" ${r.carry[k] && !dis ? "checked" : ""} ${dis ? "disabled" : ""}><div class="text"><b>${esc(title)}</b>${value ? ` <span class="muted">${esc(value)}</span>` : ""}${hint ? `<div class="t2">${esc(hint)}</div>` : ""}</div></label>`).join("")}</div>
         ${clash ? `<div class="alerts"><div class="alert" style="--a:var(--warning)">${ic("alert")}<div class="body">${th("replace.clash", { name: esc(oldName) })}</div></div></div>` : ""}
+        ${neu && (old.model || "") !== (neu.model || "") ? `<div class="alerts"><div class="alert" style="--a:var(--info)">${ic("information-outline")}<div class="body">${th("replace.other_model", { old: esc(old.model || t("replace.unknown_model")), new: esc(neu.model || t("replace.unknown_model")) })}</div></div></div>` : ""}
         <div class="card-content muted" style="font-size:13px">${th("replace.linked_note")}</div>`;
       foot = `<button class="btn" data-act="rep-back">${th("replace.back")}</button><button class="btn filled" data-act="rep-next">${th("replace.next")}</button>`;
     } else {
@@ -5447,7 +5450,7 @@
       if (!old) return;
       const items = repItems(old, null);
       // Removing is the one step that can't be undone, so it starts ticked only when the old device is already offline.
-      const carry = Object.fromEntries(items.map(([k, , , , dis]) => [k, !dis && k !== "battery" && (k !== "remove" || statusOf(old) === "offline")]));
+      const carry = Object.fromEntries(items.map(([k, , , , dis]) => [k, !dis && k !== "battery" && (k !== "remove" || old.status !== "removed")]));
       state.replace = { old: old.ieee, step: 1, new: null, showAll: false, carry, result: null, busy: false };
       if (!repCandidates(old, false).length) state.replace.showAll = repCandidates(old, true).some((d) => d.model && d.model === old.model);
       renderReplace();

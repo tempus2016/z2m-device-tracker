@@ -1616,6 +1616,7 @@
   "replace.back": "Back",
   "replace.choose": "Choose what the new device takes over from {name}.",
   "replace.clash": "{name} is still in Zigbee2MQTT, which won't allow two devices with the same name. Also remove the old device, or the rename will fail.",
+  "replace.other_model": "{new} is a different model from {old}. Bindings may not fit it, and some Home Assistant entity names can change, so check the automations that use the old device.",
   "replace.linked_note": "Both histories are linked either way, so each logbook points to the other.",
   "replace.applying": "Applying…",
   "replace.applying_text": "This can take up to a minute. Keep this window open.",
