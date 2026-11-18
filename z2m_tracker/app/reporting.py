@@ -9,6 +9,9 @@ Three rules, kept few on purpose (DOCS.md "Reporting settings" explains them):
   or on every change (reportable change 0) without a minimum interval of a minute.
 - never: a measurement whose maximum interval is 65535 (reporting off), or a measurement the device
   has a cluster for but no reporting set at all, on a device that does use configured reporting.
+  A missing one whose value keeps changing in the device's messages is listed but not flagged: the
+  device sends it anyway, for example a Tuya plug that sends power with its current and voltage
+  reports. A changing value is the proof, since Zigbee2MQTT's cache_state repeats an old one.
 
 A finding carries recommended values that change only what's wrong and keep the rest.
 """
@@ -28,6 +31,8 @@ FLOOD_MIN_GUARD = 60
 # one every 5 seconds on mains.
 BATTERY_RATE = 60
 FLOOD_RATE = 720
+# A value that changed in the device's messages within this many days counts as sent.
+SENT_DAYS = 7
 
 ENV = "env"
 ELECTRIC = "electric"
@@ -129,6 +134,52 @@ EXPOSES = {
 }
 # Input clusters worth remembering (for the "no reporting at all" rule); the rest aren't kept.
 MEASURE_CLUSTERS = sorted({cluster for pairs in EXPOSES.values() for cluster, _ in pairs})
+
+
+def _number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def note_sent(store: dict, payload: dict, now: float) -> None:
+    """Remember each measurement's last value in a device message, and when it last changed.
+
+    store: property -> [last value, epoch seconds it last changed, or None while it hasn't].
+    """
+    for key in EXPOSES:
+        value = payload.get(key)
+        if not _number(value):
+            continue
+        entry = store.get(key)
+        if entry is None:
+            store[key] = [value, None]
+        elif entry[0] != value:
+            store[key] = [value, now]
+
+
+def sending(store: Any, now: float) -> set[str]:
+    """The measurements whose value changed in the device's messages within SENT_DAYS."""
+    if not isinstance(store, dict):
+        return set()
+    return {
+        key
+        for key, entry in store.items()
+        if isinstance(entry, list) and len(entry) == 2 and _number(entry[1]) and now - entry[1] <= SENT_DAYS * 86400
+    }
+
+
+def clean_sent(raw: Any) -> dict:
+    """A stored note_sent store, with anything malformed dropped."""
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        key: [entry[0], entry[1]]
+        for key, entry in raw.items()
+        if key in EXPOSES
+        and isinstance(entry, list)
+        and len(entry) == 2
+        and _number(entry[0])
+        and (entry[1] is None or _number(entry[1]))
+    }
 
 
 def _name(value: Any) -> str | None:
@@ -253,9 +304,18 @@ def _check(item: dict, battery: bool) -> tuple[str, dict] | None:
 
 
 def audit(
-    items: list[dict] | None, inputs: dict | None, features: list | None, battery: bool, rate: float | None
+    items: list[dict] | None,
+    inputs: dict | None,
+    features: list | None,
+    battery: bool,
+    rate: float | None,
+    sent: set[str] | None = None,
 ) -> dict | None:
-    """Each reporting with its label and any finding, plus measurements with no reporting at all."""
+    """Each reporting with its label and any finding, plus measurements with no reporting at all.
+
+    sent: measurements the device's messages show it sends anyway (see sending); a missing one of
+    those is listed with sent True and isn't a finding.
+    """
     if items is None:
         return None
     out = []
@@ -292,7 +352,8 @@ def audit(
                     "attribute": pairs[0][1],
                     "key": info["key"],
                     "label": info["label"],
-                    "rule": "missing",
+                    "rule": None if prop in (sent or ()) else "missing",
+                    "sent": prop in (sent or ()),
                 }
             )
     confirmed = False
@@ -313,7 +374,7 @@ def audit(
 def findings(result: dict | None) -> list[dict]:
     if not result:
         return []
-    return [r for r in result["items"] if r["rule"]] + list(result["missing"])
+    return [r for r in result["items"] + result["missing"] if r["rule"]]
 
 
 def _dur(seconds: int) -> str:

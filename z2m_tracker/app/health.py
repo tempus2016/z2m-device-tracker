@@ -12,6 +12,7 @@ from odd_readings import issue as odd_reading_issue
 from payload_keys import SHOW_DAYS as PAYLOAD_SHOW_DAYS
 from reporting import audit as reporting_audit
 from reporting import findings as reporting_findings
+from reporting import sending as reporting_sending
 from reporting import summary_text as reporting_summary
 
 WARNING = "warning"
@@ -1077,6 +1078,7 @@ def device_issues(
         record.get("features"),
         bool(battery),
         summary.get("msg_rate_6h") if _finite(summary.get("msg_rate_6h")) else None,
+        reporting_sending(record.get("reporting_sent"), now),
     )
     found = reporting_findings(result)
     if found:

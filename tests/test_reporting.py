@@ -181,7 +181,15 @@ def test_exposed_measurement_without_reporting_is_missing(tracker):
     send(tracker, "bridge/devices", [plug(rep("genOnOff", "onOff", 0, 3600, 0))])
     result = audit_of(tracker, PLUG)
     assert result["missing"] == [
-        {"ep": "1", "cluster": POWER, "attribute": "activePower", "key": "power", "label": "Power", "rule": "missing"}
+        {
+            "ep": "1",
+            "cluster": POWER,
+            "attribute": "activePower",
+            "key": "power",
+            "label": "Power",
+            "rule": "missing",
+            "sent": False,
+        }
     ]
     assert kinds(tracker) == [("reporting_config", PLUG)]
 
@@ -193,6 +201,31 @@ def test_missing_needs_the_cluster_and_some_configured_reporting(tracker):
     # A device that uses no configured reporting at all (Aqara, Tuya) isn't flagged either.
     send(tracker, "bridge/devices", [plug()])
     assert audit_of(tracker, PLUG)["missing"] == []
+
+
+def test_missing_measurement_that_keeps_changing_in_messages_is_not_flagged(tracker):
+    # A Tuya plug: reporting for current and voltage only, power comes along in the same messages.
+    send(tracker, "bridge/devices", [plug(rep(POWER, "rmsCurrent", 5, 3600, 50))])
+    send(tracker, "Kettle plug", {"power": 0, "current": 0, "state": "ON"})
+    send(tracker, "Kettle plug", {"power": 0, "current": 0, "state": "ON"})
+    # The same value over and over may be Zigbee2MQTT's cache_state, so it still counts as missing.
+    assert audit_of(tracker, PLUG)["missing"][0]["rule"] == "missing"
+    assert kinds(tracker) == [("reporting_config", PLUG)]
+    send(tracker, "Kettle plug", {"power": 1950, "current": 8.4, "state": "ON"})
+    missing = audit_of(tracker, PLUG)["missing"]
+    assert [(r["key"], r["rule"], r["sent"]) for r in missing] == [("power", None, True)]
+    assert reporting.findings(audit_of(tracker, PLUG)) == []
+    assert kinds(tracker) == []
+
+
+def test_sent_measurement_counts_for_seven_days():
+    store = {}
+    reporting.note_sent(store, {"power": 0, "voltage": 240, "state": "ON"}, 1000.0)
+    reporting.note_sent(store, {"power": 5, "voltage": 240, "power_on_behavior": True}, 2000.0)
+    assert store == {"power": [5, 2000.0], "voltage": [240, None]}
+    assert reporting.sending(store, 2000.0 + 7 * 86400) == {"power"}
+    assert reporting.sending(store, 2001.0 + 7 * 86400) == set()
+    assert reporting.clean_sent({**store, "state": ["ON", 1.0], "current": [True, 1.0], "energy": "x"}) == store
 
 
 def test_message_rate_backs_up_a_finding(tracker):
