@@ -5,7 +5,7 @@
 A beta of 2.2.0, out so people who run ZHA can test it. The app can now read Home Assistant's ZHA integration instead of Zigbee2MQTT. It was tested on a small ZHA network only, so please report anything that looks wrong. Nothing changes for Zigbee2MQTT unless you switch, apart from the changes and the fix below. The app updates as usual; the integration's beta shows in HACS only when you turn on beta versions for it.
 
 ### Added
-- **ZHA support (beta).** Set the new `zigbee_stack` option to `zha` and restart the app. It then reads ZHA through Home Assistant and needs no MQTT broker. It only reads: it never sends anything to ZHA or your devices. The default stays `z2m`, so existing installs carry on as before.
+- **ZHA support (beta)** ([#61](https://github.com/tempus2016/z2m-device-tracker/pull/61)). Set the new `zigbee_stack` option to `zha` and restart the app. It then reads ZHA through Home Assistant and needs no MQTT broker. It only reads: it never sends anything to ZHA or your devices. The default stays `z2m`, so existing installs carry on as before.
 - With ZHA you get the device list and its history (added, removed, renamed), last seen, online and offline with offline alerts, link quality with weak and dropping signal, battery level with low-battery alerts and predictions, the mesh map, the radio channel view, and matching to Home Assistant areas and names. ZHA's own timeouts decide when a device is offline; the offline alert delay applies on top.
 - A device appearing in ZHA's device list alerts as **Device joined**, and one going from it as **Device left**, because ZHA sends no join and leave events of its own.
 - The mesh map comes from ZHA's neighbour scans, which ZHA runs by itself every few hours. A new map is taken when the mesh has changed and settled, or once a day.
@@ -14,12 +14,12 @@ A beta of 2.2.0, out so people who run ZHA can test it. The app can now read Hom
 - The integration finds ZHA devices in Home Assistant's device list, so its cards, sensors and the services that don't need Zigbee2MQTT work with them.
 
 ### Changed
-- Devices from a network the app no longer listens to are frozen. That covers the other Zigbee stack after a switch, and a base topic you removed from `base_topics`. They keep their history and show under **Removed or not listened to** on **Devices**, marked **Not listened to**. They get no checks, alerts, MQTT sensors or requests, and they're left out of Upkeep, the weekly summary, the Prometheus metrics and the integration's counts and cards. If the app listens to that network again, they pick up where they left off. A device you re-pair onto the other stack moves across and keeps its history.
+- Devices from a network the app no longer listens to are frozen ([#61](https://github.com/tempus2016/z2m-device-tracker/pull/61)). That covers the other Zigbee stack after a switch, and a base topic you removed from `base_topics`. They keep their history and show under **Removed or not listened to** on **Devices**, marked **Not listened to**. They get no checks, alerts, MQTT sensors or requests, and they're left out of Upkeep, the weekly summary, the Prometheus metrics and the integration's counts and cards. If the app listens to that network again, they pick up where they left off. A device you re-pair onto the other stack moves across and keeps its history.
 - On **Devices**, the **Removed** chip is now **Removed or not listened to**.
 - Restoring a backup keeps devices of a network the app doesn't listen to as frozen. Before, they came back without a network.
 
 ### Fixed
-- Devices of a base topic you removed from `base_topics` no longer alert forever. They went offline or silent and stayed in Health, with no way to clear them but removing each one.
+- Devices of a base topic you removed from `base_topics` no longer alert forever ([#61](https://github.com/tempus2016/z2m-device-tracker/pull/61)). They went offline or silent and stayed in Health, with no way to clear them but removing each one.
 
 ## 2.1.0
 
