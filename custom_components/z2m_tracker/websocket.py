@@ -40,7 +40,8 @@ def ws_devices(hass: HomeAssistant, connection: websocket_api.ActiveConnection, 
     if not tracker.available and not tracker.data["devices"]:
         connection.send_error(msg["id"], "unavailable", "The Z2M Device Tracker app is not reachable")
         return
-    devices = list(tracker.data["devices"].values())
+    # Frozen devices (a network the app no longer listens to) stay in the app's history only.
+    devices = [d for d in tracker.data["devices"].values() if not d.get("frozen")]
     if not connection.user.is_admin:
         # Notes and asset details (serials, prices, where a device is) are for admins; the cards don't use them.
         devices = [{k: v for k, v in d.items() if k not in PRIVATE_FIELDS} for d in devices]

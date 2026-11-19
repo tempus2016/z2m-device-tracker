@@ -928,6 +928,11 @@
   }
   /* ------------------------------------------------------------ phone layout */
   .sm-only { display: none; }
+  /* ZHA mode (beta): Zigbee2MQTT-only tabs, settings and actions are hidden. */
+  body[data-stack="zha"] #tab-updates, body[data-stack="zha"] .z2m-only,
+  body[data-stack="zha"] :is([data-act="scan"], [data-act^="ota-"], [data-act^="pair"], [data-act="reconfigure"], [data-act="replace"], [data-act^="rep-"],
+    [data-act="restore-bindings"], [data-act="bindings-ack"], [data-act="ping"], [data-act="rename"],
+    [data-act^="ret-"], [data-act="retcmd-clear"], [data-act="import"], [data-act="last-seen-on"], [data-act="reporting-fix"], [data-act="leftovers"], [data-act="move"]) { display: none !important; }
   /* Section tabs: Updates, Activity and Settings sit behind "More" on a phone. */
   .tabs .sm-tab { display: none; }
   .sub-tabs { display: flex; padding: 0 8px; border: 1px solid var(--divider); border-radius: 12px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; background: var(--card); }
@@ -1072,6 +1077,7 @@
     offline: { get label() { return t("status.offline"); }, c: "var(--error)" },
     ghost: { get label() { return t("status.ghost"); }, c: "var(--error)" },
     removed: { get label() { return t("status.removed"); }, c: "var(--disabled)" },
+    frozen: { get label() { return t("status.frozen"); }, c: "var(--disabled)" },
   };
   const KIND_ICON = { community_avoid: "thumb-down-outline", offline: "wifi-off", silent: "wifi-off", late: "history", frozen: "thermometer", impossible_reading: "alert", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
     flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb", slow_router: "router-wireless", maintenance_due: "calendar-clock", upgrade_worse: "update", slow_commands: "history", missed_commands: "gesture-tap-button", reporting_config: "tune", naming: "pencil", stale_retained: "content-copy", retained_command: "alert", availability_mismatch: "swap-horizontal", payload_changed: "pencil", warranty_ending: "calendar-clock" };
@@ -1153,7 +1159,7 @@
   // inline: for use mid-sentence ("Last seen just now"); Intl output is already lower case where the language wants it.
   const relTime = (iso, inline = false) => { const s = ago(iso); if (s === null) return t(inline ? "time.never_inline" : "time.never"); if (s < 60) return t(inline ? "time.just_now_inline" : "time.just_now"); if (s < 3600) return unit(Math.round(s / 60), "minute"); if (s < 172800) return unit(Math.round(s / 3600), "hour"); if (s < 5184000) return unit(Math.round(s / 86400), "day"); if (s < 63072000) return unit(Math.round(s / 2592000), "month"); return unit(Math.round(s / 31536000), "year"); };
   const todayIso = () => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`; };
-  const netLabel = (bt) => (!bt || bt === "unknown" ? t("common.unknown") : bt === "zigbee2mqtt" ? t("net.main") : cap(bt.replace(/^zigbee2mqtt[_-]?/, "").replace(/[_-]/g, " ").trim()) || bt);
+  const netLabel = (bt) => (!bt || bt === "unknown" ? t("common.unknown") : bt === "zha" ? "ZHA" : bt === "zigbee2mqtt" ? t("net.main") : cap(bt.replace(/^zigbee2mqtt[_-]?/, "").replace(/[_-]/g, " ").trim()) || bt);
   const nameOf = (d) => {
     if (!d) return null;
     if (d.friendly_name && !IEEE_RE.test(d.friendly_name)) return d.friendly_name;
@@ -1162,7 +1168,8 @@
     return d.ha_name && !IEEE_RE.test(d.ha_name) ? d.ha_name : null;
   };
   const formerOf = (d) => { const c = nameOf(d); return [...new Set((d.names || []).map((n) => n.name).filter((n) => n && n !== c && !IEEE_RE.test(n)))]; };
-  const statusOf = (d) => (d.status === "removed" ? "removed" : d.type !== "Coordinator" && d.interview_state && d.interview_state !== "SUCCESSFUL" ? "ghost" : d.availability === "offline" ? "offline" : "active");
+  // Frozen: from a network the app no longer listens to (the other Zigbee stack, or a removed base topic).
+  const statusOf = (d) => (d.status === "removed" ? "removed" : d.frozen ? "frozen" : d.type !== "Coordinator" && d.interview_state && d.interview_state !== "SUCCESSFUL" ? "ghost" : d.availability === "offline" ? "offline" : "active");
   const warnings = (d) => (d.issues || []).filter((i) => i.severity === "warning");
   // Warnings that mean the device has stopped working (or is about to) show red, the rest amber.
   const SEVERE_KINDS = new Set(["offline", "silent", "unidentified", "network_offline"]);
@@ -1193,7 +1200,7 @@
   const stateIc = (d, cls = "") => {
     const st = statusOf(d);
     const w = topWarning(d);
-    const tone = st === "removed" ? "off" : st !== "active" ? "bad" : w ? (severe(w, d) ? "bad" : "warn") : "";
+    const tone = st === "removed" || st === "frozen" ? "off" : st !== "active" ? "bad" : w ? (severe(w, d) ? "bad" : "warn") : "";
     return `<span class="state-ic ${tone} ${cls}">${ic(kindIcon(d))}</span>`;
   };
   // Search text: names, vendor + model (as shown in the list and the models card), type and the kind of device (bulb, plug, door...).
@@ -1293,7 +1300,8 @@
     return tx(`radio.finding.${f.msg}`, p, f.text);
   };
   const checkLabel = (c) => tx(`check.${c.key}.label`, null, c.label);
-  const checkDesc = (c) => tx(`check.${c.key}.description`, null, c.description);
+  // A check whose description names Zigbee2MQTT has a second one for ZHA (check.<key>.description_zha).
+  const checkDesc = (c) => { const d = tx(`check.${c.key}.description`, null, c.description); return isZha() ? tx(`check.${c.key}.description_zha`, null, d) : d; };
   // Event kinds and the fixed English details the app writes (stored in history, so matched by text).
   // A network event is named after the network ("Main network online"), so its kind drops the word "network".
   const netKind = (e) => (e.ieee === "network" ? String(e.kind || "").replace(/^network /, "") : e.kind);
@@ -1373,6 +1381,7 @@
   const load = async () => {
     try {
       state.data = await api("api/devices");
+      document.body.dataset.stack = state.data.stack || "z2m";
       state.byIeee = new Map(state.data.devices.map((d) => [d.ieee, d]));
       state.version = state.data.version;
       if (state.view === "updates") { state.otaAt = Date.now(); state.ota = await api("api/ota").catch(() => state.ota); }
@@ -1390,20 +1399,20 @@
   const DEFAULT_DIR = { last_seen: -1, signal: -1 };
   const sortDir = () => state.dir || DEFAULT_DIR[state.sort] || 1;
   const CHIPS = [
-    ["all", "devices.chip.all", (d) => d.status !== "removed"],
-    ["attention", "devices.chip.attention", (d) => d.status !== "removed" && (statusOf(d) !== "active" || warnings(d).length > 0)],
+    ["all", "devices.chip.all", (d) => d.status !== "removed" && !d.frozen],
+    ["attention", "devices.chip.attention", (d) => d.status !== "removed" && !d.frozen && (statusOf(d) !== "active" || warnings(d).length > 0)],
     ["offline", "devices.chip.offline", (d) => statusOf(d) === "offline"],
     ["ghost", "devices.chip.ghost", (d) => statusOf(d) === "ghost"],
-    ["battery", "devices.chip.battery", (d) => d.status !== "removed" && typeof d.battery === "number"],
-    ["critical", "devices.chip.critical", (d) => d.status !== "removed" && !!d.critical],
-    ["removed", "devices.chip.removed", (d) => d.status === "removed"],
+    ["battery", "devices.chip.battery", (d) => d.status !== "removed" && !d.frozen && typeof d.battery === "number"],
+    ["critical", "devices.chip.critical", (d) => d.status !== "removed" && !d.frozen && !!d.critical],
+    ["removed", "devices.chip.removed", (d) => d.status === "removed" || !!d.frozen],
   ];
   const filtered = () => {
     const pred = (CHIPS.find((c) => c[0] === state.chip) || CHIPS[0])[2];
     const list = visible().filter(pred).filter(matchesQuery(queryTerms()));
     const clean = (v) => (v ? String(v).replace(/^[^\p{L}\p{N}]+/u, "") || null : null);
     const time = (v) => { const t = v ? Date.parse(v) : NaN; return isNaN(t) ? null : t; };
-    const order = { ghost: 0, offline: 1, active: 2, removed: 3 };
+    const order = { ghost: 0, offline: 1, active: 2, frozen: 3, removed: 4 };
     const keyFns = {
       name: (d) => clean(nameOf(d)), area: (d) => clean(d.area), model: (d) => clean(deviceLine(d)),
       status: (d) => { const st = statusOf(d), w = topWarning(d); return st !== "active" ? order[st] * 10 : w ? (severe(w, d) ? 15 : 20) : 21; },
@@ -1501,7 +1510,7 @@
       const seen = esc(relTime(d.last_seen)), seenTitle = esc(fmtDate(d.last_seen));
       // Phones hide the battery, signal and last seen columns, so they move into the second line instead of the IEEE address.
       const phoneLine = d.status === "removed" ? esc(second) : [typeof d.battery === "number" ? bat : power ? esc(power) : null, lqi === null ? null : sigBars(lqi), `<span title="${seenTitle}">${seen}</span>`].filter(Boolean).join('<span class="sep"></span>');
-      return `<tr class="${st === "removed" ? "removed" : ""}" data-open="${esc(d.ieee)}" tabindex="0" aria-selected="${state.open === d.ieee}">
+      return `<tr class="${st === "removed" || st === "frozen" ? "removed" : ""}" data-open="${esc(d.ieee)}" tabindex="0" aria-selected="${state.open === d.ieee}">
         <td class="pick-cell"><label class="tick"><input type="checkbox" data-pick="${esc(d.ieee)}" ${state.picked.has(d.ieee) ? "checked" : ""} aria-label="${esc(t("select.one", { name: nameOf(d) || d.ieee }))}"></label></td>
         <td class="ic-cell">${stateIc(d)}</td>
         <td><div class="name">${esc(nameOf(d) || t("devices.unnamed"))}${d.critical && d.status !== "removed" ? ` ${critTag()}` : ""}</div><div class="name-2 lg-only">${esc(second)}</div>${phoneLine ? `<div class="name-2 sm-only phone-line">${phoneLine}</div>` : ""}</td>
@@ -1673,7 +1682,7 @@
         <div class="card-header">${ic("heart-pulse")}<div><h2 class="ch">${th("health.title")}</h2><small>${warn.length ? th(warnIssues > warn.length ? "health.summary_issues" : "health.summary", { warn: warn.length, issues: warnIssues, n: info.length }) : own.length ? th("health.to_review", { n: info.length }) : th("health.nothing")}</small></div></div>
         <div class="info-grid">
           <div><small>${th("health.alerts")}</small><b>${o.alerts_enabled === false ? th("health.alerts_off") : esc([o.persistent_notifications ? t("health.ha_notifications") : null, o.notify_service || null].filter(Boolean).join(", ")) || th("health.event_only")}</b></div>
-          <div><small>${th("health.thresholds")}</small><b>${th("health.thresholds_line", { offline: esc(o.offline_alert_minutes), frozen: esc(o.frozen_alert_hours), battery: esc(o.battery_alert_percent) })}</b></div>
+          <div><small>${th("health.thresholds")}</small><b>${th(isZha() ? "health.thresholds_line_zha" : "health.thresholds_line", { offline: esc(o.offline_alert_minutes), frozen: esc(o.frozen_alert_hours), battery: esc(o.battery_alert_percent) })}</b></div>
           <div><small>${th("health.routing_scan")}</small><b>${esc(scans)}</b></div>
         </div>
         ${elsewhere()}
@@ -1716,7 +1725,8 @@
   const elsewhere = () => {
     const d = state.data, B = d.bridges || {};
     const lines = [];
-    const add = (to, tone, label, detail) => lines.push(`<button data-view="${to}" style="--c:${tone}">${esc(label)}<small>${esc(detail)}</small></button>`);
+    // With ZHA the Zigbee2MQTT-only sections don't exist, so they get no line.
+    const add = (to, tone, label, detail) => { if (!(isZha() && Z2M_ONLY_SUBS.has(to.split("/")[1]))) lines.push(`<button data-view="${to}" style="--c:${tone}">${esc(label)}<small>${esc(detail)}</small></button>`); };
     const ok = "var(--success)", warn = "var(--warning)", bad = "var(--error)";
     const down = d.instances.filter((bt) => B[bt]?.state === "offline");
     const backups = d.instances.map((bt) => d.backups?.[bt]).filter(Boolean);
@@ -1738,7 +1748,7 @@
       add("network/groups", badG ? warn : ok, t("sub.groups"), badG ? t("fine.groups_bad", { n: groups.length, bad: badG }) : t("fine.groups_ok", { n: groups.length }));
     }
     const buy = (d.battery_shopping || []).reduce((n, g) => n + Math.max(0, g.count - (g.type === "Unknown type" ? 0 : stockOf(g.type) || 0)), 0);
-    if ((d.battery_shopping || []).length || d.devices.some((x) => x.battery_record && x.status === "active"))
+    if ((d.battery_shopping || []).length || d.devices.some((x) => x.battery_record && x.status === "active" && !x.frozen))
       add("upkeep/batteries", buy ? warn : ok, t("sub.batteries"), buy ? t("fine.to_buy", { n: buy }) : t("fine.batteries_ok"));
     const mt = d.maintenance || [];
     const wEnding = warrantySoon().length;
@@ -1766,7 +1776,7 @@
   };
 
   // ------------------------------------------------------------ Network and Upkeep sections
-  const subNav = (view) => `<nav class="sub-tabs" role="tablist" aria-label="${esc(t(`tabs.${view}`))}">${SUBS[view].map((k) => {
+  const subNav = (view) => `<nav class="sub-tabs" role="tablist" aria-label="${esc(t(`tabs.${view}`))}">${subsOf(view).map((k) => {
     const on = state.sub[view] === k;
     return `<button class="tab" role="tab" id="sub-${k}" data-sub="${view}/${k}" aria-selected="${on}" tabindex="${on ? 0 : -1}">${th(`sub.${k}`)}</button>`;
   }).join("")}</nav>`;
@@ -2145,7 +2155,7 @@
   // Models on this install's networks that nobody has rated yet, most devices first: the "Rate your devices" list.
   const cmUnrated = () => {
     const by = new Map();
-    state.data.devices.filter((x) => x.status === "active" && x.type !== "Coordinator" && (x.model || x.model_id) && !x.community_key).forEach((x) => {
+    state.data.devices.filter((x) => x.status === "active" && !x.frozen && x.type !== "Coordinator" && (x.model || x.model_id) && !x.community_key).forEach((x) => {
       const name = [x.vendor || x.manufacturer, x.model || x.model_id].filter(Boolean).join(" ");
       if (!by.has(name)) by.set(name, []);
       by.get(name).push(x.ieee);
@@ -2398,7 +2408,7 @@
   const shoppingCard = () => {
     const groups = state.data.battery_shopping || [];
     const stock = state.data.battery_stock || {};
-    const hasBattery = state.data.devices.some((d) => d.battery_record && d.status === "active");
+    const hasBattery = state.data.devices.some((d) => d.battery_record && d.status === "active" && !d.frozen);
     if (!groups.length && !hasBattery && !Object.values(stock).some((n) => n > 0)) return "";
     const unknown = (g) => g.type === "Unknown type";
     const btype = (g) => (unknown(g) ? t("shop.unknown_type") : g.type);
@@ -2770,7 +2780,7 @@
         const info = nm[bt] || {};
         const g = mapGraph(bt);
         const head = `<div class="card-header">${ic("sitemap")}<div><h2 class="ch">${th("net.network", { name: esc(netLabel(bt)) })}</h2><small>${info.running_since ? th("map.scanning_now") : info.scanned_at ? th("map.scanned", { when: esc(relTime(info.scanned_at, true)), n: esc(info.nodes ?? g.devs.length), links: esc(info.links ?? "?") }) : th("map.not_scanned")}</small></div></div>`;
-        if (g.devs.filter((d) => d.routing).length === 0) return `<div class="card map-card">${head}${emptyState("sitemap", th("map.no_data"), th("map.no_data_text"))}</div>`;
+        if (g.devs.filter((d) => d.routing).length === 0) return `<div class="card map-card">${head}${emptyState("sitemap", th("map.no_data"), th(isZha() ? "map.no_data_text_zha" : "map.no_data_text"))}</div>`;
         const advice = mapAdvice(bt);
         const times = (state.data.scan_times?.[bt] || []).slice().reverse();
         const diff = mapDiff(bt);
@@ -3354,7 +3364,7 @@
           <input class="field num" type="number" data-num="impossible_temp_max" min="-100" max="100" value="${esc(s.impossible_temp_max ?? 60)}" aria-label="${esc(t("settings.temp_highest"))}"><span class="unit">°C</span></div></div>
         ${num("humidity_stuck_hours", t("settings.humidity_stuck"), th("settings.humidity_stuck_desc"), 1, 168, th("settings.unit_h"))}
       </div>
-      <div class="card"><div class="card-header"><div><h2 class="ch">${th("settings.routing_scan")}</h2><small>${th("settings.routing_scan_desc")}</small></div></div>
+      <div class="card z2m-only"><div class="card-header"><div><h2 class="ch">${th("settings.routing_scan")}</h2><small>${th("settings.routing_scan_desc")}</small></div></div>
         <div class="set-row"><div class="text"><div class="t1">${th("settings.wifi")}</div><div class="t2">${th("settings.wifi_desc")}</div></div><div class="ctl"><input class="field" id="wifiCh" aria-label="${esc(t("settings.wifi"))}" autocomplete="off" style="width:120px" value="${esc(s.wifi_channels || "")}" placeholder="${esc(t("settings.wifi_placeholder"))}" inputmode="numeric"><button class="btn" data-act="save-wifi">${th("common.save")}</button></div></div>
         <div class="set-row"><div class="text"><div class="t1">${th("settings.schedule")}</div><div class="t2">${th("settings.last_scans", { scans: esc(scans) })}</div></div><div class="ctl"><select class="field" id="scanHour" aria-label="${esc(t("settings.schedule"))}">${hours}</select></div></div>
         <div class="card-actions"><button class="btn" data-act="scan">${ic("sitemap", "s18")}${th("settings.scan_now")}</button></div>
@@ -3364,11 +3374,11 @@
           <div class="ctl"><input class="field" id="namePattern" aria-label="${esc(t("settings.naming_pattern"))}" aria-describedby="nameExample" autocomplete="off" spellcheck="false" maxlength="80" value="${esc(s.naming_pattern || "")}" placeholder="{area} {type} {n}"><button class="btn" data-act="save-naming">${th("common.save")}</button></div></div>
         <div class="set-row"><div class="text"><div class="t1">${th("settings.naming_example")}</div><div class="t2" id="nameExample" aria-live="polite">${esc(namingExample(s.naming_pattern))}</div></div></div>
       </div>
-      <div class="card"><div class="card-header"><h2 class="ch">${th("settings.broker")}</h2></div>
+      <div class="card z2m-only"><div class="card-header"><h2 class="ch">${th("settings.broker")}</h2></div>
         ${sw("retained_autoclear", s.retained_autoclear, t("settings.retained_autoclear"), th("settings.retained_autoclear_desc"))}
         ${sw("broker_stats", s.broker_stats !== false, t("settings.broker_stats"), th("settings.broker_stats_desc"))}
       </div>
-      <div class="card"><div class="card-header"><h2 class="ch">${th("settings.entities")}</h2></div>
+      <div class="card z2m-only"><div class="card-header"><h2 class="ch">${th("settings.entities")}</h2></div>
         ${sw("ha_entities", s.ha_entities, t("settings.entities_add"), th("settings.entities_desc", { n: S.entities }))}
       </div>
       <div class="card"><div class="card-header"><h2 class="ch">${th("settings.ignored")}</h2></div>
@@ -3394,7 +3404,8 @@
         <div class="set-row links"><div class="text"><div class="t1">${th("settings.version")}</div><div class="t2">Z2M Device Tracker ${esc(S.version)}</div></div><div class="ctl">${LINKS.map(([href, label]) => `<a class="btn" href="${href}" target="_blank" rel="noopener">${th(label)}${ic("open-in-new", "s18")}</a>`).join("")}<a class="btn support" href="${SUPPORT}" target="_blank" rel="noopener">${ic("heart-outline", "s18")}${th("links.support_short")}</a></div></div>
       </div>`;
     // Settings runs to many screens on a phone: a row of chips jumps to each section.
-    const cards = [...$("#view").querySelectorAll(":scope > .card")].filter((c) => c.querySelector(":scope > .card-header"));
+    // Hidden cards (Zigbee2MQTT-only ones with ZHA) get no chip.
+    const cards = [...$("#view").querySelectorAll(":scope > .card")].filter((c) => c.querySelector(":scope > .card-header") && getComputedStyle(c).display !== "none");
     const nav = document.createElement("nav");
     nav.className = "chips jump";
     nav.setAttribute("aria-label", t("tabs.settings"));
@@ -3613,15 +3624,17 @@
     const gone = d.status === "removed", id = esc(d.ieee);
     const lowBat = typeof d.battery === "number" && (d.issues || []).some((i) => i.kind === "battery_low");
     const z2m = state.data.panels?.[d.instance];
+    // Actions that go through Zigbee2MQTT: not for ZHA, nor for a device of a network not listened to.
+    const viaZ2m = !isZha() && !d.frozen && d.instance !== "zha";
     const all = [
-      !gone && statusOf(d) !== "offline" && { k: "reconfigure", a: `data-act="reconfigure" data-ieee="${id}"`, i: "refresh", l: th("common.reconfigure") },
-      !gone && { k: "rename", a: 'data-act="rename"', i: "pencil", l: th("more.rename") },
+      viaZ2m && !gone && statusOf(d) !== "offline" && { k: "reconfigure", a: `data-act="reconfigure" data-ieee="${id}"`, i: "refresh", l: th("common.reconfigure") },
+      viaZ2m && !gone && { k: "rename", a: 'data-act="rename"', i: "pencil", l: th("more.rename") },
       lowBat && { k: "battery", a: 'data-act="battery-replaced"', i: "battery-sync", l: th("battery.replaced") },
-      d.can_ping && { k: "ping", a: `data-act="ping" data-ieee="${id}" ${PING.get(d.ieee)?.busy ? "disabled" : ""}`, i: "refresh", l: th("ping.button") },
-      canSwap(d) && { k: "replace", a: `data-act="replace" data-ieee="${id}"`, i: "swap-horizontal", l: th("replace.button") },
-      !gone && d.type === "EndDevice" && { k: "move", a: `data-act="move" data-ieee="${id}"`, i: "swap-horizontal", l: th("more.change_router") },
+      viaZ2m && d.can_ping && { k: "ping", a: `data-act="ping" data-ieee="${id}" ${PING.get(d.ieee)?.busy ? "disabled" : ""}`, i: "refresh", l: th("ping.button") },
+      viaZ2m && canSwap(d) && { k: "replace", a: `data-act="replace" data-ieee="${id}"`, i: "swap-horizontal", l: th("replace.button") },
+      viaZ2m && !gone && d.type === "EndDevice" && { k: "move", a: `data-act="move" data-ieee="${id}"`, i: "swap-horizontal", l: th("more.change_router") },
       !gone && d.type === "Router" && d.routing?.scanned_at && d.routing.scanned_at === state.data.networkmap?.[d.instance]?.scanned_at && { k: "whatif", a: `data-act="whatif" data-ieee="${id}"`, i: "lan-disconnect", l: th("whatif.button") },
-      d.model && d.supported !== false && { href: `https://www.zigbee2mqtt.io/devices/${encodeURIComponent(String(d.model).replace(/\//g, "_"))}.html" target="_blank" rel="noopener`, i: "information-outline", l: th("more.docs") },
+      viaZ2m && d.model && d.supported !== false && { href: `https://www.zigbee2mqtt.io/devices/${encodeURIComponent(String(d.model).replace(/\//g, "_"))}.html" target="_blank" rel="noopener`, i: "information-outline", l: th("more.docs") },
       d.ha_device_id && { href: `/config/devices/device/${esc(d.ha_device_id)}" target="_top`, i: "home-assistant", l: th("more.device_page") },
       z2m && !gone && { href: `${esc(z2m)}" target="_top`, i: "zigbee", l: "Zigbee2MQTT" },
     ].filter(Boolean);
@@ -4115,7 +4128,7 @@
 
   const moreHtml = (d) => {
     const isBat = !!d.battery_record || typeof d.battery === "number";
-    const tabs = [["info", "more.tab.info"], ["health", "more.tab.health"], ["trends", "more.tab.trends"], ["history", "more.tab.history"], ...(isBat ? [["battery", "more.tab.battery"]] : []), ...(d.type !== "Coordinator" ? [["messages", "more.tab.messages"], ["community", "more.tab.community"]] : []), ["asset", "more.tab.notes"]];
+    const tabs = [["info", "more.tab.info"], ["health", "more.tab.health"], ["trends", "more.tab.trends"], ["history", "more.tab.history"], ...(isBat ? [["battery", "more.tab.battery"]] : []), ...(d.type !== "Coordinator" ? [...(isZha() ? [] : [["messages", "more.tab.messages"]]), ["community", "more.tab.community"]] : []), ["asset", "more.tab.notes"]];
     if (!tabs.find((t) => t[0] === state.moreTab)) state.moreTab = "info";
     const fn = { info: tabInfo, health: tabHealth, history: tabHistory, trends: tabTrends, battery: tabBattery, messages: tabMessages, community: tabCommunity, asset: tabAsset }[state.moreTab];
     const name = nameOf(d);
@@ -4159,6 +4172,10 @@
   // The hash holds the open device (#0x…) or, with none open, the tab (#devices, #network/broker). Health is the bare URL.
   const VIEWS = ["health", "devices", "network", "upkeep", "updates", "activity", "settings"];
   const SUBS = { network: ["map", "coordinator", "broker", "radio", "groups"], upkeep: ["batteries", "maintenance", "models", "costs", "community"] };
+  // Sections that only exist with Zigbee2MQTT: its coordinator info, the MQTT broker and Zigbee2MQTT groups.
+  const Z2M_ONLY_SUBS = new Set(["coordinator", "broker", "groups"]);
+  const isZha = () => state.data?.stack === "zha";
+  const subsOf = (view) => SUBS[view].filter((k) => !(isZha() && Z2M_ONLY_SUBS.has(k)));
   // Old hashes and links: the Map tab is now Network > Map.
   const ALIASES = { map: "network/map" };
   const parseView = (h) => {
@@ -4276,6 +4293,11 @@
     if (!state.data) return;
     const fk = focusKey(document.activeElement);
     const issues = ownIssues(state.data.issues || []);
+    // ZHA has no firmware updates tab or Zigbee2MQTT sections: send an old link or saved tab elsewhere.
+    if (isZha()) {
+      if (state.view === "updates") state.view = "health";
+      if (Z2M_ONLY_SUBS.has(state.sub.network)) state.sub.network = "map";
+    }
     // The badge is the "Needs attention" count Health opens on, so the two always match.
     const warn = healthRows(issues).filter((g) => g[0].severity === "warning").length;
     const badge = $("#issueBadge"); badge.textContent = warn; badge.classList.toggle("warn", warn > 0);
@@ -4326,7 +4348,7 @@
   const closeSheet = () => { $("#tabSheet").hidden = $("#sheetScrim").hidden = true; $("#tab-more").setAttribute("aria-expanded", "false"); };
   const openSheet = () => {
     const ota = Number($("#otaBadge").textContent) || 0;
-    $("#tabSheet").innerHTML = MORE_VIEWS.map((v) => `<button role="menuitem" data-view="${v}"${state.view === v ? ' aria-current="page"' : ""}>${ic(MORE_ICONS[v])}<span>${th(`tabs.${v}`)}</span>${v === "updates" && ota ? `<span class="badge info">${ota}</span>` : ""}</button>`).join("");
+    $("#tabSheet").innerHTML = MORE_VIEWS.filter((v) => !(isZha() && v === "updates")).map((v) => `<button role="menuitem" data-view="${v}"${state.view === v ? ' aria-current="page"' : ""}>${ic(MORE_ICONS[v])}<span>${th(`tabs.${v}`)}</span>${v === "updates" && ota ? `<span class="badge info">${ota}</span>` : ""}</button>`).join("");
     $("#tabSheet").hidden = $("#sheetScrim").hidden = false;
     $("#tab-more").setAttribute("aria-expanded", "true");
     $("#tabSheet button")?.focus();

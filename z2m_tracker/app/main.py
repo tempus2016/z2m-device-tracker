@@ -47,11 +47,12 @@ from retained import collect as collect_retained
 from tracker import IEEE_RE, Tracker, base_topic_list, shopping_text
 from tracker import _display_name as tracker_display_name
 from usage import UsageRefresher
+from zha import ZHA_BLOCKED_PATHS, ZHA_INSTANCE, ZhaSource, zha_checks, zigbee_stack
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
 _LOGGER = logging.getLogger("z2m_tracker")
 
-VERSION = "2.1.0"
+VERSION = "2.2.0-beta.1"
 PORT = 8099
 # Prometheus scrape port: only opened when metrics_token is set.
 METRICS_PORT = 9099
@@ -90,6 +91,7 @@ LOOPBACK = {"127.0.0.1", "::1"}
 COMMAND_COOLDOWN = 60
 
 DEFAULT_OPTIONS = {
+    "zigbee_stack": "z2m",
     "base_topics": ["zigbee2mqtt"],
     "z2m_panels": [],
     "persistent_notifications": True,
@@ -331,13 +333,16 @@ def load_oui() -> dict[str, str]:
 
 options = load_options()
 API_TOKEN = load_api_token()
-base_topics = base_topic_list(options.get("base_topics"))
+stack = zigbee_stack(options)
+# ZHA mode (beta): one network read from Home Assistant's ZHA integration, no MQTT at all.
+base_topics = [ZHA_INSTANCE] if stack == "zha" else base_topic_list(options.get("base_topics"))
 for _topic in base_topics:
     if _topic != _topic.strip():
         _LOGGER.warning("Base topic %r starts or ends with a space; it is used exactly as written", _topic)
 metrics = Metrics(METRICS_PATH)
 tracker = Tracker(DATA_PATH, base_topics, CONFIG_DIR, local_timezone(), metrics, options, load_oui())
 home_assistant = HomeAssistant(CONFIG_DIR)
+home_assistant.stack = stack
 retained_store = RetainedStore()
 tracker.retained = retained_store
 broker_stats = BrokerStats()
@@ -506,9 +511,10 @@ class Alerts:
             return
         name = event.get("name") or event["ieee"]
         vendor = tracker._oui_vendor(event["ieee"]) or "unknown manufacturer"
+        network = "ZHA" if stack == "zha" else event["instance"]
         messages = {
-            "joined": f"{name} joined the {event['instance']} network (radio by {vendor}). If you weren't pairing anything, check it in the Zigbee Tracker.",
-            "left": f"{name} left the {event['instance']} network.",
+            "joined": f"{name} joined the {network} network (radio by {vendor}). If you weren't pairing anything, check it in the Zigbee Tracker.",
+            "left": f"{name} left the {network} network.",
             "interview failed": f"{name} joined but its interview failed, so Zigbee2MQTT can't identify it.",
         }
         title = {
@@ -843,6 +849,39 @@ def start_mqtt() -> mqtt.Client:
     publish_retained = clear_topic
     mqtt_client = client
     return client
+
+
+def remove_mqtt_entities() -> None:
+    """ZHA mode: remove, once, what the app left on the broker while it read Zigbee2MQTT.
+
+    The sensors it made through MQTT discovery would otherwise stay in Home Assistant as unavailable
+    for good. This is the only time the app talks to the broker with ZHA; afterwards there is
+    nothing left to remove and it never connects again. No broker (any more): nothing to do.
+    """
+    topics = discovery.cleanup_topics()
+    if not topics:
+        return
+    if not mqtt_status.configured:
+        _LOGGER.info("Old MQTT sensors can't be removed: Home Assistant offers no MQTT broker")
+        return
+    client = new_client(f"z2m-tracker-cleanup-{tracker.boot_id}")
+    try:
+        client.connect(MQTT_HOST, MQTT_PORT, keepalive=30)
+        client.loop_start()
+        sent = [client.publish(topic, b"", qos=1, retain=True) for topic in [*topics, AVAILABILITY]]
+        for info in sent:
+            info.wait_for_publish(10)
+        if not all(info.is_published() for info in sent):
+            raise RuntimeError("the broker didn't confirm every message")
+        with tracker.lock:
+            tracker.data["discovery_topics"] = []
+            tracker.dirty = True
+        _LOGGER.info("Removed the app's old MQTT sensors from Home Assistant (%d topics)", len(topics))
+    except Exception as err:  # noqa: BLE001 - optional clean-up, tried again at the next start
+        _LOGGER.warning("Couldn't remove the app's old MQTT sensors (%s); trying again at the next start", err)
+    finally:
+        client.loop_stop()
+        client.disconnect()
 
 
 # ------------------------------------------------------- retained messages
@@ -1218,13 +1257,18 @@ def settings_payload() -> dict:
         networkmap = dict(tracker.data.get("networkmap") or {})
     return {
         "settings": {key: options.get(key) for key in SETTINGS},
-        "checks": [{"key": k, "label": label, "description": d, "event": e} for k, label, d, e in CHECKS],
+        # With ZHA, the checks that need Zigbee2MQTT are left out: they can never fire.
+        "checks": [
+            {"key": k, "label": label, "description": d, "event": e}
+            for k, label, d, e in (zha_checks(CHECKS) if stack == "zha" else CHECKS)
+        ],
         "networks": [{"topic": t, "label": t, "panel": options["_panels"].get(t)} for t in base_topics],
         "muted": sorted(muted, key=lambda m: m["name"].lower()),
         "entities": len(discovery._configs),
         "networkmap": networkmap,
         "version": VERSION,
         "home_assistant": home_assistant.available,
+        "stack": stack,
     }
 
 
@@ -1365,7 +1409,8 @@ def scheduler() -> None:
     while not stop_event.wait(5):
         now = time.time()
         try:
-            check_mqtt()
+            if stack == "z2m":
+                check_mqtt()
             if now - last_save >= SAVE_INTERVAL:
                 tracker.save()
                 last_save = now
@@ -1388,14 +1433,21 @@ def scheduler() -> None:
                     _LOGGER.warning("Checking for leftover devices in Home Assistant failed: %s", err)
             if now - last_health >= HEALTH_INTERVAL or tracker.late_due(now):
                 alerts.check()
-                discovery.sync()
+                if stack == "z2m":
+                    discovery.sync()
                 last_health = now
             # Retained messages: after connecting, shortly after a rename or removal, and every 6 hours.
             changed_names = last_name_change()
             if changed_names != name_change:
                 name_change = changed_names
                 retained_scan_soon(RETAINED_CHANGE_DELAY)
-            if retained_next and now >= retained_next and mqtt_status.connected and tracker.lists_ready.is_set():
+            if (
+                stack == "z2m"
+                and retained_next
+                and now >= retained_next
+                and mqtt_status.connected
+                and tracker.lists_ready.is_set()
+            ):
                 if scan_retained():
                     retained_next = now + RETAINED_RESCAN
             if options.get("community_ratings_fetch", True) and community.fetch_due(now):
@@ -1411,12 +1463,12 @@ def scheduler() -> None:
                     ).start()
             hour = int(options.get("networkmap_hour", -1))
             local = datetime.now(tracker.local_tz)
-            if hour >= 0 and local.hour == hour and last_scan_day != local.date():
+            if stack == "z2m" and hour >= 0 and local.hour == hour and last_scan_day != local.date():
                 last_scan_day = local.date()
                 run_networkmap()
             # Nightly router pings run the hour after the routing scan (04:00 when scans are off).
             ping_hour = (hour if hour >= 0 else 3) + 1
-            if local.hour == ping_hour % 24 and last_ping_day != local.date():
+            if stack == "z2m" and local.hour == ping_hour % 24 and last_ping_day != local.date():
                 last_ping_day = local.date()
                 run_router_pings()
             if (
@@ -1441,7 +1493,9 @@ def weekly_summary_text() -> tuple[str, str]:
         issues = [i for i in tracker.issues if i["severity"] == "warning" and not nested(i, keys)]
         events = [e for e in tracker.data["events"] if (e.get("time") or "") >= week_ago]
         active = sum(
-            1 for r in tracker.data["devices"].values() if r["status"] == "active" and r.get("type") != "Coordinator"
+            1
+            for r in tracker.data["devices"].values()
+            if r["status"] == "active" and r.get("type") != "Coordinator" and not tracker.is_frozen(r)
         )
     shopping = tracker.battery_shopping(60)
     joined = sorted({e.get("name") or e["ieee"] for e in events if e["kind"] in ("added", "joined")})
@@ -1463,9 +1517,13 @@ def weekly_summary_text() -> tuple[str, str]:
         lines.append("Removed this week: " + ", ".join(removed[:6]) + ".")
     with tracker.lock:
         for bt, bridge in (tracker.data.get("bridges") or {}).items():
+            if bt not in base_topics:
+                continue  # a network the app no longer listens to
             outages = [o for o in bridge.get("outages", []) if (o.get("start") or "") >= week_ago]
             if outages:
                 net = "Main" if bt == "zigbee2mqtt" else bt.replace("zigbee2mqtt_", "").replace("_", " ").capitalize()
+                if stack == "zha":
+                    net = "ZHA"
                 lines.append(
                     f"{net} network went offline {len(outages)} time{'s' if len(outages) != 1 else ''} this week."
                 )
@@ -1845,6 +1903,9 @@ class Handler(BaseHTTPRequestHandler):
                 threading.Thread(target=discovery.sync, kwargs={"force": True}, daemon=True).start()
             self._json(200 if result["ok"] else 400, result)
             return
+        if stack == "zha" and path in ZHA_BLOCKED_PATHS:
+            self._json(409, {"ok": False, "error": "Not available with ZHA"})
+            return
         body = self._body()
         ieee = str(body.get("ieee") or "")
         try:
@@ -2118,15 +2179,26 @@ def main() -> None:
         tracker.save(force=True)
     threading.Thread(target=offer_new_notify_kinds, name="notify-kinds", daemon=True).start()
 
-    client = start_mqtt()
-    threading.Thread(target=command_worker, name="commands", daemon=True).start()
+    client = None
+    if stack == "zha":
+        _LOGGER.info("ZHA mode (beta): reading Home Assistant's ZHA integration, MQTT is off")
+        threading.Thread(target=remove_mqtt_entities, name="mqtt-cleanup", daemon=True).start()
+        if home_assistant.available:
+            source = ZhaSource(tracker, home_assistant._ws_connect, stop_event)
+            threading.Thread(target=source.run, name="zha", daemon=True).start()
+        else:
+            _LOGGER.error("ZHA mode needs Home Assistant access, which the app doesn't have")
+    else:
+        client = start_mqtt()
+        threading.Thread(target=command_worker, name="commands", daemon=True).start()
     threading.Thread(target=scheduler, name="scheduler", daemon=True).start()
     if home_assistant.available:
         # The container's hostname is the app's hostname on Supervisor's network.
         threading.Thread(
             target=home_assistant.announce, args=(socket.gethostname(), PORT, API_TOKEN), name="announce", daemon=True
         ).start()
-    ota_manager.start(stop_event)
+    if stack == "z2m":
+        ota_manager.start(stop_event)
     if home_assistant.available:
         threading.Thread(
             target=home_assistant.watch,
@@ -2134,7 +2206,7 @@ def main() -> None:
             name="ha-watch",
             daemon=True,
         ).start()
-    if not tracker.data.get("imported"):
+    if stack == "z2m" and not tracker.data.get("imported"):
         threading.Thread(target=first_import, name="first-import", daemon=True).start()
 
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
@@ -2157,13 +2229,14 @@ def main() -> None:
         # Save first: nothing below may stop the history reaching disk.
         tracker.save(force=True)
         metrics.save(force=True)
-        if client.is_connected():
+        if client is not None and client.is_connected():
             try:
                 client.publish(AVAILABILITY, "offline", qos=1, retain=True).wait_for_publish(2)
             except (RuntimeError, ValueError) as err:
                 _LOGGER.warning("Couldn't mark the tracker offline in MQTT: %s", err)
-        client.loop_stop()
-        client.disconnect()
+        if client is not None:
+            client.loop_stop()
+            client.disconnect()
         time.sleep(0.2)
 
 

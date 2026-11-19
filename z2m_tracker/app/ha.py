@@ -11,6 +11,8 @@ import urllib.error
 import urllib.request
 from typing import Any, Callable
 
+from zha import zha_ieee
+
 _LOGGER = logging.getLogger("z2m_tracker")
 
 API = "http://supervisor/core/api"
@@ -38,14 +40,40 @@ def markdown_safe(text: str) -> str:
 DEAD_STATES = (None, "unavailable", "unknown")
 
 
+def identifier_ieee(identifier: list | tuple) -> str | None:
+    """IEEE address from one HA device identifier: Zigbee2MQTT's ("mqtt", "zigbee2mqtt_0x...") or
+    ZHA's ("zha", "88:1a:..."). The Zigbee2MQTT bridge device and groups don't match."""
+    if len(identifier) < 2:
+        return None
+    if identifier[0] == "zha":
+        return zha_ieee(identifier[1])
+    match = IDENT_RE.search(str(identifier[1]))
+    return match.group(1) if match else None
+
+
+def _by_ieee(devices: list[dict], stack: str) -> dict[str, dict]:
+    """IEEE -> HA device. The stack the app reads wins; the other only fills addresses it lacks."""
+    preferred = "zha" if stack == "zha" else "mqtt"
+    out: dict[str, dict] = {}
+    rank: dict[str, int] = {}
+    for device in devices:
+        for identifier in device.get("identifiers") or []:
+            ieee = identifier_ieee(identifier)
+            if not ieee:
+                continue
+            score = 1 if identifier[0] == preferred else 0
+            if ieee not in out or score > rank[ieee]:
+                out[ieee] = device
+                rank[ieee] = score
+    return out
+
+
 def _device_ieee(device: dict) -> str | None:
-    """IEEE address from a Zigbee2MQTT device identifier. The bridge device
-    ("zigbee2mqtt_bridge_<ieee>") and groups don't match."""
+    """IEEE address of a Zigbee2MQTT or ZHA device in HA's device registry."""
     for identifier in device.get("identifiers") or []:
-        if len(identifier) > 1:
-            match = IDENT_RE.search(str(identifier[1]))
-            if match:
-                return match.group(1)
+        ieee = identifier_ieee(identifier)
+        if ieee:
+            return ieee
     return None
 
 
@@ -158,6 +186,9 @@ class HomeAssistant:
     def __init__(self, config_dir: str) -> None:
         self.config_dir = config_dir
         self.token = os.environ.get("SUPERVISOR_TOKEN") or ""
+        # Which Zigbee stack the app reads ("z2m" or "zha"): its HA devices win when an old device
+        # of the other stack with the same IEEE address is still in HA's registry.
+        self.stack = "z2m"
         self.device_ids: dict[str, str] = {}
         self.areas: dict[str, str | None] = {}
         self.names: dict[str, str | None] = {}
@@ -283,13 +314,8 @@ class HomeAssistant:
     def find_device(self, ieee: str) -> str | None:
         """Look one device up live; the registry file on disk can lag behind HA."""
         devices = self._ws_call([{"type": "config/device_registry/list"}])[0] or []
-        for device in devices:
-            for identifier in device.get("identifiers") or []:
-                if len(identifier) > 1:
-                    match = IDENT_RE.search(str(identifier[1]))
-                    if match and match.group(1) == ieee:
-                        return device["id"]
-        return None
+        device = _by_ieee(devices, self.stack).get(ieee)
+        return device["id"] if device else None
 
     def leftovers(self, known: dict[str, dict], usage: bool = False) -> list[dict]:
         """Zigbee2MQTT devices left behind in HA (see find_leftovers), read live.
@@ -473,17 +499,12 @@ class HomeAssistant:
         ieee_to_device: dict[str, str] = {}
         areas: dict[str, str | None] = {}
         names: dict[str, str | None] = {}
-        for device in devices:
-            for identifier in device.get("identifiers") or []:
-                if len(identifier) > 1:
-                    match = IDENT_RE.search(str(identifier[1]))
-                    if match:
-                        ieee = match.group(1)
-                        ieee_to_device[ieee] = device["id"]
-                        device_to_ieee[device["id"]] = ieee
-                        areas[ieee] = area_names.get(device.get("area_id"))
-                        name = device.get("name_by_user") or device.get("name")
-                        names[ieee] = str(name) if name and str(name).lower() != ieee else None
+        for ieee, device in _by_ieee(devices, self.stack).items():
+            ieee_to_device[ieee] = device["id"]
+            device_to_ieee[device["id"]] = ieee
+            areas[ieee] = area_names.get(device.get("area_id"))
+            name = device.get("name_by_user") or device.get("name")
+            names[ieee] = str(name) if name and str(name).lower() != ieee else None
         self.device_ids = ieee_to_device
         self.areas = areas
         self.names = names

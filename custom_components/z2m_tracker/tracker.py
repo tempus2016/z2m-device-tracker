@@ -319,7 +319,8 @@ class Z2MTracker:
     def counts(self) -> dict[str, int]:
         active = removed = offline = 0
         for record in self.data["devices"].values():
-            if record.get("type") == "Coordinator":
+            # Frozen devices (a network the app no longer listens to) aren't counted.
+            if record.get("type") == "Coordinator" or record.get("frozen"):
                 continue
             if record.get("status") == STATUS_REMOVED:
                 removed += 1
@@ -335,6 +336,7 @@ class Z2MTracker:
             str(record.get("friendly_name") or record["ieee"])
             for record in self.data["devices"].values()
             if record.get("status") == STATUS_ACTIVE
+            and not record.get("frozen")
             and record.get("availability") == "offline"
             and record.get("type") != "Coordinator"
         )[:MAX_OFFLINE_NAMES]

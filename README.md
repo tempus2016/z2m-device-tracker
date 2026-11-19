@@ -113,10 +113,14 @@ The app is what you need. It comes from the App store, not the Marketplace.
 [![Add repository](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Ftempus2016%2Fz2m-device-tracker)
 
 1. Settings → Apps → App store → ⋮ → Repositories, add `https://github.com/tempus2016/z2m-device-tracker`.
-2. Install **Z2M Device Tracker** and start it. It needs the Mosquitto broker (or another MQTT broker set up in HA).
+2. Install **Z2M Device Tracker** and start it. It needs the Mosquitto broker (or another MQTT broker set up in HA), unless you use ZHA.
 3. Open **Zigbee Tracker** from the sidebar.
 
 If your Zigbee2MQTT uses a different base topic, or you run more than one instance, set `base_topics` in the app's configuration. See the app's Documentation tab for every option.
+
+### Using ZHA instead of Zigbee2MQTT (beta)
+
+Set `zigbee_stack` to `zha` in the app's configuration and restart the app. It then reads Home Assistant's ZHA integration and needs no MQTT broker. The core works with ZHA: device history, last seen, offline and battery alerts, signal, the mesh map and the radio channel view. Parts that need Zigbee2MQTT are hidden: firmware updates, reporting settings, pairing, bindings and the broker pages. ZHA support is new, so please report anything that looks wrong. The app's Documentation tab has the details.
 
 ## Step 2: install the integration (optional)
 

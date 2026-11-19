@@ -87,7 +87,10 @@ def _battery_type(record: dict) -> tuple[str, int]:
 
 
 def _is_battery_record(record: dict) -> bool:
-    return record.get("status") == STATUS_ACTIVE and record.get("battery_record") is not None
+    # Frozen: from a network the app no longer listens to; its history stays in the app only.
+    return (
+        record.get("status") == STATUS_ACTIVE and not record.get("frozen") and record.get("battery_record") is not None
+    )
 
 
 def recent_replacements(data: dict, today: date, days: int = RECENT_DAYS) -> list[dict]:

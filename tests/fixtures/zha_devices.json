@@ -1,0 +1,118 @@
+[
+ {
+  "ieee": "aa:bb:cc:00:00:00:00:01",
+  "nwk": 0,
+  "name": "Texas Instruments CC2652",
+  "user_given_name": null,
+  "manufacturer": "Texas Instruments",
+  "model": "CC2652",
+  "device_type": "Coordinator",
+  "power_source": "Mains",
+  "lqi": null,
+  "rssi": null,
+  "last_seen": "2026-06-01T12:00:00",
+  "available": true,
+  "entities": [],
+  "neighbors": [],
+  "routes": [],
+  "device_reg_id": "reg-1"
+ },
+ {
+  "ieee": "aa:bb:cc:00:00:00:00:02",
+  "nwk": 1001,
+  "name": "FakeCo AIR-1",
+  "user_given_name": "Test Air Sensor",
+  "manufacturer": "FakeCo",
+  "model": "AIR-1",
+  "device_type": "Router",
+  "power_source": "Mains",
+  "lqi": 210,
+  "rssi": null,
+  "last_seen": "2026-06-01T11:59:30",
+  "available": true,
+  "entities": [
+   {
+    "entity_id": "sensor.test_air_sensor_temperature"
+   }
+  ],
+  "neighbors": [
+   {
+    "ieee": "aa:bb:cc:00:00:00:00:01",
+    "nwk": "0x0000",
+    "device_type": "Coordinator",
+    "relationship": "Parent",
+    "lqi": "200",
+    "depth": "0"
+   }
+  ],
+  "routes": [],
+  "device_reg_id": "reg-2"
+ },
+ {
+  "ieee": "aa:bb:cc:00:00:00:00:03",
+  "nwk": 1002,
+  "name": "FakeCo BTN-1",
+  "user_given_name": "Test Button",
+  "manufacturer": "FakeCo",
+  "model": "BTN-1",
+  "device_type": "EndDevice",
+  "power_source": "Battery or Unknown",
+  "lqi": 160,
+  "rssi": -70,
+  "last_seen": "2026-06-01T11:58:00",
+  "available": true,
+  "entities": [
+   {
+    "entity_id": "sensor.test_button_battery"
+   }
+  ],
+  "neighbors": [
+   {
+    "ieee": "aa:bb:cc:00:00:00:00:02",
+    "nwk": "0x03E9",
+    "device_type": "Router",
+    "relationship": "Parent",
+    "lqi": "150",
+    "depth": "1"
+   }
+  ],
+  "routes": [],
+  "device_reg_id": "reg-3"
+ },
+ {
+  "ieee": "aa:bb:cc:00:00:00:00:04",
+  "nwk": 1003,
+  "name": "FakeCo Plug",
+  "user_given_name": null,
+  "manufacturer": "FakeCo",
+  "model": "Plug",
+  "device_type": "Router",
+  "power_source": "Mains",
+  "lqi": 190,
+  "rssi": null,
+  "last_seen": "2026-06-01T11:59:00",
+  "available": true,
+  "entities": [],
+  "neighbors": [],
+  "routes": [],
+  "device_reg_id": "reg-4"
+ },
+ {
+  "ieee": "aa:bb:cc:00:00:00:00:05",
+  "nwk": 1004,
+  "name": "FakeCo Plug",
+  "user_given_name": null,
+  "manufacturer": "FakeCo",
+  "model": "Plug",
+  "device_type": "Router",
+  "power_source": "Mains",
+  "lqi": 185,
+  "rssi": null,
+  "last_seen": "2026-06-01T11:59:10",
+  "available": false,
+  "entities": [],
+  "neighbors": [],
+  "routes": [],
+  "device_reg_id": "reg-5"
+ }
+]

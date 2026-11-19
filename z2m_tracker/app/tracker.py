@@ -100,6 +100,7 @@ from upgrade_impact import ts as upgrade_ts
 from z2m_config import KEEP_CHANGES, describe
 from z2m_config import diff as config_diff
 from z2m_config import flatten as config_flatten
+from zha import zigbee_stack
 
 _LOGGER = logging.getLogger("z2m_tracker")
 
@@ -588,6 +589,38 @@ def _new_record(ieee: str, instance: str | None) -> dict[str, Any]:
         "z2m_stats": None,
         "maintenance": [],
     }
+
+
+# Data only Zigbee2MQTT provides. Cleared when a device moves between Zigbee2MQTT and ZHA, so no
+# Zigbee2MQTT-only check runs on what the other stack left behind. History (names, outages, metrics) stays.
+Z2M_ONLY_FIELDS = (
+    "features",
+    "software_build_id",
+    "date_code",
+    "supported",
+    "interview_state",
+    "z2m_description",
+    "update",
+    "routing",
+    "bindings",
+    "lost_bindings",
+    "reportings",
+    "reporting_inputs",
+    "z2m_stats",
+    "payload_keys",
+    "payload_change",
+    "reporting_sent",
+)
+
+
+def _list_label(instance: Any) -> str:
+    """Short name of the stack whose device list a network comes from, for event text."""
+    return "ZHA" if _stack_of(instance) == "zha" else "Z2M"
+
+
+def _stack_of(instance: Any) -> str:
+    """Which Zigbee stack a network belongs to: the ZHA network is "zha", every base topic is Zigbee2MQTT."""
+    return "zha" if instance == "zha" else "z2m"
 
 
 # Command values a reply has to echo before it counts as the answer; other keys only need to appear.
@@ -1090,6 +1123,43 @@ class Tracker:
             self._bad_message_logged = time.time()
             _LOGGER.warning("Ignored a malformed MQTT message on %s (%s)", _text(topic), _text(reason))
 
+    # ------------------------------------------------- input from non-MQTT sources (ZHA)
+    # Same handlers as Zigbee2MQTT's messages, without topic parsing: a name may hold any text.
+
+    def _apply(self, what: str, handler: Callable[..., None], *args: Any) -> None:
+        try:
+            with self.lock:
+                handler(*args)
+        except ValueError:
+            return
+        except Exception as err:  # noqa: BLE001 - malformed input from the source
+            self._log_bad_message(what, f"{type(err).__name__}: {err}")
+
+    def apply_device_list(self, instance: str, devices: list[dict]) -> None:
+        self._apply(f"{instance} device list", self._handle_devices, instance, devices)
+
+    def apply_availability(self, instance: str, name: str, state: str) -> None:
+        self._apply(f"{instance} availability", self._handle_availability, instance, name, state)
+
+    def apply_state(self, instance: str, name: str, payload: dict) -> None:
+        self._apply(f"{instance} state", self._handle_state, instance, name, json.dumps(payload), False)
+
+    def apply_networkmap(self, instance: str, value: dict) -> None:
+        payload = {"status": "ok", "data": {"value": value}}
+        self._apply(f"{instance} network map", self._ingest_networkmap, instance, payload)
+
+    def set_bridge_state(self, instance: str, state: str) -> None:
+        self._apply(f"{instance} network state", self._handle_bridge_state, instance, state)
+
+    def set_network_info(self, instance: str, channel: int, pan_id: int | None) -> None:
+        """The channel and PAN ID of a network that isn't Zigbee2MQTT's (which sends bridge/info)."""
+        with self.lock:
+            bridge = self._bridge(instance)
+            info = {"channel": channel, "pan_id": pan_id}
+            if bridge.get("info") != info:
+                bridge["info"] = info
+                self._changed(structural=True)
+
     def _handle_message(self, base_topic: str, topic: str, payload: bytes, retained: bool = False) -> None:
         rest = topic[len(base_topic) + 1 :]
         text = payload.decode("utf-8", errors="ignore")
@@ -1137,6 +1207,11 @@ class Tracker:
         except ValueError:
             return
 
+    def is_frozen(self, record: dict) -> bool:
+        """A device from a network this app no longer listens to: history kept, no checks or requests."""
+        instance = record.get("instance")
+        return isinstance(instance, str) and instance not in ("", "unknown") and instance not in self.base_topics
+
     def _record_for(self, base_topic: str, name: str) -> dict | None:
         ieee = self.names.get(base_topic, {}).get(name)
         return self.data["devices"].get(ieee) if ieee else None
@@ -1144,6 +1219,9 @@ class Tracker:
     def _handle_devices(self, base_topic: str, devices: list[dict]) -> None:
         now = _now()
         records = self.data["devices"]
+        # ZHA sends no join and leave events: its device list changing is the only sign, so a device
+        # appearing in it or going from it also counts (and alerts) as joined or left.
+        zha = _stack_of(base_topic) == "zha"
         tracking_already = any(record["instance"] == base_topic for record in records.values())
         listed: set[str] = set()
         names: dict[str, str] = {}
@@ -1167,17 +1245,34 @@ class Tracker:
                 records[ieee] = record
                 changed = True
                 if tracking_already:
-                    self._add_event(now, base_topic, ieee, name, "added", "Appeared in the Z2M device list")
+                    self._add_event(
+                        now, base_topic, ieee, name, "added", f"Appeared in the {_list_label(base_topic)} device list"
+                    )
+                    if zha:
+                        self._add_event(now, base_topic, ieee, name, "joined", "", notify=True)
 
             if record["instance"] != base_topic:
                 if record["instance"] not in (None, "unknown"):
                     self._add_event(now, base_topic, ieee, name, "moved", f"From {record['instance']}")
+                    if _stack_of(record["instance"]) != _stack_of(base_topic):
+                        fresh = _new_record(ieee, base_topic)
+                        for key in Z2M_ONLY_FIELDS:
+                            if key in fresh:
+                                record[key] = fresh[key]
+                            else:
+                                record.pop(key, None)
+                        self.endpoint_clusters.pop(ieee, None)
+                        self.addresses.pop(ieee, None)
                 record["instance"] = base_topic
                 changed = True
 
             if record["status"] != STATUS_ACTIVE:
                 if record["status"] == STATUS_REMOVED and tracking_already:
-                    self._add_event(now, base_topic, ieee, name, "rejoined", "Back in the Z2M device list")
+                    self._add_event(
+                        now, base_topic, ieee, name, "rejoined", f"Back in the {_list_label(base_topic)} device list"
+                    )
+                    if zha:
+                        self._add_event(now, base_topic, ieee, name, "joined", "", notify=True)
                 record["status"] = STATUS_ACTIVE
                 record["removed_at"] = None
                 changed = True
@@ -1235,16 +1330,26 @@ class Tracker:
             if self._update_reportings(record, device):
                 changed = True
             record["last_listed"] = now
-            if "Z2M live" not in record["sources"]:
-                record["sources"].append("Z2M live")
+            source = f"{_list_label(base_topic)} live"
+            if source not in record["sources"]:
+                record["sources"].append(source)
 
         for ieee, record in records.items():
             if record["instance"] == base_topic and record["status"] == STATUS_ACTIVE and ieee not in listed:
                 record["status"] = STATUS_REMOVED
                 record["removed_at"] = now
                 self._add_event(
-                    now, base_topic, ieee, record["friendly_name"], "removed", "Gone from the Z2M device list"
+                    now,
+                    base_topic,
+                    ieee,
+                    record["friendly_name"],
+                    "removed",
+                    f"Gone from the {_list_label(base_topic)} device list",
                 )
+                if zha:
+                    self._add_event(
+                        now, base_topic, ieee, record["friendly_name"], "left", "Device left the network", notify=True
+                    )
                 changed = True
 
         self.names[base_topic] = names
@@ -1995,18 +2100,23 @@ class Tracker:
             for key, value in checked:
                 if note_odd_reading(store, key, value, self.options, time.time(), day):
                     structural = True
-        keys_state = record.get("payload_keys")
-        if not isinstance(keys_state, dict):
-            keys_state = record["payload_keys"] = {}
-        added, removed = observe_payload_keys(keys_state, parsed.keys())
-        sent_state = record.get("reporting_sent")
-        if not isinstance(sent_state, dict):
-            sent_state = record["reporting_sent"] = {}
-        note_reporting_sent(sent_state, parsed, time.time())
-        if added or removed:
-            self._payload_changed(base_topic, record, name, added, removed, now)
-            structural = True
+        # Which keys a device sends, and how often: Zigbee2MQTT's payloads only. ZHA's updates come in
+        # pieces (signal from the device list, battery from its sensor), which would look like changes.
+        if _stack_of(base_topic) != "zha":
+            keys_state = record.get("payload_keys")
+            if not isinstance(keys_state, dict):
+                keys_state = record["payload_keys"] = {}
+            added, removed = observe_payload_keys(keys_state, parsed.keys())
+            sent_state = record.get("reporting_sent")
+            if not isinstance(sent_state, dict):
+                sent_state = record["reporting_sent"] = {}
+            note_reporting_sent(sent_state, parsed, time.time())
+            if added or removed:
+                self._payload_changed(base_topic, record, name, added, removed, now)
+                structural = True
 
+        # ZHA readings carry the time ZHA heard them; a value replayed after a restart isn't new.
+        reported = seen if _stack_of(base_topic) == "zha" else now
         battery = parsed.get("battery")
         # A battery outside 0-100 % isn't a real level: kept out of the record and the battery estimates.
         if _finite(battery) and believable("battery", battery, self.options):
@@ -2015,7 +2125,7 @@ class Tracker:
             record["battery"] = battery
             if self._replaced_since_reading(record):
                 structural = True
-            record["battery_reported"] = now
+            record["battery_reported"] = reported
             replaced_from = self.metrics.add_battery(ieee, battery)
             if replaced_from is not None:
                 self._record_replacement(
@@ -2028,7 +2138,7 @@ class Tracker:
             record["battery_low"] = parsed["battery_low"]
             if self._replaced_since_reading(record):
                 structural = True
-            record["battery_reported"] = now
+            record["battery_reported"] = reported
 
         update = parsed.get("update")
         if isinstance(update, dict):
@@ -2346,6 +2456,9 @@ class Tracker:
     def request(self, base_topic: str, path: str, payload: dict, timeout: float = 30.0) -> dict | None:
         if not self.publish:
             raise RuntimeError("MQTT is not connected")
+        if base_topic not in self.base_topics:
+            # A frozen device's network: nothing there to answer, and nothing is sent to it.
+            raise RuntimeError("This device's network isn't one the app listens to")
         transaction = f"z2mt-{uuid.uuid4().hex[:10]}"
         waiter = {"event": threading.Event(), "result": None}
         with self.lock:
@@ -2885,7 +2998,14 @@ class Tracker:
         hours = self.network_hours(now) if "signal_dip" not in disabled else {}
         for bt in self.base_topics:
             bridge = (self.data.get("bridges") or {}).get(bt) or {}
-            label = "Main" if bt == "zigbee2mqtt" else bt.replace("zigbee2mqtt_", "").replace("_", " ").capitalize()
+            zha = _stack_of(bt) == "zha"
+            label = (
+                "ZHA"
+                if zha
+                else "Main"
+                if bt == "zigbee2mqtt"
+                else bt.replace("zigbee2mqtt_", "").replace("_", " ").capitalize()
+            )
             if bridge.get("state") == "offline" and "network_offline" not in disabled:
                 try:
                     age = now - datetime.fromisoformat(bridge["since"]).timestamp()
@@ -2900,9 +3020,9 @@ class Tracker:
                             "label": "Network offline",
                             "severity": "warning",
                             "ieee": f"network:{bt}",
-                            "title": "Zigbee2MQTT offline",
+                            "title": "ZHA offline" if zha else "Zigbee2MQTT offline",
                             "detail": f"Not responding for {mins} min. Every device on this network is unreachable. Check the coordinator's power and network connection.",
-                            "msg": "network_offline",
+                            "msg": "network_offline_zha" if zha else "network_offline",
                             "params": {"seconds": int(age)},
                             "name": f"{label} network",
                             "instance": bt,
@@ -3254,7 +3374,9 @@ class Tracker:
             context = self._context(now)
             issues = []
             lqi_by_net: dict[str, list[float]] = {}
-            for record in self.data["devices"].values():
+            # Devices of a network not listened to keep their history but get no checks.
+            live = {ieee: r for ieee, r in self.data["devices"].items() if not self.is_frozen(r)}
+            for record in live.values():
                 summary = {**self.metrics.summary(record["ieee"], now), **context.get(record["ieee"], {})}
                 if (
                     record["status"] == STATUS_ACTIVE
@@ -3269,24 +3391,24 @@ class Tracker:
                     issue["name"] = _display_name(record) or record["ieee"]
                     issue["instance"] = record["instance"]
                     issues.append(issue)
-            group_router_outages(issues, self.data["devices"], self.options, now)
-            group_power_loss(issues, self.data["devices"], self.options, now)
+            group_router_outages(issues, live, self.options, now)
+            group_power_loss(issues, live, self.options, now)
             issues.extend(self._network_issues(now))
             issues.extend(self._retained_issues())
             issues.extend(self._group_issues(now))
-            for issue in naming_issues(list(self.data["devices"].values()), self.options, now):
+            for issue in naming_issues(list(live.values()), self.options, now):
                 record = self.data["devices"][issue["ieee"]]
                 issue["name"] = _display_name(record) or record["ieee"]
                 issue["instance"] = record["instance"]
                 issues.append(issue)
             notes = firmware_notes.clean_notes(self.data.get("firmware_notes"))
-            for issue in firmware_notes.note_issues(notes, self.data["devices"], self.options, now):
+            for issue in firmware_notes.note_issues(notes, live, self.options, now):
                 record = self.data["devices"][issue["ieee"]]
                 issue["name"] = _display_name(record) or record["ieee"]
                 issue["instance"] = record["instance"]
                 issues.append(issue)
             if self.community is not None:
-                for issue in community_issues(list(self.data["devices"].values()), self.community, self.options, now):
+                for issue in community_issues(list(live.values()), self.community, self.options, now):
                     record = self.data["devices"][issue["ieee"]]
                     issue["name"] = _display_name(record) or record["ieee"]
                     issue["instance"] = record["instance"]
@@ -3547,9 +3669,12 @@ class Tracker:
                 item["can_ping"] = self.can_ping(record) is None
                 item["reporting_audit"] = self.reporting_audit(record, item["metrics"].get("msg_rate_6h"))
                 item["kind"] = kind_of(record)
+                item["frozen"] = self.is_frozen(record)
                 if self.community is not None:
                     item["community_key"] = self.community.key_for(record)
                 devices.append(item)
+            # The Upkeep lists are about the networks in use, not frozen devices.
+            live = [r for r in self.data["devices"].values() if not self.is_frozen(r)]
             payload = {
                 "devices": devices,
                 "events": self.data["events"],
@@ -3559,16 +3684,15 @@ class Tracker:
                     firmware_notes.clean_notes(self.data.get("firmware_notes")), self.data["devices"]
                 ),
                 "instances": self.base_topics,
+                "stack": zigbee_stack(self.options),
                 "imported": self.data.get("imported"),
                 "issues": self.issues,
                 "networkmap": self.data.get("networkmap") or {},
                 "permit": self.permit,
                 "battery_shopping": self.battery_shopping(60),
-                "model_reliability": model_reliability(list(self.data["devices"].values()), self.data["events"], now),
-                "device_ages": device_ages(list(self.data["devices"].values()), self.data["events"], self._today()),
-                "community": self.community.snapshot(
-                    list(self.data["devices"].values()), bool(self.options.get("community_ratings_fetch", True))
-                )
+                "model_reliability": model_reliability(live, self.data["events"], now),
+                "device_ages": device_ages(live, self.data["events"], self._today()),
+                "community": self.community.snapshot(live, bool(self.options.get("community_ratings_fetch", True)))
                 if self.community is not None
                 else None,
                 "ha_leftovers": self.ha_leftovers,
@@ -3613,7 +3737,7 @@ class Tracker:
         with self.lock:
             devices = []
             for record in self.data["devices"].values():
-                if record.get("type") == "Coordinator":
+                if record.get("type") == "Coordinator" or self.is_frozen(record):
                     continue
                 summary = self.metrics.summary(record["ieee"], now) if record["status"] == STATUS_ACTIVE else {}
                 devices.append(
@@ -3840,7 +3964,7 @@ class Tracker:
         out = []
         with self.lock:
             for record in self.data["devices"].values():
-                if record["status"] != STATUS_ACTIVE:
+                if record["status"] != STATUS_ACTIVE or self.is_frozen(record):
                     continue
                 for task in record.get("maintenance") or []:
                     due = task_due(task)
@@ -3862,7 +3986,7 @@ class Tracker:
         out = []
         with self.lock:
             for record in self.data["devices"].values():
-                if record["status"] != STATUS_ACTIVE or record.get("type") == "Coordinator":
+                if record["status"] != STATUS_ACTIVE or record.get("type") == "Coordinator" or self.is_frozen(record):
                     continue
                 ends = warranty_end(record)
                 if ends is None:
@@ -4677,14 +4801,17 @@ class Tracker:
                 "network",
                 "Network",
                 "network offline",
-                "Zigbee2MQTT stopped (coordinator or service offline)",
+                "ZHA stopped (coordinator or Home Assistant's ZHA integration unavailable)"
+                if _stack_of(base_topic) == "zha"
+                else "Zigbee2MQTT stopped (coordinator or service offline)",
             )
         elif previous == "offline":
             if bridge["outages"] and not bridge["outages"][-1].get("end"):
                 bridge["outages"][-1]["end"] = now
             bridge["restarts"].append(now)
             del bridge["restarts"][: max(0, len(bridge["restarts"]) - 100)]
-            self._add_event(now, base_topic, "network", "Network", "network online", "Zigbee2MQTT is running again")
+            running = "ZHA is running again" if _stack_of(base_topic) == "zha" else "Zigbee2MQTT is running again"
+            self._add_event(now, base_topic, "network", "Network", "network online", running)
         self._changed(structural=True)
 
     def _handle_bridge_health(self, base_topic: str, health: dict) -> None:
@@ -5197,7 +5324,7 @@ class Tracker:
         groups: dict[str, dict] = {}
         with self.lock:
             for record in self.data["devices"].values():
-                if record["status"] != STATUS_ACTIVE or not self.is_battery_device(record):
+                if record["status"] != STATUS_ACTIVE or not self.is_battery_device(record) or self.is_frozen(record):
                     continue
                 if self._replaced_since_reading(record):
                     continue
@@ -5263,9 +5390,10 @@ class Tracker:
             clean = _ieee(ieee)
             if not clean or not isinstance(record, dict):
                 return {"ok": False, "error": f"The backup has an invalid device entry ({_text(str(ieee), 40)})"}
+            # A network this app doesn't listen to keeps its name: its devices are frozen (history
+            # kept, no checks, no requests) and pick up again if the app listens to it later.
             instance = record.get("instance")
-            if instance is not None and instance not in self.base_topics and instance != "unknown":
-                # A network this app doesn't listen to: keep the history, never send requests to it.
+            if not (instance is None or isinstance(instance, str)):
                 instance = None
             devices[clean] = _clean_record(
                 {**_new_record(clean, instance), **record, "ieee": clean, "instance": instance}

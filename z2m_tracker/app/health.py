@@ -97,7 +97,12 @@ CHECKS = [
     ("unidentified", "Unidentified device", "A device joined but its interview never completed.", False),
     ("update", "Firmware update", "Zigbee2MQTT reports a firmware update is available.", False),
     ("replacement", "Possible replacement", "An active device has the same name as a removed one.", False),
-    ("network_offline", "Network offline", "Zigbee2MQTT or its coordinator stops responding for 2 minutes.", False),
+    (
+        "network_offline",
+        "Network offline",
+        "The Zigbee network or its coordinator stops responding for 2 minutes.",
+        False,
+    ),
     ("restart_required", "Restart needed", "Zigbee2MQTT says it needs a restart to apply settings.", False),
     (
         "pairing_open",

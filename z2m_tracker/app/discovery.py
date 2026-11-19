@@ -254,6 +254,21 @@ class Discovery:
 
     # ------------------------------------------------------------- syncing
 
+    def cleanup_topics(self) -> list[str]:
+        """Every retained topic this app may have left on the broker: the entity configs it last
+        published, and the state topics of its devices and networks. For removing them all when the
+        app stops using MQTT (ZHA). Empty when there are no entity configs to remove."""
+        with self.tracker.lock:
+            configs = list(self.tracker.data.get("discovery_topics") or [])
+            if not configs:
+                return []
+            states = [f"{BASE}/{ieee}" for ieee in self.tracker.data["devices"]]
+            networks = {r.get("instance") for r in self.tracker.data["devices"].values()}
+            networks |= set(self.tracker.data.get("bridges") or {})
+        for bt in sorted(n for n in networks if isinstance(n, str) and n):
+            states.append(f"{BASE}/network/{re.sub(r'[^A-Za-z0-9_]', '_', bt)}")
+        return configs + states
+
     def sync(self, force: bool = False) -> None:
         if not self.publish:
             return
@@ -269,6 +284,10 @@ class Discovery:
             if self.enabled:
                 for record in self.tracker.data["devices"].values():
                     if record.get("status") != "active" or record.get("type") == "Coordinator":
+                        continue
+                    # A device of a network the app doesn't listen to (the other Zigbee stack, a base
+                    # topic that was removed) gets no entities: it would be a second device in HA.
+                    if self.tracker.is_frozen(record):
                         continue
                     summary = self.tracker.metrics.summary(record["ieee"], now)
                     issues = issues_by_device.get(record["ieee"], [])

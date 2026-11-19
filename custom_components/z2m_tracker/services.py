@@ -110,7 +110,15 @@ def ieee_from_device(hass: HomeAssistant, device_id: str, tracker: Z2MTracker) -
             translation_key="unknown_device_id",
             translation_placeholders={"device": device_id},
         )
-    for _domain, identifier in device.identifiers:
+    for domain, identifier in device.identifiers:
+        if domain == "zha":
+            # ZHA writes the IEEE address as "aa:bb:cc:dd:ee:ff:00:11".
+            parts = str(identifier).lower().split(":")
+            if len(parts) == 8 and all(len(p) == 2 for p in parts):
+                candidate = "0x" + "".join(parts)
+                if IEEE_RE.fullmatch(candidate):
+                    return candidate
+            continue
         match = IDENT_RE.search(str(identifier).lower())
         if match:
             return match.group(1)

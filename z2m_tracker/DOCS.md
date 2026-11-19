@@ -6,6 +6,7 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 
 | Option | Default | What it does |
 | --- | --- | --- |
+| `zigbee_stack` | `z2m` | `z2m` for Zigbee2MQTT, `zha` for Home Assistant's ZHA integration (beta). See [Using ZHA instead of Zigbee2MQTT](#using-zha-instead-of-zigbee2mqtt-beta). Restart the app after changing it. |
 | `base_topics` | `zigbee2mqtt` | MQTT base topic of each Zigbee2MQTT instance to track. Spaces are kept, so a base topic that ends in a space works; in the YAML editor, quote it: `- "Z2MQTT "`. |
 | `z2m_panels` | empty | Links to each Zigbee2MQTT app, as `base_topic=app_slug`, e.g. `zigbee2mqtt=45df7312_zigbee2mqtt`. The slug is in the app's URL. |
 | `alerts_enabled` | `true` | Master switch for alerts. |
@@ -49,6 +50,20 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `mqtt_ssl_verify` | `true` | Check the broker's TLS certificate. Turn off for a self-signed certificate. |
 | `metrics_token` | empty | Token for the Prometheus endpoint, 16 characters or more. Empty keeps the endpoint off. See [Prometheus metrics](#prometheus-metrics). |
 | `community_ratings_fetch` | `true` | Download the newest community device ratings from GitHub once a day. Off uses the copy that comes with the app, updated with each release. See [Community ratings](#community-ratings). |
+
+## Using ZHA instead of Zigbee2MQTT (beta)
+
+Set `zigbee_stack` to `zha` and restart the app if your Zigbee network runs on Home Assistant's ZHA integration. The app then reads ZHA through Home Assistant and doesn't use MQTT, so no broker is needed. It only reads: it never sends anything to ZHA or your devices.
+
+ZHA support is in beta. Please report anything that looks wrong on GitHub.
+
+What works with ZHA: the device list and its history (added, removed, renamed, rejoined), last seen, online and offline with offline alerts, link quality and weak or dropping signal, battery level, low battery and battery predictions, the mesh view once ZHA has scanned its neighbours, the radio channel view, alerts when a device joins or leaves (taken from ZHA's device list changing), and matching devices to Home Assistant areas and names. ZHA's own availability timeouts decide when a device is offline; the offline alert delay applies on top. ZHA doesn't report RSSI on every coordinator.
+
+Zigbee2MQTT-only parts are hidden with ZHA: firmware updates (OTA), reporting settings, pairing monitoring, Zigbee2MQTT health and settings, retained messages, broker statistics, the MQTT sensors (`ha_entities`), importing Zigbee2MQTT history, router pings and the network scan button, replacing a device, and sending commands to devices. `base_topics` and `z2m_panels` are ignored.
+
+The first time it starts with ZHA, the app removes the sensors it made over MQTT while it read Zigbee2MQTT, so they don't stay in Home Assistant as unavailable. That is the only time it talks to the broker; if there is no broker any more, it skips this.
+
+Switching between Zigbee2MQTT and ZHA keeps your history. Devices from the network the app no longer listens to stay in the list marked **Not listened to**, with no checks or alerts. If you switch back, they pick up where they left off. A device you re-pair onto the other network moves across and keeps its history.
 
 ## Where things are
 

@@ -1,4 +1,7 @@
 configuration:
+  zigbee_stack:
+    name: Zigbee stack
+    description: Zigbee2MQTT (default) or ZHA (beta). With ZHA the app reads Home Assistant's ZHA integration and doesn't use MQTT. Restart the app after changing it.
   base_topics:
     name: Zigbee2MQTT base topics
     description: MQTT base topic of each Zigbee2MQTT instance to track.

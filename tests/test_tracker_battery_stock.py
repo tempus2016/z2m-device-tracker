@@ -251,3 +251,16 @@ def test_todo_text(batteries):
     # Ticking hides a device; to-buy follows what's left.
     hidden = {g["type"]: g for g in batteries.shopping_groups(data, date(2026, 6, 1), {B})}
     assert hidden["CR2032"]["to_buy"] == 0
+
+
+def test_frozen_devices_skipped_by_the_integration(batteries):
+    # A device from a network the app no longer listens to gets no battery forecast in HA.
+    record = {
+        "status": "active",
+        "battery_record": {"type": "CR2032", "quantity": 1, "replacements": []},
+        "metrics": {"battery_estimate_days": 10},
+        "friendly_name": "Shed sensor",
+        "ieee": A,
+    }
+    assert batteries._is_battery_record(record)
+    assert not batteries._is_battery_record({**record, "frozen": True})

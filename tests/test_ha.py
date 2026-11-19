@@ -135,3 +135,79 @@ def test_entity_usage_searches_each_entity(home):
     assert all(m["item_type"] == "entity" for m in asked)
     assert found["sensor.a"]["automations"] == [{"entity_id": "automation.cost", "name": "Cost", "id": "17"}]
     assert found["sensor.b"]["automations"] == []
+
+
+# ------------------------------------------------------------------ ZHA identifiers
+
+
+def test_identifier_ieee_z2m():
+    assert ha.identifier_ieee(["mqtt", f"zigbee2mqtt_{PLUG}"]) == PLUG
+
+
+def test_identifier_ieee_zha():
+    assert ha.identifier_ieee(["zha", "AA:BB:CC:00:00:00:00:03"]) == "0xaabbcc0000000003"
+
+
+def test_identifier_ieee_bridge_none():
+    assert ha.identifier_ieee(["mqtt", f"zigbee2mqtt_bridge_{PLUG}"]) is None
+    assert ha.identifier_ieee(["hue", "abc"]) is None
+    assert ha.identifier_ieee(["zha"]) is None
+
+
+def test_leftovers_ignore_zha_devices_in_tracker():
+    zha_device = {"id": "dev-zha", "identifiers": [["zha", "aa:bb:cc:00:00:00:00:03"]], "config_entry_id": "zha-entry"}
+    assert ha.find_leftovers([zha_device], [], {}, {"mqtt-entry"}, {}) == []
+
+
+ZHA_DEVICE = {
+    "id": "dev-zha",
+    "identifiers": [["zha", "aa:bb:cc:00:00:00:00:03"]],
+    "area_id": "living_room",
+    "name": "FakeCo BTN-1",
+    "name_by_user": "Test Button",
+}
+
+
+def test_refresh_maps_zha_devices(home):
+    home._ws_call = lambda messages: [[ZHA_DEVICE], AREAS, []]
+    home.refresh()
+    assert home.device_ids == {"0xaabbcc0000000003": "dev-zha"}
+    assert home.areas == {"0xaabbcc0000000003": "Living Room"}
+    assert home.names == {"0xaabbcc0000000003": "Test Button"}
+
+
+def test_find_device_zha(home):
+    home._ws_call = lambda messages: [[ZHA_DEVICE]]
+    assert home.find_device("0xaabbcc0000000003") == "dev-zha"
+
+
+SAME_IEEE_MQTT = {
+    "id": "dev-old-mqtt",
+    "identifiers": [["mqtt", "zigbee2mqtt_0xaabbcc0000000003"]],
+    "area_id": None,
+    "name": "Old MQTT button",
+}
+
+
+def test_refresh_prefers_mqtt_device_in_z2m_mode(home):
+    home._ws_call = lambda messages: [[SAME_IEEE_MQTT, ZHA_DEVICE], AREAS, []]
+    home.refresh()
+    assert home.device_ids["0xaabbcc0000000003"] == "dev-old-mqtt"
+    home._ws_call = lambda messages: [[ZHA_DEVICE, SAME_IEEE_MQTT], AREAS, []]
+    home.refresh()
+    assert home.device_ids["0xaabbcc0000000003"] == "dev-old-mqtt"
+
+
+def test_refresh_prefers_zha_device_in_zha_mode(home):
+    home.stack = "zha"
+    home._ws_call = lambda messages: [[ZHA_DEVICE, SAME_IEEE_MQTT], AREAS, []]
+    home.refresh()
+    assert home.device_ids["0xaabbcc0000000003"] == "dev-zha"
+    assert home.areas["0xaabbcc0000000003"] == "Living Room"
+    home._ws_call = lambda messages: [[SAME_IEEE_MQTT, ZHA_DEVICE]]
+    assert home.find_device("0xaabbcc0000000003") == "dev-zha"
+
+
+def test_find_device_prefers_mqtt_in_z2m_mode(home):
+    home._ws_call = lambda messages: [[ZHA_DEVICE, SAME_IEEE_MQTT]]
+    assert home.find_device("0xaabbcc0000000003") == "dev-old-mqtt"
