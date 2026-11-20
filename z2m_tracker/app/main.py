@@ -1879,8 +1879,8 @@ class Handler(BaseHTTPRequestHandler):
     def _login_page(self, status: int = 200, error: str = "") -> None:
         if not UI_PASSWORD:
             message = "Set the UI_PASSWORD environment variable (8 characters or more) and restart the container."
-        elif len(UI_PASSWORD) < standalone.PASSWORD_MIN:
-            message = f"UI_PASSWORD is too short: use {standalone.PASSWORD_MIN} characters or more, then restart."
+        elif len(UI_PASSWORD) < standalone.MIN_UI_CHARS:
+            message = f"UI_PASSWORD is too short: use {standalone.MIN_UI_CHARS} characters or more, then restart."
         else:
             message = ""
         body = (WWW / "login.html").read_text(encoding="utf-8")
@@ -1905,7 +1905,7 @@ class Handler(BaseHTTPRequestHandler):
             length = 0
         raw = self.rfile.read(length).decode("utf-8", "replace") if 0 < length <= 4096 else ""
         given = (parse_qs(raw).get("password") or [""])[0]
-        if len(UI_PASSWORD) < standalone.PASSWORD_MIN or not standalone.password_ok(given, UI_PASSWORD):
+        if len(UI_PASSWORD) < standalone.MIN_UI_CHARS or not standalone.password_ok(given, UI_PASSWORD):
             login_throttle.failed(client)
             _LOGGER.warning("Wrong web UI password from %s", client)
             self._login_page(401, "Wrong password.")
@@ -2427,8 +2427,8 @@ def main() -> None:
             HA_URL or "not set",
             TOKEN_PATH,
         )
-        if len(UI_PASSWORD) < standalone.PASSWORD_MIN:
-            _LOGGER.warning("The web UI stays locked: set UI_PASSWORD (%d characters or more)", standalone.PASSWORD_MIN)
+        if len(UI_PASSWORD) < standalone.MIN_UI_CHARS:
+            _LOGGER.warning("The web UI stays locked: set UI_PASSWORD (%d characters or more)", standalone.MIN_UI_CHARS)
     threading.Thread(target=offer_new_notify_kinds, name="notify-kinds", daemon=True).start()
 
     client = None

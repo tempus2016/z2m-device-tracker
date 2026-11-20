@@ -7,7 +7,6 @@ it, Home Assistant is reached at HA_URL with a long-lived access token (HA_TOKEN
 
 from __future__ import annotations
 
-import hashlib
 import hmac
 import json
 import os
@@ -20,7 +19,7 @@ from urllib.parse import urlsplit
 SESSION_COOKIE = "z2mt_session"
 SESSION_DAYS = 30
 MAX_SESSIONS = 50
-PASSWORD_MIN = 8
+MIN_UI_CHARS = 8
 # Wrong passwords from one address before it has to wait, and how long it waits.
 LOGIN_TRIES = 5
 LOGIN_LOCKOUT = 15 * 60
@@ -66,12 +65,10 @@ def save_options(path: str, options: dict) -> bool:
 
 
 def password_ok(given: str, expected: str) -> bool:
-    """Constant-time check. Hashing first keeps the time the same whatever the lengths."""
+    """Constant-time comparison of the typed password with UI_PASSWORD (compare_digest reveals at most the length)."""
     if not expected:
         return False
-    a = hashlib.sha256(str(given or "").encode("utf-8")).digest()
-    b = hashlib.sha256(expected.encode("utf-8")).digest()
-    return hmac.compare_digest(a, b)
+    return hmac.compare_digest(str(given or "").encode("utf-8"), expected.encode("utf-8"))
 
 
 def cookie_value(header: str | None, name: str = SESSION_COOKIE) -> str | None:

@@ -486,6 +486,8 @@ def test_late_learned_longest_is_rounded_like_the_sidebar():
     summary = {"report_every": 900, "report_source": "learned", "rhythm_longest": 285}
     (issue,) = late_issues(record(last_seen=iso(1000), availability="online"), summary)
     assert issue["detail"] == "No messages for 16 min. Its longest normal silence is about 5 min."
+
+
 def test_lqi_stuck_is_info_and_names_the_value():
     issues = health.device_issues(
         record(), {"lqi_stuck": {"value": 87.0, "count": 60, "seconds": 3 * 86400}}, {}, START, []
