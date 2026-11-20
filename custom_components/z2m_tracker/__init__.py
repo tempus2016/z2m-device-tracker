@@ -23,6 +23,7 @@ from .const import (
     CONF_APP_URL,
     CONF_CALENDAR_TODO,
     CONF_REPAIRS,
+    CONF_TOKEN,
     DEFAULT_APP_URL,
     DOMAIN,
     I18N_FILE,
@@ -71,7 +72,8 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
 
 async def async_setup_entry(hass: HomeAssistant, entry: Z2MTrackerConfigEntry) -> bool:
     app_url = entry.options.get(CONF_APP_URL, entry.data.get(CONF_APP_URL, DEFAULT_APP_URL))
-    tracker = Z2MTracker(hass, app_url, entry.options.get(CONF_REPAIRS, True))
+    token = entry.options.get(CONF_TOKEN, entry.data.get(CONF_TOKEN)) or None
+    tracker = Z2MTracker(hass, app_url, entry.options.get(CONF_REPAIRS, True), token)
     await tracker.async_start()
     entry.runtime_data = tracker
     hass.data[DOMAIN] = tracker

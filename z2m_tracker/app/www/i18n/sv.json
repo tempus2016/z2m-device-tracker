@@ -942,7 +942,6 @@
   "replace.step.remove": "Ta bort den gamla enheten",
   "replace.step.link": "Länka båda historikerna",
   "replace.step.replace": "Ersätt",
-  "replace.hint.name": "Byter namn i Zigbee2MQTT. Entitets-ID:n i Home Assistant följer namnet, så de förblir desamma när de gamla entiteterna är borta.",
   "replace.hint.no_area": "Den gamla enheten hade inget område.",
   "replace.hint.other_network": "Den nya enheten finns i ett annat nätverk, så bindningar kan inte kopieras.",
   "replace.hint.bindings": "Skapas igen på den nya enheten. Länkar till koordinatorn ställer Zigbee2MQTT in själv.",

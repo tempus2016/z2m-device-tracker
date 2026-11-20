@@ -15,6 +15,7 @@ from .const import (
     CONF_APP_URL,
     CONF_CALENDAR_TODO,
     CONF_REPAIRS,
+    CONF_TOKEN,
     DEFAULT_APP_URL,
     DOMAIN,
 )
@@ -61,13 +62,18 @@ class Z2MTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             if valid_app_url(user_input[CONF_APP_URL]):
-                return self.async_create_entry(title="Z2M Device Tracker", data=user_input)
+                data = {**user_input, CONF_TOKEN: str(user_input.get(CONF_TOKEN) or "").strip()}
+                return self.async_create_entry(title="Z2M Device Tracker", data=data)
             errors[CONF_APP_URL] = "invalid_url"
+        schema: dict[Any, Any] = {
+            vol.Required(CONF_APP_URL, default=self._discovered_url or detect_app_url(self.hass)): str
+        }
+        if not self._discovered_url:
+            # Supervisor hands the token over by itself; without it (plain Docker) it is typed in.
+            schema[vol.Optional(CONF_TOKEN, default="")] = str
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema(
-                {vol.Required(CONF_APP_URL, default=self._discovered_url or detect_app_url(self.hass)): str}
-            ),
+            data_schema=vol.Schema(schema),
             errors=errors,
         )
 
@@ -82,16 +88,19 @@ class Z2MTrackerOptionsFlow(OptionsFlow):
         errors: dict[str, str] = {}
         if user_input is not None:
             if valid_app_url(user_input[CONF_APP_URL]):
-                return self.async_create_entry(data=user_input)
+                data = {**user_input, CONF_TOKEN: str(user_input.get(CONF_TOKEN) or "").strip()}
+                return self.async_create_entry(data=data)
             errors[CONF_APP_URL] = "invalid_url"
         current = self.config_entry.options.get(
             CONF_APP_URL, self.config_entry.data.get(CONF_APP_URL, detect_app_url(self.hass))
         )
+        token = self.config_entry.options.get(CONF_TOKEN, self.config_entry.data.get(CONF_TOKEN, ""))
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_APP_URL, default=current): str,
+                    vol.Optional(CONF_TOKEN, description={"suggested_value": token}): str,
                     vol.Required(CONF_REPAIRS, default=self.config_entry.options.get(CONF_REPAIRS, True)): bool,
                     vol.Required(
                         CONF_CALENDAR_TODO, default=self.config_entry.options.get(CONF_CALENDAR_TODO, True)

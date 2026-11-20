@@ -1,0 +1,26 @@
+# Z2M Device Tracker for Home Assistant Container. Copy this file, fill in the values, then:
+#   docker compose up -d
+services:
+  z2m-tracker:
+    image: ghcr.io/tempus2016/z2m-device-tracker:latest
+    container_name: z2m-tracker
+    restart: unless-stopped
+    ports:
+      - "8099:8099"
+    environment:
+      TZ: Europe/London
+      # The MQTT broker Zigbee2MQTT uses.
+      MQTT_HOST: 192.168.1.10
+      MQTT_PORT: "1883"
+      MQTT_USER: ""
+      MQTT_PASS: ""
+      # Home Assistant, and a long-lived access token (your HA profile > Security).
+      HA_URL: http://192.168.1.10:8123
+      HA_TOKEN: ""
+      # Password for the web UI on port 8099, 8 characters or more.
+      UI_PASSWORD: ""
+    volumes:
+      # History, settings (options.json) and the integration's API token.
+      - ./data:/data
+      # Optional, read-only: Home Assistant's config folder, for the first history import.
+      - /path/to/homeassistant/config:/homeassistant:ro

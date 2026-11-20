@@ -9,10 +9,13 @@ import os
 import random
 import threading
 import time
-from datetime import datetime, timedelta, tzinfo
+from collections.abc import Iterable
+from datetime import datetime, timedelta, timezone, tzinfo
 from datetime import time as clock_time
 from statistics import median
 from typing import Any
+
+import rhythm
 
 
 def _finite_only(value: Any) -> Any:
@@ -27,6 +30,13 @@ def _finite_only(value: Any) -> Any:
 
 LQI_KEEP_HOURS = 24 * 14
 LQI_DAILY_KEEP_DAYS = 90
+# Stuck link quality (see Metrics.lqi_stuck): the same value on this many reports in a row, across
+# at least this long, on a device that showed this many different values in the days before.
+STUCK_REPORTS = 50
+STUCK_SECONDS = 48 * 3600
+STUCK_VARIED = 3
+STUCK_VARIED_DAYS = 14
+STUCK_PREVIOUS_KEEP = 6
 MSG_KEEP_HOURS = 24 * 14
 BATTERY_KEEP_DAYS = 400
 DRAIN_RECENT_DAYS = 14
@@ -91,9 +101,18 @@ class Metrics:
         # "ping" holds one nightly reply time per router per day; None means it didn't reply.
         # "cmd" counts commands per hour; the list holds reply times of the answered ones (at most
         # CMD_SAMPLES_PER_HOUR, a random sample beyond that).
+        # "lqi_run" is a dict, not a list: the current run of identical link quality reports (see _add_lqi_run).
         # "lqid" (daily LQI rollups) was added later. Older files lack it; it's rebuilt from the hourly series.
-        self.series: dict[str, dict[str, list]] = {}
+        # "gaps" is the device's rhythm table (see rhythm.py), "rhythm_since" when it started and "rhythm_last" the
+        # time of its last real message. "rhythm_last" is only a clock: load() drops it, since a restart is a deaf period.
+        # "rhythm_count" is the number of gaps filed (never decayed), "rhythm_day" the local day (ordinal) the table
+        # last decayed, and "rhythm_excused" the start of a silence the user called normal (see teach()).
+        self.series: dict[str, dict[str, Any]] = {}
         self.dirty = False
+        self.local_tz: tzinfo = timezone.utc  # the Tracker sets its own; rhythm slots are local time
+        # Devices that filed a gap since their last decay. Memory only: after a restart a device can miss one
+        # decay, never get an extra one.
+        self._rhythm_filed: set[str] = set()
 
     def load(self) -> None:
         if not os.path.exists(self.path):
@@ -104,7 +123,28 @@ class Metrics:
         except (OSError, ValueError):
             return
         with self.lock:
-            self.series = data if isinstance(data, dict) else {}
+            self.adopt(data)
+
+    def adopt(self, series: Any) -> None:
+        """Take series from a file or a backup. A restart or restore is a deaf period, and the data may be hand-edited."""
+        with self.lock:
+            self.series = series if isinstance(series, dict) else {}
+            for device in self.series.values():
+                if not isinstance(device, dict):
+                    continue
+                device.pop("rhythm_last", None)
+                if "gaps" in device:
+                    device["gaps"] = rhythm.clean(device["gaps"])
+                for key in ("rhythm_since", "rhythm_excused"):
+                    if key in device and not _finite(device[key]):
+                        del device[key]
+                for key in ("rhythm_day", "rhythm_count"):
+                    value = device.get(key)
+                    if key in device and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
+                        del device[key]
+                if device.get("gaps") and "rhythm_count" not in device:
+                    # Files from before the count was kept: the table's weight is the nearest thing to it.
+                    device["rhythm_count"] = round(rhythm.total(device["gaps"]))
 
     def save(self, force: bool = False) -> None:
         with self.lock:
@@ -150,7 +190,55 @@ class Metrics:
                 while points and points[0][0] < cutoff:
                     points.pop(0)
             self._add_daily_lqi(device["lqid"], now, float(value))
+            self._add_lqi_run(device, now, float(value))
             self.dirty = True
+
+    @staticmethod
+    def _lqi_run(device: dict) -> dict | None:
+        """The stored run of identical link quality reports, or None when it's missing or damaged."""
+        run = device.get("lqi_run")
+        if not isinstance(run, dict):
+            return None
+        if not all(_finite(run.get(key)) for key in ("value", "count", "since")):
+            return None
+        previous = [
+            [p[0], p[1]]
+            for p in (run.get("previous") if isinstance(run.get("previous"), list) else [])
+            if isinstance(p, list) and len(p) == 2 and _finite(p[0]) and _finite(p[1])
+        ]
+        return {"value": run["value"], "count": int(run["count"]), "since": run["since"], "previous": previous}
+
+    @classmethod
+    def _add_lqi_run(cls, device: dict, now: float, value: float) -> None:
+        """Count identical link quality reports in a row: device["lqi_run"] = {"value", "count",
+        "since", "previous": [[earlier value, when it last showed], ...]} (newest earlier values, each once)."""
+        run = cls._lqi_run(device)
+        if run is None:
+            device["lqi_run"] = {"value": value, "count": 1, "since": now, "previous": []}
+            return
+        if run["value"] == value:
+            run["count"] += 1
+        else:
+            previous = [p for p in run["previous"] if p[0] != run["value"] and p[0] != value]
+            previous.append([run["value"], now])
+            run = {"value": value, "count": 1, "since": now, "previous": previous[-STUCK_PREVIOUS_KEEP:]}
+        device["lqi_run"] = run
+
+    @classmethod
+    def lqi_stuck(cls, device: dict, now: float) -> dict | None:
+        """{"value", "count", "seconds"} when the device's link quality reading looks stuck, else None.
+
+        Stuck means the same value on STUCK_REPORTS reports in a row over at least STUCK_SECONDS, on a
+        device whose reading showed STUCK_VARIED different values in the STUCK_VARIED_DAYS before the
+        run began. The last part leaves out devices that always report one fixed value."""
+        run = cls._lqi_run(device)
+        if run is None or run["count"] < STUCK_REPORTS or now - run["since"] < STUCK_SECONDS:
+            return None
+        earliest = run["since"] - STUCK_VARIED_DAYS * 86400
+        varied = {p[0] for p in run["previous"] if p[1] >= earliest}
+        if len(varied) < STUCK_VARIED:
+            return None
+        return {"value": run["value"], "count": run["count"], "seconds": int(now - run["since"])}
 
     @staticmethod
     def _add_daily_lqi(daily: list, now: float, value: float) -> None:
@@ -189,11 +277,17 @@ class Metrics:
                 entry[3] = max(entry[3], avg)
         return [[day, *days[day]] for day in sorted(days)][-LQI_DAILY_KEEP_DAYS:]
 
-    def add_message(self, ieee: str, now: float | None = None) -> None:
+    def add_message(self, ieee: str, now: float | None = None, *, real: bool = True, limit: int | None = None) -> None:
+        """Count a message in the hour. real=False (a retained replay) files no rhythm gap and keeps its clock.
+
+        limit: the silent limit in force for this device. Once learned, a gap longer than it ended an outage
+        and counts half.
+        """
         now = now or time.time()
         hour = int(now // 3600 * 3600)
         with self.lock:
-            points = self.series.setdefault(ieee, {}).setdefault("msg", [])
+            device = self.series.setdefault(ieee, {})
+            points = device.setdefault("msg", [])
             if points and points[-1][0] == hour:
                 points[-1][1] += 1
             else:
@@ -201,7 +295,124 @@ class Metrics:
                 cutoff = hour - MSG_KEEP_HOURS * 3600
                 while points and points[0][0] < cutoff:
                     points.pop(0)
+            if real:
+                self._file_gap(ieee, device, now, limit)
             self.dirty = True
+
+    def _file_gap(self, ieee: str, device: dict, now: float, limit: int | None) -> None:
+        last = device.get("rhythm_last")
+        weight = None
+        excused = device.pop("rhythm_excused", None)
+        if _finite(excused) and 0 < now - excused < rhythm.MAX_LIMIT:
+            # The silence the user called normal ends here: all of it counts as taught.
+            last, weight = excused, rhythm.WEIGHT_TAUGHT
+        if _finite(last) and now > last:
+            gap = now - last
+            band = rhythm.band_of(gap)
+            if band is not None:
+                if weight is None:
+                    learned = rhythm.learned(device.get("rhythm_count", 0), device.get("rhythm_since"), now)
+                    over = learned and bool(limit) and gap > limit
+                    weight = rhythm.WEIGHT_OVER if over else rhythm.WEIGHT_NORMAL
+                rhythm.add(device.setdefault("gaps", {}), rhythm.slot_of(last, self.local_tz), band, weight)
+                device["rhythm_count"] = device.get("rhythm_count", 0) + 1
+                self._rhythm_filed.add(ieee)
+        device["rhythm_last"] = now
+        device.setdefault("rhythm_since", now)
+
+    # ----------------------------------------------------------------- rhythm
+
+    def deaf(self, ieees: Iterable[str] | None = None) -> None:
+        """The app could not hear these devices (None = all): the gap their next message ends is not filed."""
+        with self.lock:
+            for ieee in list(self.series) if ieees is None else ieees:
+                device = self.series.get(ieee)
+                if device is not None:
+                    device.pop("rhythm_last", None)
+
+    def teach(self, ieee: str, last_seen: float | None = None) -> bool:
+        """ "This is normal for this device": the silence it is in now raises no Stopped reporting until it next
+        reports, and is then filed at weight 4. It starts at the device's last real message, or at last_seen
+        when that clock was cleared (a restart). After MAX_LIMIT (7 days) the mark is ignored."""
+        with self.lock:
+            device = self.series.get(ieee) or {}
+            start = device.get("rhythm_last")
+            start = start if _finite(start) else last_seen
+            if not _finite(start):
+                return False
+            device = self.series.setdefault(ieee, device)
+            device["rhythm_excused"] = start
+            device.setdefault("rhythm_since", start)
+            self.dirty = True
+        return True
+
+    def forget_rhythm(self, ieee: str) -> None:
+        with self.lock:
+            device = self.series.get(ieee)
+            if device is not None:
+                for key in ("gaps", "rhythm_since", "rhythm_last", "rhythm_excused", "rhythm_day", "rhythm_count"):
+                    device.pop(key, None)
+                self.dirty = True
+            self._rhythm_filed.discard(ieee)
+
+    def merge_rhythm(self, old: str, new: str) -> None:
+        """A replacement: the old device's table moves into the new one's, added key by key. The clocks
+        (rhythm_last, rhythm_excused, rhythm_day) stay with each device."""
+        with self.lock:
+            source = self.series.get(old) or {}
+            if not source.get("gaps"):
+                return
+            mine = self.series.setdefault(new, {})
+            gaps = mine.setdefault("gaps", {})
+            for key, weight in source["gaps"].items():
+                gaps[key] = gaps.get(key, 0.0) + weight
+            starts = [t for t in (source.get("rhythm_since"), mine.get("rhythm_since")) if _finite(t)]
+            if starts:
+                mine["rhythm_since"] = min(starts)
+            mine["rhythm_count"] = mine.get("rhythm_count", 0) + source.get("rhythm_count", 0)
+            # A move, not a copy: running Replace again for the same pair adds nothing twice.
+            for key in ("gaps", "rhythm_count", "rhythm_since"):
+                source.pop(key, None)
+            self.dirty = True
+
+    def rhythm(self, ieee: str, now: float | None = None, last_seen: float | None = None) -> dict[str, Any]:
+        """rhythm.describe() plus "limit": the silent limit for the slot of last_seen, None until learned,
+        for a device that isn't steady, and while a silence is excused ("excused": True); "slot_longest":
+        the upper edge of the band that limit was built from (before the margin and the clamp), None
+        without a limit."""
+        now = now or time.time()
+        with self.lock:
+            device = self.series.get(ieee) or {}
+            slot = rhythm.slot_of(last_seen, self.local_tz) if last_seen is not None else None
+            out = rhythm.describe(
+                device.get("gaps") or {}, device.get("rhythm_since"), now, device.get("rhythm_count", 0), slot
+            )
+            excused = device.get("rhythm_excused")
+            out["excused"] = _finite(excused) and now - excused < rhythm.MAX_LIMIT
+        found = out.pop("slot_limit")
+        out["limit"] = found if out["learned"] and not out["excused"] else None
+        if not out["limit"]:
+            out["slot_longest"] = None
+        return out
+
+    def decay_rhythm(self, now: float | None = None) -> None:
+        """One day's decay for each device that filed a gap since its last one, at most once per local day.
+        A device that stays silent keeps its table as it is. Safe to call often."""
+        now = now or time.time()
+        day = datetime.fromtimestamp(now, self.local_tz).toordinal()
+        with self.lock:
+            for ieee in list(self._rhythm_filed):
+                device = self.series.get(ieee)
+                if not isinstance(device, dict):
+                    self._rhythm_filed.discard(ieee)
+                    continue
+                if device.get("rhythm_day") == day:
+                    continue
+                if device.get("gaps"):
+                    rhythm.decay(device["gaps"])
+                device["rhythm_day"] = day
+                self._rhythm_filed.discard(ieee)
+                self.dirty = True
 
     def add_battery(self, ieee: str, value: Any, now: float | None = None) -> float | None:
         """Record a battery reading. Returns the previous day's value if this looks like a replacement."""
@@ -356,6 +567,7 @@ class Metrics:
         with self.lock:
             data = self.series.get(ieee) or {}
             lqi = [list(p) for p in data.get("lqi", [])]
+            stuck = self.lqi_stuck(data, now)
             msg = [list(p) for p in data.get("msg", [])]
             bat = [list(p) for p in data.get("bat", []) if _real_battery(p)]
             ping = [list(p) for p in data.get("ping", [])]
@@ -366,6 +578,8 @@ class Metrics:
                 if isinstance(p, list) and len(p) == 4 and all(_finite(x) for x in p[:3]) and isinstance(p[3], list)
             ]
         out: dict[str, Any] = {}
+        if stuck:
+            out["lqi_stuck"] = stuck
 
         if cmd:
             out["cmd"] = self.command_stats(cmd, now)

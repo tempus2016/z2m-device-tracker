@@ -1012,7 +1012,6 @@
   "replace.step.remove": "Odebrat staré zařízení",
   "replace.step.link": "Propojit obě historie",
   "replace.step.replace": "Nahradit",
-  "replace.hint.name": "Přejmenuje se v Zigbee2MQTT. ID entit v Home Assistant se řídí názvem, takže po odstranění starých entit zůstanou stejná.",
   "replace.hint.no_area": "Staré zařízení nemělo oblast.",
   "replace.hint.other_network": "Nové zařízení je v jiné síti, takže vazby nelze zkopírovat.",
   "replace.hint.bindings": "Vytvoří se znovu na novém zařízení. Spojení s koordinátorem nastaví Zigbee2MQTT sám.",

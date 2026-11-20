@@ -977,7 +977,6 @@
   "replace.step.remove": "Supprimer l'ancien appareil",
   "replace.step.link": "Lier les deux historiques",
   "replace.step.replace": "Remplacer",
-  "replace.hint.name": "Renommé dans Zigbee2MQTT. Les ID d'entité Home Assistant suivent le nom, ils restent donc identiques une fois les anciennes entités disparues.",
   "replace.hint.no_area": "L'ancien appareil n'avait pas de pièce.",
   "replace.hint.other_network": "Le nouvel appareil est sur un autre réseau, les liaisons ne peuvent donc pas être copiées.",
   "replace.hint.bindings": "Recréées sur le nouvel appareil. Les liens vers le coordinateur sont configurés par Zigbee2MQTT lui-même.",

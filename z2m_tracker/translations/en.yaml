@@ -64,7 +64,10 @@ configuration:
     description: Day to send the weekly summary (0 = Monday).
   summary_hour:
     name: Summary hour
-    description: Hour to send the weekly summary.
+    description: Hour to send the weekly and daily summaries.
+  daily_summary:
+    name: Daily summary
+    description: Send a short summary every day at the summary hour, on days with something to report.
   wifi_channels:
     name: Wi-Fi channels
     description: Your 2.4 GHz Wi-Fi channels, e.g. 1, 6, used for the radio channel check.
@@ -80,6 +83,12 @@ configuration:
   quiet_hours:
     name: Quiet hours
     description: Hold alerts during quiet hours and send one summary when they end.
+  learn_rhythm:
+    name: Learn each device's rhythm
+    description: Set each device's Stopped reporting limit from how often it reports, by time of week. Off stops learned limits from flagging anything; gaps keep being recorded.
+  expected_outages:
+    name: Expected outages
+    description: Don't alert when a network goes offline at the time it does most days, such as a nightly restart.
   quiet_start:
     name: Quiet hours start
     description: Start of quiet hours in the app's time zone, as HH:MM.

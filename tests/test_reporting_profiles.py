@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 
+import health
 import pytest
 from conftest import PLUG, SENSOR, send, z2m_device
 from reporting_profiles import DEFAULTS, clean_defaults, defaults, effective, group_of
@@ -57,6 +59,7 @@ def test_type_default_waits_until_the_device_reports_often_enough():
         "group": "other",
         "default": "off",
         "gap": None,
+        "learned": None,
         "waiting": False,
         "every": None,
         "source": "default",
@@ -138,3 +141,119 @@ def test_set_defaults_saved_and_in_snapshot(tracker):
     assert snap["report_defaults"]["plug"] == "regular" and snap["report_defaults"]["contact"] == "change"
     plug = next(d for d in snap["devices"] if d["ieee"] == PLUG)
     assert (plug["reporting_profile"]["group"], plug["reporting_profile"]["default"]) == ("plug", "regular")
+
+
+# ------------------------------------------------------------------ learned limit (Auto profile)
+
+FITS = {"msg_rate_prev": 60}  # one message a minute: fits every built-in default
+LONELY: dict = {}  # no usual gap known: no built-in default fits
+
+
+def test_auto_with_a_learned_limit():
+    out = effective({"report_profile": "auto"}, "Temp", {}, None, learned=7200)
+    assert (out["every"], out["source"], out["learned"]) == (7200, "learned", 7200)
+
+
+def test_auto_without_learning_has_no_limit():
+    for kwargs in ({"learned": None}, {"learned": 7200, "learn": False}):
+        out = effective({"report_profile": "auto"}, "Temp", {}, None, **kwargs)
+        assert (out["every"], out["source"]) == (None, "device")
+
+
+def test_learned_never_tightens_a_fitting_type_default():
+    out = effective({}, "Door", FITS, None, learned=900)
+    assert (out["every"], out["source"], out["learned"]) == (10800, "default", 900)
+    out = effective({}, "Door", FITS, None, learned=20000)
+    assert (out["every"], out["source"]) == (20000, "learned")
+
+
+def test_hand_set_type_default_beats_learning():
+    out = effective({}, "Door", FITS, {"contact": "off"}, learned=3600)
+    assert (out["every"], out["source"]) == (None, "default")
+    out = effective({}, "Door", FITS, {"contact": "chatty"}, learned=3600)
+    assert (out["every"], out["source"]) == (900, "default")
+
+
+def test_type_default_that_does_not_fit_gives_way_to_learning():
+    out = effective({}, "Door", LONELY, None, learned=5000)
+    assert (out["every"], out["source"]) == (5000, "learned")
+
+
+def test_other_group_gets_learned_limit():
+    out = effective({}, None, {}, None, learned=7200)
+    assert (out["every"], out["source"]) == (7200, "learned")
+
+
+def test_learn_off_behaves_as_before():
+    cases = [
+        ({"report_profile": "auto"}, "Temp", {}, None),
+        ({}, "Door", FITS, None),
+        ({}, "Door", FITS, {"contact": "off"}),
+        ({}, "Door", LONELY, None),
+        ({}, None, {}, None),
+    ]
+    for record, kind, summary, stored in cases:
+        off = effective(record, kind, summary, stored, learned=60, learn=False)
+        assert {k: v for k, v in off.items() if k != "learned"} == {
+            k: v for k, v in effective(record, kind, summary, stored).items() if k != "learned"
+        }
+
+
+def test_explicit_profiles_ignore_learning():
+    for profile, record in (
+        ("change", {}),
+        ("regular", {}),
+        ("chatty", {}),
+        ("custom", {"report_every": 120}),
+        ("off", {}),
+    ):
+        rec = {"report_profile": profile, **record}
+        assert effective(rec, "Temp", {}, None, learned=60) == {**effective(rec, "Temp", {}, None), "learned": 60}
+
+
+def test_auto_is_accepted_and_next_deadline_is_last_seen_plus_learned(tracker, clock, monkeypatch):
+    setup(tracker)
+    seen = []
+
+    def fake_rhythm(ieee, now=None, last_seen=None):
+        seen.append(last_seen)
+        return {"limit": 1800, "slot_longest": 1200, "longest": 40000, "learned": True, "excused": False}
+
+    monkeypatch.setattr(tracker.metrics, "rhythm", fake_rhythm)
+    assert tracker.set_report_profile(SENSOR, "auto")["ok"]
+    clock.advance(minutes=29)
+    assert late(tracker) == []
+    clock.advance(minutes=2)
+    assert SENSOR in late(tracker)
+    issue = next(i for i in tracker.evaluate_health()[0] if i["kind"] == "late" and i["ieee"] == SENSOR)
+    assert issue["msg"] == "late_learned" and issue["params"]["longest"] == 1200
+    assert seen and all(isinstance(x, float) for x in seen)
+    assert tracker.late_due(clock.time())
+    rec = tracker.data["devices"][SENSOR]
+    assert tracker._report_limits[SENSOR] == 1800
+    assert health.late_deadline(rec, 0, 1800) == datetime.fromisoformat(rec["last_seen"]).timestamp() + 1800
+
+
+def test_late_keeps_plain_text_when_the_type_default_won(tracker, clock, monkeypatch):
+    setup(tracker)
+    rec = tracker.data["devices"][SENSOR]
+    rec["report_profile"] = None
+    monkeypatch.setattr(
+        tracker, "report_profile", lambda r, s, now=None, info=None: {"every": 3600, "source": "default"}
+    )
+    clock.advance(minutes=61)
+    issue = next(i for i in tracker.evaluate_health()[0] if i["kind"] == "late" and i["ieee"] == SENSOR)
+    assert issue["msg"] == "late"
+
+
+def test_excused_is_reported_only_when_it_removes_the_limit():
+    assert effective({"report_profile": "auto"}, "Temp", {}, None, excused=True)["excused"] is True
+    assert effective({}, "Door", FITS, None, excused=True)["excused"] is True
+    for record, stored, learn in (
+        ({}, None, False),
+        ({}, {"contact": "change"}, True),
+        ({"report_profile": "regular"}, None, True),
+        ({"report_profile": "auto"}, None, False),
+    ):
+        out = effective(record, "Door", FITS, stored, learned=None, learn=learn, excused=True)
+        assert "excused" not in out

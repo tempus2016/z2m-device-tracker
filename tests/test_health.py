@@ -469,3 +469,34 @@ def test_uptime_clips_to_window_and_ignores_bad_rows():
 
 def test_uptime_needs_an_hour_of_history():
     assert health.uptime({"first_seen": iso(1800), "outages": []}, START) is None
+
+
+def test_late_issue_names_longest_normal_silence():
+    summary = {"report_every": 1800, "report_source": "learned", "rhythm_longest": 1200}
+    (issue,) = late_issues(record(last_seen=iso(2000), availability="online"), summary)
+    assert issue["detail"] == "No messages for 33 min. Its longest normal silence is about 20 min."
+    assert issue["msg"] == "late_learned"
+    assert issue["params"] == {"seconds": 2000, "every": 1800, "longest": 1200}
+    # No longest known: the ordinary text.
+    (plain,) = late_issues(record(last_seen=iso(2000)), {"report_every": 1800, "report_source": "learned"})
+    assert plain["msg"] == "late" and "should report at least every" in plain["detail"]
+
+
+def test_late_learned_longest_is_rounded_like_the_sidebar():
+    summary = {"report_every": 900, "report_source": "learned", "rhythm_longest": 285}
+    (issue,) = late_issues(record(last_seen=iso(1000), availability="online"), summary)
+    assert issue["detail"] == "No messages for 16 min. Its longest normal silence is about 5 min."
+def test_lqi_stuck_is_info_and_names_the_value():
+    issues = health.device_issues(
+        record(), {"lqi_stuck": {"value": 87.0, "count": 60, "seconds": 3 * 86400}}, {}, START, []
+    )
+    stuck = [i for i in issues if i["kind"] == "lqi_stuck"]
+    assert [(i["severity"], i["msg"]) for i in stuck] == [(health.INFO, "lqi_stuck")]
+    assert "has read 87 on every report for 3 days" in stuck[0]["detail"]
+    assert "lqi_stuck" not in health.DEFAULT_NOTIFY
+
+
+def test_damaged_lqi_stuck_summary_raises_nothing():
+    for bad in ("x", {"value": "a", "seconds": 5}, {"value": 87}):
+        issues = health.device_issues(record(), {"lqi_stuck": bad}, {}, START, [])
+        assert not [i for i in issues if i["kind"] == "lqi_stuck"]

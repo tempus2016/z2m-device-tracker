@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import html
 import json
 import logging
 import os
@@ -21,13 +22,15 @@ from datetime import datetime, timezone
 from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, unquote_plus
+from urllib.parse import parse_qs, unquote, unquote_plus, urlsplit
 from zoneinfo import ZoneInfo
 
 import alert_actions
+import daily_summary
 import escalation
 import paho.mqtt.client as mqtt
 import prometheus
+import standalone
 from battery_library import BatteryLibrary, clean_shop_url
 from broker_stats import FILTER as SYS_FILTER
 from broker_stats import BrokerStats
@@ -35,7 +38,7 @@ from community import CommunityRatings
 from discovery import AVAILABILITY, Discovery
 from discovery import BASE as DISCOVERY_BASE
 from discovery import PREFIX as DISCOVERY_PREFIX
-from ha import HomeAssistant
+from ha import HomeAssistant, plan_entity_ids
 from health import CHECKS, DEFAULT_NOTIFY, alert_title, mutes_of, nested, notify_kinds, offer_new_kinds
 from metrics import Metrics
 from mqtt_status import NOTIFICATION_ID, NOTIFICATION_TITLE, MqttStatus, explain_error, explain_refusal, probe
@@ -52,19 +55,22 @@ from zha import ZHA_BLOCKED_PATHS, ZHA_INSTANCE, ZhaSource, zha_checks, zigbee_s
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
 _LOGGER = logging.getLogger("z2m_tracker")
 
-VERSION = "2.2.0-beta.1"
+VERSION = "2.3.0"
 PORT = 8099
 # Prometheus scrape port: only opened when metrics_token is set.
 METRICS_PORT = 9099
 METRICS_TOKEN_MIN = 16
-DATA_PATH = "/data/history.json"
-METRICS_PATH = "/data/metrics.json"
-SCANS_PATH = "/data/scans.json"
-OPTIONS_PATH = "/data/options.json"
-TOKEN_PATH = "/data/api_token"
-COMMUNITY_PATH = "/data/community_ratings.json"
-COMMUNITY_ID_PATH = "/data/community_id"
-CONFIG_DIR = "/homeassistant"
+# Plain Docker, no Supervisor (Home Assistant Container): see standalone.py.
+STANDALONE = standalone.is_standalone()
+DATA_DIR = os.environ.get("DATA_DIR") or "/data"
+DATA_PATH = f"{DATA_DIR}/history.json"
+METRICS_PATH = f"{DATA_DIR}/metrics.json"
+SCANS_PATH = f"{DATA_DIR}/scans.json"
+OPTIONS_PATH = f"{DATA_DIR}/options.json"
+TOKEN_PATH = f"{DATA_DIR}/api_token"
+COMMUNITY_PATH = f"{DATA_DIR}/community_ratings.json"
+COMMUNITY_ID_PATH = f"{DATA_DIR}/community_id"
+CONFIG_DIR = os.environ.get("HA_CONFIG_DIR") or "/homeassistant"
 MIGRATE_FROM = f"{CONFIG_DIR}/.storage/z2m_tracker"
 APP_DIR = Path(__file__).parent
 WWW = APP_DIR / "www"
@@ -108,6 +114,7 @@ DEFAULT_OPTIONS = {
     "weekly_summary": True,
     "summary_day": 0,
     "summary_hour": 9,
+    "daily_summary": False,
     "alerts_enabled": True,
     "fire_events": True,
     "ha_repairs": True,
@@ -118,6 +125,8 @@ DEFAULT_OPTIONS = {
     "ota_window": "",
     "ota_min_battery": 30,
     "quiet_hours": False,
+    "learn_rhythm": True,
+    "expected_outages": True,
     "quiet_start": "23:00",
     "quiet_end": "07:00",
     "escalate_enabled": False,
@@ -214,6 +223,7 @@ SETTINGS = {
     "weekly_summary": _bool,
     "summary_day": _int(0, 6),
     "summary_hour": _int(0, 23),
+    "daily_summary": _bool,
     "wifi_channels": _wifi,
     "chatty_per_hour": _int(60, 36000),
     "disabled_checks": _kinds,
@@ -221,6 +231,8 @@ SETTINGS = {
     "ota_window": _ota_window,
     "ota_min_battery": _int(0, 100),
     "quiet_hours": _bool,
+    "learn_rhythm": _bool,
+    "expected_outages": _bool,
     "quiet_start": _clock,
     "quiet_end": _clock,
     "escalate_enabled": _bool,
@@ -292,9 +304,18 @@ def offer_new_notify_kinds() -> None:
         return
     options["notify_checks"] = checks
     _LOGGER.info("Alerts now notify for new check(s): %s", ", ".join(added))
-    persisted = home_assistant.save_app_options({k: v for k, v in options.items() if not k.startswith("_")})
+    persisted = save_options()
     if not persisted:
         _LOGGER.warning("Couldn't save the updated alert list to the app configuration")
+
+
+def save_options() -> bool:
+    """Keep the options for the next start: in Supervisor's app configuration, or in plain Docker
+    in /data/options.json, the file the app reads them from."""
+    current = {k: v for k, v in options.items() if not k.startswith("_")}
+    if STANDALONE:
+        return standalone.save_options(OPTIONS_PATH, current)
+    return home_assistant.save_app_options(current)
 
 
 def local_timezone():
@@ -341,7 +362,19 @@ for _topic in base_topics:
         _LOGGER.warning("Base topic %r starts or ends with a space; it is used exactly as written", _topic)
 metrics = Metrics(METRICS_PATH)
 tracker = Tracker(DATA_PATH, base_topics, CONFIG_DIR, local_timezone(), metrics, options, load_oui())
-home_assistant = HomeAssistant(CONFIG_DIR)
+HA_URL = ""
+if STANDALONE:
+    _endpoints = standalone.ha_endpoints(os.environ.get("HA_URL"))
+    if _endpoints and os.environ.get("HA_TOKEN"):
+        HA_URL = (os.environ.get("HA_URL") or "").strip().rstrip("/")
+        home_assistant = HomeAssistant(CONFIG_DIR, *_endpoints, token=os.environ.get("HA_TOKEN") or "")
+    else:
+        if os.environ.get("HA_URL") and not _endpoints:
+            _LOGGER.warning("Ignoring HA_URL %r: use an http:// or https:// address", os.environ.get("HA_URL"))
+        _LOGGER.warning("No Home Assistant access: set HA_URL and HA_TOKEN (a long-lived access token)")
+        home_assistant = HomeAssistant(CONFIG_DIR, token="")
+else:
+    home_assistant = HomeAssistant(CONFIG_DIR)
 home_assistant.stack = stack
 retained_store = RetainedStore()
 tracker.retained = retained_store
@@ -671,7 +704,16 @@ def run_notification_action(verb: str, ieee: str, kind: str) -> None:
 # ---------------------------------------------------------------------- MQTT
 
 
-MQTT_HOST = os.environ.get("MQTT_HOST") or "core-mosquitto"
+if STANDALONE and not os.environ.get("MQTT_HOST") and options.get("mqtt_host"):
+    # Plain Docker has no run.sh: the broker from the options file, the way run.sh would pass it on.
+    os.environ["MQTT_HOST"] = str(options["mqtt_host"])
+    os.environ["MQTT_PORT"] = str(options.get("mqtt_port") or 1883)
+    os.environ["MQTT_USER"] = str(options.get("mqtt_user") or "")
+    os.environ["MQTT_PASS"] = str(options.get("mqtt_password") or "")
+    os.environ["MQTT_SSL"] = "true" if options.get("mqtt_ssl") else "false"
+    os.environ["MQTT_SSL_VERIFY"] = "false" if options.get("mqtt_ssl_verify") is False else "true"
+    os.environ["MQTT_MANUAL"] = "true"
+MQTT_HOST = os.environ.get("MQTT_HOST") or ("localhost" if STANDALONE else "core-mosquitto")
 MQTT_PORT = int(os.environ.get("MQTT_PORT") or 1883)
 # Set by run.sh when the broker comes from this app's options rather than the Mosquitto app.
 MQTT_MANUAL = os.environ.get("MQTT_MANUAL") == "true"
@@ -686,6 +728,8 @@ def on_connect(client, userdata, flags, reason_code, properties):
         return
     if mqtt_status.up():
         alerts.queue.put(lambda: home_assistant.dismiss_notification(NOTIFICATION_ID))
+    # Devices may have reported while we were away: Stopped reporting counts from now.
+    tracker.mqtt_connected()
     _LOGGER.info("Connected to MQTT, subscribing to %s", ", ".join(f"{topic}/#" for topic in base_topics))
     client.subscribe(
         [(f"{topic}/#", 0) for topic in base_topics]
@@ -709,6 +753,8 @@ def on_disconnect(client, userdata, flags, reason_code, properties):
             on_connect_fail(client, userdata)
         return
     mqtt_status.lost()
+    # Whatever the devices send while we're away is not heard: no rhythm gap spans it.
+    tracker.mqtt_lost()
     _LOGGER.warning("MQTT disconnected (%s), reconnecting", reason_code)
 
 
@@ -1100,6 +1146,64 @@ def record_battery_replaced(ieee: str, date: str, source: str, note: str, brand:
 REPLACE_CARRY = ("name", "area", "bindings", "notes", "battery", "remove", "rename_old")
 
 
+def settled_entity_ids(ieee: str, base_topic: str, before: dict[str, str], timeout: float = 20.0) -> dict[str, str]:
+    """The new device's entities once Home Assistant has re-created them after the rename: changed from
+    before and the same on two reads in a row. Whatever is there when the time runs out otherwise."""
+    deadline = time.monotonic() + timeout
+    last = None
+    while True:
+        current = home_assistant.device_entity_ids(ieee, base_topic)
+        if current and current != before and current == last:
+            return current
+        if time.monotonic() >= deadline:
+            return current
+        last = current
+        time.sleep(2)
+
+
+def keep_entity_ids(
+    old_entities: dict[str, str], old: tuple[str, str], new: tuple[str, str], before: dict[str, str]
+) -> dict:
+    """Give the new device the old device's entity IDs, so automations and dashboards keep working.
+
+    old and new are (ieee, base topic). Home Assistant makes new IDs when the new device is renamed, and
+    can put the area in front ("living_room_living_room_lamp_plug" when the name already starts with
+    the area). An ID the old device still holds (a disabled entity, or a kept old device) moves to
+    "<id>_old" first.
+    """
+    if not old_entities:
+        return {"ok": True, "kept": 0, "detail": "The old device has no entities in Home Assistant"}
+    moves = plan_entity_ids(old_entities, settled_entity_ids(*new, before))
+    if not moves:
+        return {"ok": True, "kept": 0, "detail": "Already the same"}
+    held = {entity_id: key for key, entity_id in home_assistant.device_entity_ids(*old).items()}
+    kept, failed = 0, []
+    for current, wanted in moves:
+        try:
+            if wanted in held:
+                free_entity_id(wanted)
+            home_assistant.set_entity_id(current, wanted)
+            kept += 1
+        except Exception as err:  # noqa: BLE001 - reported per entity
+            failed.append(f"{wanted}: {err}")
+    parts = [f"Kept {kept} entity ID{'' if kept == 1 else 's'}"] if kept else []
+    return {"ok": not failed, "kept": kept, "detail": ". ".join(parts + failed)}
+
+
+def free_entity_id(entity_id: str) -> None:
+    """Move an entity to "<id>_old" (or "_old_2", ...) so its ID is free."""
+    error: Exception | None = None
+    for n in range(1, 10):
+        try:
+            home_assistant.set_entity_id(entity_id, f"{entity_id}_old" if n == 1 else f"{entity_id}_old_{n}")
+            return
+        except RuntimeError as err:
+            if "already registered" not in str(err):
+                raise
+            error = err
+    raise RuntimeError(f"No free ID to move the old entity to: {error}")
+
+
 def replace_device(old_ieee: str, new_ieee: str, carry: dict) -> dict:
     """Swap a device (dead, or working and swapped on purpose) for a new one: carry over what was chosen, then link both histories.
 
@@ -1118,6 +1222,17 @@ def replace_device(old_ieee: str, new_ieee: str, carry: dict) -> dict:
 
     def step(key: str, label: str, ok: bool, detail: str = "") -> None:
         steps.append({"key": key, "label": label, "ok": ok, "detail": detail})
+
+    # Read before the old device is removed or renamed: both change or drop its entity IDs.
+    old_entities: dict[str, str] | None = None
+    new_before: dict[str, str] = {}
+    if want["name"] and old_name:
+        try:
+            old_entities = home_assistant.device_entity_ids(old_ieee, old["instance"])
+            new_before = home_assistant.device_entity_ids(new_ieee, new_instance)
+        except Exception as err:  # noqa: BLE001 - reported as its own step
+            _LOGGER.warning("Reading the entity IDs to keep failed: %s", err)
+            step("entity_ids", "Entity IDs", False, f"Couldn't read them from Home Assistant: {err}")
 
     if want["remove"]:
         if old["status"] != "active":
@@ -1188,6 +1303,15 @@ def replace_device(old_ieee: str, new_ieee: str, carry: dict) -> dict:
                     step("area", "Area", True, f"Set to {area_name}")
             except Exception as err:  # noqa: BLE001 - HA errors are reported per step
                 step("area", "Area", False, str(err))
+    if new_name and old_entities is not None:
+        # After the area: Home Assistant may re-create the entities once more when it changes.
+        try:
+            kept = keep_entity_ids(old_entities, (old_ieee, old["instance"]), (new_ieee, new_instance), new_before)
+            if kept["kept"]:
+                carried.append("entity IDs")
+            step("entity_ids", "Entity IDs", kept["ok"], kept["detail"])
+        except Exception as err:  # noqa: BLE001 - HA errors are reported per step
+            step("entity_ids", "Entity IDs", False, str(err))
     if want["bindings"]:
         if old.get("instance") != new_instance:
             step("bindings", "Bindings", False, "The new device is on a different network")
@@ -1322,7 +1446,7 @@ def apply_settings(changes: dict) -> dict:
     threading.Thread(target=discovery.sync, daemon=True).start()
     with tracker.lock:
         tracker._changed(structural=True)
-    persisted = home_assistant.save_app_options({k: v for k, v in options.items() if not k.startswith("_")})
+    persisted = save_options()
     _LOGGER.info("Settings changed: %s (saved to app configuration: %s)", ", ".join(clean), persisted)
     return {"ok": True, "persisted": persisted, **settings_payload()}
 
@@ -1461,6 +1585,7 @@ def scheduler() -> None:
                     threading.Thread(
                         target=refresh_entity_usage, args=(wanted,), name="ha-entity-usage", daemon=True
                     ).start()
+            tracker.metrics.decay_rhythm()
             hour = int(options.get("networkmap_hour", -1))
             local = datetime.now(tracker.local_tz)
             if stack == "z2m" and hour >= 0 and local.hour == hour and last_scan_day != local.date():
@@ -1481,6 +1606,11 @@ def scheduler() -> None:
                     tracker.data["summary_sent"] = local.date().isoformat()
                     tracker.dirty = True
                 send_weekly_summary()
+            daily = daily_summary.due(
+                options, local, daily_summary.clean_state(tracker.data.get("daily_summary"))["sent"]
+            )
+            if daily:
+                send_daily_summary(local.date().isoformat(), quiet=daily == "skip")
         except Exception:  # noqa: BLE001 - keep the scheduler alive
             _LOGGER.exception("Scheduler step failed")
 
@@ -1548,6 +1678,40 @@ def send_weekly_summary() -> dict:
     return {"title": title, "message": message}
 
 
+def send_daily_summary(day: str | None = None, quiet: bool = False) -> dict:
+    """Send today's daily summary. With `day` (the scheduler), remember what it listed so tomorrow's
+    can say what's new and what cleared; `quiet` only remembers (the weekly summary goes out instead).
+    Without `day` (Send one now) nothing is remembered. Returns {"title", "message"}; both empty when
+    there was nothing to say."""
+    with tracker.lock:
+        now_open = daily_summary.snapshot(tracker.issues)
+        before = daily_summary.clean_state(tracker.data.get("daily_summary"))["open"]
+        if day:
+            tracker.data["daily_summary"] = {"sent": day, "open": now_open}
+            tracker.dirty = True
+    if quiet:
+        return {"title": "", "message": ""}
+    shopping = tracker.battery_shopping(60)
+    built = daily_summary.build(now_open, before, shopping_text(shopping, 60) if shopping else "")
+    if not built:
+        _LOGGER.info("Daily summary: nothing to say")
+        return {"title": "", "message": ""}
+    title, message = built
+    _LOGGER.info("Daily summary: %s", title)
+
+    def job() -> None:
+        if options.get("fire_events", True):
+            home_assistant.fire_event("z2m_tracker_summary", {"title": title, "message": message, "daily": True})
+        if options.get("alerts_enabled", True):
+            if options.get("persistent_notifications"):
+                home_assistant.persistent_notification(title, message, "z2m_tracker_daily")
+            if options.get("notify_service"):
+                home_assistant.notify(options["notify_service"], title, message)
+
+    alerts.queue.put(job)
+    return {"title": title, "message": message}
+
+
 def first_import() -> None:
     if not tracker.lists_ready.wait(FIRST_IMPORT_WAIT):
         _LOGGER.info("Not every Z2M instance published a device list; importing anyway")
@@ -1591,6 +1755,15 @@ def _inline_scripts(html: str) -> list[str]:
     return parser.scripts
 
 
+def _frame_ancestors() -> str:
+    """Who may show the page in a frame: Home Assistant's own origin. In plain Docker that is HA_URL,
+    so the UI can sit in a Webpage dashboard; under Supervisor the ingress frame is this origin."""
+    if STANDALONE and HA_URL:
+        parts = urlsplit(HA_URL)
+        return f"'self' {parts.scheme}://{parts.netloc}"
+    return "'self'"
+
+
 def _page_csp() -> str:
     """Content-Security-Policy for the sidebar: only its own inline script (by hash) and this origin.
 
@@ -1613,12 +1786,24 @@ def _page_csp() -> str:
             "object-src 'none'",
             "base-uri 'none'",
             "form-action 'none'",
-            "frame-ancestors 'self'",
+            f"frame-ancestors {_frame_ancestors()}",
         )
     )
 
 
 PAGE_CSP = _page_csp()
+
+# Standalone mode: the web UI's own sign-in, since no Supervisor checks the HA login first.
+UI_PASSWORD = os.environ.get("UI_PASSWORD") or ""
+sessions = standalone.Sessions()
+login_throttle = standalone.LoginThrottle()
+# The sign-in page has no script at all; its form may only post back to this app.
+LOGIN_CSP = (
+    "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; "
+    f"frame-ancestors {_frame_ancestors()}; base-uri 'none'"
+)
+# The page a browser lands on: the UI itself, or the sign-in page.
+UI_PAGES = ("/", "/index.html")
 
 
 class MetricsHandler(BaseHTTPRequestHandler):
@@ -1677,13 +1862,58 @@ class Handler(BaseHTTPRequestHandler):
 
     def _allowed(self) -> bool:
         client = self.client_address[0]
-        if client == INGRESS_PROXY or client in LOOPBACK:
+        # In plain Docker nothing has checked the caller: neither address proves anything there.
+        if not STANDALONE and (client == INGRESS_PROXY or client in LOOPBACK):
             return True
         auth = self.headers.get("Authorization") or ""
         if auth.startswith("Bearer ") and hmac.compare_digest(auth[7:].strip().encode(), API_TOKEN.encode()):
             return True
+        if STANDALONE and sessions.valid(standalone.cookie_value(self.headers.get("Cookie"))):
+            return True
+        if STANDALONE and self.command == "GET" and self.path.split("?", 1)[0] in UI_PAGES:
+            self._send(303, b"", "text/plain", {"Location": "login"})
+            return False
         self.send_error(403)
         return False
+
+    def _login_page(self, status: int = 200, error: str = "") -> None:
+        if not UI_PASSWORD:
+            message = "Set the UI_PASSWORD environment variable (8 characters or more) and restart the container."
+        elif len(UI_PASSWORD) < standalone.PASSWORD_MIN:
+            message = f"UI_PASSWORD is too short: use {standalone.PASSWORD_MIN} characters or more, then restart."
+        else:
+            message = ""
+        body = (WWW / "login.html").read_text(encoding="utf-8")
+        note = html.escape(error or message)
+        body = body.replace("{{note}}", f'<p class="note" role="alert">{note}</p>' if note else "")
+        body = body.replace("{{disabled}}", " disabled" if message else "")
+        self._send(status, body.encode("utf-8"), "text/html; charset=utf-8", {"Content-Security-Policy": LOGIN_CSP})
+
+    def _login(self) -> None:
+        """POST /login from the sign-in form: a session cookie for the right password."""
+        client = self.client_address[0]
+        site = (self.headers.get("Sec-Fetch-Site") or "").lower()
+        if site in ("cross-site", "same-site"):
+            self.send_error(403)
+            return
+        if login_throttle.blocked(client):
+            self._login_page(429, "Too many wrong passwords. Wait 15 minutes, then try again.")
+            return
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            length = 0
+        raw = self.rfile.read(length).decode("utf-8", "replace") if 0 < length <= 4096 else ""
+        given = (parse_qs(raw).get("password") or [""])[0]
+        if len(UI_PASSWORD) < standalone.PASSWORD_MIN or not standalone.password_ok(given, UI_PASSWORD):
+            login_throttle.failed(client)
+            _LOGGER.warning("Wrong web UI password from %s", client)
+            self._login_page(401, "Wrong password.")
+            return
+        login_throttle.succeeded(client)
+        secure = (self.headers.get("X-Forwarded-Proto") or "").lower() == "https"
+        cookie = standalone.session_cookie(sessions.create(), secure)
+        self._send(303, b"", "text/plain", {"Location": "./", "Set-Cookie": cookie})
 
     def _cross_site(self) -> bool:
         """True for a POST a browser sent from another page, or one that isn't JSON.
@@ -1729,10 +1959,16 @@ class Handler(BaseHTTPRequestHandler):
         return parsed if isinstance(parsed, dict) else {}
 
     def do_GET(self) -> None:  # noqa: N802 - http.server naming
+        if STANDALONE and self.path.split("?", 1)[0] == "/login":
+            self._login_page()
+            return
         if not self._allowed():
             return
         path = self.path.split("?", 1)[0]
-        if path in ("/", "/index.html"):
+        if STANDALONE and path.startswith("/config/") and HA_URL:
+            # "Used by" links point at HA's own editor pages, which live on Home Assistant, not here.
+            self._send(302, b"", "text/plain", {"Location": HA_URL + path})
+        elif path in UI_PAGES:
             self._send(
                 200,
                 (WWW / "index.html").read_bytes(),
@@ -1889,6 +2125,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(404)
 
     def do_POST(self) -> None:  # noqa: N802 - http.server naming
+        if STANDALONE and self.path.split("?", 1)[0] == "/login":
+            self._login()
+            return
         if not self._allowed() or self._cross_site():
             return
         path = self.path.split("?", 1)[0]
@@ -1943,6 +2182,10 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200 if result["applied"] or not result["errors"] else 400, result)
             elif path == "/api/report_profile":
                 result = tracker.set_report_profile(ieee, body.get("profile"), body.get("seconds"))
+                self._json(200 if result["ok"] else 400, result)
+            elif path in ("/api/rhythm_normal", "/api/rhythm_forget"):
+                act = tracker.rhythm_normal if path == "/api/rhythm_normal" else tracker.rhythm_forget
+                result = act(ieee)
                 self._json(200 if result["ok"] else 400, result)
             elif path == "/api/report_defaults":
                 result = tracker.set_report_defaults(body.get("defaults"))
@@ -2158,7 +2401,7 @@ class Handler(BaseHTTPRequestHandler):
                 result = clear_retained_commands(ieee)
                 self._json(200 if result["ok"] else 404 if "topics" not in result else 502, result)
             elif path == "/api/summary":
-                self._json(200, {"ok": True, **send_weekly_summary()})
+                self._json(200, {"ok": True, **(send_daily_summary() if body.get("daily") else send_weekly_summary())})
             elif path == "/api/import":
                 self._json(200, tracker.import_history())
             else:
@@ -2177,6 +2420,15 @@ def main() -> None:
     _LOGGER.info("Z2M Device Tracker %s: %d devices loaded (%s), base topics: %s", VERSION, count, source, base_topics)
     if source == "migrated":
         tracker.save(force=True)
+    if STANDALONE:
+        _LOGGER.info(
+            "Standalone mode (no Supervisor): web UI on port %d, Home Assistant %s. The integration's API token is in %s",
+            PORT,
+            HA_URL or "not set",
+            TOKEN_PATH,
+        )
+        if len(UI_PASSWORD) < standalone.PASSWORD_MIN:
+            _LOGGER.warning("The web UI stays locked: set UI_PASSWORD (%d characters or more)", standalone.PASSWORD_MIN)
     threading.Thread(target=offer_new_notify_kinds, name="notify-kinds", daemon=True).start()
 
     client = None
@@ -2192,7 +2444,7 @@ def main() -> None:
         client = start_mqtt()
         threading.Thread(target=command_worker, name="commands", daemon=True).start()
     threading.Thread(target=scheduler, name="scheduler", daemon=True).start()
-    if home_assistant.available:
+    if home_assistant.available and not STANDALONE:
         # The container's hostname is the app's hostname on Supervisor's network.
         threading.Thread(
             target=home_assistant.announce, args=(socket.gethostname(), PORT, API_TOKEN), name="announce", daemon=True

@@ -44,3 +44,14 @@ SOURCES = {
 @pytest.mark.parametrize("name", sorted(SOURCES))
 def test_version_matches_config(name: str) -> None:
     assert SOURCES[name]() == _config_version(), f"{name} does not match z2m_tracker/config.yaml"
+
+
+def _pins(path: str) -> list[str]:
+    return sorted(re.findall(r"[A-Za-z0-9_.-]+==[0-9][^\s\\]*", (ROOT / path).read_text(encoding="utf-8")))
+
+
+def test_standalone_image_packages_match_the_app():
+    """The plain-Docker image installs the same Python packages as the app image."""
+    app = _pins("z2m_tracker/Dockerfile")
+    assert app, "no pinned packages found in z2m_tracker/Dockerfile"
+    assert _pins("docker/Dockerfile") == app

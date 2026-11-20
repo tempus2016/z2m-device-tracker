@@ -1,4 +1,5 @@
-"""Home Assistant access: Core API and WebSocket (via Supervisor), registry files as a fallback."""
+"""Home Assistant access: Core API and WebSocket (via Supervisor, or HA_URL in standalone mode),
+registry files as a fallback."""
 
 from __future__ import annotations
 
@@ -155,6 +156,44 @@ def plan_removal(requested: list[str], leftovers: list[dict]) -> tuple[list[dict
 
 
 # What search/related lists for a device, and the key each list gets in the tracker's snapshot.
+def z2m_entity_ids(devices: list[dict], entities: list[dict], ieee: str, base_topic: str) -> dict[str, str]:
+    """A Zigbee2MQTT device's HA entities by what they are: object id → entity id.
+
+    Zigbee2MQTT's discovery gives each entity the unique id "<ieee>_<object id>_<base topic>", so the
+    object id ("light", "power", "linkquality") is the same for the same feature on any device.
+    """
+    device = _by_ieee(devices, "z2m").get(ieee)
+    if not device:
+        return {}
+    prefix, suffix = f"{ieee}_", f"_{base_topic}"
+    found: dict[str, str] = {}
+    for entity in entities:
+        unique_id = str(entity.get("unique_id") or "")
+        if (
+            entity.get("device_id") != device["id"]
+            or entity.get("platform") != "mqtt"
+            or not unique_id.startswith(prefix)
+            or not entity.get("entity_id")
+        ):
+            continue
+        key = unique_id[len(prefix) :]
+        found[key[: -len(suffix)] if key.endswith(suffix) else key] = entity["entity_id"]
+    return found
+
+
+def plan_entity_ids(old: dict[str, str], new: dict[str, str]) -> list[tuple[str, str]]:
+    """(new device's entity id, the old device's id it should take) for each feature both devices have.
+
+    Only within one domain (a light stays a light), and only where the IDs differ.
+    """
+    moves = []
+    for key, current in sorted(new.items()):
+        wanted = old.get(key)
+        if wanted and wanted != current and wanted.split(".", 1)[0] == current.split(".", 1)[0]:
+            moves.append((current, wanted))
+    return moves
+
+
 USAGE_KINDS = (("automation", "automations"), ("script", "scripts"), ("scene", "scenes"))
 
 
@@ -183,9 +222,14 @@ def build_usage(related: dict | None, states: dict[str, dict]) -> dict[str, list
 
 
 class HomeAssistant:
-    def __init__(self, config_dir: str) -> None:
+    def __init__(
+        self, config_dir: str, api: str = API, websocket_url: str = WEBSOCKET, token: str | None = None
+    ) -> None:
         self.config_dir = config_dir
-        self.token = os.environ.get("SUPERVISOR_TOKEN") or ""
+        # Standalone mode passes Home Assistant's own URLs and a long-lived access token.
+        self.api = api
+        self.websocket_url = websocket_url
+        self.token = (os.environ.get("SUPERVISOR_TOKEN") or "") if token is None else token
         # Which Zigbee stack the app reads ("z2m" or "zha"): its HA devices win when an old device
         # of the other stack with the same IEEE address is still in HA's registry.
         self.stack = "z2m"
@@ -205,7 +249,7 @@ class HomeAssistant:
             return None
         data = json.dumps(body).encode("utf-8") if body is not None else None
         request = urllib.request.Request(
-            f"{API}{path}",
+            f"{self.api}{path}",
             data=data,
             method=method,
             headers={"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"},
@@ -267,7 +311,7 @@ class HomeAssistant:
 
         if not self.token:
             raise RuntimeError("No Home Assistant access")
-        ws = websocket.create_connection(WEBSOCKET, timeout=timeout)
+        ws = websocket.create_connection(self.websocket_url, timeout=timeout)
         try:
             json.loads(ws.recv())
             ws.send(json.dumps({"type": "auth", "access_token": self.token}))
@@ -415,6 +459,19 @@ class HomeAssistant:
 
     def set_device_area(self, device_id: str, area_id: str | None) -> None:
         self._ws_call([{"type": "config/device_registry/update", "device_id": device_id, "area_id": area_id}])
+
+    def device_entity_ids(self, ieee: str, base_topic: str) -> dict[str, str]:
+        """A Zigbee2MQTT device's entities read live (see z2m_entity_ids)."""
+        devices, entities = self._ws_call(
+            [{"type": "config/device_registry/list"}, {"type": "config/entity_registry/list"}]
+        )
+        return z2m_entity_ids(devices or [], entities or [], ieee, base_topic)
+
+    def set_entity_id(self, entity_id: str, new_entity_id: str) -> None:
+        """Change an entity's ID. HA refuses when another entity already has new_entity_id."""
+        self._ws_call(
+            [{"type": "config/entity_registry/update", "entity_id": entity_id, "new_entity_id": new_entity_id}]
+        )
 
     # --------------------------------------------------------------- outbound
 

@@ -35,6 +35,7 @@ def test_serious_kinds(rules):
     assert rules.serious_repair(issue("offline:0xa", "offline", critical=True)) == "critical_offline"
     assert rules.serious_repair(issue("offline:0xa", "offline")) is None
     assert rules.serious_repair(issue("network_offline:z", "network_offline")) == "network_offline"
+    assert rules.serious_repair(issue("network_offline:z", "network_offline", severity="info", expected=True)) is None
     assert rules.serious_repair(issue("coordinator_backup:z", "coordinator_backup")) == "coordinator_backup"
     assert rules.serious_repair(issue("battery_low:0xa", "battery_low")) is None
 

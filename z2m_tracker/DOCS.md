@@ -26,12 +26,15 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `networkmap_timeout_minutes` | `60` | How long to wait for Zigbee2MQTT to finish a routing scan (5 to 240). A scan of a network with 100 devices can take over 20 minutes. The scan counts as running until it answers or this limit passes, so no second scan starts and the nightly router ping waits for it. An answer that comes after the limit is still saved. |
 | `ha_entities` | `true` | Add tracker sensors to each Zigbee2MQTT device via MQTT discovery. |
 | `weekly_summary` | `true` | Send a weekly summary notification. |
-| `summary_day` / `summary_hour` | `0` / `9` | When to send it (0 = Monday). |
+| `summary_day` / `summary_hour` | `0` / `9` | When to send it (0 = Monday). The daily summary uses the same hour. |
+| `daily_summary` | `false` | Send a short summary every day. See [Daily summary](#daily-summary). |
 | `wifi_channels` | empty | Your 2.4 GHz Wi-Fi channels, e.g. `1, 6`, used for the radio channel check. |
 | `chatty_per_hour` | `1200` | Messages an hour (averaged over 6 hours) above which a device is flagged as chatty. |
 | `ota_window` | empty | Time window for automatic firmware updates, e.g. `02:00-05:00` (local time, may cross midnight). Empty turns automatic updates off. A failed update is retried once, the next night. |
 | `ota_min_battery` | `30` | Battery devices below this level are skipped by automatic and bulk updates. **Update anyway** overrides it for one device. |
 | `quiet_hours` | `false` | Hold alerts during quiet hours and send one summary when they end. |
+| `learn_rhythm` | `true` | Set each device's Stopped reporting limit from how often it reports. See [Learned rhythm](#learned-rhythm). |
+| `expected_outages` | `true` | Don't alert when a network goes offline at the time it does most days. See [Expected outages](#expected-outages). |
 | `quiet_start` / `quiet_end` | `23:00` / `07:00` | Quiet hours in the app's time zone, as `HH:MM`. The window can cross midnight. |
 | `escalate_enabled` | `false` | Send an alert again to a second notify service when nobody answers it in time. See [Escalation](#escalation). |
 | `escalate_hours` | `2` | How long an alert can go unanswered before it escalates (1 to 168 hours). |
@@ -168,6 +171,22 @@ Some devices are left unticked:
 - **Reports on change**: devices that only send when something happens, such as door sensors, buttons and plain switches. A device counts as this when it has no regular reading (temperature, humidity, pressure, power, energy, air quality, light level or soil moisture).
 - **Not enough data**: devices with too few messages to tell how often they report.
 
+## Learned rhythm
+
+The app learns from the gaps between each device's messages, filed by time of week (56 slots of 3 hours). A device counts as learned after 7 days and 30 reports. The 30 are counted as they come in and never fade; until then the profile defaults apply. A learned device on the **Auto** profile, or without a profile of its own, is then flagged by **Stopped reporting** when it is silent longer than it usually is at that time of day.
+
+Only a steady device gets a learned limit: one that reports on a timer, like most sensors, plugs and bulbs, with or without a sleep at night. A report sent as several messages within a few seconds (temperature, then humidity) still counts as one report here. A device that reports only when something happens, like a button, a remote or a door sensor without a regular check-in, has no silence that says anything is wrong. Its **Alert** row says so, and its type default still applies if it fits.
+
+The limit is the longest silence seen at least three times at that time of day, plus half again, never under 15 minutes and never over 7 days. A Stopped reporting alert names that silence for the time of day it fired. A silence that raised an alert counts half, so a real outage does not teach the app that outages are normal. Old gaps fade by 2% a day, but only on days the device reported: a device that goes quiet keeps what was learned.
+
+Select **Normal for this device** on the alert to accept the current silence: no Stopped reporting is raised for it until the device reports again, and the whole silence is then learned for that time of week. After 7 days without a message the device is checked again. **Forget** on the Health tab clears everything learned for the device.
+
+After Zigbee2MQTT comes back online, or the app reconnects to the MQTT broker, the clock restarts: a device is only flagged once a whole limit has passed since then without a message. The app's own restart works the same way.
+
+A profile set by hand on a device, and a type default set by hand, always win over the learned limit. A learned limit is never tighter than a type default that already applies.
+
+With `learn_rhythm: false` learned limits stop flagging anything. Gaps keep being recorded, so switching it back on needs no new learning period.
+
 ## When a device alerts
 
 `offline_alert_minutes` counts from the moment Zigbee2MQTT marks the device offline, not from its last message. So with the defaults, a mains device alerts about 70 minutes after it goes quiet (10 + 60), and a battery device about 26 hours later (25 h + 60 min). Each device's **Health** tab shows its own steps under **When this device alerts**, from Zigbee2MQTT's availability settings: its own timeout or the mains/battery default, the offline delay, and Expected reporting if set. If Zigbee2MQTT availability is off for the device, only **Not heard from** applies, after 2 days.
@@ -207,6 +226,7 @@ These checks show in Health but don't notify until you set them to **Show and no
 | --- | --- |
 | Impossible readings | A temperature outside `impossible_temp_min` to `impossible_temp_max` (−30 to 60 °C by default), humidity or battery outside 0–100%, at least once in the last 24 hours; or humidity stuck at exactly 0 or 100% for longer than `humidity_stuck_hours`. Shows the value, how many times in 24 hours, and the range of its other readings today and the day before. Often a failing battery or a bad contact. Battery values outside 0–100% are never stored and never count towards battery estimates. |
 | Flapping | A device that goes offline 4+ times or leaves the network twice in 24 hours, even when each drop is too short for the Offline alert. |
+| Link quality stuck | The same link quality on 50 reports in a row across two days or more, on a device whose reading showed at least three different values in the two weeks before. The device has probably stopped measuring it, so Weak signal and Signal dropping can't be trusted for it until the value changes. Devices that always report one fixed value aren't flagged. |
 | Chatty device | Message rate above `chatty_per_hour`, or 5 times its own usual rate (and at least 360 an hour). |
 | Battery draining fast | Battery fell at least 3 times faster over the last 14 days than its rate since the last battery change (needs about 5 weeks of history). |
 | Binding lost | A binding (to a device, a group, or the coordinator for reporting) that disappeared and didn't come back within 10 minutes. Bindings removed with Zigbee2MQTT's Unbind are logged but not flagged. |
@@ -290,6 +310,14 @@ When a router goes offline, the devices that route through it often follow. The 
 A power cut looks different: several mains devices in one room drop at the same moment, while the battery devices there carry on. When 3 or more mains-powered devices in the same Home Assistant area go offline within 11 minutes of each other, and at least one battery device in that area is still online, the Offline check folds them into one issue and one notification, e.g. "Power loss in Garage? - 4 mains devices in Garage went offline within 6 s of each other". Router grouping comes first: devices already shown under an offline router aren't counted again. Devices without an area, and devices whose Offline check is ignored, aren't grouped. The 11 minutes cover Zigbee2MQTT's default availability timeout for mains devices (10 minutes): after a power cut it only notices each device is gone when that device next misses a ping, so the drops spread out. With a longer `availability.active.timeout` in Zigbee2MQTT, a power cut may show as separate Offline issues.
 
 The device panel's Info tab also shows message rates, Zigbee2MQTT's own counters (messages, leaves, address changes) and the device's bindings.
+
+## Expected outages
+
+Some setups take the network down on a schedule: a nightly Zigbee2MQTT restart, a backup that stops it, a router that reboots at 03:00. The app notices this by itself. When a network has gone offline for under two hours, starting within the same 90 minutes of the day, on at least 4 of the last 7 days, an outage that begins in that window is an expected one.
+
+An expected outage still shows in Health, as **Expected outage** with the usual time and length, but sends no alert. If it runs on more than 30 minutes past the end of that 90-minute window, it becomes a normal **Network offline** alert. An outage at any other time of day alerts as usual.
+
+Nothing is set by hand, and it stops applying within a week of the schedule stopping. Set `expected_outages` to `false` to be alerted every time.
 
 ## Incidents
 
@@ -398,6 +426,12 @@ If your notify service isn't the Companion app and rejects the extra data, turn 
 With `quiet_hours` on, new issue alerts and Device joined, Device left and Interview failed alerts are held between `quiet_start` and `quiet_end` instead of being sent. Alerts for critical devices still go out straight away.
 
 When quiet hours end, one notification sums up the night, titled "Zigbee overnight: N issues, M resolved". It lists the issues that are still open, the ones that appeared and cleared during the night (with their times), and the held join, leave and interview alerts. Issues listed as still open count as alerted, so they aren't sent again one by one. If nothing happened, no summary is sent. Held alerts are kept in the app's data, so they survive a restart.
+
+## Daily summary
+
+With `daily_summary` on, the app sends one short message a day at `summary_hour`, through the same notification settings as the weekly summary and as a `z2m_tracker_summary` event with `daily: true`. It lists what needs attention now, what is new since the previous day's summary and what cleared since then. Batteries to buy are added when a message goes out anyway.
+
+No message is sent on a day with no open problems and nothing cleared. On the day the weekly summary goes out, the daily one is skipped. **Send today's now** in **Settings** sends it straight away without changing what the next one compares against.
 
 ## Escalation
 

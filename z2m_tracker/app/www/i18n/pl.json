@@ -1012,7 +1012,6 @@
   "replace.step.remove": "Usuń stare urządzenie",
   "replace.step.link": "Powiąż obie historie",
   "replace.step.replace": "Wymień",
-  "replace.hint.name": "Zmiana nazwy w Zigbee2MQTT. Identyfikatory encji Home Assistant wynikają z nazwy, więc pozostaną takie same, gdy stare encje znikną.",
   "replace.hint.no_area": "Stare urządzenie nie miało obszaru.",
   "replace.hint.other_network": "Nowe urządzenie jest w innej sieci, więc nie można skopiować powiązań.",
   "replace.hint.bindings": "Odtwarzane na nowym urządzeniu. Łącza do koordynatora Zigbee2MQTT ustawia sam.",

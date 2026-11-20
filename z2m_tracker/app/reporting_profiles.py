@@ -6,6 +6,7 @@ Each device can pick a profile on its Health tab:
   regular  Regular             silent after 1 h  (sensors that report every few minutes)
   chatty   Chatty              silent after 15 min (plugs and bulbs that report all the time)
   custom   Custom              the device's own interval (record["report_every"], 30 s to 7 days)
+  auto     Auto                the limit learned from the device's own rhythm (Metrics.rhythm); none until learned
   off      Off                 never flagged
 
 A device without a profile uses the default for its type (Settings > Checks), stored by the app in
@@ -13,6 +14,10 @@ history.json under "report_profile_defaults": {group: profile}. A default only a
 device has shown it reports often enough for it: its usual gap over the last week, times
 DEFAULT_MARGIN, must fit inside the profile's limit. That keeps a bulb that never reports, or a
 remote that only sends when pressed, from being flagged by a default nobody chose for it.
+
+Learning (the learn_rhythm option) never makes a type default stricter: a default that fits keeps
+the larger of its limit and the learned one, a default that doesn't fit or is Off gives way to the
+learned limit, and a default the user changed by hand always wins.
 
 Devices from before profiles existed have "report_every" and no "report_profile": they are Custom.
 """
@@ -22,7 +27,7 @@ from __future__ import annotations
 from typing import Any
 
 PROFILES = {"change": 3 * 3600, "regular": 3600, "chatty": 15 * 60}
-CHOICES = (*PROFILES, "custom", "off")
+CHOICES = (*PROFILES, "auto", "custom", "off")
 DEFAULT_CHOICES = (*PROFILES, "off")
 DEFAULT_MARGIN = 3
 
@@ -88,22 +93,60 @@ def usual_gap(summary: dict) -> float | None:
     return 3600 / rate if isinstance(rate, (int, float)) and rate > 0 else None
 
 
-def effective(record: dict, kind: str | None, summary: dict, stored_defaults: Any) -> dict[str, Any]:
+def chosen_profile(record: dict) -> str | None:
+    """The profile picked on the device itself, or None when it follows its type's default."""
+    picked = record.get("report_profile")
+    if picked not in CHOICES:
+        picked = "custom" if record.get("report_every") else None
+    return picked
+
+
+def effective(
+    record: dict,
+    kind: str | None,
+    summary: dict,
+    stored_defaults: Any,
+    learned: int | None = None,
+    learn: bool = True,
+    excused: bool = False,
+) -> dict[str, Any]:
     """The device's profile and the silent limit it gives.
 
     {"profile": chosen profile or None, "group", "default": the type default, "every": seconds or None,
-    "source": "device" | "default", "gap": usual gap in seconds or None, "waiting": True when the type
-    default would apply but the device hasn't shown it reports that often}"""
-    chosen = record.get("report_profile")
-    if chosen not in CHOICES:
-        chosen = "custom" if record.get("report_every") else None
+    "source": "device" | "default" | "learned", "gap": usual gap in seconds or None, "learned": the learned
+    limit passed in, "waiting": True when the type default would apply but the device hasn't shown it
+    reports that often, and "excused": True (only then present) when the excused silence is what leaves the device without a limit}
+
+    excused: the user called the device's current silence normal (Metrics.teach). Where learning would
+    set the limit (Auto, or no profile and a type default not changed by hand), there is none until the
+    device reports again."""
+    chosen = chosen_profile(record)
     group = group_of(kind)
     default = defaults(stored_defaults)[group]
     gap = usual_gap(summary)
-    out: dict[str, Any] = {"profile": chosen, "group": group, "default": default, "gap": gap, "waiting": False}
+    out: dict[str, Any] = {
+        "profile": chosen,
+        "group": group,
+        "default": default,
+        "gap": gap,
+        "learned": learned,
+        "waiting": False,
+    }
+    use = learned if learn else None
+    if chosen == "auto":
+        if excused and learn:
+            return {**out, "every": None, "source": "device", "excused": True}
+        return {**out, "every": use, "source": "learned" if use else "device"}
     if chosen is not None:
         every = PROFILES.get(chosen) or (record.get("report_every") if chosen == "custom" else None)
         return {**out, "every": int(every) if every else None, "source": "device"}
     limit = PROFILES.get(default)
     fits = limit is not None and gap is not None and gap * DEFAULT_MARGIN <= limit
+    hand_set = isinstance(stored_defaults, dict) and group in stored_defaults
+    if excused and learn and not hand_set:
+        return {**out, "every": None, "source": "learned", "excused": True}
+    if use and not hand_set:
+        if fits:
+            return {**out, "every": max(use, limit), "source": "learned" if use >= limit else "default"}
+        return {**out, "every": use, "source": "learned"}
     return {**out, "every": limit if fits else None, "source": "default", "waiting": limit is not None and not fits}

@@ -211,3 +211,55 @@ def test_refresh_prefers_zha_device_in_zha_mode(home):
 def test_find_device_prefers_mqtt_in_z2m_mode(home):
     home._ws_call = lambda messages: [[ZHA_DEVICE, SAME_IEEE_MQTT]]
     assert home.find_device("0xaabbcc0000000003") == "dev-old-mqtt"
+
+
+def test_z2m_entity_ids_keys_by_object_id():
+    entities = [
+        {
+            "entity_id": "light.lamp",
+            "device_id": "dev-plug",
+            "platform": "mqtt",
+            "unique_id": f"{PLUG}_light_zigbee2mqtt",
+        },
+        {
+            "entity_id": "sensor.lamp_power",
+            "device_id": "dev-plug",
+            "platform": "mqtt",
+            "unique_id": f"{PLUG}_power_zigbee2mqtt",
+        },
+        {
+            "entity_id": "sensor.lamp_battery_type",
+            "device_id": "dev-plug",
+            "platform": "battery_notes",
+            "unique_id": "x",
+        },
+        {
+            "entity_id": "sensor.hall",
+            "device_id": "dev-sensor",
+            "platform": "mqtt",
+            "unique_id": f"{SENSOR}_temperature",
+        },
+    ]
+    assert ha.z2m_entity_ids(DEVICES, entities, PLUG, "zigbee2mqtt") == {
+        "light": "light.lamp",
+        "power": "sensor.lamp_power",
+    }
+    assert ha.z2m_entity_ids(DEVICES, entities, "0x0000000000000000", "zigbee2mqtt") == {}
+
+
+def test_plan_entity_ids_gives_the_new_device_the_old_ids():
+    old = {"light": "light.living_room_lamp_plug", "power": "sensor.living_room_lamp_plug_power", "lqi": "sensor.a"}
+    new = {
+        "light": "light.living_room_living_room_lamp_plug",
+        "power": "sensor.living_room_living_room_lamp_plug_power",
+        "lqi": "sensor.a",
+        "energy": "sensor.living_room_living_room_lamp_plug_energy",
+    }
+    assert ha.plan_entity_ids(old, new) == [
+        ("light.living_room_living_room_lamp_plug", "light.living_room_lamp_plug"),
+        ("sensor.living_room_living_room_lamp_plug_power", "sensor.living_room_lamp_plug_power"),
+    ]
+
+
+def test_plan_entity_ids_never_changes_the_domain():
+    assert ha.plan_entity_ids({"state": "switch.plug"}, {"state": "light.plug_new"}) == []

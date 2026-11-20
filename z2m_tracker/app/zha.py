@@ -361,8 +361,12 @@ class ZhaSource:
                     payload = None
             if payload:
                 self._unconfirmed.pop(ieee, None)
+                # The first read after a start replays a last_seen from before we were listening: not a report.
+                first = ieee not in self._last_seen
                 self._last_seen[ieee] = payload["last_seen"]
-                self.tracker.apply_state(ZHA_INSTANCE, name, {**payload, "last_seen": self._utc(payload["last_seen"])})
+                self.tracker.apply_state(
+                    ZHA_INSTANCE, name, {**payload, "last_seen": self._utc(payload["last_seen"])}, rhythm=not first
+                )
         self._apply_map(devices)
 
     def _apply_map(self, devices: list[dict]) -> None:
@@ -402,13 +406,15 @@ class ZhaSource:
             when = self._utc(self._last_seen.get(ieee))
         if entity_id.startswith("binary_sensor."):
             if state in ("on", "off"):
-                self.tracker.apply_state(ZHA_INSTANCE, name, self._stamped({"battery_low": state == "on"}, when))
+                self.tracker.apply_state(
+                    ZHA_INSTANCE, name, self._stamped({"battery_low": state == "on"}, when), rhythm=False
+                )
             return
         try:
             level = float(state)
         except (TypeError, ValueError):
             return
-        self.tracker.apply_state(ZHA_INSTANCE, name, self._stamped({"battery": level}, when))
+        self.tracker.apply_state(ZHA_INSTANCE, name, self._stamped({"battery": level}, when), rhythm=False)
 
     @staticmethod
     def _stamped(payload: dict, when: Any) -> dict:

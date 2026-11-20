@@ -70,7 +70,7 @@ CHECKS = [
     (
         "late",
         "Stopped reporting",
-        "No messages for longer than the device's reporting profile allows, chosen on its Health tab or by its type's default.",
+        "No messages for longer than the device's reporting profile allows, chosen on the device's page or by its type's default.",
         False,
     ),
     (
@@ -94,6 +94,12 @@ CHECKS = [
     ("battery_soon", "Battery running down", "Battery expected to reach 10% within 45 days.", False),
     ("weak_signal", "Weak signal", "Average link quality below 30 over the last 24 hours.", False),
     ("signal_drop", "Signal dropping", "Link quality today is well below the previous week.", False),
+    (
+        "lqi_stuck",
+        "Link quality stuck",
+        "The same link quality on every report for two days, on a device whose reading used to vary.",
+        False,
+    ),
     ("unidentified", "Unidentified device", "A device joined but its interview never completed.", False),
     ("update", "Firmware update", "Zigbee2MQTT reports a firmware update is available.", False),
     ("replacement", "Possible replacement", "An active device has the same name as a removed one.", False),
@@ -280,6 +286,7 @@ KIND_LABELS = {
     "impossible_reading": "Impossible reading",
     "weak_signal": "Weak signal",
     "signal_drop": "Signal dropping",
+    "lqi_stuck": "Link quality stuck",
     "battery_low": "Low battery",
     "battery_soon": "Battery running down",
     "update": "Firmware update",
@@ -373,12 +380,24 @@ def _span(seconds: float) -> str:
     return f"{int(seconds // 86400)} days"
 
 
+def _span_near(seconds: float) -> str:
+    """_span rounded to the nearest unit, the way the sidebar shows a duration, so both read the same."""
+    if seconds < 90:
+        return f"{max(1, int(seconds + 0.5))} s"
+    if seconds < 3600:
+        return f"{max(1, int(seconds / 60 + 0.5))} min"
+    if seconds < 172800:
+        return f"{int(seconds / 3600 + 0.5)} h"
+    return f"{int(seconds / 86400 + 0.5)} days"
+
+
 def late_deadline(record: dict, started: float, every: Any = None) -> float | None:
     """When an active device with a report interval counts as late, or None if it has no interval.
 
     `every` is the device's silent limit from its reporting profile (reporting_profiles.effective);
-    without it, the device's own report_every. The clock starts no earlier than the app's own start,
-    so a restart doesn't flag devices whose messages arrived while the app was down.
+    without it, the device's own report_every. The clock starts no earlier than `started`: when the app
+    could last start hearing the device (its own start, an MQTT reconnect or its network coming back), so
+    messages sent while it couldn't hear don't make a device late.
     """
     every = record.get("report_every") if every is None else every
     if not every or record.get("status") != "active" or record.get("type") == "Coordinator":
@@ -790,15 +809,28 @@ def device_issues(
         every = int(limit)
         age = _age(record.get("last_seen"), now)
         quiet = int(age) if age is not None else every
-        add(
-            "late",
-            WARNING,
-            "Stopped reporting",
-            f"No messages for {_span(quiet)}. It should report at least every {_span(every)}.",
-            "late",
-            seconds=quiet,
-            every=every,
-        )
+        longest = summary.get("rhythm_longest")
+        if summary.get("report_source") == "learned" and longest:
+            add(
+                "late",
+                WARNING,
+                "Stopped reporting",
+                f"No messages for {_span(quiet)}. Its longest normal silence is about {_span_near(longest)}.",
+                "late_learned",
+                seconds=quiet,
+                every=every,
+                longest=int(longest),
+            )
+        else:
+            add(
+                "late",
+                WARNING,
+                "Stopped reporting",
+                f"No messages for {_span(quiet)}. It should report at least every {_span(every)}.",
+                "late",
+                seconds=quiet,
+                every=every,
+            )
 
     if record.get("interview_state") and record.get("interview_state") != "SUCCESSFUL":
         add(
@@ -852,6 +884,18 @@ def device_issues(
             "signal_drop",
             lqi=round(lqi_24h),
             prev=round(lqi_prev),
+        )
+    stuck = summary.get("lqi_stuck")
+    if isinstance(stuck, dict) and _finite(stuck.get("value")) and _finite(stuck.get("seconds")):
+        add(
+            "lqi_stuck",
+            INFO,
+            "Link quality stuck",
+            f"Link quality has read {stuck['value']:.0f} on every report for {_span(stuck['seconds'])}. "
+            "The device may have stopped measuring it, so its signal checks can't be trusted until it changes.",
+            "lqi_stuck",
+            lqi=round(stuck["value"]),
+            seconds=int(stuck["seconds"]),
         )
 
     battery = record.get("battery") if _finite(record.get("battery")) else None
@@ -1094,7 +1138,7 @@ def device_issues(
             "reporting_config",
             INFO,
             "Reporting settings",
-            f"{n} reporting setting{'s' if n != 1 else ''} to check: {names}.{backed} The device's Health tab has recommended values.",
+            f"{n} reporting setting{'s' if n != 1 else ''} to check: {names}.{backed} Recommended values are under Readings and reporting on the device's page.",
             "reporting_config_rate" if backed else "reporting_config",
             n=n,
             names=names,
@@ -1342,7 +1386,7 @@ def alert_plan(issues: list[dict], enabled: set[str], sent: set[str]) -> tuple[l
     Once the router is back, a device still offline is a normal issue and notifies as usual.
     """
     current = {issue["key"]: issue for issue in issues if issue["kind"] in enabled}
-    quiet = {key for key, issue in current.items() if issue.get("behind")}
+    quiet = {key for key, issue in current.items() if issue.get("behind") or issue.get("expected")}
     to_send = [current[key] for key in sorted(set(current) - quiet - sent)]
     alerted = sorted((set(current) - quiet) | (quiet & sent))
     dismiss = sorted(sent - set(current))

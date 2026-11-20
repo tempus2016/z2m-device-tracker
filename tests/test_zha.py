@@ -643,3 +643,20 @@ def test_falls_back_to_all_state_changes_when_trigger_is_refused(make_tracker):
     ZhaSource(tracker, lambda: sock, stop).run()
     assert [m for m in sock.sent if m.get("event_type") == "state_changed"]
     assert tracker.data["bridges"]["zha"]["state"] == "online"
+
+
+def test_first_poll_after_start_files_no_rhythm_gap(make_tracker, clock):
+    tracker = make_tracker(["zha"])
+    source = _source(tracker)
+    source.apply_devices(_devices())
+    assert "rhythm_last" not in tracker.metrics.series[BUTTON]
+    devices = _devices()
+    clock.advance(minutes=5)
+    devices[2]["last_seen"] = "2026-06-01T12:30:00"
+    source.apply_devices(devices)
+    assert tracker.metrics.series[BUTTON]["rhythm_last"]
+    assert tracker.metrics.series[BUTTON].get("gaps", {}) == {}
+    clock.advance(minutes=5)
+    devices[2]["last_seen"] = "2026-06-01T12:35:00"
+    source.apply_devices(devices)
+    assert sum(tracker.metrics.series[BUTTON]["gaps"].values()) == 1.0

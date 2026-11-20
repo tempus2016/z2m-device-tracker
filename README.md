@@ -122,6 +122,45 @@ If your Zigbee2MQTT uses a different base topic, or you run more than one instan
 
 Set `zigbee_stack` to `zha` in the app's configuration and restart the app. It then reads Home Assistant's ZHA integration and needs no MQTT broker. The core works with ZHA: device history, last seen, offline and battery alerts, signal, the mesh map and the radio channel view. Parts that need Zigbee2MQTT are hidden: firmware updates, reporting settings, pairing, bindings and the broker pages. ZHA support is new, so please report anything that looks wrong. The app's Documentation tab has the details.
 
+### Home Assistant Container (Docker)
+
+Home Assistant Container has no App store, so the app runs as its own Docker container instead: `ghcr.io/tempus2016/z2m-device-tracker` (amd64 and arm64). Without a Supervisor it needs a few settings the App store would fill in for you:
+
+| Variable | What it is |
+| --- | --- |
+| `MQTT_HOST`, `MQTT_PORT`, `MQTT_USER`, `MQTT_PASS` | The broker Zigbee2MQTT uses. `MQTT_SSL=true` for TLS. |
+| `HA_URL` | Home Assistant's address, like `http://192.168.1.10:8123`. |
+| `HA_TOKEN` | A long-lived access token: your HA profile → Security → Long-lived access tokens. |
+| `UI_PASSWORD` | Password for the web UI, 8 characters or more. The UI stays locked until it's set. |
+| `TZ` | Your time zone, like `Europe/London`. |
+
+Start from [`docker/compose.yaml`](docker/compose.yaml):
+
+```yaml
+services:
+  z2m-tracker:
+    image: ghcr.io/tempus2016/z2m-device-tracker:latest
+    restart: unless-stopped
+    ports:
+      - "8099:8099"
+    environment:
+      TZ: Europe/London
+      MQTT_HOST: 192.168.1.10
+      HA_URL: http://192.168.1.10:8123
+      HA_TOKEN: "<long-lived access token>"
+      UI_PASSWORD: "<a password>"
+    volumes:
+      - ./data:/data
+      - /path/to/homeassistant/config:/homeassistant:ro
+```
+
+- **The web UI** is at `http://<docker host>:8099`. Sign in with `UI_PASSWORD`. To show it inside Home Assistant, add a **Webpage** dashboard pointing at that address (it signs in once per browser, and needs the same host as Home Assistant or its own tab).
+- **Settings** you change in the UI are saved to `/data/options.json`. You can also edit that file and restart; it takes the same options as the app's Documentation tab ([DOCS.md](z2m_tracker/DOCS.md)).
+- **Home Assistant's config folder** (read-only) is optional. It lets the first start import device history from Zigbee2MQTT's files and HA's registries.
+- **The integration** (step 2) works the same, but it can't find the app by itself. Enter the app URL, like `http://192.168.1.10:8099`, and the **API token**: run `docker exec z2m-tracker cat /data/api_token` and paste the result. The dashboard cards open the app at `/app/...`, which only exists with the App store: set the card's `panel` option to your Webpage dashboard's path, like `/z2m-tracker`.
+
+To build the image yourself: `docker build -f docker/Dockerfile -t z2m-tracker .` from the repository root.
+
 ## Step 2: install the integration (optional)
 
 Do this once the app from step 1 is installed and running. The integration is in the Home Assistant Marketplace:

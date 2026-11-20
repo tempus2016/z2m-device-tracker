@@ -942,7 +942,6 @@
   "replace.step.remove": "Altes Gerät entfernen",
   "replace.step.link": "Beide Verläufe verknüpfen",
   "replace.step.replace": "Ersetzen",
-  "replace.hint.name": "Wird in Zigbee2MQTT umbenannt. Die Entitäts-IDs in Home Assistant folgen dem Namen und bleiben gleich, sobald die alten Entitäten weg sind.",
   "replace.hint.no_area": "Das alte Gerät hatte keinen Bereich.",
   "replace.hint.other_network": "Das neue Gerät ist in einem anderen Netzwerk, daher lassen sich Bindungen nicht kopieren.",
   "replace.hint.bindings": "Werden auf dem neuen Gerät neu angelegt. Verbindungen zum Koordinator richtet Zigbee2MQTT selbst ein.",

@@ -87,7 +87,14 @@ def test_save_load_round_trip(m, tmp_path):
     other.load()
     day = int(START // DAY * DAY)
     # "lqid" is the daily rollup for long-range charts: [day, min, sum, count, max].
-    assert other.series == {IEEE: {"lqi": [[HOUR_NOW, 77.0, 1]], "lqid": [[day, 77.0, 77.0, 1, 77.0]]}}
+    assert other.series == {
+        IEEE: {
+            "lqi": [[HOUR_NOW, 77.0, 1]],
+            "lqid": [[day, 77.0, 77.0, 1, 77.0]],
+            # The run of identical readings, for the stuck link quality check.
+            "lqi_run": {"value": 77.0, "count": 1, "since": START, "previous": []},
+        }
+    }
 
 
 def test_save_skips_when_clean(m, tmp_path):
@@ -237,3 +244,72 @@ def test_slope():
     assert Metrics._slope([[0, 50]]) is None
     assert Metrics._slope([[0, 50], [0, 40]]) is None
     assert Metrics._slope([[0, 50], [DAY, 48], [2 * DAY, 46]]) == pytest.approx(-2.0)
+
+
+# ------------------------------------------------------------------ stuck link quality
+def _feed(m, values, start, step=HOUR):
+    for n, value in enumerate(values):
+        m.add_lqi(IEEE, value, now=start + n * step)
+    return start + (len(values) - 1) * step
+
+
+def test_lqi_stuck_after_two_days_on_a_device_that_used_to_vary(m):
+    end = _feed(m, [120, 96, 140, 110], START)
+    end = _feed(m, [87] * 60, end + HOUR)
+    stuck = m.summary(IEEE, now=end)["lqi_stuck"]
+    assert stuck == {"value": 87.0, "count": 60, "seconds": 59 * HOUR}
+
+
+def test_lqi_not_stuck_before_48_hours_or_50_reports(m):
+    end = _feed(m, [120, 96, 140, 110], START)
+    short = _feed(m, [87] * 60, end + HOUR, step=600)  # 60 reports in 10 hours
+    assert "lqi_stuck" not in m.summary(IEEE, now=short)
+    few = Metrics(m.path + ".few")
+    last = START
+    for value in (120, 96, 140, 110):
+        few.add_lqi(IEEE, value, now=last)
+        last += HOUR
+    for _ in range(20):  # 20 reports across 5 days
+        few.add_lqi(IEEE, 87, now=last)
+        last += 6 * HOUR
+    assert "lqi_stuck" not in few.summary(IEEE, now=last)
+
+
+def test_lqi_that_always_reads_one_value_is_not_stuck(m):
+    end = _feed(m, [255] * 200, START)
+    assert "lqi_stuck" not in m.summary(IEEE, now=end)
+
+
+def test_lqi_that_only_flips_between_two_values_is_not_stuck(m):
+    end = _feed(m, [100, 104] * 10, START)
+    end = _feed(m, [100] * 60, end + HOUR)
+    assert "lqi_stuck" not in m.summary(IEEE, now=end)
+
+
+def test_lqi_stuck_clears_when_the_value_changes(m):
+    end = _feed(m, [120, 96, 140, 110], START)
+    end = _feed(m, [87] * 60, end + HOUR)
+    m.add_lqi(IEEE, 91, now=end + HOUR)
+    assert "lqi_stuck" not in m.summary(IEEE, now=end + HOUR)
+
+
+def test_lqi_variety_older_than_two_weeks_does_not_count(m):
+    # Varied, then sat on 110 for 20 days, then moved to 87: only one other value in the two weeks before.
+    end = _feed(m, [120, 96, 140, 110], START)
+    end = _feed(m, [110] * 20, end + DAY, step=DAY)
+    end = _feed(m, [87] * 60, end + HOUR)
+    assert "lqi_stuck" not in m.summary(IEEE, now=end)
+
+
+def test_damaged_lqi_run_is_started_again(m):
+    m.add_lqi(IEEE, 50, now=START)
+    for bad in (
+        "x",
+        [1, 2],
+        {"value": "a", "count": 1, "since": 1},
+        {"value": 1, "count": 1, "since": 1, "previous": "p"},
+    ):
+        m.series[IEEE]["lqi_run"] = bad
+        assert "lqi_stuck" not in m.summary(IEEE, now=START)
+        m.add_lqi(IEEE, 60, now=START + 60)
+        assert m.series[IEEE]["lqi_run"]["value"] == 60.0

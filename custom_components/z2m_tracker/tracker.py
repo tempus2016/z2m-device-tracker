@@ -137,14 +137,16 @@ class TrackerAppError(Exception):
 class Z2MTracker:
     """Mirrors the app's device history and forwards edits to it."""
 
-    def __init__(self, hass: HomeAssistant, app_url: str, repairs: bool = True) -> None:
+    def __init__(self, hass: HomeAssistant, app_url: str, repairs: bool = True, token: str | None = None) -> None:
         self.hass = hass
         self.repairs = repairs
         self.app_url = app_url.rstrip("/")
         host = self.app_url.split("://", 1)[-1].split(":", 1)[0].split("/", 1)[0]
         self.panel = f"/app/{host.replace('-', '_')}"
         self._session = async_get_clientsession(hass)
-        self._token: str | None = None
+        # Typed in by hand when the app runs in plain Docker; otherwise Supervisor hands it over.
+        self._manual_token = token
+        self._token: str | None = token
         self.data: dict[str, Any] = {"devices": {}, "events": [], "imported": None, "issues": []}
         self.base_topics: list[str] = []
         self.available = False
@@ -159,7 +161,8 @@ class Z2MTracker:
         self._strings: dict[str, tuple[float, Any]] = {}
 
     async def async_start(self) -> None:
-        self._token = await async_discover_token(self.hass)
+        if not self._manual_token:
+            self._token = await async_discover_token(self.hass)
         await self._async_poll(None)
         self._unsub_poll = async_track_time_interval(self.hass, self._async_poll, POLL_INTERVAL)
 
@@ -178,6 +181,8 @@ class Z2MTracker:
                 method, f"{self.app_url}{path}", json=body, timeout=timeout, headers=headers
             ) as response:
                 if response.status == 403:
+                    if self._manual_token:
+                        raise TrackerAppError("The app refused the API token set in this integration's options")
                     # The app was reinstalled (new token) or announced itself after we started: ask again.
                     token = await async_discover_token(self.hass)
                     if token and token != self._token:
@@ -200,7 +205,8 @@ class Z2MTracker:
                 if version != self._version or not self.available or self._polls % FULL_REFRESH_EVERY == 0:
                     await self._async_load()
             except TrackerAppError as err:
-                if self.available:
+                # Logged when it goes away, and on the first poll so a wrong URL or token shows at once.
+                if self.available or self._polls == 1:
                     _LOGGER.warning("Z2M Device Tracker app unreachable at %s: %s", redact_url(self.app_url), err)
                     self.available = False
                     self._notify()

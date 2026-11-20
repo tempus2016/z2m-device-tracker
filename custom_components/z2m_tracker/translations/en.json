@@ -3,9 +3,13 @@
     "step": {
       "user": {
         "title": "Z2M Device Tracker",
-        "description": "Connects to the Z2M Device Tracker app, which records every Zigbee2MQTT device's history. The app is a separate install from Settings → Apps → App store, and this integration needs it running. Adds summary sensors and the z2m-tracker-card. The app URL is filled in automatically when the app is installed.",
+        "description": "Connects to the Z2M Device Tracker app, which records every Zigbee2MQTT device's history. The app is a separate install from Settings → Apps → App store, and this integration needs it running. Adds summary sensors and the z2m-tracker-card. The app URL is filled in automatically when the app is installed. On Home Assistant Container, run the app's Docker image instead and enter its address and API token.",
         "data": {
-          "app_url": "App URL"
+          "app_url": "App URL",
+          "token": "API token"
+        },
+        "data_description": {
+          "token": "Only for the app in plain Docker (Home Assistant Container): the contents of /data/api_token in the app's container. Leave empty when the app is installed from the app store."
         }
       }
     },
@@ -22,10 +26,12 @@
         "title": "Z2M Device Tracker",
         "data": {
           "app_url": "App URL",
+          "token": "API token",
           "repairs": "Show problems in Settings > Repairs",
           "calendar_todo": "Battery and maintenance calendars and to-do lists"
         },
         "data_description": {
+          "token": "Only for the app in plain Docker (Home Assistant Container): the contents of /data/api_token in the app's container. Leave empty when the app is installed from the app store.",
           "repairs": "Mirrors the app's warnings and the checks set to notify. Each one clears itself when the problem is fixed. Nothing shows while alerts, or Show problems in HA Repairs, are off in the app's settings.",
           "calendar_todo": "Home Assistant adds Calendar and To-do to the sidebar while any integration provides them. After turning this off, restart Home Assistant to remove them from the sidebar (unless another integration still uses them). To keep the lists but hide the sidebar items, long-press the Home Assistant title at the top of the sidebar."
         }
@@ -251,6 +257,7 @@
         "battery_drain": "Battery draining fast",
         "weak_signal": "Weak signal",
         "signal_drop": "Signal dropping",
+        "lqi_stuck": "Link quality stuck",
         "unidentified": "Unidentified",
         "update": "Firmware update",
         "replacement": "Possible replacement",

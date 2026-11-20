@@ -1,5 +1,40 @@
 # Changelog
 
+## 2.3.0
+
+A big one: the app learns each device's own rhythm and stops alerting on silences that are normal for it, the whole sidebar has a new, simpler layout with a full-width page per device, and there are three new checks and summaries. Home Assistant Container users can now run the app as a Docker image. This release also follows 2.2.0-beta.1, so everything in that beta is here too; ZHA support keeps its beta label until more ZHA users have tried it.
+
+**Coming later: a new name.** Now that the app works with ZHA as well as Zigbee2MQTT, it will be renamed **Zigbee Device Tracker** in a future release. Nothing changes yet, and nothing will need setting up again when it does.
+
+### Added
+- **A Docker image for Home Assistant Container** ([#62](https://github.com/tempus2016/z2m-device-tracker/issues/62)). Without a Supervisor the app runs as its own container, `ghcr.io/tempus2016/z2m-device-tracker` (amd64 and arm64). Give it your Home Assistant address and a long-lived token, set a password for the web UI, and start it from `docker/compose.yaml`. The integration connects with the app's address and API token. The README has the steps.
+- **Learned rhythm.** The app now works out, for each device, how often it reports and how long it normally sleeps, by time of week. It flags **Stopped reporting** only when a silence is unusual for that device. A device counts as learned after 7 days and 30 reports. Until then the reporting profiles work as before.
+- The **Health** tab shows what was learned for a device (**Reports**, **Sleeps** and **Alert**). **Set my own** lets you set the profile yourself, and **Forget** clears everything learned for the device.
+- **Normal for this device** on a Stopped reporting alert accepts the current silence until the device reports again, then learns it for that time of week.
+- New reporting profile **Auto (learned)**: the device is flagged only when it is silent longer than it normally is at that time of week. Until it has been learned, it isn't flagged.
+- New option `learn_rhythm`, on by default, with a switch in **Settings → Checks**. Gaps keep being recorded while it is off, so turning it back on needs no new learning period.
+- It works with Zigbee2MQTT and ZHA. With ZHA the timing is to the nearest minute, because the app polls.
+- **Daily summary.** Turn on `daily_summary` (or **Send a daily summary** in **Settings**) for one short message a day at the summary hour: what needs attention, what is new since yesterday and what cleared. Nothing is sent on a day with nothing to report, and the daily one is skipped on the day the weekly summary goes out. Off by default.
+- **Link quality stuck** check. Flags a device whose link quality has read the same value on every report for two days when it used to vary. The device has probably stopped measuring it, so its signal checks can't be trusted until the value changes. Shows in Health; it doesn't notify unless you set it to **Show and notify** in **Settings → Checks**. Works with Zigbee2MQTT and ZHA.
+- **Expected outages.** A network that goes offline at about the same time on at least 4 of the last 7 days, for under two hours, no longer alerts when it does it again: a nightly Zigbee2MQTT restart, for example. The outage still shows in Health as **Expected outage** with its usual time and length. It alerts as before if it runs on well past its usual window, or happens at another time of day. On by default; set the new `expected_outages` option to `false` to be alerted every time.
+
+### Changed
+- **A new layout for the whole sidebar.** Four tabs instead of seven: **Health**, **Devices**, **Network** and **Upkeep**. **Updates** is now a section of Upkeep, **Activity** opens from Health, and **Settings** sits behind the gear at the top. On a phone the bottom bar has the same four.
+- **Health is one inbox.** One count that matches the badge, one row per device with its main problem and one main action, and a ⋮ menu with **Snooze 7 days** and **Ignore**. A device's other problems fold under "+1 more". Rows are grouped into **New** (since you last looked), **Ongoing** and **Network**. Beside them, **This week** sums up outages, joins, renames and batteries due, and **Recent** shows the latest events with a flapping network folded into one line.
+- **The device page leads with what's wrong.** One status line, the facts with their units ("110 of 255 · good"), and a **What to do** block with the main action, so a low battery shows **Battery replaced** straight away. Under **Overview** the cards are **When it alerts**, **Link quality** (with the route through the mesh), **Battery**, **Readings and reporting**, **About** and **Trends**. **Timeline** starts with the logbook and folds repeats, so eleven scans through the same router are one line.
+- A low battery shows in red everywhere, as other faults do.
+- **Settings** lists its sections down the left on a wide screen and hides settings that depend on a switch until it is on.
+- The map's view options sit behind one **Options** button. Zoom and **Reset layout** stay beside it.
+- The Devices table drops the Model column on narrower screens so **Last seen** is never cut off. The "devices need attention" banner above it is gone; the **Needs attention** filter does the same job.
+- A device with no reporting profile of its own now gets a learned limit once it is learned, but only if it reports on a steady timer. Devices that report only when something happens, like buttons and remotes, are left alone.
+- A profile you set by hand on a device, and a type default you changed by hand, always win over the learned limit.
+- Learning never makes a type default that already applied stricter.
+- Turn `learn_rhythm` off to keep the old behaviour.
+- **A device now opens as its own page.** Instead of a narrow panel or pop-up, a device gets the full width: its status, last seen, battery and signal across the top, and Info, Health, Trends and Battery side by side under **Overview**. History, Messages, Community and Notes are tabs beside it. The back arrow, Esc or any main tab returns to where you were in the list, and the address in the browser links straight to the device. On a phone the sections stack. The side panel and the pop-up are still there: **Settings → Device details**. If you had picked one of them, your choice is kept.
+
+### Fixed
+- **Replacing a device keeps its entity IDs.** Renaming the new device made Home Assistant give its entities fresh IDs with the area in front, so automations and dashboards lost them. The replace wizard now gives each new entity the ID the old device's matching entity had. An ID the old device still holds moves to `<id>_old` first.
+
 ## 2.2.0-beta.1
 
 A beta of 2.2.0, out so people who run ZHA can test it. The app can now read Home Assistant's ZHA integration instead of Zigbee2MQTT. It was tested on a small ZHA network only, so please report anything that looks wrong. Nothing changes for Zigbee2MQTT unless you switch, apart from the changes and the fix below. The app updates as usual; the integration's beta shows in HACS only when you turn on beta versions for it.

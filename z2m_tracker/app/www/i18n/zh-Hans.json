@@ -907,7 +907,6 @@
   "replace.step.remove": "移除旧设备",
   "replace.step.link": "关联两份历史",
   "replace.step.replace": "替换",
-  "replace.hint.name": "在 Zigbee2MQTT 中重命名。Home Assistant 实体 ID 跟随名称，因此旧实体移除后会保持不变。",
   "replace.hint.no_area": "旧设备没有区域。",
   "replace.hint.other_network": "新设备在另一个网络上，因此无法复制绑定。",
   "replace.hint.bindings": "在新设备上重新创建。到协调器的链路由 Zigbee2MQTT 自行设置。",

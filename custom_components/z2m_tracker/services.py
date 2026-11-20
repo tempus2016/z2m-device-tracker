@@ -38,6 +38,7 @@ DEVICE_CHECKS = [
     "battery_drain",
     "weak_signal",
     "signal_drop",
+    "lqi_stuck",
     "unidentified",
     "update",
     "replacement",

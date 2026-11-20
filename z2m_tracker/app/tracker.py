@@ -20,6 +20,7 @@ from datetime import time as dtime
 from time import monotonic as _monotonic
 from typing import Any
 
+import expected_outage
 import firmware_notes
 from backup_history import BackupHistory
 from community import build_report, community_issues, issue_url, model_key, record_model, report_text
@@ -77,6 +78,7 @@ from reporting import note_sent as note_reporting_sent
 from reporting import sending as reporting_sending
 from reporting import slim as slim_reportings
 from reporting_profiles import CHOICES as PROFILE_CHOICES
+from reporting_profiles import chosen_profile
 from reporting_profiles import clean_defaults as clean_profile_defaults
 from reporting_profiles import defaults as profile_defaults
 from reporting_profiles import effective as effective_profile
@@ -182,6 +184,7 @@ RESTORE_KEYS = {
     "ota_history": list,
     "ota_last_check": (str, int, float),
     "summary_sent": (str, dict),
+    "daily_summary": dict,
     "z2m_config": dict,
     "dismissed_advice": list,
     "upgrades": dict,
@@ -942,6 +945,7 @@ class Tracker:
         self.config_dir = config_dir
         self.local_tz = local_tz
         self.metrics = metrics
+        metrics.local_tz = local_tz  # rhythm slots are local time
         self.options = options
         self.oui = oui
         self.lock = threading.RLock()
@@ -992,6 +996,10 @@ class Tracker:
         # Current mesh score per network (mesh_score.summary), set by evaluate_health.
         self.mesh: dict[str, dict] = {}
         self.started = time.time()
+        # When the app could hear again after a gap: the last MQTT reconnect, and per network the last time
+        # its bridge came back online. The Stopped reporting clock starts no earlier (see _listening_since).
+        self._mqtt_back = 0.0
+        self._bridge_back: dict[str, float] = {}
         self._late_checked: dict[str, float] = {}
         # IEEE -> silent limit in seconds from its reporting profile (0 = none), set by evaluate_health.
         self._report_limits: dict[str, int] = {}
@@ -1141,8 +1149,9 @@ class Tracker:
     def apply_availability(self, instance: str, name: str, state: str) -> None:
         self._apply(f"{instance} availability", self._handle_availability, instance, name, state)
 
-    def apply_state(self, instance: str, name: str, payload: dict) -> None:
-        self._apply(f"{instance} state", self._handle_state, instance, name, json.dumps(payload), False)
+    def apply_state(self, instance: str, name: str, payload: dict, rhythm: bool = True) -> None:
+        """rhythm=False: an event that isn't the device reporting (ZHA battery), so it files no report gap."""
+        self._apply(f"{instance} state", self._handle_state, instance, name, json.dumps(payload), False, rhythm)
 
     def apply_networkmap(self, instance: str, value: dict) -> None:
         payload = {"status": "ok", "data": {"value": value}}
@@ -2060,7 +2069,9 @@ class Tracker:
                     self.metrics.add_command(ieee, None, now=start)
                     self.messages.settle(ieee, start, answered=False, now=now)
 
-    def _handle_state(self, base_topic: str, name: str, payload: str, retained: bool = False) -> None:
+    def _handle_state(
+        self, base_topic: str, name: str, payload: str, retained: bool = False, rhythm: bool = True
+    ) -> None:
         record = self._record_for(base_topic, name)
         if record is None:
             return
@@ -2083,7 +2094,7 @@ class Tracker:
         seen = self._to_utc_iso(parsed.get("last_seen")) or now
         record["last_seen"] = _max_time(record["last_seen"], seen)
         structural = False
-        self.metrics.add_message(ieee)
+        self.metrics.add_message(ieee, real=rhythm and not retained, limit=self._report_limits.get(ieee))
 
         lqi = parsed.get("linkquality")
         if _finite(lqi):
@@ -3013,21 +3024,37 @@ class Tracker:
                     age = 0
                 if age >= 120:
                     mins = int(age // 60)
-                    out.append(
-                        {
-                            "key": f"network_offline:{bt}",
-                            "kind": "network_offline",
-                            "label": "Network offline",
-                            "severity": "warning",
-                            "ieee": f"network:{bt}",
-                            "title": "ZHA offline" if zha else "Zigbee2MQTT offline",
-                            "detail": f"Not responding for {mins} min. Every device on this network is unreachable. Check the coordinator's power and network connection.",
-                            "msg": "network_offline_zha" if zha else "network_offline",
-                            "params": {"seconds": int(age)},
-                            "name": f"{label} network",
-                            "instance": bt,
-                        }
+                    issue = {
+                        "key": f"network_offline:{bt}",
+                        "kind": "network_offline",
+                        "label": "Network offline",
+                        "severity": "warning",
+                        "ieee": f"network:{bt}",
+                        "title": "ZHA offline" if zha else "Zigbee2MQTT offline",
+                        "detail": f"Not responding for {mins} min. Every device on this network is unreachable. Check the coordinator's power and network connection.",
+                        "msg": "network_offline_zha" if zha else "network_offline",
+                        "params": {"seconds": int(age)},
+                        "name": f"{label} network",
+                        "instance": bt,
+                    }
+                    usual = (
+                        expected_outage.pattern(bridge.get("outages"), now, self.local_tz)
+                        if self.options.get("expected_outages", True)
+                        else None
                     )
+                    if expected_outage.expected(usual, now - age, now, self.local_tz):
+                        # Listed, not alerted (see plan_alerts): it does this most days and comes back.
+                        around = expected_outage.clock(usual["at"])
+                        issue.update(
+                            severity="info",
+                            expected=True,
+                            title="Expected outage",
+                            detail=f"Goes offline most days around {around} for about {usual['minutes']} min. "
+                            f"Not responding for {mins} min now.",
+                            msg="network_expected",
+                            params={"seconds": int(age), "time": around, "minutes": usual["minutes"]},
+                        )
+                    out.append(issue)
             if (bridge.get("info") or {}).get("restart_required") and "restart_required" not in disabled:
                 out.append(
                     {
@@ -3322,7 +3349,7 @@ class Tracker:
             extra: dict[str, Any] = {
                 "outages_24h": sum(1 for o in record.get("outages") or [] if (o.get("start") or "") >= day_ago),
                 "leaves_24h": leaves.get(ieee, 0),
-                "started": self.started,
+                "started": self._listening_since(record),
                 "network_down": record.get("instance") in down,
                 "battery_device": self.is_battery_device(record),
             }
@@ -3384,9 +3411,15 @@ class Tracker:
                     and isinstance(summary.get("lqi_24h"), (int, float))
                 ):
                     lqi_by_net.setdefault(record.get("instance") or "", []).append(summary["lqi_24h"])
-                limit = self.report_profile(record, summary)["every"] or 0
+                info = self._rhythm(record, now) if self._uses_rhythm(record) else None
+                profile = self.report_profile(record, summary, now, info)
+                limit = profile["every"] or 0
                 self._report_limits[record["ieee"]] = limit
                 summary["report_every"] = limit
+                if profile["source"] == "learned" and info:
+                    summary["report_source"] = "learned"
+                    # The silence the limit that fired was built from: the one for this time of week.
+                    summary["rhythm_longest"] = info["slot_longest"]
                 for issue in device_issues(record, summary, self.options, now, suggestions.get(record["ieee"], [])):
                     issue["name"] = _display_name(record) or record["ieee"]
                     issue["instance"] = record["instance"]
@@ -3658,7 +3691,8 @@ class Tracker:
                 item["battery_record"] = self.battery_summary(record) if self.is_battery_device(record) else None
                 item["suggestions"] = suggestions.get(ieee, [])
                 bridge_info = (self.data.get("bridges") or {}).get(record.get("instance")) or {}
-                item["reporting_profile"] = self.report_profile(record, item["metrics"])
+                item["rhythm"] = self._rhythm(record, now)
+                item["reporting_profile"] = self.report_profile(record, item["metrics"], now, item["rhythm"])
                 item["offline_timing"] = offline_timing(
                     record,
                     (bridge_info.get("info") or {}).get("availability"),
@@ -4400,9 +4434,45 @@ class Tracker:
             or record["ieee"] in self.ha_battery
         )
 
-    def report_profile(self, record: dict, summary: dict) -> dict:
-        """The device's reporting profile and silent limit (see reporting_profiles)."""
-        return effective_profile(record, kind_of(record), summary, self.data.get("report_profile_defaults"))
+    def _rhythm(self, record: dict, now: float | None = None) -> dict:
+        """Metrics.rhythm for a device record, with its last_seen (ISO) as the time of week."""
+        try:
+            seen = datetime.fromisoformat(record["last_seen"]).timestamp()
+        except (KeyError, TypeError, ValueError):
+            seen = None
+        return self.metrics.rhythm(record["ieee"], now, seen)
+
+    def _uses_rhythm(self, record: dict) -> bool:
+        """Whether the learned limit can matter: learning on, and the device on Auto or its type's default."""
+        return bool(self.options.get("learn_rhythm", True)) and chosen_profile(record) in (None, "auto")
+
+    def report_profile(self, record: dict, summary: dict, now: float | None = None, info: dict | None = None) -> dict:
+        """The device's reporting profile and silent limit (see reporting_profiles). info: the device's
+        _rhythm() when already worked out; without it, it is worked out only where it can matter."""
+        if info is None and self._uses_rhythm(record):
+            info = self._rhythm(record, now)
+        return effective_profile(
+            record,
+            kind_of(record),
+            summary,
+            self.data.get("report_profile_defaults"),
+            learned=info["limit"] if info else None,
+            learn=bool(self.options.get("learn_rhythm", True)),
+            excused=bool(info and info.get("excused")),
+        )
+
+    def _listening_since(self, record: dict) -> float:
+        """When the app could last start hearing this device: its own start, the last MQTT reconnect or the
+        last time the device's network came back online, whichever is latest."""
+        return max(self.started, self._mqtt_back, self._bridge_back.get(record.get("instance"), 0.0))
+
+    def mqtt_connected(self) -> None:
+        """MQTT is (re)connected: silences are counted from now, not from before the drop."""
+        self._mqtt_back = time.time()
+
+    def mqtt_lost(self) -> None:
+        """MQTT dropped: whatever devices send now is not heard, so no rhythm gap spans it."""
+        self.metrics.deaf()
 
     def set_report_profile(self, ieee: str, profile: Any, seconds: Any = None) -> dict:
         """Pick a device's reporting profile. "default" goes back to its type's default; "custom" keeps
@@ -4425,6 +4495,33 @@ class Tracker:
                 record.pop("report_every", None)
             else:
                 record["report_profile"] = profile
+            self._changed(structural=True)
+        self.evaluate_health()
+        return {"ok": True}
+
+    def rhythm_normal(self, ieee: str) -> dict:
+        """ "Normal for this device": the silence the device is in now raises no Stopped reporting from the
+        learned limit until it reports again, and is then learned (Metrics.teach)."""
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            if record is None:
+                return {"ok": False, "error": "unknown device"}
+            try:
+                seen = datetime.fromisoformat(record["last_seen"]).timestamp()
+            except (KeyError, TypeError, ValueError):
+                return {"ok": False, "error": "no last message to learn from"}
+            if time.time() - seen <= 0 or not self.metrics.teach(ieee, seen):
+                return {"ok": False, "error": "no silence to learn from"}
+            self._changed(structural=True)
+        self.evaluate_health()
+        return {"ok": True}
+
+    def rhythm_forget(self, ieee: str) -> dict:
+        """Clear everything learned about a device's rhythm."""
+        with self.lock:
+            if ieee not in self.data["devices"]:
+                return {"ok": False, "error": "unknown device"}
+            self.metrics.forget_rhythm(ieee)
             self._changed(structural=True)
         self.evaluate_health()
         return {"ok": True}
@@ -4487,7 +4584,7 @@ class Tracker:
         due = False
         with self.lock:
             for ieee, record in self.data["devices"].items():
-                deadline = late_deadline(record, self.started, self._report_limits.get(ieee))
+                deadline = late_deadline(record, self._listening_since(record), self._report_limits.get(ieee))
                 if deadline is not None and now >= deadline and self._late_checked.get(ieee) != deadline:
                     self._late_checked[ieee] = deadline
                     due = True
@@ -4683,7 +4780,9 @@ class Tracker:
                 self.data["alerted"] = sorted(current)
                 return {"send": [], "dismiss": [], "digest": None, "first": True}
             # Devices behind an offline router never alert on their own: the router's alert covers them.
-            behind = {key for key, issue in current.items() if issue.get("behind")}
+            # Nor does a network outage that happens at this time most days (expected_outage.py); it
+            # alerts as usual once it runs on past its usual window.
+            behind = {key for key, issue in current.items() if issue.get("behind") or issue.get("expected")}
             new = [current[key] for key in sorted(set(current) - behind - sent)]
             dismiss = sorted(sent - set(current))
             urgent = [issue for issue in new if issue.get("critical")]
@@ -4793,6 +4892,10 @@ class Tracker:
         bridge["state"] = state
         bridge["since"] = now
         if state == "offline":
+            # Nothing is heard from this network now: the gap each device's next message ends isn't its rhythm.
+            self.metrics.deaf(
+                [r["ieee"] for r in self.data["devices"].values() if r.get("instance") == base_topic and r.get("ieee")]
+            )
             bridge["outages"].append({"start": now, "end": None})
             del bridge["outages"][: max(0, len(bridge["outages"]) - 100)]
             self._add_event(
@@ -4805,7 +4908,10 @@ class Tracker:
                 if _stack_of(base_topic) == "zha"
                 else "Zigbee2MQTT stopped (coordinator or service offline)",
             )
-        elif previous == "offline":
+        else:
+            # The network is heard again: its devices' Stopped reporting clock restarts now.
+            self._bridge_back[base_topic] = time.time()
+        if state == "online" and previous == "offline":
             if bridge["outages"] and not bridge["outages"][-1].get("end"):
                 bridge["outages"][-1]["end"] = now
             bridge["restarts"].append(now)
@@ -5433,7 +5539,7 @@ class Tracker:
             self._changed(structural=True)
         if isinstance(payload.get("metrics"), dict):
             with self.metrics.lock:
-                self.metrics.series = payload["metrics"]
+                self.metrics.adopt(payload["metrics"])
                 self.metrics.dirty = True
         self.save(force=True)
         self.metrics.save(force=True)
@@ -5715,6 +5821,8 @@ class Tracker:
                     if not keep_old:
                         old["maintenance"] = []
                     copied.append("maintenance")
+            # How often the spot reports was learned on the old device: the new one adds it to what it has.
+            self.metrics.merge_rhythm(old_ieee, new_ieee)
             if battery and old.get("battery_info"):
                 info = json.loads(json.dumps(old["battery_info"]))
                 for entry in info.get("replacements") or []:

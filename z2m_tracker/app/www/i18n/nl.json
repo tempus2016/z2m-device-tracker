@@ -942,7 +942,6 @@
   "replace.step.remove": "Oude apparaat verwijderen",
   "replace.step.link": "Beide geschiedenissen koppelen",
   "replace.step.replace": "Vervangen",
-  "replace.hint.name": "Hernoemd in Zigbee2MQTT. Entiteit-ID's in Home Assistant volgen de naam, dus ze blijven gelijk zodra de oude entiteiten weg zijn.",
   "replace.hint.no_area": "Het oude apparaat had geen ruimte.",
   "replace.hint.other_network": "Het nieuwe apparaat zit op een ander netwerk, dus bindingen kunnen niet gekopieerd worden.",
   "replace.hint.bindings": "Opnieuw aangemaakt op het nieuwe apparaat. Verbindingen naar de coördinator stelt Zigbee2MQTT zelf in.",

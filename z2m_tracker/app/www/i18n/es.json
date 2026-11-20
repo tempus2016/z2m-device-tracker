@@ -942,7 +942,6 @@
   "replace.step.remove": "Eliminar el dispositivo antiguo",
   "replace.step.link": "Vincular ambos historiales",
   "replace.step.replace": "Sustituir",
-  "replace.hint.name": "Se renombra en Zigbee2MQTT. Los ID de entidad de Home Assistant siguen al nombre, así que se mantienen una vez que desaparecen las entidades antiguas.",
   "replace.hint.no_area": "El dispositivo antiguo no tenía área.",
   "replace.hint.other_network": "El dispositivo nuevo está en otra red, así que no se pueden copiar las vinculaciones.",
   "replace.hint.bindings": "Se vuelven a crear en el dispositivo nuevo. Zigbee2MQTT configura por sí mismo los enlaces con el coordinador.",

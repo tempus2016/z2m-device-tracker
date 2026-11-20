@@ -1,0 +1,103 @@
+name: Docker image
+
+# The standalone image (docker/Dockerfile) for Home Assistant Container, where there is no
+# Supervisor to install the app. Pull requests and main build and smoke-test it on both
+# architectures; a published release pushes it to ghcr.io/tempus2016/z2m-device-tracker.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Image test (${{ matrix.arch }})
+    if: github.event_name != 'release'
+    runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, aarch64]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build the image
+        run: docker build -f docker/Dockerfile -t z2m-tracker-standalone:ci .
+
+      - name: Start it and check the web UI asks for the password
+        run: |
+          set -euo pipefail
+          docker run -d --name tracker -p 8099:8099 -e UI_PASSWORD=ci-password-123 z2m-tracker-standalone:ci
+          for _ in $(seq 1 30); do
+            if curl -fs -o /dev/null http://127.0.0.1:8099/login; then break; fi
+            sleep 1
+          done
+          docker logs tracker
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8099/)" = 303
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8099/api/devices)" = 403
+          test "$(curl -s -o /dev/null -w '%{http_code}' -d password=wrong http://127.0.0.1:8099/login)" = 401
+          test "$(curl -s -o /dev/null -w '%{http_code}' -d password=ci-password-123 http://127.0.0.1:8099/login)" = 303
+          docker logs tracker 2>&1 | grep -q "Standalone mode"
+
+  publish:
+    name: Publish image
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      TAG: ${{ github.event.release.tag_name }}
+      PRERELEASE: ${{ github.event.release.prerelease }}
+      IMAGE: ghcr.io/${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+
+      - name: Image tags
+        # 2.3.0 also gets latest; a pre-release (2.3.0-beta.1) gets beta instead.
+        id: tags
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          extra=latest
+          if [ "${PRERELEASE}" = "true" ]; then extra=beta; fi
+          echo "tags=${IMAGE,,}:${version},${IMAGE,,}:${extra}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push (amd64, arm64)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ env.TAG }}
+            org.opencontainers.image.licenses=MIT

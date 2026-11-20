@@ -5,9 +5,11 @@ from __future__ import annotations
 import re
 
 DOMAIN = "z2m_tracker"
-VERSION = "2.2.0-beta.1"
+VERSION = "2.3.0"
 
 CONF_APP_URL = "app_url"
+# The app's API token, entered by hand when there is no Supervisor to hand it over (plain Docker).
+CONF_TOKEN = "token"
 CONF_REPAIRS = "repairs"
 # Off: no calendar or to-do entities, so Home Assistant adds no Calendar or To-do sidebar panel for them.
 CONF_CALENDAR_TODO = "calendar_todo"
@@ -34,6 +36,9 @@ def serious_repair(issue: dict) -> str | None:
     kind = issue.get("kind")
     if kind == "offline" and issue.get("critical"):
         return "critical_offline"
+    if kind == "network_offline" and issue.get("expected"):
+        # It goes offline at this time most days and comes back: listed in the app, not a repair.
+        return None
     if kind in ("network_offline", "coordinator_backup"):
         return str(kind)
     return None

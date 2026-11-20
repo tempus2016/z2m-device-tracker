@@ -406,6 +406,67 @@
   .more-tabs { display: flex; padding: 0 12px; border-bottom: 1px solid var(--divider); overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; flex: none; }
   .more-tabs .tab { height: 48px; padding: 0 14px; }
   .more-body { overflow: auto; overscroll-behavior: contain; flex: 1; min-height: 200px; }
+  /* Device page: one device, full width (Settings > Device details > Full page). */
+  .device-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .device-page .more-head { padding: 16px 12px 12px; }
+  .device-page .more-head h2 { font-size: 24px; white-space: normal; overflow-wrap: anywhere; }
+  .device-page .more-tabs { border-bottom: 0; border-top: 1px solid var(--divider); }
+  .device-page .more-body { overflow: visible; min-height: 0; }
+  .device-page .crumb { margin-bottom: -4px; }
+  .dev-card { overflow: visible; }
+  .dev-head { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 4px 16px; align-items: center; padding: 20px 16px 16px; }
+  .dev-head > .disc { width: 56px; height: 56px; }
+  .dev-head h2 { margin: 0; font-size: 24px; font-weight: 400; overflow-wrap: anywhere; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .dev-head h2.unknown { font-style: italic; color: var(--text-2); }
+  .dev-head .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 0; color: var(--text-2); margin-top: 2px; }
+  .dev-head .meta .mono { font-size: 12.5px; }
+  .icon-btn.sm { width: 32px; height: 32px; margin-left: 2px; }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin: 0; border-top: 1px solid var(--divider); }
+  .facts > div { padding: 12px 16px; border-left: 1px solid var(--divider); min-width: 0; }
+  .facts > div:first-child { border-left: 0; }
+  .facts dt { color: var(--text-2); font-size: 12px; }
+  .facts dd { margin: 2px 0 0; font-size: 16px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .facts dd small { color: var(--text-2); font-size: 12px; }
+  .facts .sdot { width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--success)); flex: none; }
+  .facts .tone-ok .sdot { background: var(--success); } .facts .tone-muted .sdot { background: var(--disabled); }
+  .facts [class*="tone-"]:not(.tone-ok):not(.tone-muted) .fact-st, .facts .colored .tnum { color: var(--ct); font-weight: 500; }
+  .lqi-bars { display: inline-flex; gap: 2px; align-items: flex-end; height: 14px; }
+  .lqi-bars i { width: 3px; border-radius: 1px; background: var(--disabled); }
+  .lqi-bars i.on { background: var(--text-2); }
+  .todo { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 4px 12px; padding: 16px; border-top: 1px solid var(--divider); background: color-mix(in srgb, var(--c) 7%, var(--card)); }
+  .todo > .disc { width: 32px; height: 32px; }
+  .todo h3 { margin: 0; font-size: 16px; font-weight: 500; }
+  .todo p { margin: 2px 0 0; }
+  .todo .used-by { margin-top: 4px; }
+  .todo-acts { grid-column: 2; display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .todo-also { grid-column: 2; display: flex; gap: 4px 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--divider); color: var(--text-2); }
+  .todo-also .also-t { flex: 1 1 240px; }
+  .sec-h { display: flex; align-items: baseline; gap: 12px; padding: 16px 16px 8px; flex-wrap: wrap; }
+  .sec-h h3 { margin: 0; font-size: 16px; font-weight: 500; flex: 1; }
+  .sec-h span { color: var(--text-2); font-size: 12px; }
+  .page-sec > .sub-h:first-of-type { margin-top: 0; }
+  .route { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 4px 16px 12px; }
+  .route .hop { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 8px; background: var(--sec-bg); }
+  .route .mdi { color: var(--text-2); }
+  .sec-more { border-top: 1px solid var(--divider); }
+  .sec-more > summary { cursor: pointer; padding: 12px 16px; color: var(--primary-text); font-weight: 500; list-style: none; }
+  .sec-more > summary::-webkit-details-marker { display: none; }
+  .page-sec .more-actions { border-top: 1px solid var(--divider); padding: 8px; justify-content: flex-start; }
+  @media (max-width: 600px) {
+    .dev-head { grid-template-columns: 44px minmax(0, 1fr); padding: 16px 12px 12px; }
+    .dev-head > .disc { width: 44px; height: 44px; }
+    .dev-head h2 { font-size: 20px; }
+    .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .facts > div:nth-child(odd) { border-left: 0; }
+    .facts > div:nth-child(n+3) { border-top: 1px solid var(--divider); }
+  }
+  .page-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); border-top: 1px solid var(--divider); }
+  .page-stats > div { padding: 12px 16px; min-width: 0; }
+  .page-stats small { display: block; color: var(--text-2); font-size: 12px; }
+  .page-stats b { display: block; font-size: 20px; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .page-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 16px; align-items: start; }
+  .page-sec { min-width: 0; overflow: hidden; scroll-margin-top: 72px; }
+  .page-sec > h3 { margin: 0; padding: 14px 16px 4px; font-size: 16px; font-weight: 500; }
   .more-hero { text-align: center; padding: 20px 16px 8px; }
   .more-hero .state-ic { width: 72px; height: 72px; margin: 0 auto 8px; }
   .more-hero .state-ic .mdi { width: 40px; height: 40px; }
@@ -436,6 +497,7 @@
   .st2::before { content: ""; position: absolute; left: -7px; top: 10px; width: 12px; height: 12px; border-radius: 50%; background: var(--c); }
   .st2 b, .st2 strong, .kv .sum b { font-weight: 500; }
   .st2.off { opacity: 0.6; }
+  .rhythm-acts { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; padding: 0 8px 8px; }
   .tnote { font-size: 12px; color: var(--text-2); padding: 0 16px 14px; margin: 0; }
   .sub-h { padding: 16px 16px 4px; font-size: 14px; font-weight: 500; color: var(--text-2); }
   .chart { width: 100%; height: 120px; display: block; }
@@ -611,7 +673,7 @@
   /* Grey text on the blue selected row falls under 4.5:1; pull it 30% toward the main text colour. */
   .dt tbody tr[aria-selected="true"] :is(.name-2, .cell-sub, .muted) { color: color-mix(in srgb, var(--text-2) 70%, var(--text)); }
   .dt tbody tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 var(--primary); }
-  @media (max-width: 1360px) { table.dt.compact th.hide-md, table.dt.compact td.hide-md { display: none; } }
+  @media (max-width: 1360px) { table.dt.compact th.hide-md, table.dt.compact td.hide-md { display: none; } table.dt th.col-model, table.dt td.col-model { display: none; } }
   /* Last seen joins the status cell wherever its own column is hidden (phones put it in the second line instead). */
   .st-seen { display: none; }
   .st-seen::before { content: "·"; margin: 0 6px; }
@@ -935,6 +997,76 @@
     [data-act^="ret-"], [data-act="retcmd-clear"], [data-act="import"], [data-act="last-seen-on"], [data-act="reporting-fix"], [data-act="leftovers"], [data-act="move"]) { display: none !important; }
   /* Section tabs: Updates, Activity and Settings sit behind "More" on a phone. */
   .tabs .sm-tab { display: none; }
+  /* Health: status line, one inbox, a side column for the week. */
+  .disc { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--c, var(--state-icon)); background: color-mix(in srgb, var(--c, var(--state-icon)) 12%, transparent); }
+  .tone-ok { --c: var(--success); --ct: var(--success); } .tone-warn { --c: var(--warning); --ct: var(--warning-text); }
+  .tone-bad { --c: var(--error); --ct: var(--error-text); } .tone-info { --c: var(--info); --ct: var(--primary-text); }
+  .status-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 16px; padding: 16px; }
+  .status-top { display: flex; gap: 16px; align-items: center; min-width: 0; }
+  .status-top h2 { margin: 0; font-size: 20px; font-weight: 400; }
+  .status-top p { margin: 2px 0 0; color: var(--text-2); }
+  .status-score .score-row { padding: 0; border: 0; }
+  .status-score .score-more { grid-column: 1 / -1; }
+  .health-grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+  .health-main, .health-side { display: grid; gap: 16px; align-content: start; min-width: 0; }
+  @media (min-width: 1000px) { .health-grid { grid-template-columns: minmax(0, 1.7fr) minmax(300px, 1fr); align-items: start; } }
+  .ib-group { display: flex; align-items: center; gap: 8px; padding: 14px 16px 6px; color: var(--text-2); font-weight: 500; font-size: 13px; border-top: 1px solid var(--divider); }
+  .ib-group:first-child { border-top: 0; }
+  .ib-group span { color: var(--text-2); font-weight: 400; }
+  .inbox-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 4px 16px; align-items: start; padding: 12px 8px 12px 16px; border-top: 1px solid var(--divider); }
+  .ib-group + .inbox-row { border-top: 0; }
+  .inbox-row > .disc { margin-top: 2px; }
+  .ib-name { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 16px; }
+  .ib-name small { display: inline; font-size: 12px; color: var(--text-2); }
+  .ib-link { appearance: none; border: 0; background: none; padding: 0; font: inherit; color: var(--text); cursor: pointer; text-align: left; }
+  @media (hover: hover) { .ib-link:hover { text-decoration: underline; text-underline-offset: 3px; } }
+  .ib-title { color: var(--ct); font-weight: 500; }
+  .ib-why { color: var(--text-2); font-size: 12.5px; display: grid; gap: 2px; margin-top: 2px; }
+  .ib-why .used-by summary { padding: 0; }
+  .ib-acts { display: flex; align-items: center; gap: 2px; }
+  .ib-more { position: relative; }
+  .ib-more > summary { list-style: none; cursor: pointer; }
+  .ib-more > summary::-webkit-details-marker { display: none; }
+  .ib-menu { position: absolute; right: 0; top: 44px; z-index: 30; min-width: 200px; padding: 8px 0; background: var(--card); border-radius: 4px; box-shadow: 0 5px 5px -3px rgba(0,0,0,.2), 0 8px 10px 1px rgba(0,0,0,.14), 0 3px 14px 2px rgba(0,0,0,.12); display: grid; }
+  .ib-menu .btn { border-radius: 0; justify-content: flex-start; height: 44px; padding: 0 16px; color: var(--text); font-weight: 400; }
+  .ib-menu .btn.danger { color: var(--error-text); }
+  .more-chip { display: inline-flex; align-items: center; height: 24px; margin-top: 6px; padding: 0 8px; border-radius: 8px; border: 0; background: var(--sec-bg); color: var(--text-2); font: inherit; font-size: 12px; cursor: pointer; justify-self: start; }
+  .ib-text { display: grid; min-width: 0; }
+  .ib-text .also-list { margin-top: 6px; }
+  .ib-text .group-list { margin: 8px 0 0 -16px; }
+  .inbox.quiet .ib-title { color: var(--text); }
+  .side-h { display: flex; align-items: center; gap: 8px; padding: 12px 8px 4px 16px; min-height: 48px; }
+  .side-h h2 { margin: 0; font-size: 16px; font-weight: 500; flex: 1; }
+  .side-empty { margin: 0; padding: 4px 16px 16px; color: var(--text-2); }
+  .ledger { list-style: none; margin: 0; padding: 0 0 8px; }
+  .ledger-row { display: flex; gap: 12px; align-items: flex-start; width: 100%; padding: 10px 16px; border: 0; border-top: 1px solid var(--divider); background: none; font: inherit; color: inherit; text-align: left; }
+  button.ledger-row { cursor: pointer; } @media (hover: hover) { button.ledger-row:hover { background: var(--hover); } }
+  .ledger-row > .mdi { color: var(--text-2); margin-top: 1px; }
+  .ledger-row > span { flex: 1; min-width: 0; }
+  .ledger-row small { display: block; color: var(--text-2); font-size: 12px; }
+  .ledger-row time { color: var(--text-2); font-size: 12px; white-space: nowrap; }
+  .kv-mini { display: grid; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--divider); }
+  .kv-mini small { display: block; color: var(--text-2); font-size: 12px; }
+  .side-card .fine-list { grid-template-columns: 1fr; border-top: 0; }
+  @media (max-width: 600px) {
+    .status-card { grid-template-columns: 1fr; }
+    .inbox-row { grid-template-columns: 32px minmax(0, 1fr); padding: 12px; gap: 4px 12px; }
+    .inbox-row > .disc { width: 32px; height: 32px; } .inbox-row > .disc .mdi { width: 18px; height: 18px; }
+    .ib-acts { grid-column: 2; margin-left: -12px; flex-wrap: wrap; }
+    .ib-menu { right: auto; left: 0; }
+  }
+  #view.set-grid .set-row.disabled { display: none; }
+  @media (min-width: 1000px) {
+    #view.set-grid { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 16px; align-items: start; }
+    #view.set-grid > * { grid-column: 2; }
+    #view.set-grid > .set-nav { grid-column: 1; grid-row: 1 / span 60; position: sticky; top: 120px; display: grid; gap: 2px; padding: 8px; background: var(--card); border-radius: 12px; box-shadow: var(--shadow); flex-wrap: nowrap; overflow: visible; -webkit-mask-image: none; mask-image: none; }
+    #view.set-grid > .set-nav .chip { justify-content: flex-start; border: 0; height: 40px; background: none; white-space: normal; text-align: left; }
+    #view.set-grid > .set-nav .chip[aria-current="true"] { background: var(--chip-on); color: var(--primary-text); }
+    @media (hover: hover) { #view.set-grid > .set-nav .chip:hover { background: var(--hover); } }
+  }
+  #settingsBtn[aria-pressed="true"] { color: var(--primary-text); background: var(--chip-on); }
+  .crumb { display: flex; align-items: center; gap: 4px; }
+  .crumb .btn { padding-left: 8px; }
   .sub-tabs { display: flex; padding: 0 8px; border: 1px solid var(--divider); border-radius: 12px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; background: var(--card); }
   .sub-tabs .tab { height: 48px; padding: 0 14px; }
   .fine-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); padding: 4px 8px 8px; border-top: 1px solid var(--divider); }
@@ -963,7 +1095,7 @@
     .lg-only { display: none; }
     .dt.stock td.type { min-width: 0; }
     /* Like Home Assistant's own pages on a phone: the section tabs become a bottom bar. */
-    .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 0 var(--sar, 0px) var(--sab, env(safe-area-inset-bottom, 0px)) var(--sal, 0px); background: var(--card); border-top: 1px solid var(--divider); overflow: visible; }
+    .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 0 var(--sar, 0px) var(--sab, env(safe-area-inset-bottom, 0px)) var(--sal, 0px); background: var(--card); border-top: 1px solid var(--divider); overflow: visible; }
     .tabs .tab { height: 60px; padding: 6px 2px 4px; flex-direction: column; justify-content: center; gap: 2px; font-size: 11px; min-width: 0; }
     .tabs .tab > [data-t] { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .tabs .tab > .mdi { width: 52px; height: 28px; padding: 2px 14px; border-radius: 14px; }
@@ -1008,6 +1140,7 @@
     <span class="logo" id="logo"></span>
     <h1 data-t="app.title">Zigbee Tracker</h1>
     <span class="live" id="live" title="Connection to the tracker" data-ta="title=app.connection"><i></i><span id="liveText" data-t="app.connecting">Connecting</span></span>
+    <button class="icon-btn" id="settingsBtn" data-view="settings" aria-label="Settings" data-ta="aria-label=tabs.settings" aria-pressed="false"><span data-i="cog"></span></button>
     <button class="icon-btn" id="menuBtn" aria-label="More options" data-ta="aria-label=menu.more" aria-haspopup="menu" aria-controls="menu" aria-expanded="false"></button>
   </div>
   <nav class="tabs" role="tablist" aria-label="Sections" data-ta="aria-label=tabs.sections">
@@ -1015,10 +1148,6 @@
     <button class="tab" role="tab" id="tab-devices" data-view="devices" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="zigbee"></span><span data-t="tabs.devices">Devices</span></button>
     <button class="tab" role="tab" id="tab-network" data-view="network" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="sitemap"></span><span data-t="tabs.network">Network</span></button>
     <button class="tab" role="tab" id="tab-upkeep" data-view="upkeep" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="battery-sync"></span><span data-t="tabs.upkeep">Upkeep</span> <span class="badge info" id="upkeepBadge" hidden>0</span></button>
-    <button class="tab lg-tab" role="tab" id="tab-updates" data-view="updates" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="update"></span><span data-t="tabs.updates">Updates</span> <span class="badge info" id="otaBadge" hidden>0</span></button>
-    <button class="tab lg-tab" role="tab" id="tab-activity" data-view="activity" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="history"></span><span data-t="tabs.activity">Activity</span></button>
-    <button class="tab lg-tab" role="tab" id="tab-settings" data-view="settings" aria-controls="view" aria-selected="false" tabindex="-1"><span data-i="cog"></span><span data-t="tabs.settings">Settings</span></button>
-    <button class="tab sm-tab" id="tab-more" data-act="tab-more" aria-haspopup="menu" aria-controls="tabSheet" aria-expanded="false" tabindex="-1"><span data-i="dots-vertical"></span><span id="moreTabLabel" data-t="tabs.more">More</span> <span class="badge info" id="moreBadge" hidden>0</span></button>
   </nav>
   <div class="menu" id="menu" hidden role="menu" aria-labelledby="menuBtn">
     <a href="api/export.csv" download role="menuitem" tabindex="-1"><span data-i="download"></span><span data-t="menu.export_csv">Export CSV</span></a>
@@ -1034,12 +1163,12 @@
 </header>
 
 <div class="sheet-scrim" id="sheetScrim" hidden></div>
-<div class="tab-sheet" id="tabSheet" role="menu" aria-labelledby="tab-more" hidden></div>
 
 <main class="page" id="page">
   <div class="alert conn" id="conn" role="alert" style="--a: var(--error)"><span data-i="lan-disconnect"></span><div class="body" id="connText"></div></div>
   <div class="alert" id="pauseBanner" style="--a: var(--info)" hidden></div>
   <div id="view" role="tabpanel" aria-labelledby="tab-health"></div>
+  <div id="devicePage" class="device-page" hidden></div>
 </main>
 
 <dialog class="more" id="more" aria-labelledby="moreTitle"></dialog>
@@ -1065,7 +1194,7 @@
   const shopLink = (type) => { const u = state.data?.options?.battery_shop_url || ""; return /^https?:\/\//i.test(u) && u.includes("{type}") ? u.replaceAll("{type}", encodeURIComponent(type)) : ""; };
   const SUPPORT = "https://www.buymeacoffee.com/johnmackinnon";
   const LINKS = [[`${REPO}/wiki`, "links.wiki"], [REPO, "links.github"], [`${REPO}/releases`, "links.releases"]];
-  const MDI = {"heart-outline":"M12.1,18.55L12,18.65L11.89,18.55C7.14,14.24 4,11.39 4,8.5C4,6.5 5.5,5 7.5,5C9.04,5 10.54,6 11.07,7.36H12.93C13.46,6 14.96,5 16.5,5C18.5,5 20,6.5 20,8.5C20,11.39 16.86,14.24 12.1,18.55M16.5,3C14.76,3 13.09,3.81 12,5.08C10.91,3.81 9.24,3 7.5,3C4.42,3 2,5.41 2,8.5C2,12.27 5.4,15.36 10.55,20.03L12,21.35L13.45,20.03C18.6,15.36 22,12.27 22,8.5C22,5.41 19.58,3 16.5,3Z","cart-outline":"M17,18A2,2 0 0,1 19,20A2,2 0 0,1 17,22C15.89,22 15,21.1 15,20C15,18.89 15.89,18 17,18M1,2H4.27L5.21,4H20A1,1 0 0,1 21,5C21,5.17 20.95,5.34 20.88,5.5L17.3,11.97C16.96,12.58 16.3,13 15.55,13H8.1L7.2,14.63L7.17,14.75A0.25,0.25 0 0,0 7.42,15H19V17H7C5.89,17 5,16.1 5,15C5,14.65 5.09,14.32 5.24,14.04L6.6,11.59L3,4H1V2M7,18A2,2 0 0,1 9,20A2,2 0 0,1 7,22C5.89,22 5,21.1 5,20C5,18.89 5.89,18 7,18M16,11L18.78,6H6.14L8.5,11H16Z","tune":"M3,17V19H9V17H3M3,5V7H13V5H3M13,21V19H21V17H13V15H11V21H13M7,9V11H3V13H7V15H9V9H7M21,13V11H11V13H21M15,9H17V7H21V5H17V3H15V9Z","alert-circle":"M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z","alert":"M13 14H11V9H13M13 18H11V16H13M1 21H23L12 2L1 21Z","arrow-down":"M11,4H13V16L18.5,10.5L19.92,11.92L12,19.84L4.08,11.92L5.5,10.5L11,16V4Z","arrow-up":"M13,20H11V8L5.5,13.5L4.08,12.08L12,4.16L19.92,12.08L18.5,13.5L13,8V20Z","battery-alert-variant-outline":"M14 20H6V6H14M14.67 4H13V2H7V4H5.33C4.6 4 4 4.6 4 5.33V20.67C4 21.4 4.6 22 5.33 22H14.67C15.4 22 16 21.4 16 20.67V5.33C16 4.6 15.4 4 14.67 4M21 7H19V13H21V8M21 15H19V17H21V15Z","battery-sync":"M13.54 22H7.33C6.6 22 6 21.4 6 20.67V5.33C6 4.6 6.6 4 7.33 4H9V2H15V4H16.67C17.4 4 18 4.6 18 5.33V12C14.69 12 12 14.69 12 18C12 19.54 12.58 20.94 13.54 22M18 13L20.25 15.25L18 17.5V16C16.15 16 14.94 17.96 15.76 19.62L14.67 20.71C12.91 18.05 14.81 14.5 18 14.5V13M18 24L15.75 21.75L18 19.5V21C19.85 21 21.06 19.04 20.24 17.38L21.33 16.29C23.09 18.95 21.19 22.5 18 22.5V24","battery":"M16.67,4H15V2H9V4H7.33A1.33,1.33 0 0,0 6,5.33V20.67C6,21.4 6.6,22 7.33,22H16.67A1.33,1.33 0 0,0 18,20.67V5.33C18,4.6 17.4,4 16.67,4Z","bell-off":"M20.84,22.73L18.11,20H3V19L5,17V11C5,9.86 5.29,8.73 5.83,7.72L1.11,3L2.39,1.73L22.11,21.46L20.84,22.73M19,15.8V11C19,7.9 16.97,5.17 14,4.29C14,4.19 14,4.1 14,4A2,2 0 0,0 12,2A2,2 0 0,0 10,4C10,4.1 10,4.19 10,4.29C9.39,4.47 8.8,4.74 8.26,5.09L19,15.8M12,23A2,2 0 0,0 14,21H10A2,2 0 0,0 12,23Z","bell":"M21,19V20H3V19L5,17V11C5,7.9 7.03,5.17 10,4.29C10,4.19 10,4.1 10,4A2,2 0 0,1 12,2A2,2 0 0,1 14,4C14,4.1 14,4.19 14,4.29C16.97,5.17 19,7.9 19,11V17L21,19M14,21A2,2 0 0,1 12,23A2,2 0 0,1 10,21","calendar-clock":"M15,13H16.5V15.82L18.94,17.23L18.19,18.53L15,16.69V13M19,8H5V19H9.67C9.24,18.09 9,17.07 9,16A7,7 0 0,1 16,9C17.07,9 18.09,9.24 19,9.67V8M5,21C3.89,21 3,20.1 3,19V5C3,3.89 3.89,3 5,3H6V1H8V3H16V1H18V3H19A2,2 0 0,1 21,5V11.1C22.24,12.36 23,14.09 23,16A7,7 0 0,1 16,23C14.09,23 12.36,22.24 11.1,21H5M16,11.15A4.85,4.85 0 0,0 11.15,16C11.15,18.68 13.32,20.85 16,20.85A4.85,4.85 0 0,0 20.85,16C20.85,13.32 18.68,11.15 16,11.15Z","cellphone-wireless":"M20.07,4.93C21.88,6.74 23,9.24 23,12C23,14.76 21.88,17.26 20.07,19.07L18.66,17.66C20.11,16.22 21,14.22 21,12C21,9.79 20.11,7.78 18.66,6.34L20.07,4.93M17.24,7.76C18.33,8.85 19,10.35 19,12C19,13.65 18.33,15.15 17.24,16.24L15.83,14.83C16.55,14.11 17,13.11 17,12C17,10.89 16.55,9.89 15.83,9.17L17.24,7.76M13,10A2,2 0 0,1 15,12A2,2 0 0,1 13,14A2,2 0 0,1 11,12A2,2 0 0,1 13,10M11.5,1A2.5,2.5 0 0,1 14,3.5V8H12V4H3V19H12V16H14V20.5A2.5,2.5 0 0,1 11.5,23H3.5A2.5,2.5 0 0,1 1,20.5V3.5A2.5,2.5 0 0,1 3.5,1H11.5Z","check":"M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z","chevron-down":"M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z","chevron-right":"M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z","chevron-up":"M7.41,15.41L12,10.83L16.59,15.41L18,14L12,8L6,14L7.41,15.41Z","chip":"M6,4H18V5H21V7H18V9H21V11H18V13H21V15H18V17H21V19H18V20H6V19H3V17H6V15H3V13H6V11H3V9H6V7H3V5H6V4M11,15V18H12V15H11M13,15V18H14V15H13M15,15V18H16V15H15Z","close":"M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z","cog":"M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z","content-copy":"M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z","delete":"M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z","door":"M8,3C6.89,3 6,3.89 6,5V21H18V5C18,3.89 17.11,3 16,3H8M8,5H16V19H8V5M13,11V13H15V11H13Z","dots-vertical":"M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z","download":"M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z","filter-variant":"M6,13H18V11H6M3,6V8H21V6M10,18H14V16H10V18Z","gesture-tap-button":"M13 5C15.21 5 17 6.79 17 9C17 10.5 16.2 11.77 15 12.46V11.24C15.61 10.69 16 9.89 16 9C16 7.34 14.66 6 13 6S10 7.34 10 9C10 9.89 10.39 10.69 11 11.24V12.46C9.8 11.77 9 10.5 9 9C9 6.79 10.79 5 13 5M20 20.5C19.97 21.32 19.32 21.97 18.5 22H13C12.62 22 12.26 21.85 12 21.57L8 17.37L8.74 16.6C8.93 16.39 9.2 16.28 9.5 16.28H9.7L12 18V9C12 8.45 12.45 8 13 8S14 8.45 14 9V13.47L15.21 13.6L19.15 15.79C19.68 16.03 20 16.56 20 17.14V20.5M20 2H4C2.9 2 2 2.9 2 4V12C2 13.11 2.9 14 4 14H8V12L4 12L4 4H20L20 12H18V14H20V13.96L20.04 14C21.13 14 22 13.09 22 12V4C22 2.9 21.11 2 20 2Z","heart-pulse":"M7.5,4A5.5,5.5 0 0,0 2,9.5C2,10 2.09,10.5 2.22,11H6.3L7.57,7.63C7.87,6.83 9.05,6.75 9.43,7.63L11.5,13L12.09,11.58C12.22,11.25 12.57,11 13,11H21.78C21.91,10.5 22,10 22,9.5A5.5,5.5 0 0,0 16.5,4C14.64,4 13,4.93 12,6.34C11,4.93 9.36,4 7.5,4V4M3,12.5A1,1 0 0,0 2,13.5A1,1 0 0,0 3,14.5H5.44L11,20C12,20.9 12,20.9 13,20L18.56,14.5H21A1,1 0 0,0 22,13.5A1,1 0 0,0 21,12.5H13.4L12.47,14.8C12.07,15.81 10.92,15.67 10.55,14.83L8.5,9.5L7.54,11.83C7.39,12.21 7.05,12.5 6.6,12.5H3Z","help-circle-outline":"M11,18H13V16H11V18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,6A4,4 0 0,0 8,10H10A2,2 0 0,1 12,8A2,2 0 0,1 14,10C14,12 11,11.75 11,15H13C13,12.75 16,12.5 16,10A4,4 0 0,0 12,6Z","history":"M13.5,8H12V13L16.28,15.54L17,14.33L13.5,12.25V8M13,3A9,9 0 0,0 4,12H1L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3","home-assistant":"M21.8,13H20V21H13V17.67L15.79,14.88L16.5,15C17.66,15 18.6,14.06 18.6,12.9C18.6,11.74 17.66,10.8 16.5,10.8A2.1,2.1 0 0,0 14.4,12.9L14.5,13.61L13,15.13V9.65C13.66,9.29 14.1,8.6 14.1,7.8A2.1,2.1 0 0,0 12,5.7A2.1,2.1 0 0,0 9.9,7.8C9.9,8.6 10.34,9.29 11,9.65V15.13L9.5,13.61L9.6,12.9A2.1,2.1 0 0,0 7.5,10.8A2.1,2.1 0 0,0 5.4,12.9A2.1,2.1 0 0,0 7.5,15L8.21,14.88L11,17.67V21H4V13H2.25C1.83,13 1.42,13 1.42,12.79C1.43,12.57 1.85,12.15 2.28,11.72L11,3C11.33,2.67 11.67,2.33 12,2.33C12.33,2.33 12.67,2.67 13,3L17,7V6H19V9L21.78,11.78C22.18,12.18 22.59,12.59 22.6,12.8C22.6,13 22.2,13 21.8,13M7.5,12A0.9,0.9 0 0,1 8.4,12.9A0.9,0.9 0 0,1 7.5,13.8A0.9,0.9 0 0,1 6.6,12.9A0.9,0.9 0 0,1 7.5,12M16.5,12C17,12 17.4,12.4 17.4,12.9C17.4,13.4 17,13.8 16.5,13.8A0.9,0.9 0 0,1 15.6,12.9A0.9,0.9 0 0,1 16.5,12M12,6.9C12.5,6.9 12.9,7.3 12.9,7.8C12.9,8.3 12.5,8.7 12,8.7C11.5,8.7 11.1,8.3 11.1,7.8C11.1,7.3 11.5,6.9 12,6.9Z","information-outline":"M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,17H13V11H11V17Z","lan-disconnect":"M4,1C2.89,1 2,1.89 2,3V7C2,8.11 2.89,9 4,9H1V11H13V9H10C11.11,9 12,8.11 12,7V3C12,1.89 11.11,1 10,1H4M4,3H10V7H4V3M14,13C12.89,13 12,13.89 12,15V19C12,20.11 12.89,21 14,21H11V23H23V21H20C21.11,21 22,20.11 22,19V15C22,13.89 21.11,13 20,13H14M3.88,13.46L2.46,14.88L4.59,17L2.46,19.12L3.88,20.54L6,18.41L8.12,20.54L9.54,19.12L7.41,17L9.54,14.88L8.12,13.46L6,15.59L3.88,13.46M14,15H20V19H14V15Z","light-switch":"M8 6V18H16V6H8M14 10H10V8H14V10M19.4 1.6C19 1.2 18.5 1 18 1H6C5.5 1 5 1.2 4.6 1.6C4.2 2 4 2.5 4 3V21C4 21.5 4.2 22 4.6 22.4C5 22.8 5.5 23 6 23H18C18.5 23 19 22.8 19.4 22.4C19.8 22 20 21.5 20 21V3C20 2.5 19.8 2 19.4 1.6M18 21H6V3H18V21Z","lightbulb":"M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9A7,7 0 0,0 12,2M9,21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9V21Z","link-variant":"M10.59,13.41C11,13.8 11,14.44 10.59,14.83C10.2,15.22 9.56,15.22 9.17,14.83C7.22,12.88 7.22,9.71 9.17,7.76V7.76L12.71,4.22C14.66,2.27 17.83,2.27 19.78,4.22C21.73,6.17 21.73,9.34 19.78,11.29L18.29,12.78C18.3,11.96 18.17,11.14 17.89,10.36L18.36,9.88C19.54,8.71 19.54,6.81 18.36,5.64C17.19,4.46 15.29,4.46 14.12,5.64L10.59,9.17C9.41,10.34 9.41,12.24 10.59,13.41M13.41,9.17C13.8,8.78 14.44,8.78 14.83,9.17C16.78,11.12 16.78,14.29 14.83,16.24V16.24L11.29,19.78C9.34,21.73 6.17,21.73 4.22,19.78C2.27,17.83 2.27,14.66 4.22,12.71L5.71,11.22C5.7,12.04 5.83,12.86 6.11,13.65L5.64,14.12C4.46,15.29 4.46,17.19 5.64,18.36C6.81,19.54 8.71,19.54 9.88,18.36L13.41,14.83C14.59,13.66 14.59,11.76 13.41,10.59C13,10.2 13,9.56 13.41,9.17Z","magnify":"M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z","map-marker-outline":"M12,6.5A2.5,2.5 0 0,1 14.5,9A2.5,2.5 0 0,1 12,11.5A2.5,2.5 0 0,1 9.5,9A2.5,2.5 0 0,1 12,6.5M12,2A7,7 0 0,1 19,9C19,14.25 12,22 12,22C12,22 5,14.25 5,9A7,7 0 0,1 12,2M12,4A5,5 0 0,0 7,9C7,10 7,12 12,18.71C17,12 17,10 17,9A5,5 0 0,0 12,4Z","meter-electric":"M12 2C7.04 2 3 6.04 3 11C3 14.91 5.5 18.24 9 19.47V22H11V19.94C11.33 20 11.66 20 12 20S12.67 20 13 19.94V22H15V19.47C18.5 18.23 21 14.9 21 11C21 6.04 16.96 2 12 2M14.25 14L11.25 17L9.75 15.5L11 14.25L9.75 13L12.75 10L14.25 11.5L13 12.75L14.25 14M16 9H8V7H16V9Z","minus":"M19,13H5V11H19V13Z","motion-sensor":"M10,0.2C9,0.2 8.2,1 8.2,2C8.2,3 9,3.8 10,3.8C11,3.8 11.8,3 11.8,2C11.8,1 11,0.2 10,0.2M15.67,1A7.33,7.33 0 0,0 23,8.33V7A6,6 0 0,1 17,1H15.67M18.33,1C18.33,3.58 20.42,5.67 23,5.67V4.33C21.16,4.33 19.67,2.84 19.67,1H18.33M21,1A2,2 0 0,0 23,3V1H21M7.92,4.03C7.75,4.03 7.58,4.06 7.42,4.11L2,5.8V11H3.8V7.33L5.91,6.67L2,22H3.8L6.67,13.89L9,17V22H10.8V15.59L8.31,11.05L9.04,8.18L10.12,10H15V8.2H11.38L9.38,4.87C9.08,4.37 8.54,4.03 7.92,4.03Z","note-text-outline":"M15 3H5A2 2 0 0 0 3 5V19A2 2 0 0 0 5 21H19A2 2 0 0 0 21 19V9L15 3M19 19H5V5H14V10H19M17 14H7V12H17M14 17H7V15H14","open-in-new":"M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z","pencil":"M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z","play":"M8,5.14V19.14L19,12.14L8,5.14Z","pause":"M14,19H18V5H14M6,19H10V5H6V19Z","plus":"M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z","power-plug-outline":"M16 7V3H14V7H10V3H8V7C7 7 6 8 6 9V14.5L9.5 18V21H14.5V18L18 14.5V9C18 8 17 7 16 7M16 13.67L13.09 16.59L12.67 17H11.33L10.92 16.59L8 13.67V9.09C8 9.06 8.06 9 8.09 9H15.92C15.95 9 16 9.06 16 9.09V13.67Z","power-plug":"M16,7V3H14V7H10V3H8V7H8C7,7 6,8 6,9V14.5L9.5,18V21H14.5V18L18,14.5V9C18,8 17,7 16,7Z","radiator":"M7.95,3L6.53,5.19L7.95,7.4H7.94L5.95,10.5L4.22,9.6L5.64,7.39L4.22,5.19L6.22,2.09L7.95,3M13.95,2.89L12.53,5.1L13.95,7.3L13.94,7.31L11.95,10.4L10.22,9.5L11.64,7.3L10.22,5.1L12.22,2L13.95,2.89M20,2.89L18.56,5.1L20,7.3V7.31L18,10.4L16.25,9.5L17.67,7.3L16.25,5.1L18.25,2L20,2.89M2,22V14A2,2 0 0,1 4,12H20A2,2 0 0,1 22,14V22H20V20H4V22H2M6,14A1,1 0 0,0 5,15V17A1,1 0 0,0 6,18A1,1 0 0,0 7,17V15A1,1 0 0,0 6,14M10,14A1,1 0 0,0 9,15V17A1,1 0 0,0 10,18A1,1 0 0,0 11,17V15A1,1 0 0,0 10,14M14,14A1,1 0 0,0 13,15V17A1,1 0 0,0 14,18A1,1 0 0,0 15,17V15A1,1 0 0,0 14,14M18,14A1,1 0 0,0 17,15V17A1,1 0 0,0 18,18A1,1 0 0,0 19,17V15A1,1 0 0,0 18,14Z","refresh":"M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z","robot-outline":"M17.5 15.5C17.5 16.61 16.61 17.5 15.5 17.5S13.5 16.61 13.5 15.5 14.4 13.5 15.5 13.5 17.5 14.4 17.5 15.5M8.5 13.5C7.4 13.5 6.5 14.4 6.5 15.5S7.4 17.5 8.5 17.5 10.5 16.61 10.5 15.5 9.61 13.5 8.5 13.5M23 15V18C23 18.55 22.55 19 22 19H21V20C21 21.11 20.11 22 19 22H5C3.9 22 3 21.11 3 20V19H2C1.45 19 1 18.55 1 18V15C1 14.45 1.45 14 2 14H3C3 10.13 6.13 7 10 7H11V5.73C10.4 5.39 10 4.74 10 4C10 2.9 10.9 2 12 2S14 2.9 14 4C14 4.74 13.6 5.39 13 5.73V7H14C17.87 7 21 10.13 21 14H22C22.55 14 23 14.45 23 15M21 16H19V14C19 11.24 16.76 9 14 9H10C7.24 9 5 11.24 5 14V16H3V17H5V20H19V17H21V16Z","router-wireless":"M20.2,5.9L21,5.1C19.6,3.7 17.8,3 16,3C14.2,3 12.4,3.7 11,5.1L11.8,5.9C13,4.8 14.5,4.2 16,4.2C17.5,4.2 19,4.8 20.2,5.9M19.3,6.7C18.4,5.8 17.2,5.3 16,5.3C14.8,5.3 13.6,5.8 12.7,6.7L13.5,7.5C14.2,6.8 15.1,6.5 16,6.5C16.9,6.5 17.8,6.8 18.5,7.5L19.3,6.7M19,13H17V9H15V13H5A2,2 0 0,0 3,15V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V15A2,2 0 0,0 19,13M8,18H6V16H8V18M11.5,18H9.5V16H11.5V18M15,18H13V16H15V18Z","signal":"M3,21H6V18H3M8,21H11V14H8M13,21H16V9H13M18,21H21V3H18V21Z","sitemap":"M9,2V8H11V11H5C3.89,11 3,11.89 3,13V16H1V22H7V16H5V13H11V16H9V22H15V16H13V13H19V16H17V22H23V16H21V13C21,11.89 20.11,11 19,11H13V8H15V2H9Z","smoke-detector":"M12,18A6,6 0 0,0 18,12C18,8.68 15.31,6 12,6C8.68,6 6,8.68 6,12A6,6 0 0,0 12,18M19,3A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5C3.89,21 3,20.1 3,19V5C3,3.89 3.89,3 5,3H19M8,12A4,4 0 0,1 12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12Z","sort-alphabetical-ascending":"M19 17H22L18 21L14 17H17V3H19M11 13V15L7.67 19H11V21H5V19L8.33 15H5V13M9 3H7C5.9 3 5 3.9 5 5V11H7V9H9V11H11V5C11 3.9 10.11 3 9 3M9 7H7V5H9Z","swap-horizontal":"M21,9L17,5V8H10V10H17V13M7,11L3,15L7,19V16H14V14H7V11Z","thermometer":"M15 13V5A3 3 0 0 0 9 5V13A5 5 0 1 0 15 13M12 4A1 1 0 0 1 13 5V8H11V5A1 1 0 0 1 12 4Z","thermostat":"M16.95,16.95L14.83,14.83C15.55,14.1 16,13.1 16,12C16,11.26 15.79,10.57 15.43,10L17.6,7.81C18.5,9 19,10.43 19,12C19,13.93 18.22,15.68 16.95,16.95M12,5C13.57,5 15,5.5 16.19,6.4L14,8.56C13.43,8.21 12.74,8 12,8A4,4 0 0,0 8,12C8,13.1 8.45,14.1 9.17,14.83L7.05,16.95C5.78,15.68 5,13.93 5,12A7,7 0 0,1 12,5M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12C22,6.47 17.5,2 12,2Z","update":"M21,10.12H14.22L16.96,7.3C14.23,4.6 9.81,4.5 7.08,7.2C4.35,9.91 4.35,14.28 7.08,17C9.81,19.7 14.23,19.7 16.96,17C18.32,15.65 19,14.08 19,12.1H21C21,14.08 20.12,16.65 18.36,18.39C14.85,21.87 9.15,21.87 5.64,18.39C2.14,14.92 2.11,9.28 5.62,5.81C9.13,2.34 14.76,2.34 18.27,5.81L21,3V10.12M12.5,8V12.25L16,14.33L15.28,15.54L11,13V8H12.5Z","wifi-off":"M2.28,3L1,4.27L2.47,5.74C2.04,6 1.61,6.29 1.2,6.6L3,9C3.53,8.6 4.08,8.25 4.66,7.93L6.89,10.16C6.15,10.5 5.44,10.91 4.8,11.4L6.6,13.8C7.38,13.22 8.26,12.77 9.2,12.47L11.75,15C10.5,15.07 9.34,15.5 8.4,16.2L12,21L14.46,17.73L17.74,21L19,19.72M12,3C9.85,3 7.8,3.38 5.9,4.07L8.29,6.47C9.5,6.16 10.72,6 12,6C15.38,6 18.5,7.11 21,9L22.8,6.6C19.79,4.34 16.06,3 12,3M12,9C11.62,9 11.25,9 10.88,9.05L14.07,12.25C15.29,12.53 16.43,13.07 17.4,13.8L19.2,11.4C17.2,9.89 14.7,9 12,9Z","wifi":"M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z","window-closed-variant":"M21 20V2H3V20H1V23H23V20M19 4V11H13V4M5 4H11V11H5M5 20V13H11V20M13 20V13H19V20Z","zigbee":"M4.06,6.15C3.97,6.17 3.88,6.22 3.8,6.28C2.66,7.9 2,9.87 2,12A10,10 0 0,0 12,22C15,22 17.68,20.68 19.5,18.6L17,18.85C14.25,19.15 11.45,19.19 8.66,18.96C7.95,18.94 7.24,18.76 6.59,18.45C5.73,18.06 5.15,17.23 5.07,16.29C5.06,16.13 5.12,16 5.23,15.87L7.42,13.6L15.03,5.7V5.6H10.84C8.57,5.64 6.31,5.82 4.06,6.15M20.17,17.5C20.26,17.47 20.35,17.44 20.43,17.39C21.42,15.83 22,14 22,12A10,10 0 0,0 12,2C9.22,2 6.7,3.13 4.89,4.97H5.17C8.28,4.57 11.43,4.47 14.56,4.65C15.5,4.64 16.45,4.82 17.33,5.17C18.25,5.53 18.89,6.38 19,7.37C19,7.53 18.93,7.7 18.82,7.82L9.71,17.19L9,17.95V18.06H13.14C15.5,18 17.84,17.81 20.17,17.5Z","account-group-outline":"M12,5A3.5,3.5 0 0,0 8.5,8.5A3.5,3.5 0 0,0 12,12A3.5,3.5 0 0,0 15.5,8.5A3.5,3.5 0 0,0 12,5M12,7A1.5,1.5 0 0,1 13.5,8.5A1.5,1.5 0 0,1 12,10A1.5,1.5 0 0,1 10.5,8.5A1.5,1.5 0 0,1 12,7M5.5,8A2.5,2.5 0 0,0 3,10.5C3,11.44 3.53,12.25 4.29,12.68C4.65,12.88 5.06,13 5.5,13C5.94,13 6.35,12.88 6.71,12.68C7.08,12.47 7.39,12.17 7.62,11.81C6.89,10.86 6.5,9.7 6.5,8.5C6.5,8.41 6.5,8.31 6.5,8.22C6.2,8.08 5.86,8 5.5,8M18.5,8C18.14,8 17.8,8.08 17.5,8.22C17.5,8.31 17.5,8.41 17.5,8.5C17.5,9.7 17.11,10.86 16.38,11.81C16.5,12 16.63,12.15 16.78,12.3C16.94,12.45 17.1,12.58 17.29,12.68C17.65,12.88 18.06,13 18.5,13C18.94,13 19.35,12.88 19.71,12.68C20.47,12.25 21,11.44 21,10.5A2.5,2.5 0 0,0 18.5,8M12,14C9.66,14 5,15.17 5,17.5V19H19V17.5C19,15.17 14.34,14 12,14M4.71,14.55C2.78,14.78 0,15.76 0,17.5V19H3V17.07C3,16.06 3.69,15.22 4.71,14.55M19.29,14.55C20.31,15.22 21,16.06 21,17.07V19H24V17.5C24,15.76 21.22,14.78 19.29,14.55M12,16C13.53,16 15.24,16.5 16.23,17H7.77C8.76,16.5 10.47,16 12,16Z","thumb-up-outline":"M5,9V21H1V9H5M9,21A2,2 0 0,1 7,19V9C7,8.45 7.22,7.95 7.59,7.59L14.17,1L15.23,2.06C15.5,2.33 15.67,2.7 15.67,3.11L15.64,3.43L14.69,8H21C22.11,8 23,8.9 23,10V12C23,12.26 22.95,12.5 22.86,12.73L19.84,19.78C19.54,20.5 18.83,21 18,21H9M9,19H18.03L21,12V10H12.21L13.34,4.68L9,9.03V19Z","thumb-down-outline":"M19,15V3H23V15H19M15,3A2,2 0 0,1 17,5V15C17,15.55 16.78,16.05 16.41,16.41L9.83,23L8.77,21.94C8.5,21.67 8.33,21.3 8.33,20.88L8.36,20.57L9.31,16H3C1.89,16 1,15.1 1,14V12C1,11.74 1.05,11.5 1.14,11.27L4.16,4.22C4.46,3.5 5.17,3 6,3H15M15,5H5.97L3,12V14H11.78L10.65,19.32L15,14.97V5Z","thumbs-up-down-outline":"M12 6C12 5.45 11.55 5 11 5H5.82L6.5 1.82L6.5 1.59C6.5 1.28 6.37 1 6.17 .79L5.38 0L.44 4.94C.17 5.21 0 5.59 0 6V12.5C0 13.33 .67 14 1.5 14H8.25C8.87 14 9.4 13.62 9.63 13.09L11.89 7.8C11.96 7.63 12 7.44 12 7.25V6M10 7.13L7.92 12H2V6.21L3.93 4.28L3.36 7H10V7.13M22.5 10H15.75C15.13 10 14.6 10.38 14.37 10.91L12.11 16.2C12.04 16.37 12 16.56 12 16.75V18C12 18.55 12.45 19 13 19H18.18L17.5 22.18L17.5 22.42C17.5 22.73 17.63 23 17.83 23.22L18.62 24L23.56 19.06C23.83 18.79 24 18.41 24 18V11.5C24 10.67 23.33 10 22.5 10M22 17.79L20.07 19.72L20.64 17H14V16.87L16.08 12H22V17.79Z"};
+  const MDI = {"arrow-left":"M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z","heart-outline":"M12.1,18.55L12,18.65L11.89,18.55C7.14,14.24 4,11.39 4,8.5C4,6.5 5.5,5 7.5,5C9.04,5 10.54,6 11.07,7.36H12.93C13.46,6 14.96,5 16.5,5C18.5,5 20,6.5 20,8.5C20,11.39 16.86,14.24 12.1,18.55M16.5,3C14.76,3 13.09,3.81 12,5.08C10.91,3.81 9.24,3 7.5,3C4.42,3 2,5.41 2,8.5C2,12.27 5.4,15.36 10.55,20.03L12,21.35L13.45,20.03C18.6,15.36 22,12.27 22,8.5C22,5.41 19.58,3 16.5,3Z","cart-outline":"M17,18A2,2 0 0,1 19,20A2,2 0 0,1 17,22C15.89,22 15,21.1 15,20C15,18.89 15.89,18 17,18M1,2H4.27L5.21,4H20A1,1 0 0,1 21,5C21,5.17 20.95,5.34 20.88,5.5L17.3,11.97C16.96,12.58 16.3,13 15.55,13H8.1L7.2,14.63L7.17,14.75A0.25,0.25 0 0,0 7.42,15H19V17H7C5.89,17 5,16.1 5,15C5,14.65 5.09,14.32 5.24,14.04L6.6,11.59L3,4H1V2M7,18A2,2 0 0,1 9,20A2,2 0 0,1 7,22C5.89,22 5,21.1 5,20C5,18.89 5.89,18 7,18M16,11L18.78,6H6.14L8.5,11H16Z","tune":"M3,17V19H9V17H3M3,5V7H13V5H3M13,21V19H21V17H13V15H11V21H13M7,9V11H3V13H7V15H9V9H7M21,13V11H11V13H21M15,9H17V7H21V5H17V3H15V9Z","alert-circle":"M13,13H11V7H13M13,17H11V15H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z","alert":"M13 14H11V9H13M13 18H11V16H13M1 21H23L12 2L1 21Z","arrow-down":"M11,4H13V16L18.5,10.5L19.92,11.92L12,19.84L4.08,11.92L5.5,10.5L11,16V4Z","arrow-up":"M13,20H11V8L5.5,13.5L4.08,12.08L12,4.16L19.92,12.08L18.5,13.5L13,8V20Z","battery-alert-variant-outline":"M14 20H6V6H14M14.67 4H13V2H7V4H5.33C4.6 4 4 4.6 4 5.33V20.67C4 21.4 4.6 22 5.33 22H14.67C15.4 22 16 21.4 16 20.67V5.33C16 4.6 15.4 4 14.67 4M21 7H19V13H21V8M21 15H19V17H21V15Z","battery-sync":"M13.54 22H7.33C6.6 22 6 21.4 6 20.67V5.33C6 4.6 6.6 4 7.33 4H9V2H15V4H16.67C17.4 4 18 4.6 18 5.33V12C14.69 12 12 14.69 12 18C12 19.54 12.58 20.94 13.54 22M18 13L20.25 15.25L18 17.5V16C16.15 16 14.94 17.96 15.76 19.62L14.67 20.71C12.91 18.05 14.81 14.5 18 14.5V13M18 24L15.75 21.75L18 19.5V21C19.85 21 21.06 19.04 20.24 17.38L21.33 16.29C23.09 18.95 21.19 22.5 18 22.5V24","battery":"M16.67,4H15V2H9V4H7.33A1.33,1.33 0 0,0 6,5.33V20.67C6,21.4 6.6,22 7.33,22H16.67A1.33,1.33 0 0,0 18,20.67V5.33C18,4.6 17.4,4 16.67,4Z","bell-off":"M20.84,22.73L18.11,20H3V19L5,17V11C5,9.86 5.29,8.73 5.83,7.72L1.11,3L2.39,1.73L22.11,21.46L20.84,22.73M19,15.8V11C19,7.9 16.97,5.17 14,4.29C14,4.19 14,4.1 14,4A2,2 0 0,0 12,2A2,2 0 0,0 10,4C10,4.1 10,4.19 10,4.29C9.39,4.47 8.8,4.74 8.26,5.09L19,15.8M12,23A2,2 0 0,0 14,21H10A2,2 0 0,0 12,23Z","bell":"M21,19V20H3V19L5,17V11C5,7.9 7.03,5.17 10,4.29C10,4.19 10,4.1 10,4A2,2 0 0,1 12,2A2,2 0 0,1 14,4C14,4.1 14,4.19 14,4.29C16.97,5.17 19,7.9 19,11V17L21,19M14,21A2,2 0 0,1 12,23A2,2 0 0,1 10,21","calendar-clock":"M15,13H16.5V15.82L18.94,17.23L18.19,18.53L15,16.69V13M19,8H5V19H9.67C9.24,18.09 9,17.07 9,16A7,7 0 0,1 16,9C17.07,9 18.09,9.24 19,9.67V8M5,21C3.89,21 3,20.1 3,19V5C3,3.89 3.89,3 5,3H6V1H8V3H16V1H18V3H19A2,2 0 0,1 21,5V11.1C22.24,12.36 23,14.09 23,16A7,7 0 0,1 16,23C14.09,23 12.36,22.24 11.1,21H5M16,11.15A4.85,4.85 0 0,0 11.15,16C11.15,18.68 13.32,20.85 16,20.85A4.85,4.85 0 0,0 20.85,16C20.85,13.32 18.68,11.15 16,11.15Z","cellphone-wireless":"M20.07,4.93C21.88,6.74 23,9.24 23,12C23,14.76 21.88,17.26 20.07,19.07L18.66,17.66C20.11,16.22 21,14.22 21,12C21,9.79 20.11,7.78 18.66,6.34L20.07,4.93M17.24,7.76C18.33,8.85 19,10.35 19,12C19,13.65 18.33,15.15 17.24,16.24L15.83,14.83C16.55,14.11 17,13.11 17,12C17,10.89 16.55,9.89 15.83,9.17L17.24,7.76M13,10A2,2 0 0,1 15,12A2,2 0 0,1 13,14A2,2 0 0,1 11,12A2,2 0 0,1 13,10M11.5,1A2.5,2.5 0 0,1 14,3.5V8H12V4H3V19H12V16H14V20.5A2.5,2.5 0 0,1 11.5,23H3.5A2.5,2.5 0 0,1 1,20.5V3.5A2.5,2.5 0 0,1 3.5,1H11.5Z","check":"M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z","chevron-down":"M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z","chevron-right":"M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z","chevron-up":"M7.41,15.41L12,10.83L16.59,15.41L18,14L12,8L6,14L7.41,15.41Z","chip":"M6,4H18V5H21V7H18V9H21V11H18V13H21V15H18V17H21V19H18V20H6V19H3V17H6V15H3V13H6V11H3V9H6V7H3V5H6V4M11,15V18H12V15H11M13,15V18H14V15H13M15,15V18H16V15H15Z","close":"M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z","cog":"M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z","content-copy":"M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z","delete":"M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z","door":"M8,3C6.89,3 6,3.89 6,5V21H18V5C18,3.89 17.11,3 16,3H8M8,5H16V19H8V5M13,11V13H15V11H13Z","dots-vertical":"M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z","download":"M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z","filter-variant":"M6,13H18V11H6M3,6V8H21V6M10,18H14V16H10V18Z","gesture-tap-button":"M13 5C15.21 5 17 6.79 17 9C17 10.5 16.2 11.77 15 12.46V11.24C15.61 10.69 16 9.89 16 9C16 7.34 14.66 6 13 6S10 7.34 10 9C10 9.89 10.39 10.69 11 11.24V12.46C9.8 11.77 9 10.5 9 9C9 6.79 10.79 5 13 5M20 20.5C19.97 21.32 19.32 21.97 18.5 22H13C12.62 22 12.26 21.85 12 21.57L8 17.37L8.74 16.6C8.93 16.39 9.2 16.28 9.5 16.28H9.7L12 18V9C12 8.45 12.45 8 13 8S14 8.45 14 9V13.47L15.21 13.6L19.15 15.79C19.68 16.03 20 16.56 20 17.14V20.5M20 2H4C2.9 2 2 2.9 2 4V12C2 13.11 2.9 14 4 14H8V12L4 12L4 4H20L20 12H18V14H20V13.96L20.04 14C21.13 14 22 13.09 22 12V4C22 2.9 21.11 2 20 2Z","heart-pulse":"M7.5,4A5.5,5.5 0 0,0 2,9.5C2,10 2.09,10.5 2.22,11H6.3L7.57,7.63C7.87,6.83 9.05,6.75 9.43,7.63L11.5,13L12.09,11.58C12.22,11.25 12.57,11 13,11H21.78C21.91,10.5 22,10 22,9.5A5.5,5.5 0 0,0 16.5,4C14.64,4 13,4.93 12,6.34C11,4.93 9.36,4 7.5,4V4M3,12.5A1,1 0 0,0 2,13.5A1,1 0 0,0 3,14.5H5.44L11,20C12,20.9 12,20.9 13,20L18.56,14.5H21A1,1 0 0,0 22,13.5A1,1 0 0,0 21,12.5H13.4L12.47,14.8C12.07,15.81 10.92,15.67 10.55,14.83L8.5,9.5L7.54,11.83C7.39,12.21 7.05,12.5 6.6,12.5H3Z","help-circle-outline":"M11,18H13V16H11V18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,6A4,4 0 0,0 8,10H10A2,2 0 0,1 12,8A2,2 0 0,1 14,10C14,12 11,11.75 11,15H13C13,12.75 16,12.5 16,10A4,4 0 0,0 12,6Z","history":"M13.5,8H12V13L16.28,15.54L17,14.33L13.5,12.25V8M13,3A9,9 0 0,0 4,12H1L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3","home-assistant":"M21.8,13H20V21H13V17.67L15.79,14.88L16.5,15C17.66,15 18.6,14.06 18.6,12.9C18.6,11.74 17.66,10.8 16.5,10.8A2.1,2.1 0 0,0 14.4,12.9L14.5,13.61L13,15.13V9.65C13.66,9.29 14.1,8.6 14.1,7.8A2.1,2.1 0 0,0 12,5.7A2.1,2.1 0 0,0 9.9,7.8C9.9,8.6 10.34,9.29 11,9.65V15.13L9.5,13.61L9.6,12.9A2.1,2.1 0 0,0 7.5,10.8A2.1,2.1 0 0,0 5.4,12.9A2.1,2.1 0 0,0 7.5,15L8.21,14.88L11,17.67V21H4V13H2.25C1.83,13 1.42,13 1.42,12.79C1.43,12.57 1.85,12.15 2.28,11.72L11,3C11.33,2.67 11.67,2.33 12,2.33C12.33,2.33 12.67,2.67 13,3L17,7V6H19V9L21.78,11.78C22.18,12.18 22.59,12.59 22.6,12.8C22.6,13 22.2,13 21.8,13M7.5,12A0.9,0.9 0 0,1 8.4,12.9A0.9,0.9 0 0,1 7.5,13.8A0.9,0.9 0 0,1 6.6,12.9A0.9,0.9 0 0,1 7.5,12M16.5,12C17,12 17.4,12.4 17.4,12.9C17.4,13.4 17,13.8 16.5,13.8A0.9,0.9 0 0,1 15.6,12.9A0.9,0.9 0 0,1 16.5,12M12,6.9C12.5,6.9 12.9,7.3 12.9,7.8C12.9,8.3 12.5,8.7 12,8.7C11.5,8.7 11.1,8.3 11.1,7.8C11.1,7.3 11.5,6.9 12,6.9Z","information-outline":"M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M11,17H13V11H11V17Z","lan-disconnect":"M4,1C2.89,1 2,1.89 2,3V7C2,8.11 2.89,9 4,9H1V11H13V9H10C11.11,9 12,8.11 12,7V3C12,1.89 11.11,1 10,1H4M4,3H10V7H4V3M14,13C12.89,13 12,13.89 12,15V19C12,20.11 12.89,21 14,21H11V23H23V21H20C21.11,21 22,20.11 22,19V15C22,13.89 21.11,13 20,13H14M3.88,13.46L2.46,14.88L4.59,17L2.46,19.12L3.88,20.54L6,18.41L8.12,20.54L9.54,19.12L7.41,17L9.54,14.88L8.12,13.46L6,15.59L3.88,13.46M14,15H20V19H14V15Z","light-switch":"M8 6V18H16V6H8M14 10H10V8H14V10M19.4 1.6C19 1.2 18.5 1 18 1H6C5.5 1 5 1.2 4.6 1.6C4.2 2 4 2.5 4 3V21C4 21.5 4.2 22 4.6 22.4C5 22.8 5.5 23 6 23H18C18.5 23 19 22.8 19.4 22.4C19.8 22 20 21.5 20 21V3C20 2.5 19.8 2 19.4 1.6M18 21H6V3H18V21Z","lightbulb":"M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9A7,7 0 0,0 12,2M9,21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9V21Z","link-variant":"M10.59,13.41C11,13.8 11,14.44 10.59,14.83C10.2,15.22 9.56,15.22 9.17,14.83C7.22,12.88 7.22,9.71 9.17,7.76V7.76L12.71,4.22C14.66,2.27 17.83,2.27 19.78,4.22C21.73,6.17 21.73,9.34 19.78,11.29L18.29,12.78C18.3,11.96 18.17,11.14 17.89,10.36L18.36,9.88C19.54,8.71 19.54,6.81 18.36,5.64C17.19,4.46 15.29,4.46 14.12,5.64L10.59,9.17C9.41,10.34 9.41,12.24 10.59,13.41M13.41,9.17C13.8,8.78 14.44,8.78 14.83,9.17C16.78,11.12 16.78,14.29 14.83,16.24V16.24L11.29,19.78C9.34,21.73 6.17,21.73 4.22,19.78C2.27,17.83 2.27,14.66 4.22,12.71L5.71,11.22C5.7,12.04 5.83,12.86 6.11,13.65L5.64,14.12C4.46,15.29 4.46,17.19 5.64,18.36C6.81,19.54 8.71,19.54 9.88,18.36L13.41,14.83C14.59,13.66 14.59,11.76 13.41,10.59C13,10.2 13,9.56 13.41,9.17Z","magnify":"M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z","map-marker-outline":"M12,6.5A2.5,2.5 0 0,1 14.5,9A2.5,2.5 0 0,1 12,11.5A2.5,2.5 0 0,1 9.5,9A2.5,2.5 0 0,1 12,6.5M12,2A7,7 0 0,1 19,9C19,14.25 12,22 12,22C12,22 5,14.25 5,9A7,7 0 0,1 12,2M12,4A5,5 0 0,0 7,9C7,10 7,12 12,18.71C17,12 17,10 17,9A5,5 0 0,0 12,4Z","meter-electric":"M12 2C7.04 2 3 6.04 3 11C3 14.91 5.5 18.24 9 19.47V22H11V19.94C11.33 20 11.66 20 12 20S12.67 20 13 19.94V22H15V19.47C18.5 18.23 21 14.9 21 11C21 6.04 16.96 2 12 2M14.25 14L11.25 17L9.75 15.5L11 14.25L9.75 13L12.75 10L14.25 11.5L13 12.75L14.25 14M16 9H8V7H16V9Z","minus":"M19,13H5V11H19V13Z","motion-sensor":"M10,0.2C9,0.2 8.2,1 8.2,2C8.2,3 9,3.8 10,3.8C11,3.8 11.8,3 11.8,2C11.8,1 11,0.2 10,0.2M15.67,1A7.33,7.33 0 0,0 23,8.33V7A6,6 0 0,1 17,1H15.67M18.33,1C18.33,3.58 20.42,5.67 23,5.67V4.33C21.16,4.33 19.67,2.84 19.67,1H18.33M21,1A2,2 0 0,0 23,3V1H21M7.92,4.03C7.75,4.03 7.58,4.06 7.42,4.11L2,5.8V11H3.8V7.33L5.91,6.67L2,22H3.8L6.67,13.89L9,17V22H10.8V15.59L8.31,11.05L9.04,8.18L10.12,10H15V8.2H11.38L9.38,4.87C9.08,4.37 8.54,4.03 7.92,4.03Z","note-text-outline":"M15 3H5A2 2 0 0 0 3 5V19A2 2 0 0 0 5 21H19A2 2 0 0 0 21 19V9L15 3M19 19H5V5H14V10H19M17 14H7V12H17M14 17H7V15H14","open-in-new":"M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z","pencil":"M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z","play":"M8,5.14V19.14L19,12.14L8,5.14Z","pause":"M14,19H18V5H14M6,19H10V5H6V19Z","plus":"M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z","power-plug-outline":"M16 7V3H14V7H10V3H8V7C7 7 6 8 6 9V14.5L9.5 18V21H14.5V18L18 14.5V9C18 8 17 7 16 7M16 13.67L13.09 16.59L12.67 17H11.33L10.92 16.59L8 13.67V9.09C8 9.06 8.06 9 8.09 9H15.92C15.95 9 16 9.06 16 9.09V13.67Z","power-plug":"M16,7V3H14V7H10V3H8V7H8C7,7 6,8 6,9V14.5L9.5,18V21H14.5V18L18,14.5V9C18,8 17,7 16,7Z","radiator":"M7.95,3L6.53,5.19L7.95,7.4H7.94L5.95,10.5L4.22,9.6L5.64,7.39L4.22,5.19L6.22,2.09L7.95,3M13.95,2.89L12.53,5.1L13.95,7.3L13.94,7.31L11.95,10.4L10.22,9.5L11.64,7.3L10.22,5.1L12.22,2L13.95,2.89M20,2.89L18.56,5.1L20,7.3V7.31L18,10.4L16.25,9.5L17.67,7.3L16.25,5.1L18.25,2L20,2.89M2,22V14A2,2 0 0,1 4,12H20A2,2 0 0,1 22,14V22H20V20H4V22H2M6,14A1,1 0 0,0 5,15V17A1,1 0 0,0 6,18A1,1 0 0,0 7,17V15A1,1 0 0,0 6,14M10,14A1,1 0 0,0 9,15V17A1,1 0 0,0 10,18A1,1 0 0,0 11,17V15A1,1 0 0,0 10,14M14,14A1,1 0 0,0 13,15V17A1,1 0 0,0 14,18A1,1 0 0,0 15,17V15A1,1 0 0,0 14,14M18,14A1,1 0 0,0 17,15V17A1,1 0 0,0 18,18A1,1 0 0,0 19,17V15A1,1 0 0,0 18,14Z","refresh":"M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z","robot-outline":"M17.5 15.5C17.5 16.61 16.61 17.5 15.5 17.5S13.5 16.61 13.5 15.5 14.4 13.5 15.5 13.5 17.5 14.4 17.5 15.5M8.5 13.5C7.4 13.5 6.5 14.4 6.5 15.5S7.4 17.5 8.5 17.5 10.5 16.61 10.5 15.5 9.61 13.5 8.5 13.5M23 15V18C23 18.55 22.55 19 22 19H21V20C21 21.11 20.11 22 19 22H5C3.9 22 3 21.11 3 20V19H2C1.45 19 1 18.55 1 18V15C1 14.45 1.45 14 2 14H3C3 10.13 6.13 7 10 7H11V5.73C10.4 5.39 10 4.74 10 4C10 2.9 10.9 2 12 2S14 2.9 14 4C14 4.74 13.6 5.39 13 5.73V7H14C17.87 7 21 10.13 21 14H22C22.55 14 23 14.45 23 15M21 16H19V14C19 11.24 16.76 9 14 9H10C7.24 9 5 11.24 5 14V16H3V17H5V20H19V17H21V16Z","router-wireless":"M20.2,5.9L21,5.1C19.6,3.7 17.8,3 16,3C14.2,3 12.4,3.7 11,5.1L11.8,5.9C13,4.8 14.5,4.2 16,4.2C17.5,4.2 19,4.8 20.2,5.9M19.3,6.7C18.4,5.8 17.2,5.3 16,5.3C14.8,5.3 13.6,5.8 12.7,6.7L13.5,7.5C14.2,6.8 15.1,6.5 16,6.5C16.9,6.5 17.8,6.8 18.5,7.5L19.3,6.7M19,13H17V9H15V13H5A2,2 0 0,0 3,15V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V15A2,2 0 0,0 19,13M8,18H6V16H8V18M11.5,18H9.5V16H11.5V18M15,18H13V16H15V18Z","signal":"M3,21H6V18H3M8,21H11V14H8M13,21H16V9H13M18,21H21V3H18V21Z","sitemap":"M9,2V8H11V11H5C3.89,11 3,11.89 3,13V16H1V22H7V16H5V13H11V16H9V22H15V16H13V13H19V16H17V22H23V16H21V13C21,11.89 20.11,11 19,11H13V8H15V2H9Z","smoke-detector":"M12,18A6,6 0 0,0 18,12C18,8.68 15.31,6 12,6C8.68,6 6,8.68 6,12A6,6 0 0,0 12,18M19,3A2,2 0 0,1 21,5V19A2,2 0 0,1 19,21H5C3.89,21 3,20.1 3,19V5C3,3.89 3.89,3 5,3H19M8,12A4,4 0 0,1 12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12Z","sort-alphabetical-ascending":"M19 17H22L18 21L14 17H17V3H19M11 13V15L7.67 19H11V21H5V19L8.33 15H5V13M9 3H7C5.9 3 5 3.9 5 5V11H7V9H9V11H11V5C11 3.9 10.11 3 9 3M9 7H7V5H9Z","swap-horizontal":"M21,9L17,5V8H10V10H17V13M7,11L3,15L7,19V16H14V14H7V11Z","thermometer":"M15 13V5A3 3 0 0 0 9 5V13A5 5 0 1 0 15 13M12 4A1 1 0 0 1 13 5V8H11V5A1 1 0 0 1 12 4Z","thermostat":"M16.95,16.95L14.83,14.83C15.55,14.1 16,13.1 16,12C16,11.26 15.79,10.57 15.43,10L17.6,7.81C18.5,9 19,10.43 19,12C19,13.93 18.22,15.68 16.95,16.95M12,5C13.57,5 15,5.5 16.19,6.4L14,8.56C13.43,8.21 12.74,8 12,8A4,4 0 0,0 8,12C8,13.1 8.45,14.1 9.17,14.83L7.05,16.95C5.78,15.68 5,13.93 5,12A7,7 0 0,1 12,5M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12C22,6.47 17.5,2 12,2Z","update":"M21,10.12H14.22L16.96,7.3C14.23,4.6 9.81,4.5 7.08,7.2C4.35,9.91 4.35,14.28 7.08,17C9.81,19.7 14.23,19.7 16.96,17C18.32,15.65 19,14.08 19,12.1H21C21,14.08 20.12,16.65 18.36,18.39C14.85,21.87 9.15,21.87 5.64,18.39C2.14,14.92 2.11,9.28 5.62,5.81C9.13,2.34 14.76,2.34 18.27,5.81L21,3V10.12M12.5,8V12.25L16,14.33L15.28,15.54L11,13V8H12.5Z","wifi-off":"M2.28,3L1,4.27L2.47,5.74C2.04,6 1.61,6.29 1.2,6.6L3,9C3.53,8.6 4.08,8.25 4.66,7.93L6.89,10.16C6.15,10.5 5.44,10.91 4.8,11.4L6.6,13.8C7.38,13.22 8.26,12.77 9.2,12.47L11.75,15C10.5,15.07 9.34,15.5 8.4,16.2L12,21L14.46,17.73L17.74,21L19,19.72M12,3C9.85,3 7.8,3.38 5.9,4.07L8.29,6.47C9.5,6.16 10.72,6 12,6C15.38,6 18.5,7.11 21,9L22.8,6.6C19.79,4.34 16.06,3 12,3M12,9C11.62,9 11.25,9 10.88,9.05L14.07,12.25C15.29,12.53 16.43,13.07 17.4,13.8L19.2,11.4C17.2,9.89 14.7,9 12,9Z","wifi":"M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z","window-closed-variant":"M21 20V2H3V20H1V23H23V20M19 4V11H13V4M5 4H11V11H5M5 20V13H11V20M13 20V13H19V20Z","zigbee":"M4.06,6.15C3.97,6.17 3.88,6.22 3.8,6.28C2.66,7.9 2,9.87 2,12A10,10 0 0,0 12,22C15,22 17.68,20.68 19.5,18.6L17,18.85C14.25,19.15 11.45,19.19 8.66,18.96C7.95,18.94 7.24,18.76 6.59,18.45C5.73,18.06 5.15,17.23 5.07,16.29C5.06,16.13 5.12,16 5.23,15.87L7.42,13.6L15.03,5.7V5.6H10.84C8.57,5.64 6.31,5.82 4.06,6.15M20.17,17.5C20.26,17.47 20.35,17.44 20.43,17.39C21.42,15.83 22,14 22,12A10,10 0 0,0 12,2C9.22,2 6.7,3.13 4.89,4.97H5.17C8.28,4.57 11.43,4.47 14.56,4.65C15.5,4.64 16.45,4.82 17.33,5.17C18.25,5.53 18.89,6.38 19,7.37C19,7.53 18.93,7.7 18.82,7.82L9.71,17.19L9,17.95V18.06H13.14C15.5,18 17.84,17.81 20.17,17.5Z","account-group-outline":"M12,5A3.5,3.5 0 0,0 8.5,8.5A3.5,3.5 0 0,0 12,12A3.5,3.5 0 0,0 15.5,8.5A3.5,3.5 0 0,0 12,5M12,7A1.5,1.5 0 0,1 13.5,8.5A1.5,1.5 0 0,1 12,10A1.5,1.5 0 0,1 10.5,8.5A1.5,1.5 0 0,1 12,7M5.5,8A2.5,2.5 0 0,0 3,10.5C3,11.44 3.53,12.25 4.29,12.68C4.65,12.88 5.06,13 5.5,13C5.94,13 6.35,12.88 6.71,12.68C7.08,12.47 7.39,12.17 7.62,11.81C6.89,10.86 6.5,9.7 6.5,8.5C6.5,8.41 6.5,8.31 6.5,8.22C6.2,8.08 5.86,8 5.5,8M18.5,8C18.14,8 17.8,8.08 17.5,8.22C17.5,8.31 17.5,8.41 17.5,8.5C17.5,9.7 17.11,10.86 16.38,11.81C16.5,12 16.63,12.15 16.78,12.3C16.94,12.45 17.1,12.58 17.29,12.68C17.65,12.88 18.06,13 18.5,13C18.94,13 19.35,12.88 19.71,12.68C20.47,12.25 21,11.44 21,10.5A2.5,2.5 0 0,0 18.5,8M12,14C9.66,14 5,15.17 5,17.5V19H19V17.5C19,15.17 14.34,14 12,14M4.71,14.55C2.78,14.78 0,15.76 0,17.5V19H3V17.07C3,16.06 3.69,15.22 4.71,14.55M19.29,14.55C20.31,15.22 21,16.06 21,17.07V19H24V17.5C24,15.76 21.22,14.78 19.29,14.55M12,16C13.53,16 15.24,16.5 16.23,17H7.77C8.76,16.5 10.47,16 12,16Z","thumb-up-outline":"M5,9V21H1V9H5M9,21A2,2 0 0,1 7,19V9C7,8.45 7.22,7.95 7.59,7.59L14.17,1L15.23,2.06C15.5,2.33 15.67,2.7 15.67,3.11L15.64,3.43L14.69,8H21C22.11,8 23,8.9 23,10V12C23,12.26 22.95,12.5 22.86,12.73L19.84,19.78C19.54,20.5 18.83,21 18,21H9M9,19H18.03L21,12V10H12.21L13.34,4.68L9,9.03V19Z","thumb-down-outline":"M19,15V3H23V15H19M15,3A2,2 0 0,1 17,5V15C17,15.55 16.78,16.05 16.41,16.41L9.83,23L8.77,21.94C8.5,21.67 8.33,21.3 8.33,20.88L8.36,20.57L9.31,16H3C1.89,16 1,15.1 1,14V12C1,11.74 1.05,11.5 1.14,11.27L4.16,4.22C4.46,3.5 5.17,3 6,3H15M15,5H5.97L3,12V14H11.78L10.65,19.32L15,14.97V5Z","thumbs-up-down-outline":"M12 6C12 5.45 11.55 5 11 5H5.82L6.5 1.82L6.5 1.59C6.5 1.28 6.37 1 6.17 .79L5.38 0L.44 4.94C.17 5.21 0 5.59 0 6V12.5C0 13.33 .67 14 1.5 14H8.25C8.87 14 9.4 13.62 9.63 13.09L11.89 7.8C11.96 7.63 12 7.44 12 7.25V6M10 7.13L7.92 12H2V6.21L3.93 4.28L3.36 7H10V7.13M22.5 10H15.75C15.13 10 14.6 10.38 14.37 10.91L12.11 16.2C12.04 16.37 12 16.56 12 16.75V18C12 18.55 12.45 19 13 19H18.18L17.5 22.18L17.5 22.42C17.5 22.73 17.63 23 17.83 23.22L18.62 24L23.56 19.06C23.83 18.79 24 18.41 24 18V11.5C24 10.67 23.33 10 22.5 10M22 17.79L20.07 19.72L20.64 17H14V16.87L16.08 12H22V17.79Z"};
   const ic = (name, cls = "") => `<svg class="mdi ${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${MDI[name] || MDI["help-circle-outline"]}"/></svg>`;
   document.querySelectorAll("[data-i]").forEach((el) => { el.outerHTML = ic(el.dataset.i, el.closest(".chip") ? "s18" : ""); });
   document.getElementById("logo").innerHTML = ic("zigbee");
@@ -1079,7 +1208,7 @@
     removed: { get label() { return t("status.removed"); }, c: "var(--disabled)" },
     frozen: { get label() { return t("status.frozen"); }, c: "var(--disabled)" },
   };
-  const KIND_ICON = { community_avoid: "thumb-down-outline", offline: "wifi-off", silent: "wifi-off", late: "history", frozen: "thermometer", impossible_reading: "alert", weak_signal: "signal", signal_drop: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
+  const KIND_ICON = { community_avoid: "thumb-down-outline", offline: "wifi-off", silent: "wifi-off", late: "history", frozen: "thermometer", impossible_reading: "alert", weak_signal: "signal", signal_drop: "signal", lqi_stuck: "signal", battery_low: "battery-alert-variant-outline", battery_soon: "battery-alert-variant-outline", update: "chip", unidentified: "help-circle-outline", replacement: "link-variant",
     flapping: "swap-horizontal", chatty: "signal", battery_drain: "battery-alert-variant-outline", binding_lost: "link-variant", single_point: "router-wireless", router_hopping: "swap-horizontal", coordinator_backup: "download", z2m_memory: "chip", signal_dip: "signal", group_member_offline: "lightbulb", slow_router: "router-wireless", maintenance_due: "calendar-clock", upgrade_worse: "update", slow_commands: "history", missed_commands: "gesture-tap-button", reporting_config: "tune", naming: "pencil", stale_retained: "content-copy", retained_command: "alert", availability_mismatch: "swap-horizontal", payload_changed: "pencil", warranty_ending: "calendar-clock" };
   const EVENT_ICON = (k) => {
     if (k.startsWith("interview")) return k.endsWith("successful") ? ["check", "var(--success)"] : ["alert-circle", "var(--error)"];
@@ -1216,6 +1345,8 @@
     flapping: (p) => { p.what = listOf([p.outages ? t("issue.flapping.outages", { n: p.outages }) : null, p.leaves ? t("issue.flapping.leaves", { n: p.leaves }) : null].filter(Boolean)); },
     single_point: (p) => { p.extra = p.devices ? t("issue.single_point.extra", { n: p.devices }) : ""; },
     late: (p) => { p.every = span(p.every); },
+    late_learned: (p) => { p.every = span(p.every); p.longest = span(p.longest); },
+    lqi_stuck: (p) => { p.seconds = span(p.seconds); },
     impossible_reading: (p) => { p.value = num1(p.value); p.lo = num1(p.lo); p.hi = num1(p.hi); p.unit = p.unit === "%" ? "%" : ` ${p.unit}`; },
     impossible_reading_no_range: (p) => { p.value = num1(p.value); p.unit = p.unit === "%" ? "%" : ` ${p.unit}`; },
     impossible_battery: (p) => { p.value = num1(p.value); },
@@ -1336,7 +1467,8 @@
     sub: { network: "map", upkeep: "batteries" },
     sort: store.get("z2mt.sort") || "status", dir: Number(store.get("z2mt.dir")) || 0,
     open: null, moreTab: "info", settings: null, version: null, editing: false,
-    layout: store.get("z2mt.layout") === "dialog" ? "dialog" : "pane",
+    // Device details: "page" (its own full-width page, the default), "pane" (beside the list) or "dialog".
+    layout: ["dialog", "pane"].includes(store.get("z2mt.layout")) ? store.get("z2mt.layout") : "page",
     // Network picked on the Network tab when more than one Zigbee2MQTT is tracked: "all" or a base topic.
     net: store.get("z2mt.net") || null,
     group: store.get("z2mt.group") === "1", areas: null, pairNet: null, pairForm: {}, openGroups: new Set(), openCoords: new Set(), openGroupHist: new Set(), usedOpen: new Set(), openScores: new Set(),
@@ -1352,6 +1484,10 @@
   const TOUCH = () => window.matchMedia?.("(pointer: coarse)").matches;
   const PHONE = () => window.matchMedia?.("(max-width: 600px)").matches;
   const usePane = () => state.layout === "pane" && window.innerWidth >= 1100;
+  const usePage = () => state.layout === "page";
+  // The page's Overview shows these tabs side by side, so each counts as shown while Overview is open.
+  const OVERVIEW_TABS = ["info", "health", "trends", "battery", "reporting"];
+  const tabShown = (k) => state.moreTab === k || (usePage() && state.moreTab === "overview" && OVERVIEW_TABS.includes(k));
   let paneMode = usePane();
   window.addEventListener("resize", () => {
     clearTimeout(window._rz);
@@ -1498,7 +1634,7 @@
       const st = statusOf(d);
       const w = topWarning(d);
       const statusTxt = st !== "active" ? STATUS[st].label : w ? issueLabel(w) : STATUS.active.label;
-      const statusC = st !== "active" ? STATUS[st].c : w ? (severe(w, d) ? "var(--error)" : "var(--warning)") : STATUS.active.c;
+      const statusC = st !== "active" ? STATUS[st].c : w ? (severe(w, d) || w.kind === "battery_low" ? "var(--error)" : "var(--warning)") : STATUS.active.c;
       const former = formerOf(d);
       const lqi = lqiOf(d);
       const power = powerOf(d);
@@ -1523,7 +1659,7 @@
       </tr>`;
     }
     $("#view").innerHTML = `
-      ${warnCount && state.chip !== "attention" ? `<div class="alert" style="--a: var(--warning)">${ic("alert")}<div class="body"><b>${th("devices.attention", { n: warnCount })}</b> ${th("devices.attention_text")}</div><button class="btn" data-chip="attention">${th("devices.show")}</button></div>` : ""}
+
       <div class="tools">
         <label class="search">${ic("magnify")}<input id="q" type="search" placeholder="${esc(t("devices.search"))}" value="${esc(state.query)}" autocomplete="off" spellcheck="false" aria-label="${esc(t("devices.search"))}"></label>
         <div class="chips">${CHIPS.filter(([k, , p]) => k !== "critical" || state.chip === k || all.some(p)).map(([k, l, p]) => `<button class="chip" data-chip="${k}" aria-pressed="${state.chip === k}">${ic("check", "s18")}${th(l)} <span class="n">${matched.filter(p).length}</span></button>`).join("")}</div>
@@ -1547,23 +1683,27 @@
 
   const restoreBindingsBtn = (ieee, lost) => `<button class="btn" data-act="restore-bindings" data-ieee="${esc(ieee)}">${ic("refresh", "s18")}${th(lost.length > 1 ? "bindings.restore_all" : "common.restore")}</button>`;
 
-  const issueActions = (i) => {
+  const issueActions = (i) => issueActionList(i).join("");
+  const issueActionList = (i) => {
     const d = state.byIeee.get(i.ieee);
     const out = [];
+    if (i.kind === "battery_low" && d && isBattery(d)) out.push(`<button class="btn" data-act="battery-replaced" data-ieee="${esc(i.ieee)}">${th("battery.replaced")}</button>`);
     if (i.kind === "frozen" || i.kind === "silent" || i.kind === "late") out.push(`<button class="btn" data-act="reconfigure" data-ieee="${esc(i.ieee)}">${th("common.reconfigure")}</button>`);
+    if (i.kind === "late" && i.msg === "late_learned") out.push(`<button class="btn" data-act="rhythm-normal" data-ieee="${esc(i.ieee)}">${th("rhythm.normal")}</button>`);
     if (i.kind === "binding_lost") {
       out.push(restoreBindingsBtn(i.ieee, d?.lost_bindings || []));
       out.push(`<button class="btn" data-act="bindings-ack" data-ieee="${esc(i.ieee)}">${th("health.intended")}</button>`);
-      return out.join("");
+      return out;
     }
     if (i.kind === "single_point") out.push(`<button class="btn" data-view="network/map" data-net="${esc(i.instance)}">${th("common.map")}</button>`);
-    if (i.kind === "reporting_config" && !(state.open === i.ieee && state.moreTab === "health")) out.push(`<button class="btn" data-act="open-health" data-ieee="${esc(i.ieee)}">${th("more.tab.health")}</button>`);
+    if (i.kind === "reporting_config") out.push(`<button class="btn" data-act="open-reporting" data-ieee="${esc(i.ieee)}">${th("page.review_settings")}</button>`);
     if (i.kind === "community_avoid" && !(state.open === i.ieee && state.moreTab === "community")) out.push(`<button class="btn" data-act="cm-open" data-ieee="${esc(i.ieee)}">${th("more.tab.community")}</button>`);
     if (i.kind === "retained_command") out.push(`<button class="btn danger" data-act="retcmd-clear" data-ieee="${esc(i.ieee)}">${th("retcmd.clear")}</button>`);
     if ((i.kind === "router_hopping" || i.kind === "payload_changed") && !(state.open === i.ieee && state.moreTab === "history")) out.push(`<button class="btn" data-act="open-history" data-ieee="${esc(i.ieee)}">${th("more.tab.history")}</button>`);
     if (i.kind === "replacement" && d?.suggestions?.[0]) out.push(`<button class="btn" data-act="link" data-old="${esc(d.suggestions[0].ieee)}" data-new="${esc(i.ieee)}">${th("common.link")}</button>`);
+    out.push(`<button class="btn" data-act="snooze" data-ieee="${esc(i.ieee)}" data-kind="${esc(i.kind)}">${th("health.snooze")}</button>`);
     out.push(`<button class="btn" data-act="mute" data-ieee="${esc(i.ieee)}" data-kind="${esc(i.kind)}">${th("common.ignore")}</button>`);
-    return out.join("");
+    return out;
   };
 
   // What uses the device in HA (snapshot used_by): "Used by 2 automations and 1 script", opening to links.
@@ -1577,12 +1717,76 @@
     return `<details class="used-by" data-used="${esc(d.ieee)}"${state.usedOpen.has(d.ieee) ? " open" : ""}><summary>${ic("robot-outline", "s18")}<span>${th("used_by.summary", { what: esc(listOf(counts)) })}</span>${ic("chevron-down", "s18 chev")}</summary><ul>${USED_KINDS.flatMap(([k, s]) => (u[k] || []).map((x) => item(s, x))).join("")}</ul></details>`;
   };
 
+  document.addEventListener("click", (e) => { document.querySelectorAll("details.ib-more[open]").forEach((m) => { if (!m.contains(e.target) || e.target.closest(".ib-menu button, .ib-menu a")) m.open = false; }); });
   // Keep a "Used by" list open across re-renders. toggle doesn't bubble, so listen while capturing.
   document.addEventListener("toggle", (e) => {
     const el = e.target;
     if (!(el instanceof HTMLDetailsElement) || !el.dataset.used) return;
     if (el.open) state.usedOpen.add(el.dataset.used); else state.usedOpen.delete(el.dataset.used);
   }, true);
+
+  // Issue keys the user had already seen the last time they looked at Health, so new ones can lead.
+  // A key counts as seen once Health has shown it for a minute; the list is kept per browser.
+  const SEEN_KEY = "z2mt.seenIssues";
+  const firstLook = store.get(SEEN_KEY) == null;
+  const seenIssues = (() => { try { return new Set(JSON.parse(store.get(SEEN_KEY) || "[]")); } catch (e) { return new Set(); } })();
+  let seenTimer = null;
+  const markSeen = (keys) => {
+    clearTimeout(seenTimer);
+    seenTimer = setTimeout(() => { keys.forEach((k) => seenIssues.add(k)); const live = new Set((state.data?.issues || []).map((i) => i.key)); store.set(SEEN_KEY, JSON.stringify([...seenIssues].filter((k) => live.has(k)))); }, 60000);
+  };
+  // Events in the last week, newest first, with runs of the same thing folded into one line
+  // ("Main network went offline 6 times"): a network that flaps shouldn't fill the list.
+  const WEEK = 7 * 86400000;
+  const recentEvents = (limit = 6) => {
+    const since = Date.now() - WEEK;
+    const evs = [...(state.data.events || [])].reverse().filter((e) => Date.parse(e.time) >= since);
+    const family = (e) => `${e.ieee}|${String(netKind(e)).replace(/^(offline|online)$/, "up-down")}`;
+    const out = [];
+    for (const e of evs) {
+      const last = out[out.length - 1];
+      if (last && family(last.first) === family(e) && family(e).endsWith("up-down")) { last.items.push(e); continue; }
+      if (out.length >= limit) break;
+      out.push({ first: e, items: [e] });
+    }
+    return out;
+  };
+  const weekLines = () => {
+    const d = state.data, since = Date.now() - WEEK;
+    const evs = (d.events || []).filter((e) => Date.parse(e.time) >= since);
+    const count = (...kinds) => evs.filter((e) => kinds.includes(e.kind)).length;
+    const lines = [];
+    for (const bt of d.instances) {
+      const outs = ((d.bridges || {})[bt]?.outages || []).filter((o) => Date.parse(o.start) >= since);
+      if (!outs.length) continue;
+      const mins = Math.round(outs.reduce((n, o) => n + ((o.end ? Date.parse(o.end) : Date.now()) - Date.parse(o.start)), 0) / 60000);
+      lines.push(["lan-disconnect", t("week.net_down", { name: netLabel(bt), n: outs.length, minutes: mins })]);
+    }
+    const joined = count("added", "joined"), left = count("left", "removed"), renamed = count("renamed");
+    if (joined) lines.push(["plus", t("week.joined", { n: joined })]);
+    if (left) lines.push(["minus", t("week.left", { n: left })]);
+    if (renamed) lines.push(["pencil", t("week.renamed", { n: renamed })]);
+    const buy = (d.battery_shopping || []).filter((g) => g.type !== "Unknown type");
+    if (buy.length) lines.push(["battery-alert-variant-outline", t("week.batteries", { what: listOf(buy.map((g) => `${g.count} × ${g.type}`)) })]);
+    return lines;
+  };
+  const recentCard = () => {
+    const rows = recentEvents();
+    const line = (r) => {
+      const e = r.first, d = state.byIeee.get(e.ieee);
+      const who = e.ieee === "network" ? t("net.network", { name: netLabel(e.instance) }) : e.name && !IEEE_RE.test(e.name) ? e.name : nameOf(d) || e.ieee;
+      const [icon] = EVENT_ICON(e.kind);
+      const downs = r.items.filter((x) => /offline$/.test(x.kind)).length;
+      const text = r.items.length > 1 && downs > 1
+        ? `<span>${th("week.flapped", { name: esc(who), n: downs })}<small>${th("week.between", { from: esc(fmtTime(r.items[r.items.length - 1].time)), to: esc(fmtTime(e.time)) })}</small></span>`
+        : `<span><b>${esc(who)}</b> ${esc(eventKind(netKind(e)))}${e.detail ? `<small>${esc(eventDetail(e))}</small>` : ""}</span>`;
+      const tag = d ? "button" : "div";
+      return `<li><${tag} class="ledger-row${d ? " open-btn" : ""}" ${d ? `type="button" data-open="${esc(e.ieee)}"` : ""}>${ic(icon, "s20")}${text}<time datetime="${esc(e.time)}">${esc(relDay(e.time))}</time></${tag}></li>`;
+    };
+    return `<section class="card side-card" aria-labelledby="recentH"><div class="side-h"><h2 id="recentH">${th("week.recent")}</h2><button class="btn" data-view="activity">${th("week.all_activity")}</button></div>
+      ${rows.length ? `<ul class="ledger">${rows.map(line).join("")}</ul>` : `<p class="side-empty">${th("week.recent_none")}</p>`}</section>`;
+  };
+  const relDay = (iso) => { const d = new Date(iso), now = new Date(); const days = Math.round((new Date(now.toDateString()) - new Date(d.toDateString())) / 86400000); return days === 0 ? fmtTime(iso) : days === 1 ? t("week.yesterday") : fmtDate(iso, false); };
 
   const scanLine = (topics, nm) => topics.map((bt) => { const x = nm[bt] || {}; return `${netLabel(bt)}: ${x.running_since ? t("common.scanning_lower") : x.scanned_at ? relTime(x.scanned_at) : t("time.never_inline")}`; }).join(" · ");
   const renderHealth = () => {
@@ -1591,9 +1795,14 @@
     const nm = state.data.networkmap || {};
     const running = Object.values(nm).some((x) => x.running_since);
     const scans = scanLine(state.data.instances, nm);
-    // The device's other issues, each with its own actions, so ignoring one leaves the rest.
-    // `said` holds issue kinds whose detail the cause line already gives, so it isn't repeated.
-    const alsoList = (rest, said = new Set(), used = "") => (rest.length || used ? `<div class="also-list">${used}${rest.map((x) => `<div class="also"><span class="also-t">${th("health.also", { what: esc(said.has(x.kind) ? issueTitle(x) : `${issueTitle(x)} · ${issueDetail(x)}`) })}</span><span class="acts">${issueActions(x)}</span></div>`).join("")}</div>` : "");
+    const multi = state.data.instances.length > 1;
+    // A device's other problems, folded under "+N more" until opened; each keeps its own actions.
+    const alsoList = (owner, rest, said = new Set()) => {
+      if (!rest.length) return "";
+      const open = state.openGroups.has(`also:${owner}`);
+      return `<button class="more-chip" data-act="toggle-group" data-ieee="also:${esc(owner)}" aria-expanded="${open}">${th("health.n_more", { n: rest.length })}</button>
+        ${open ? `<div class="also-list">${rest.map((x) => `<div class="also"><span class="also-t"><b>${esc(issueTitle(x))}</b>${said.has(x.kind) ? "" : ` · ${esc(issueDetail(x))}`}</span><span class="acts">${issueActions(x)}</span></div>`).join("")}</div>` : ""}`;
+    };
     // Only causes the data shows: a battery last seen nearly flat, or the router the device last talked through.
     const nearlyFlat = (d) => isBattery(d) && typeof d.battery === "number" && d.battery <= 10;
     const offlineCause = (d) => {
@@ -1604,89 +1813,96 @@
     };
     const offlineActs = (d) => {
       const panel = d.status !== "removed" && state.data.panels?.[d.instance];
-      return `${canReplace(d) ? `<button class="btn" data-act="replace" data-ieee="${esc(d.ieee)}">${th("replace.button")}</button>` : ""}${panel ? `<a class="btn" href="${esc(panel)}" target="_top">${th("health.open_z2m")}</a>` : ""}`;
+      return [canReplace(d) ? `<button class="btn" data-act="replace" data-ieee="${esc(d.ieee)}">${th("replace.button")}</button>` : "", panel ? `<a class="btn" href="${esc(panel)}" target="_top">${th("health.open_z2m")}</a>` : ""].filter(Boolean);
     };
+    // One main action on the row, the rest in its menu.
+    const actions = (list, label) => {
+      const [main, ...more] = list.filter(Boolean);
+      if (!main) return "";
+      return `<div class="ib-acts">${main.replace('class="btn', 'class="btn outlined')}${more.length ? `<details class="ib-more"><summary class="icon-btn" aria-label="${esc(t("health.more_actions", { name: label }))}">${ic("dots-vertical")}</summary><div class="ib-menu" role="menu">${more.join("")}</div></details>` : ""}</div>`;
+    };
+    const toneOf = (i, d) => (i.severity !== "warning" ? "info" : severe(i, d) || i.kind === "battery_low" ? "bad" : "warn");
+    const row = ({ tone, icon, name, open, sub, title, detail, why, extra = "", acts, label }) => `<div class="inbox-row tone-${tone}">
+        <span class="disc">${ic(icon)}</span>
+        <div class="ib-text">
+          <div class="ib-name">${open ? `<button type="button" class="ib-link open-btn" data-open="${esc(open)}">${name}</button>` : `<span>${name}</span>`}${sub ? `<small>${sub}</small>` : ""}</div>
+          <div class="ib-what"><span class="ib-title">${title}</span>${detail ? ` · ${detail}` : ""}</div>
+          ${why ? `<div class="ib-why">${why}</div>` : ""}${extra}
+        </div>${actions(acts, label)}</div>`;
     const item = (g) => {
       const [i, ...rest] = g;
       const d = state.byIeee.get(i.ieee);
-      const tone = i.severity !== "warning" ? "var(--info)" : severe(i, d) ? "var(--error)" : "var(--warning)";
       if (isNetIssue(i)) {
         const panel = state.data.panels?.[i.instance];
         const icon = { network_offline: "lan-disconnect", coordinator_backup: "download", pairing_open: "link-variant", last_seen_off: "information-outline" }[i.kind] || KIND_ICON[i.kind] || "refresh";
-        const close = i.kind === "pairing_open" ? `<button class="btn danger" data-act="pair-stop" data-net="${esc(i.instance)}">${th("health.close_now")}</button>`
-          : i.kind === "last_seen_off" ? `<button class="btn filled" data-act="last-seen-on" data-net="${esc(i.instance)}">${th("advice.turn_on")}</button><button class="btn" data-act="advice-dismiss" data-key="${esc(i.key)}">${th("advice.dismiss")}</button>`
-          : i.kind === "stale_retained" ? `<button class="btn" data-view="network/broker">${th("ret.review")}</button>` : "";
-        return `<div class="row"><span class="state-ic" style="color:${tone}">${ic(icon)}</span>
-          <div class="text"><div class="t1">${esc(issueTitle(i))}: ${esc(issueName(i))}</div><div class="t2">${esc(issueDetail(i))}</div></div>
-          <div class="acts">${close}${panel ? `<a class="btn" href="${esc(panel)}" target="_top">${th("health.open_z2m")}</a>` : ""}</div></div>`;
+        const acts = i.kind === "pairing_open" ? [`<button class="btn danger" data-act="pair-stop" data-net="${esc(i.instance)}">${th("health.close_now")}</button>`]
+          : i.kind === "last_seen_off" ? [`<button class="btn" data-act="last-seen-on" data-net="${esc(i.instance)}">${th("advice.turn_on")}</button>`, `<button class="btn" data-act="advice-dismiss" data-key="${esc(i.key)}">${th("advice.dismiss")}</button>`]
+          : i.kind === "stale_retained" ? [`<button class="btn" data-view="network/broker">${th("ret.review")}</button>`]
+          : i.kind === "coordinator_backup" ? [`<button class="btn" data-view="network/coordinator">${th("health.backup_how")}</button>`] : [];
+        if (panel) acts.push(`<a class="btn" href="${esc(panel)}" target="_top">${th("health.open_z2m")}</a>`);
+        return row({ tone: toneOf(i), icon, name: esc(issueName(i)), title: esc(issueTitle(i)), detail: esc(issueDetail(i)), acts, label: issueName(i) });
       }
       const kids = i.devices?.length || i.power_devices?.length ? issues.filter((x) => x.behind === i.ieee && nestedIssue(x, keys)) : [];
-      if (i.power_area) return powerItem(i, d, kids, rest);
-      if (kids.length) return routerItem(i, d, kids, rest);
+      if (i.power_area || kids.length) {
+        const open = state.openGroups.has(i.ieee), all = i.power_area ? [i, ...kids] : kids;
+        const kid = (x) => { const k = state.byIeee.get(x.ieee); return `<button type="button" class="row click open-btn" data-open="${esc(x.ieee)}"><span class="state-ic off">${ic(k ? kindIcon(k) : "zigbee", "s20")}</span><span class="text"><span class="t1">${esc(x.name)}</span><span class="t2">${esc(cap(t("health.offline_for", { duration: issueVars(x).duration })))}${k?.area ? ` · ${esc(k.area)}` : ""}</span></span></button>`; };
+        const toggle = `<button class="btn" data-act="toggle-group" data-ieee="${esc(i.ieee)}" aria-expanded="${open}">${open ? th("health.hide_devices") : th("health.show_devices", { n: all.length })}</button>`;
+        const head = i.power_area
+          ? { icon: "power-plug", name: th("issue.power_loss.title", { area: esc(i.power_area) }), title: esc(issueLabel(i)), detail: esc(issueDetail(i)) }
+          : { icon: "router-wireless", name: esc(i.name), open: i.ieee, title: esc(issueTitle(i)), detail: esc(t("health.behind", { n: kids.length, duration: issueVars(i).duration })) };
+        return row({ tone: "bad", ...head, sub: esc([d?.area, multi ? netLabel(i.instance) : null].filter(Boolean).join(" · ")), why: usedBy(d), extra: alsoList(i.ieee, rest) + (open ? `<div class="group-list">${all.map(kid).join("")}</div>` : ""), acts: [toggle, ...(i.power_area ? [] : issueActionList(i))], label: i.name });
+      }
       const off = i.kind === "offline" && d;
       const cause = off ? offlineCause(d) : null;
-      const used = usedBy(d);
-      return `<div class="row${rest.length || used ? " has-members" : ""}${off ? " triage" : ""}"><span class="state-ic" style="color:${tone}">${ic(KIND_ICON[i.kind] || "alert")}</span>
-        <button type="button" class="text row-open open-btn" data-open="${esc(i.ieee)}"><span class="t1">${esc(issueTitle(i))}: ${esc(issueName(i))}${i.critical ? ` ${critTag()}` : ""}</span><span class="t2">${esc(issueDetail(i))}${d?.area ? ` · ${esc(d.area)}` : ""}</span>${cause ? `<span class="t2 cause">${esc(cause)}</span>` : ""}</button>
-        <div class="acts">${off ? offlineActs(d) : ""}${issueActions(i)}</div></div>${alsoList(rest, off && nearlyFlat(d) ? new Set(["battery_low"]) : undefined, used)}`;
-    };
-    // Mains devices in one area that dropped together (health.group_power_loss): one row, the devices under it on demand.
-    const powerItem = (i, d, kids, rest = []) => {
-      const open = state.openGroups.has(i.ieee);
-      const all = [i, ...kids];
-      const kid = (x) => {
-        const k = state.byIeee.get(x.ieee);
-        return `<button type="button" class="row click open-btn" data-open="${esc(x.ieee)}"><span class="state-ic off">${ic(k ? kindIcon(k) : "zigbee", "s20")}</span>
-          <span class="text"><span class="t1">${esc(x.name)}</span><span class="t2">${esc(cap(t("health.offline_for", { duration: issueVars(x).duration })))}</span></span></button>`;
-      };
-      return `<div class="row${rest.length ? " has-members" : ""}"><span class="state-ic bad">${ic("power-plug")}</span>
-        <div class="text"><div class="t1">${th("issue.power_loss.title", { area: esc(i.power_area) })}${i.critical ? ` ${critTag()}` : ""}</div><div class="t2">${esc(issueDetail(i))}</div></div>
-        <div class="acts"><button class="btn" data-act="toggle-group" data-ieee="${esc(i.ieee)}" aria-expanded="${open}">${open ? th("health.hide_devices") : th("health.show_devices", { n: all.length })}</button></div></div>${alsoList(rest)}
-        ${open ? `<div class="group-list">${all.map(kid).join("")}</div>` : ""}`;
-    };
-    // A router that is offline with devices behind it: one row, and the devices listed under it on demand.
-    const routerItem = (i, d, kids, rest = []) => {
-      const open = state.openGroups.has(i.ieee);
-      const line = [typeLabel(d?.type || "Router"), t("health.offline_for", { duration: issueVars(i).duration }), netLabel(i.instance), d?.area].filter(Boolean).join(" · ");
-      const used = usedBy(d);
-      const kid = (x) => {
-        const k = state.byIeee.get(x.ieee);
-        return `<button type="button" class="row click open-btn" data-open="${esc(x.ieee)}"><span class="state-ic off">${ic(k ? kindIcon(k) : "zigbee", "s20")}</span>
-          <span class="text"><span class="t1">${esc(x.name)}</span><span class="t2">${esc(cap(t("health.offline_for", { duration: issueVars(x).duration })))}${k?.area ? ` · ${esc(k.area)}` : ""}</span></span></button>`;
-      };
-      return `<div class="row${rest.length || used ? " has-members" : ""}"><span class="state-ic bad">${ic("router-wireless")}</span>
-        <button type="button" class="text row-open open-btn" data-open="${esc(i.ieee)}"><span class="t1">${th("health.router_down", { n: kids.length, name: `<b style="font-weight:500">${esc(i.name)}</b>` })}</span><span class="t2">${esc(line)}</span></button>
-        <div class="acts"><button class="btn" data-act="toggle-group" data-ieee="${esc(i.ieee)}" aria-expanded="${open}">${open ? th("health.hide_devices") : th("health.show_devices", { n: kids.length })}</button>${issueActions(i)}</div></div>${alsoList(rest, undefined, used)}
-        ${open ? `<div class="group-list">${kids.map(kid).join("")}</div>` : ""}`;
+      return row({ tone: toneOf(i, d), icon: d ? kindIcon(d) : KIND_ICON[i.kind] || "alert", name: `${esc(issueName(i))}${i.critical ? ` ${critTag()}` : ""}`, open: i.ieee,
+        sub: esc([d?.area, multi ? netLabel(i.instance) : null].filter(Boolean).join(" · ")), title: esc(issueTitle(i)), detail: esc(issueDetail(i)),
+        why: [cause ? `<span>${esc(cause)}</span>` : "", usedBy(d)].filter(Boolean).join(""), extra: alsoList(i.ieee, rest, off && nearlyFlat(d) ? new Set(["battery_low"]) : undefined),
+        acts: [...(off ? offlineActs(d) : []), ...issueActionList(i)], label: issueName(i) });
     };
     const keys = new Set(issues.map((i) => i.key));
-    // Firmware updates live on the Updates tab; listing them here too counted them twice.
+    // Firmware updates live under Upkeep; listing them here too counted them twice.
     const own = healthRows(issues);
     const warn = own.filter((g) => g[0].severity === "warning"), info = own.filter((g) => g[0].severity !== "warning");
-    const warnIssues = warn.reduce((n, g) => n + g.length, 0);
-    const renames = namingRenames().length;
-    // Problems come first: on a phone the status cards below would push them several screens down.
-    // Severe warnings (offline, battery nearly flat) lead the list.
     warn.sort((a, b) => Number(severe(b[0])) - Number(severe(a[0])));
+    const isNew = (g) => !firstLook && g.some((x) => !seenIssues.has(x.key));
+    const devWarn = warn.filter((g) => !isNetIssue(g[0])), netWarn = warn.filter((g) => isNetIssue(g[0]));
+    const fresh = devWarn.filter(isNew), ongoing = devWarn.filter((g) => !isNew(g));
+    markSeen(own.flatMap((g) => g.map((x) => x.key)));
+    const renames = namingRenames().length;
+    const fine = state.data.devices.filter((d) => d.status === "active" && d.type !== "Coordinator" && !d.frozen && !warn.some((g) => g[0].ieee === d.ieee)).length;
+    const grp = (icon, label, list) => (list.length ? `<div class="ib-group">${ic(icon, "s18")}${label}<span>${list.length}</span></div>${list.map(item).join("")}` : "");
+    const head = warn.length
+      ? { tone: warn.some((g) => severe(g[0])) ? "bad" : "warn", t1: th("health.problems", { n: warn.length }), t2: [fresh.length ? t("health.new_since", { n: fresh.length }) : null, t("health.fine", { n: fine })].filter(Boolean).join(" ") }
+      : { tone: "ok", t1: th("health.all_clear"), t2: info.length ? t("health.to_review", { n: info.length }) : t("health.fine", { n: fine }) };
+    const M = state.data.mesh_scores || {}, nets = state.data.instances.filter((bt) => M[bt]);
     // An open power-loss incident leads the page: it explains several of the offline rows below.
     const powerIncs = (Array.isArray(state.data.incidents) ? state.data.incidents : []).filter((x) => x.ongoing && x.cause === "power_loss" && x.power);
+    const week = weekLines();
     $("#view").innerHTML = `
-      ${meshCard()}
+      <section class="card status-card tone-${head.tone}">
+        <div class="status-top"><span class="disc">${ic(head.tone === "ok" ? "check" : "heart-pulse")}</span>
+          <div class="text"><h2>${head.t1}</h2><p>${esc(head.t2)}</p></div></div>
+        ${nets.length ? `<div class="status-score">${nets.map((bt) => meshRow(bt, nets.length > 1)).join("")}</div>` : ""}
+      </section>
       ${powerIncs.length ? `<div class="card inc-banner">${powerIncs.map((x) => `<div class="row"><span class="state-ic bad">${ic("power-plug")}</span>
         <div class="text"><div class="t1">${th("incident.power_open", { area: esc(x.power.area) })}</div><div class="t2">${th("incident.power_open_text", { n: x.power.n, seconds: x.power.seconds, time: esc(fmtTime(x.start)), area: esc(x.power.area) })}</div></div>
         <div class="acts"><button class="btn" data-act="open-incident" data-inc="${esc(x.id)}">${th("common.open")}</button></div></div>`).join("")}</div>` : ""}
-      ${warn.length ? `<h2 class="section-title">${th("health.needs_attention")} <span>${warn.length}</span></h2><div class="card">${warn.map(item).join("")}</div>` : ""}
-      ${info.length ? `<h2 class="section-title">${th("health.worth_a_look")} <span>${info.length}</span></h2><div class="card">${info.map(item).join("")}</div>` : ""}
-      ${!own.length ? `<div class="card">${emptyState("check", th("health.all_clear"), th("health.all_clear_text"))}</div>` : ""}
-      <div class="card">
-        <div class="card-header">${ic("heart-pulse")}<div><h2 class="ch">${th("health.title")}</h2><small>${warn.length ? th(warnIssues > warn.length ? "health.summary_issues" : "health.summary", { warn: warn.length, issues: warnIssues, n: info.length }) : own.length ? th("health.to_review", { n: info.length }) : th("health.nothing")}</small></div></div>
-        <div class="info-grid">
-          <div><small>${th("health.alerts")}</small><b>${o.alerts_enabled === false ? th("health.alerts_off") : esc([o.persistent_notifications ? t("health.ha_notifications") : null, o.notify_service || null].filter(Boolean).join(", ")) || th("health.event_only")}</b></div>
-          <div><small>${th("health.thresholds")}</small><b>${th(isZha() ? "health.thresholds_line_zha" : "health.thresholds_line", { offline: esc(o.offline_alert_minutes), frozen: esc(o.frozen_alert_hours), battery: esc(o.battery_alert_percent) })}</b></div>
-          <div><small>${th("health.routing_scan")}</small><b>${esc(scans)}</b></div>
+      <div class="health-grid">
+        <div class="health-main">
+          ${warn.length ? `<section class="card inbox" aria-label="${esc(t("health.needs_attention"))}">${grp("alert-circle", th("health.group_new"), fresh)}${grp("history", th("health.group_ongoing"), ongoing)}${grp("lan-disconnect", th("health.group_network"), netWarn)}</section>` : ""}
+          ${info.length ? `<section class="card inbox quiet" aria-label="${esc(t("health.worth_a_look"))}"><div class="ib-group">${ic("information-outline", "s18")}${th("health.worth_a_look")}<span>${info.length}</span></div>${info.map(item).join("")}</section>` : ""}
+          ${!own.length ? `<div class="card">${emptyState("check", th("health.all_clear"), th("health.all_clear_text"))}</div>` : ""}
         </div>
-        ${elsewhere()}
-        <div class="card-actions"><button class="btn" data-view="settings">${th("health.alert_settings")}</button>${renames ? `<button class="btn" data-act="naming-bulk">${ic("pencil", "s18")}${th("naming.bulk", { n: renames })}</button>` : ""}<button class="btn ${running ? "busy" : ""}" data-act="scan" ${running ? "disabled" : ""}>${ic(running ? "refresh" : "sitemap", "s18")}${running ? th("common.scanning") : th("menu.run_scan")}</button></div>
+        <div class="health-side">
+          <section class="card side-card" aria-labelledby="weekH"><div class="side-h"><h2 id="weekH">${th("week.title")}</h2></div>
+            ${week.length ? `<ul class="ledger">${week.map(([icon, text]) => `<li><div class="ledger-row">${ic(icon, "s20")}<span>${esc(text)}</span></div></li>`).join("")}</ul>` : `<p class="side-empty">${th("week.quiet")}</p>`}</section>
+          ${recentCard()}
+          <section class="card side-card" aria-labelledby="elseH"><div class="side-h"><h2 id="elseH">${th("health.elsewhere")}</h2></div>${elsewhere()}
+            <div class="kv-mini"><div><small>${th("health.alerts")}</small><span>${o.alerts_enabled === false ? th("health.alerts_off") : esc([o.persistent_notifications ? t("health.ha_notifications") : null, o.notify_service || null].filter(Boolean).join(", ")) || th("health.event_only")}</span></div>
+              <div><small>${th("health.routing_scan")}</small><span>${esc(scans)}</span></div></div>
+            <div class="card-actions"><button class="btn" data-view="settings">${th("health.alert_settings")}</button>${renames ? `<button class="btn" data-act="naming-bulk">${ic("pencil", "s18")}${th("naming.bulk", { n: renames })}</button>` : ""}<button class="btn ${running ? "busy" : ""}" data-act="scan" ${running ? "disabled" : ""}>${ic(running ? "refresh" : "sitemap", "s18")}${running ? th("common.scanning") : th("menu.run_scan")}</button></div>
+          </section>
+        </div>
       </div>`;
   };
 
@@ -1776,9 +1992,12 @@
   };
 
   // ------------------------------------------------------------ Network and Upkeep sections
+  // Upkeep > Updates is its own view (the firmware list) shown under Upkeep's sub-tabs.
   const subNav = (view) => `<nav class="sub-tabs" role="tablist" aria-label="${esc(t(`tabs.${view}`))}">${subsOf(view).map((k) => {
-    const on = state.sub[view] === k;
-    return `<button class="tab" role="tab" id="sub-${k}" data-sub="${view}/${k}" aria-selected="${on}" tabindex="${on ? 0 : -1}">${th(`sub.${k}`)}</button>`;
+    const isView = view === "upkeep" && k === "updates";
+    const on = isView ? state.view === "updates" : state.view === view && state.sub[view] === k;
+    const n = isView ? otaList().filter((d) => d.update?.state === "available" || d.update?.state === "updating").length : 0;
+    return `<button class="tab" role="tab" id="sub-${k}" ${isView ? 'data-view="updates"' : `data-sub="${view}/${k}"`} aria-selected="${on}" tabindex="${on ? 0 : -1}">${th(isView ? "tabs.updates" : `sub.${k}`)}${n ? ` <span class="badge info">${n}</span>` : ""}</button>`;
   }).join("")}</nav>`;
   const onMap = () => state.view === "network" && state.sub.network === "map" && pickedNet() !== "all";
   const subEmpty = (icon, key) => `<div class="card">${emptyState(icon, th(`sub.empty_${key}`), `<p>${th(`sub.empty_${key}_text`)}</p>`)}</div>`;
@@ -1826,6 +2045,7 @@
     $("#view").innerHTML = `${netPick()}${subNav("network")}${body}`;
   };
   const renderUpkeep = () => {
+    if (state.sub.upkeep === "updates") { state.sub.upkeep = "batteries"; go("updates"); return; }
     const k = state.sub.upkeep;
     const body = k === "batteries" ? (shoppingCard() + brandCard()) || subEmpty("battery", "batteries")
       : k === "maintenance" ? maintenanceCard() || subEmpty("calendar-clock", "maintenance")
@@ -2800,8 +3020,8 @@
         const legend = MAP.layout === "floor" ? fpLegend() : `${mapLegend(bt, g.devs)}<div class="map-legend lines"><span><b style="background:var(--success)"></b>${th("signal.strong")}</span><span><b style="background:var(--warning)"></b>${th("signal.fair")}</span><span><b style="background:var(--error)"></b>${th("signal.weak")}</span></div>`;
         // On a phone the scan pickers, names and links sit behind Options; they open by themselves while an older scan or a comparison is shown.
         const optsOpen = MAP.opts[bt] ?? Boolean(MAP.scanSel[bt] || MAP.cmpSel[bt]);
-        const tools = phone
-          ? `<div class="map-tools">${layoutToggle()}<span class="spacer"></span><button class="chip toggle" data-mapopts="${esc(bt)}" aria-expanded="${optsOpen}" aria-pressed="${optsOpen}">${ic("tune", "s18")}${th("map.options")}</button></div>
+        const tools = true
+          ? `<div class="map-tools">${layoutToggle()}<span class="spacer"></span>${!phone && MAP.layout !== "floor" ? `<span class="map-zoom">${zoom}</span><button class="btn" data-mapreset="${esc(bt)}">${ic("refresh", "s18")}${th("map.reset")}</button>` : ""}<button class="chip toggle" data-mapopts="${esc(bt)}" aria-expanded="${optsOpen}" aria-pressed="${optsOpen}">${ic("tune", "s18")}${th("map.options")}</button></div>
             ${optsOpen ? `<div class="map-opts">${history}<div class="map-tools">${namesToggle()}${MAP.layout === "floor" ? linksToggle() : allLinks}</div></div>` : ""}
             <div class="map-tools map-key">${legend}</div>`
           : `${history}<div class="map-tools">${layoutToggle()}${namesToggle()}${MAP.layout === "floor" ? linksToggle() : `<span class="map-zoom">${zoom}</span>
@@ -3277,14 +3497,15 @@
         ${open ? `<div class="inc-events">${members}${more}</div>` : ""}</div>`;
     }).join("")}</div>`;
   };
+  const backToHealth = () => `<div class="crumb"><button class="btn" data-view="health">${ic("arrow-left", "s18")}${th("tabs.health")}</button></div>`;
   const renderActivity = () => {
-    if (state.logMode === "incidents") { $("#view").innerHTML = renderIncidents(); return; }
+    if (state.logMode === "incidents") { $("#view").innerHTML = backToHealth() + renderIncidents(); return; }
     const all = [...(state.data.events || [])].reverse().slice(0, 500);
     const events = all.slice(0, state.logLimit || LOG_PAGE);
-    if (!events.length) { $("#view").innerHTML = `<div class="card">${logModeChips()}${emptyState("history", th("activity.empty"), th("activity.empty_text"))}</div>`; return; }
+    if (!events.length) { $("#view").innerHTML = `${backToHealth()}<div class="card">${logModeChips()}${emptyState("history", th("activity.empty"), th("activity.empty_text"))}</div>`; return; }
     const groups = [];
     events.forEach((e) => { const day = fmtDate(e.time, false); if (!groups.length || groups[groups.length - 1].day !== day) groups.push({ day, items: [] }); groups[groups.length - 1].items.push(e); });
-    $("#view").innerHTML = `<div class="card">${logModeChips()}${groups.map((g) => `<div class="logday">${esc(g.day)}</div>` + g.items.map((e) => {
+    $("#view").innerHTML = `${backToHealth()}<div class="card">${logModeChips()}${groups.map((g) => `<div class="logday">${esc(g.day)}</div>` + g.items.map((e) => {
       const d = state.byIeee.get(e.ieee);
       const who = e.ieee === "network" ? t("net.network", { name: netLabel(e.instance) }) : e.name && !IEEE_RE.test(e.name) ? e.name : nameOf(d) || e.ieee;
       const [icon, color] = EVENT_ICON(e.kind);
@@ -3347,9 +3568,10 @@
         <div class="set-row ${s.weekly_summary ? "" : "disabled"}"><div class="text"><div class="t1">${th("settings.when")}</div><div class="t2">${th("settings.when_desc")}</div></div><div class="ctl">
           <select class="field" id="sumDay" aria-label="${esc(t("settings.when_day"))}" ${s.weekly_summary ? "" : "disabled"}>${weekdays.map((n, i) => `<option value="${i}" ${s.summary_day === i ? "selected" : ""}>${n}</option>`).join("")}</select>
           <select class="field" id="sumHour" aria-label="${esc(t("settings.when_hour"))}" ${s.weekly_summary ? "" : "disabled"}>${[...Array(24).keys()].map((h) => `<option value="${h}" ${s.summary_hour === h ? "selected" : ""}>${String(h).padStart(2, "0")}:00</option>`).join("")}</select></div></div>
-        <div class="card-actions"><button class="btn" data-act="send-summary">${th("settings.send_now")}</button></div>
+        ${sw("daily_summary", s.daily_summary === true, t("settings.daily_send"), th("settings.daily_send_desc"))}
+        <div class="card-actions"><button class="btn" data-act="send-summary">${th("settings.send_now")}</button><button class="btn" data-act="send-daily">${th("settings.send_daily_now")}</button></div>
       </div>
-      <div class="card"><div class="card-header"><div><h2 class="ch">${th("settings.checks")}</h2><small>${th("settings.checks_desc")}</small></div></div>${profileDefaults()}${checks}</div>
+      <div class="card"><div class="card-header"><div><h2 class="ch">${th("settings.checks")}</h2><small>${th("settings.checks_desc")}</small></div></div>${sw("learn_rhythm", s.learn_rhythm !== false, t("rhythm.setting"), th("rhythm.setting_desc"))}${profileDefaults()}${checks}</div>
       <div class="card"><div class="card-header"><h2 class="ch">${th("settings.thresholds")}</h2></div>
         ${num("offline_alert_minutes", t("settings.offline_for"), th("settings.offline_for_desc"), 0, 10080, th("settings.unit_min"))}
         ${num("critical_offline_minutes", t("settings.critical_offline_for"), th("settings.critical_offline_for_desc"), 0, 1440, th("settings.unit_min"))}
@@ -3400,14 +3622,14 @@
         <div class="set-row"><div class="text"><div class="t1">${th("settings.backup")}</div><div class="t2">${th("settings.backup_desc")}</div></div><div class="ctl"><a class="btn" href="api/backup" download>${th("common.download")}</a><button class="btn" data-act="restore">${th("common.restore")}</button><input type="file" id="restoreFile" accept=".json,application/json" hidden></div></div>
         <div class="set-row"><div class="text"><div class="t1">${th("settings.export")}</div><div class="t2">${th("settings.export_desc")}</div></div><div class="ctl"><a class="btn" href="api/export.csv" download>${th("menu.export_csv")}</a></div></div>
         <div class="set-row"><div class="text"><div class="t1">${th("settings.networks")}</div><div class="t2">${th("settings.networks_desc", { topics: S.networks.map((n) => esc(n.topic)).join(", ") })}</div></div><div class="ctl">${S.networks.filter((n) => n.panel).map((n) => `<a class="btn" href="${esc(n.panel)}" target="_top">${esc(netLabel(n.topic))}${ic("open-in-new", "s18")}</a>`).join("")}</div></div>
-        <div class="set-row"><div class="text"><div class="t1">${th("settings.details")}</div><div class="t2">${th("settings.details_desc")}</div></div><div class="ctl"><select class="field" id="layoutSel" aria-label="${esc(t("settings.details"))}"><option value="pane" ${state.layout === "pane" ? "selected" : ""}>${th("settings.side_panel")}</option><option value="dialog" ${state.layout === "dialog" ? "selected" : ""}>${th("settings.popup")}</option></select></div></div>
+        <div class="set-row"><div class="text"><div class="t1">${th("settings.details")}</div><div class="t2">${th("settings.details_desc")}</div></div><div class="ctl"><select class="field" id="layoutSel" aria-label="${esc(t("settings.details"))}"><option value="page" ${state.layout === "page" ? "selected" : ""}>${th("settings.full_page")}</option><option value="pane" ${state.layout === "pane" ? "selected" : ""}>${th("settings.side_panel")}</option><option value="dialog" ${state.layout === "dialog" ? "selected" : ""}>${th("settings.popup")}</option></select></div></div>
         <div class="set-row links"><div class="text"><div class="t1">${th("settings.version")}</div><div class="t2">Z2M Device Tracker ${esc(S.version)}</div></div><div class="ctl">${LINKS.map(([href, label]) => `<a class="btn" href="${href}" target="_blank" rel="noopener">${th(label)}${ic("open-in-new", "s18")}</a>`).join("")}<a class="btn support" href="${SUPPORT}" target="_blank" rel="noopener">${ic("heart-outline", "s18")}${th("links.support_short")}</a></div></div>
       </div>`;
     // Settings runs to many screens on a phone: a row of chips jumps to each section.
     // Hidden cards (Zigbee2MQTT-only ones with ZHA) get no chip.
     const cards = [...$("#view").querySelectorAll(":scope > .card")].filter((c) => c.querySelector(":scope > .card-header") && getComputedStyle(c).display !== "none");
     const nav = document.createElement("nav");
-    nav.className = "chips jump";
+    nav.className = "chips jump set-nav";
     nav.setAttribute("aria-label", t("tabs.settings"));
     cards.forEach((c, n) => {
       const h = c.querySelector(":scope > .card-header");
@@ -3418,6 +3640,7 @@
       if (b.textContent) nav.append(b);
     });
     $("#view").prepend(nav);
+    markSetNav();
     fadeEdges();
     if (state.jumpPrices) { state.jumpPrices = false; const to = $("#batteryPrices"); if (to) { window.scrollTo({ top: to.getBoundingClientRect().top + window.scrollY - $(".toolbar").offsetHeight - 8 }); $("[data-bprice]")?.focus({ preventScroll: true }); } }
     if (state.jumpBrands) { state.jumpBrands = false; const to = $("#view [data-section=brands]"); if (to) { window.scrollTo({ top: to.getBoundingClientRect().top + window.scrollY - $(".toolbar").offsetHeight - 8 }); $("#brandNew")?.focus({ preventScroll: true }); } }
@@ -3733,14 +3956,16 @@
   };
 
   // "When this device alerts": the server works out the steps (health.offline_timing), this only draws them.
-  const offlineTiming = (d) => {
+  const offlineTiming = (d, titled = true) => {
     const ot = d.offline_timing;
     if (!ot) return "";
     const muted = (key) => `<span class="muted">(${key})</span>`;
     // Exact, not rounded like span(): 70 min must not read as "1 h".
-    const span = (s) => {
+    const span = (raw) => {
+      // A learned limit isn't a round number: show it to the minute, never as "60778 s".
+      const s = raw >= 60 ? Math.round(raw / 60) * 60 : raw;
       if (s % 60 || s < 60) return t("unit.seconds", { n: s });
-      if (s % 3600) return s < 86400 ? t("unit.minutes", { n: s / 60 }) : `${t("unit.hours", { n: Math.floor(s / 3600) })} ${t("unit.minutes", { n: (s % 3600) / 60 })}`;
+      if (s % 3600) return s < 7200 ? t("unit.minutes", { n: s / 60 }) : `${t("unit.hours", { n: Math.floor(s / 3600) })} ${t("unit.minutes", { n: (s % 3600) / 60 })}`;
       return s % 86400 || s < 172800 ? t("unit.hours", { n: s / 3600 }) : t("unit.days", { n: s / 86400 });
     };
     const alert = (kind) => th("timing.alert", { name: `<strong>${esc(tx(`check.${kind}.label`, null, cap(kind)))}</strong>` });
@@ -3762,7 +3987,7 @@
         row(th("timing.alert", { name: th("check.offline.label") }), th("timing.about_after", { time: esc(span(ot.total)) }), true)]
       : [row(th("timing.z2m_timeout"), th("timing.not_tracked")), row(th("timing.alert", { name: th("check.silent.label") }), th("timing.after", { time: esc(span(ot.steps.find((s) => s.kind === "silent").at)) }), true)];
     if (late) rows.push(row(th("timing.alert", { name: th("check.late.label") }), th("timing.after", { time: esc(span(late.at)) }), true));
-    return `<div class="sub-h">${th("timing.title")}</div>${steps}<div class="kv">${rows.join("")}</div><p class="tnote">${th(ot.tracked ? "timing.hint" : "timing.hint_off")}</p>`;
+    return `${titled ? `<div class="sub-h">${th("timing.title")}</div>` : ""}${steps}<div class="kv">${rows.join("")}</div><p class="tnote">${th(ot.tracked ? "timing.hint" : "timing.hint_off")}</p>`;
   };
 
   // Attribute reporting Zigbee2MQTT set up (health.py / reporting.py audit it); bad ones get a warning and a fix.
@@ -3813,14 +4038,64 @@
     const [unitKey, size] = every ? [...REPORT_UNITS].reverse().find(([, n]) => every % n === 0) : ["min", 60];
     const learned = rp.gap ? t("profile.learned", { gap: span(rp.gap) }) : t("profile.learning");
     const now = rp.every ? t("report.on", { every: span(rp.every) }) : rp.waiting ? t("profile.waiting", { limit: span({ change: 10800, regular: 3600, chatty: 900 }[rp.default]) }) : t("profile.off_now");
-    const opts = [["default", t("profile.default", { profile: t(`profile.brief.${rp.default || "off"}`) })], ...PROFILES.map((p) => [p, profLabel(p)]), ["custom", t("profile.custom")], ["off", t("profile.off")]];
+    const opts = [["default", t("profile.default", { profile: t(`profile.brief.${rp.default || "off"}`) })], ["auto", t("profile.auto")], ...PROFILES.map((p) => [p, profLabel(p)]), ["custom", t("profile.custom")], ["off", t("profile.off")]];
     const custom = cur === "custom" ? `<div class="set-row"><div class="text"><div class="t1">${th("profile.custom_title")}</div><div class="t2">${th(rp.gap ? "report.usual" : "report.desc", { gap: esc(rp.gap ? span(rp.gap) : "") })}</div></div><div class="ctl">
         <input class="field" id="repN" type="number" min="1" step="1" style="width:80px" value="${every ? every / size : ""}" placeholder="—" inputmode="numeric" aria-label="${esc(t("profile.custom_title"))}">
         <select class="field" id="repU" aria-label="${esc(t("report.unit_aria"))}">${REPORT_UNITS.map(([k]) => `<option value="${k}" ${k === unitKey ? "selected" : ""}>${th(`report.unit_${k}`)}</option>`).join("")}</select>
         <button class="btn" data-act="save-report-every">${th("common.save")}</button></div></div>` : "";
+    const select = `<select class="field prof-sel" id="repProf" data-ieee="${esc(d.ieee)}" aria-label="${esc(t("profile.title"))}">${opts.map(([k, l]) => `<option value="${k}" ${k === cur ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
+    if (d.rhythm) return `<div class="sub-h">${th("report.title")}</div>${rhythmBlock(d, cur, select)}${custom}`;
     return `<div class="sub-h">${th("report.title")}</div>
       <div class="set-row"><div class="text"><div class="t1">${th("profile.title")}</div><div class="t2">${esc(learned)}. ${esc(now)}.</div>${cur === "default" ? `<div class="t2">${th("profile.default_from", { group: esc(t(`profile.group.${rp.group || "other"}`)) })}</div>` : ""}</div><div class="ctl">
-        <select class="field prof-sel" id="repProf" data-ieee="${esc(d.ieee)}" aria-label="${esc(t("profile.title"))}">${opts.map(([k, l]) => `<option value="${k}" ${k === cur ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></div></div>${custom}`;
+        ${select}</div></div>${custom}`;
+  };
+  // Rhythm (rhythm.py): what was learned about how often the device reports, shown above the profile choice.
+  // Slots are 3-hour blocks of the local week (weekday * 8 + hour // 3) in which long silences start;
+  // "usually starting between 21:00 and 00:00" only when the blocks, folded onto one day, form a single run
+  // of at most 4 (12 h), wrapping midnight allowed.
+  const sleepWindow = (slots) => {
+    const blocks = new Set((slots || []).map((s) => ((s % 8) + 8) % 8));
+    if (!blocks.size || blocks.size > 4) return null;
+    const starts = [...blocks].filter((b) => !blocks.has((b + 7) % 8));
+    if (starts.length !== 1) return null;
+    const hh = (b) => `${String(((b % 8) * 3) % 24).padStart(2, "0")}:00`;
+    return { from: hh(starts[0]), to: hh(starts[0] + blocks.size) };
+  };
+  const rhythmBlock = (d, cur, select) => {
+    const r = d.rhythm, rp = d.reporting_profile || {};
+    const handSet = Boolean(rp.profile) && rp.profile !== "auto";
+    const showSelect = handSet || cur === "custom" || state.rhythmOwn === d.ieee;
+    // The profile in force, in words: "Regular (silent after 1 h)", or the limit for Custom / learned / Auto.
+    const inForce = () => (handSet ? (PROFILES.includes(rp.profile) ? profLabel(rp.profile) : t("report.on", { every: span(rp.every) }))
+      : rp.source === "default" && PROFILES.includes(rp.default) ? profLabel(rp.default) : t("report.on", { every: span(rp.every) }));
+    const none = () => (rp.waiting ? t("profile.waiting", { limit: span({ change: 10800, regular: 3600, chatty: 900 }[rp.default]) }) : t("profile.off_now"));
+    let body;
+    if (r.learned) {
+      const [low, high] = Array.isArray(r.usual) ? r.usual : [];
+      const win = r.longest ? sleepWindow(r.sleep_slots) : null;
+      // Excused: "Normal for this device" accepted the current silence. Not steady: no learned limit at all.
+      // rp.excused only when the excused mark is what leaves the device without a limit (reporting_profiles.effective).
+      const alert = rp.excused ? t("rhythm.excused")
+        : handSet && rp.profile === "off" ? t("rhythm.alert_off")
+        : !rp.every ? (handSet || r.steady ? none() : t("rhythm.unsteady"))
+        : handSet ? t("rhythm.alert_own", { limit: span(rp.every) })
+        : rp.source === "learned" ? t("rhythm.alert_value", { limit: span(rp.every) }) : t("rhythm.using", { profile: inForce() });
+      body = kv([
+        [th("rhythm.title"), t("rhythm.learned_from", { days: r.days ?? 0 })],
+        [th("rhythm.reports"), high ? (low > 0 ? t("rhythm.reports_value", { low: span(low), high: span(high) }) : t("rhythm.reports_upto", { high: span(high) })) : null],
+        [th("rhythm.sleeps"), r.longest ? (win ? t("rhythm.sleeps_when", { longest: span(r.longest), ...win }) : t("rhythm.sleeps_value", { longest: span(r.longest) })) : null],
+        [th("rhythm.alert"), alert],
+      ]);
+    } else {
+      const learning = t("rhythm.learning", { days: r.days ?? 0, need_days: r.need_days ?? 7, gaps: r.gaps ?? 0, need_gaps: r.need_gaps ?? 30 });
+      body = `<div class="card-content"><div>${esc(learning)}</div><div class="muted">${esc(rp.every ? t("rhythm.using", { profile: inForce() }) : none())}</div></div>`;
+    }
+    const prof = showSelect ? `<div class="set-row"><div class="text"><div class="t1">${th("profile.title")}</div>${cur === "default" ? `<div class="t2">${th("profile.default_from", { group: esc(t(`profile.group.${rp.group || "other"}`)) })}</div>` : ""}</div><div class="ctl">${select}</div></div>` : "";
+    const acts = [
+      showSelect ? "" : `<button class="btn" data-act="rhythm-own" data-ieee="${esc(d.ieee)}">${th("rhythm.set_own")}</button>`,
+      r.gaps || r.days ? `<button class="btn danger" data-act="rhythm-forget" data-ieee="${esc(d.ieee)}">${th("rhythm.forget")}</button>` : "",
+    ].join("");
+    return `${body}${prof}${acts ? `<div class="rhythm-acts">${acts}</div>` : ""}`;
   };
   // Settings > Checks: the default profile for each device type, summed up on one line, edited in place.
   const profileDefaults = () => {
@@ -3830,14 +4105,14 @@
     return `<div class="set-row"><div class="text"><div class="t1">${th("profile.defaults")}</div><div class="t2">${esc(line)}</div><div class="t2">${th("profile.defaults_desc")}</div></div><div class="ctl"><button class="btn" data-act="profile-edit" aria-expanded="${!!state.profEdit}" ${state.data ? "" : "disabled"}>${th(state.profEdit ? "common.done" : "profile.edit")}</button></div></div>${rows}`;
   };
 
-  const tabBattery = (d) => {
+  const tabBattery = (d, compact = false) => {
     const m = d.metrics || {}, rec = d.battery_record || { type: "", quantity: null, installed: "", replacements: [] };
     const est = m.battery_estimate_days;
     const reps = (rec.replacements || []).map((r, i) => [r, i]).reverse();
     return `
-      <div class="more-hero"><span class="state-ic" style="color:${batColor(d.battery, batLow(d))}">${ic("battery")}</span><div class="big">${typeof d.battery === "number" ? `${Math.round(d.battery)} %` : "—"}</div>
+      ${compact ? "" : `<div class="more-hero"><span class="state-ic" style="color:${batColor(d.battery, batLow(d))}">${ic("battery")}</span><div class="big">${typeof d.battery === "number" ? `${Math.round(d.battery)} %` : "—"}</div>
         <div class="sub">${est === null || est === undefined ? th("battery.no_estimate") : est <= 0 ? th("battery.due_now") : th("battery.days_left", { n: Math.round(est) })}</div></div>
-      <div class="more-actions"><button class="btn filled" data-act="battery-replaced">${ic("battery-sync", "s18")}${th("battery.replaced")}</button></div>
+      <div class="more-actions"><button class="btn filled" data-act="battery-replaced">${ic("battery-sync", "s18")}${th("battery.replaced")}</button></div>`}
       ${sparkline(m.battery_spark, { min: 0, max: 100, color: batColor(d.battery, batLow(d)), hover: { key: "spark-bat", value: (v) => t("chart.battery", { value: Math.round(v) }) } })}
       <div class="sub-h">${th("battery.details")}${rec.source === "battery_notes" ? ` · ${th("battery.from_bn")}` : rec.source === "library" ? ` · ${th("battery.from_library")}` : ""}</div>
       <form class="form" id="batForm">
@@ -3875,7 +4150,11 @@
     const colors = new Map();
     h.scans.slice().reverse().forEach((r) => { if (!colors.has(r.ieee)) colors.set(r.ieee, HOP_COLORS[colors.size % HOP_COLORS.length]); });
     const day = (iso) => intl((l) => new Date(iso).toLocaleDateString(l, { weekday: "short", day: "numeric", month: "short" }));
-    const rows = h.scans.map((r) => `<div class="hop"><span class="d" title="${esc(fmtDate(r.at))}">${esc(day(r.at))}</span><span class="p"><span class="dot" style="--c:${colors.get(r.ieee)}"></span><span>${esc(r.name)}${r.lqi !== null && r.lqi !== undefined ? ` · LQI ${esc(r.lqi)}` : ""}</span></span><span class="chg">${r.changed ? th("hops.changed") : ""}</span></div>`).join("");
+    // Scans in a row through the same router are one line, with their dates and link quality range.
+    const runs = [];
+    for (const r of h.scans) { const last = runs[runs.length - 1]; if (last && last[0].ieee === r.ieee) last.push(r); else runs.push([r]); }
+    const lq = (run) => { const v = run.map((r) => r.lqi).filter((x) => x !== null && x !== undefined); if (!v.length) return ""; const lo = Math.min(...v), hi = Math.max(...v); return ` · LQI ${lo === hi ? lo : `${lo}–${hi}`}`; };
+    const rows = runs.map((run) => { const r = run[0], end = run[run.length - 1]; return `<div class="hop"><span class="d" title="${esc(fmtDate(r.at))}">${esc(run.length > 1 ? `${day(end.at)} – ${day(r.at)}` : day(r.at))}</span><span class="p"><span class="dot" style="--c:${colors.get(r.ieee)}"></span><span>${esc(r.name)}${esc(lq(run))}${run.length > 1 ? ` <span class="muted">· ${esc(t("hops.scans", { n: run.length }))}</span>` : ""}</span></span><span class="chg">${run.some((x) => x.changed) ? th("hops.changed") : ""}</span></div>`; }).join("");
     const best = h.best && h.parents > 1 ? th("hops.best", { name: `<b>${esc(h.best.name)}</b>`, lqi: esc(h.best.lqi) }) + (h.changes >= h.threshold ? ` ${th("hops.advice")}` : "") : "";
     return `<div class="sub-h">${th("hops.title", { n: h.scans.length })}</div><div>${rows}</div>${best ? `<div class="card-content muted" style="font-size:13px">${best}</div>` : ""}`;
   };
@@ -3890,22 +4169,25 @@
   };
   const tabHistory = (d) => {
     const names = (d.names || []).filter((n) => n.name && !IEEE_RE.test(n.name)).slice().reverse();
-    const events = (state.data.events || []).filter((e) => e.ieee === d.ieee).slice(-30).reverse();
+    const events = (state.data.events || []).filter((e) => e.ieee === d.ieee).slice(-60).reverse();
+    // Newest first; the same kind of event several times in a row is one line ("11 times, 9 to 19 Nov").
+    const runs = [];
+    for (const e of events) { const last = runs[runs.length - 1]; if (last && last[0].kind === e.kind && (last[0].detail || "") === (e.detail || "")) last.push(e); else if (runs.length < 30) runs.push([e]); else break; }
     const removed = visible().filter((x) => x.status === "removed" && x.ieee !== d.ieee && !x.successor).sort((a, b) => collator.compare(nameOf(a) || "~", nameOf(b) || "~"));
     let lineage = "";
     if (d.successor) lineage += `<div><span>${th("more.replaced_by", { device: devLink(d.successor) })}</span><button class="btn" data-act="unlink" data-old="${esc(d.ieee)}" data-new="${esc(d.successor)}">${th("common.unlink")}</button></div>`;
     (d.predecessors || []).forEach((p) => { lineage += `<div><span>${th("history.replaces", { device: devLink(p) })}</span><button class="btn" data-act="unlink" data-old="${esc(p)}" data-new="${esc(d.ieee)}">${th("common.unlink")}</button></div>`; });
     const sugg = (d.suggestions || []).map((s) => `<div class="alert" style="--a:var(--info)">${ic("link-variant")}<div class="body">${th("history.possibly_replaces", { name: `<b>${esc(s.name || s.ieee)}</b>`, date: esc(fmtDate(s.removed_at, false) || t("history.earlier")) })}</div><button class="btn" data-act="link" data-old="${esc(s.ieee)}" data-new="${esc(d.ieee)}">${th("common.link")}</button></div>`).join("");
     return `
+      <div class="sub-h">${th("history.logbook")}</div>
+      ${runs.length ? runs.map((r) => { const e = r[0]; const [icon, color] = EVENT_ICON(e.kind); return `<div class="log" style="cursor:default"><span class="state-ic" style="color:${color}">${ic(icon)}</span><div class="text">${logLine(e)}${r.length > 1 ? `<span class="t2">${th("history.repeats", { n: r.length, from: esc(fmtDate(r[r.length - 1].time, false)), to: esc(fmtDate(e.time, false)) })}</span>` : payloadDiff(d, e)}</div></div>`; }).join("") : `<div class="card-content muted">${th("history.nothing_logged")}</div>`}
       <div class="sub-h">${th("history.names")}</div>
       ${names.length ? `<ul class="names">${names.map((n) => { const now = n.name === d.friendly_name && d.status !== "removed"; return `<li class="${now ? "now" : ""}">${ic(now ? "check" : "pencil", "s20")}<div><div class="t1">${esc(n.name)}${now ? ` ${th("history.current")}` : ""}</div><div class="t2">${esc(`${n.from ? fmtDate(n.from, false) : t("common.unknown")} – ${n.until ? fmtDate(n.until, false) : now ? t("history.present") : t("history.unknown_lower")}`)} · ${esc(n.source || "")}</div></div></li>`; }).join("")}</ul>` : `<div class="card-content muted">${th("history.never_named")}</div>`}
+      ${hopsHtml(d)}
       <div class="sub-h">${th("history.replacements")}</div>
       ${sugg ? `<div class="alerts">${sugg}</div>` : ""}
       ${lineage ? `<div class="rep-list">${lineage}</div>` : !sugg ? `<div class="card-content muted">${th("history.not_linked")}</div>` : ""}
-      ${d.status !== "removed" && removed.length ? `<div class="row-actions"><select class="field" id="linkSel" aria-label="${esc(t("history.link_removed"))}" style="flex:1;min-width:0"><option value="">${th("history.link_removed")}</option>${removed.map((x) => `<option value="${esc(x.ieee)}">${esc(nameOf(x) || x.ieee)}${x.removed_at ? ` · ${th("history.removed_on", { date: esc(fmtDate(x.removed_at, false)) })}` : ""}</option>`).join("")}</select><button class="btn" data-act="link-sel">${th("common.link")}</button></div>` : ""}
-      ${hopsHtml(d)}
-      <div class="sub-h">${th("history.logbook")}</div>
-      ${events.length ? events.map((e) => { const [icon, color] = EVENT_ICON(e.kind); return `<div class="log" style="cursor:default"><span class="state-ic" style="color:${color}">${ic(icon)}</span><div class="text">${logLine(e)}${payloadDiff(d, e)}</div></div>`; }).join("") : `<div class="card-content muted">${th("history.nothing_logged")}</div>`}`;
+      ${d.status !== "removed" && removed.length ? `<div class="row-actions"><select class="field" id="linkSel" aria-label="${esc(t("history.link_removed"))}" style="flex:1;min-width:0"><option value="">${th("history.link_removed")}</option>${removed.map((x) => `<option value="${esc(x.ieee)}">${esc(nameOf(x) || x.ieee)}${x.removed_at ? ` · ${th("history.removed_on", { date: esc(fmtDate(x.removed_at, false)) })}` : ""}</option>`).join("")}</select><button class="btn" data-act="link-sel">${th("common.link")}</button></div>` : ""}`;
   };
 
   // ------------------------------------------------------------ long-range charts (Trends tab)
@@ -3918,7 +4200,7 @@
     try { TREND.cache.set(key, { at: Date.now(), data: await api(`api/metrics?ieee=${encodeURIComponent(ieee)}&range=${range}`) }); }
     catch (err) { TREND.cache.set(key, { at: Date.now(), error: err.message }); }
     TREND.pending.delete(key);
-    if (state.open === ieee && state.moreTab === "trends") renderMore();
+    if (state.open === ieee && tabShown("trends")) renderMore();
   };
   document.addEventListener("click", (e) => {
     const b = e.target.closest("[data-trend-range]");
@@ -4140,9 +4422,134 @@
       <nav class="more-tabs" role="tablist" aria-label="${esc(t("more.details"))}">${tabs.map(([k, l]) => `<button class="tab" role="tab" id="mtab-${k}" data-tab="${k}" aria-controls="moreBody" aria-selected="${state.moreTab === k}" tabindex="${state.moreTab === k ? 0 : -1}">${th(l)}</button>`).join("")}</nav>
       <div class="more-body" id="moreBody" role="tabpanel" aria-labelledby="mtab-${state.moreTab}">${fn(d)}</div>`;
   };
+  // ------------------------------------------------------------ device page
+  // Header: who it is, one status line, the facts with their units, and "What to do" for its problems.
+  // Overview: When it alerts, Link quality, Battery, Readings and reporting, About, Trends, as cards.
+  const lqiWord = (v) => (v >= 150 ? t("lqi.strong") : v >= 80 ? t("lqi.good") : v >= 40 ? t("lqi.fair") : t("lqi.weak"));
+  const bars = (v) => { const n = v >= 150 ? 4 : v >= 80 ? 3 : v >= 40 ? 2 : 1; return `<span class="lqi-bars" aria-hidden="true">${[5, 8, 11, 14].map((h, i) => `<i class="${i < n ? "on" : ""}" style="height:${h}px"></i>`).join("")}</span>`; };
+  const devTone = (d) => {
+    const st = statusOf(d), w = warnings(d);
+    if (st === "offline" || st === "ghost") return "bad";
+    if (st === "removed" || st === "frozen") return "muted";
+    return w.some((i) => severe(i, d) || i.kind === "battery_low") ? "bad" : w.length ? "warn" : (d.issues || []).length ? "info" : "ok";
+  };
+  const todoBlock = (d) => {
+    const list = [...(d.issues || [])].sort((a, b) => Number(b.severity === "warning") - Number(a.severity === "warning") || Number(severe(b, d)) - Number(severe(a, d)));
+    if (!list.length || d.status === "removed") return "";
+    const [main, ...rest] = list;
+    const tone = main.severity !== "warning" ? "info" : severe(main, d) || main.kind === "battery_low" ? "bad" : "warn";
+    const [first, ...more] = issueActionList(main);
+    const acts = [first ? first.replace('class="btn', 'class="btn filled') : "", ...more].join("");
+    return `<div class="todo tone-${tone}">
+        <span class="disc">${ic(KIND_ICON[main.kind] || "alert", "s20")}</span>
+        <div class="todo-text"><h3>${esc(issueTitle(main))}</h3><p>${esc(issueDetail(main))}</p>${usedBy(d)}</div>
+        ${acts ? `<div class="todo-acts">${acts}</div>` : ""}
+        ${rest.map((x) => `<div class="todo-also"><span class="also-t">${th("health.also", { what: esc(`${issueTitle(x)} · ${issueDetail(x)}`) })}</span><span class="acts">${issueActions(x)}</span></div>`).join("")}
+      </div>`;
+  };
+  const pageCard = (id, title, body, aside = "") => (body ? `<section class="card page-sec" id="psec-${id}" aria-labelledby="psec-${id}-h"><div class="sec-h"><h3 id="psec-${id}-h">${title}</h3>${aside ? `<span>${aside}</span>` : ""}</div>${body}</section>` : "");
+  const linkCard = (d) => {
+    if (d.type === "Coordinator") return "";
+    const m = d.metrics || {}, r = d.routing;
+    const outages = [...(d.outages || [])].reverse().slice(0, 6);
+    const chain = [];
+    for (let x = d, n = 0; x && n < 6; n++) { chain.push(x); const p = x.routing?.parent?.ieee; x = p ? state.byIeee.get(p) : null; }
+    const route = chain.length > 1 ? `<div class="route">${chain.map((x) => `<span class="hop">${ic(kindIcon(x), "s18")}${esc(nameOf(x) || x.ieee)}</span>`).join(ic("chevron-right", "s18 sep"))}</div>` : "";
+    return `${kv([[th("dhealth.now"), d.lqi ?? "—"], [th("dhealth.avg_24h"), m.lqi_24h ?? "—"], [th("dhealth.prev_week"), m.lqi_prev_7d ?? "—"]])}
+      ${sparkline(m.lqi_spark, { min: 0, max: 255, hover: { key: "spark-lqi", hourly: true, value: (v) => t("chart.lqi", { value: Math.round(v) }) } })}
+      ${route ? `<div class="sub-h">${th("more.routing")}</div>${route}` : ""}
+      ${r ? kv([[th("more.depth"), r.depth], [th("more.scanned"), fmtDate(r.scanned_at)]]) : `<div class="card-content muted">${th("more.not_scanned")}</div>`}
+      <div class="sub-h">${th("more.availability")}${d.uptime_30d !== null && d.uptime_30d !== undefined ? ` · ${th("dhealth.uptime", { percent: esc(d.uptime_30d) })}` : ""}</div>
+      ${outages.length ? `<div class="rep-list">${outages.map((o) => { const sec = (new Date(o.end || Date.now()) - new Date(o.start)) / 1000; return `<div><span>${esc(fmtDate(o.start))}</span><span class="muted">${o.end ? esc(span(sec)) : th("dhealth.ongoing", { duration: esc(span(sec)) })}</span></div>`; }).join("")}</div>` : `<div class="card-content muted">${th("dhealth.no_outages")}</div>`}`;
+  };
+  const readingsCard = (d) => {
+    const readings = Object.entries(d.readings || {});
+    const inner = `${cmdSection(d)}${reportingSection(d)}
+      ${readings.length ? `<div class="sub-h">${th("dhealth.readings")}</div><div class="rep-list">${readings.map(([k, r]) => `<div><span>${esc(readingName(k))}: ${esc(r.value)}</span><span class="muted">${th("dhealth.changed", { when: esc(relTime(r.changed_at, true)), n: esc(r.reports) })}</span></div>`).join("")}</div>` : ""}
+      ${limitsHtml(d, readings.length > 0)}
+      ${(d.muted || []).length ? `<div class="sub-h">${th("settings.ignored")}</div><div class="rep-list">${d.muted.map((k) => `<div><span>${esc(tx(`check.${k}.label`, null, cap(k.replace(/_/g, " "))))}</span><button class="btn" data-act="unmute" data-ieee="${esc(d.ieee)}" data-kind="${esc(k)}">${th("common.stop_ignoring")}</button></div>`).join("")}</div>` : ""}`;
+    return inner.replace(/\s/g, "") ? inner : "";
+  };
+  const aboutCard = (d) => {
+    const u = d.update || {}, o = state.data.options || {};
+    const fw = (() => { const fn = notesFor(d); return fn.runs.map((n) => `<div class="alert" style="--a:var(--warning)">${ic("note-text-outline")}<div class="body">${th("fwnote.device_runs", { version: esc(n.version), text: esc(n.text) })}</div></div>`).join(""); })();
+    const ota = u.state === "available" && d.status !== "removed" ? `<div class="alert" style="--a:var(--info)">${ic("chip")}<div class="body"><b>${th("issue.update.title")}</b> · ${esc(u.installed_version)} → ${esc(u.latest_version)}</div><button class="btn" data-act="ota-update">${th("common.update")}</button></div>`
+      : u.state === "updating" ? `<div class="alert" style="--a:var(--info)">${ic("chip")}<div class="body"><b>${th("more.updating")}${u.progress != null ? ` · ${Math.round(u.progress)} %` : ""}</b></div></div>` : "";
+    return `${fw || ota ? `<div class="alerts">${ota}${fw}</div>` : ""}
+      ${kv([[th("devices.col.model"), deviceLine(d) || t("common.unknown")], [th("more.description"), d.description], [th("more.type"), typeLabel(d.type)], [th("more.power_source"), d.power_source],
+        [th("more.firmware"), [d.software_build_id, d.date_code].filter(Boolean).join(" · ")], [th("more.first_seen"), fmtDate(d.first_seen) || t("common.unknown")], [th("more.ieee"), d.ieee, true],
+        [th("more.model_id"), d.model_id, true], [th("more.radio_maker"), d.oui_vendor], [th("more.ha_name"), d.ha_name],
+        [th("more.interview"), d.interview_state ? tx(`more.interview.${d.interview_state.toLowerCase()}`, null, cap(d.interview_state.toLowerCase().replace(/_/g, " "))) : null]])}
+      ${d.status !== "removed" ? `<div class="set-row"><div class="text"><div class="t1">${th("more.critical")}</div><div class="t2">${th("more.critical_desc", { minutes: esc(o.critical_offline_minutes ?? 5), normal: esc(o.offline_alert_minutes ?? 60) })}</div></div>
+        <label class="switch"><input type="checkbox" id="critSw" data-ieee="${esc(d.ieee)}" ${d.critical ? "checked" : ""} aria-label="${esc(t("more.critical"))}"><span class="track"></span><span class="thumb"></span></label></div>` : ""}
+      ${pingResult(d)}
+      ${d.type !== "Coordinator" && d.status !== "removed" ? `<details class="sec-more"><summary>${th("page.traffic")}</summary>${tabTraffic(d)}</details>` : ""}
+      ${d.features?.length ? `<details class="sec-more"><summary>${th("more.capabilities")}</summary><div class="caps">${d.features.map((f) => `<span>${esc(f)}</span>`).join("")}</div></details>` : ""}
+      ${infoActions(d).replace(/btn filled/g, "btn outlined")}`;
+  };
+  const pageHtml = (d) => {
+    const isBat = isBattery(d) || !!d.battery_record;
+    const fns = { history: tabHistory, messages: tabMessages, community: tabCommunity, asset: tabAsset };
+    const tabs = [["overview", "more.tab.overview"], ["history", "page.timeline"], ...(d.type !== "Coordinator" ? [...(isZha() ? [] : [["messages", "more.tab.messages"]]), ["community", "more.tab.community"]] : []), ["asset", "more.tab.notes"]];
+    // A link or button that asks for Health, Trends, Info or Battery lands on Overview, at that card.
+    if (OVERVIEW_TABS.includes(state.moreTab)) { state.pageJump = state.moreTab; state.moreTab = "overview"; }
+    if (!tabs.find((x) => x[0] === state.moreTab)) state.moreTab = "overview";
+    const name = nameOf(d), st = statusOf(d), lqi = lqiOf(d), tone = devTone(d), m = d.metrics || {};
+    const w = warnings(d);
+    const stTxt = st !== "active" ? STATUS[st].label : w[0] ? issueLabel(w[0]) : (d.issues || [])[0] ? issueLabel(d.issues[0]) : STATUS.active.label;
+    const est = m.battery_estimate_days;
+    const batTone = typeof d.battery === "number" ? (d.battery <= batLow(d) ? "bad" : d.battery <= batLow(d) + 20 ? "warn" : "") : "";
+    const facts = [
+      [t("devices.col.status"), `<span class="sdot"></span><span class="fact-st">${esc(stTxt)}</span>`, `tone-${tone}`],
+      [t("page.last_message"), esc(d.last_seen ? relTime(d.last_seen) : t("time.never"))],
+      ...(typeof d.battery === "number" ? [[t("devices.col.battery"), `<span class="tnum">${Math.round(d.battery)} %</span>${est != null ? `<small>${esc(est <= 0 ? t("battery.due_now") : t("battery.days_left", { n: Math.round(est) }))}</small>` : ""}`, batTone ? `tone-${batTone} colored` : ""]] : []),
+      ...(lqi !== null && lqi !== undefined && d.type !== "Coordinator" ? [[t("page.link_quality"), `${bars(lqi)}<span class="tnum">${Math.round(lqi)}</span><small>${esc(t("page.of_255", { word: lqiWord(lqi) }))}</small>`]] : []),
+    ];
+    const body = state.moreTab === "overview"
+      ? `<div class="page-grid">
+          ${d.type !== "Coordinator" && d.status !== "removed" ? pageCard("health", th("page.when_alerts"), offlineTiming(d, false) + reportEvery(d)) : ""}
+          ${pageCard("signal", th("page.link_quality"), linkCard(d), esc(t("page.higher_better")))}
+          ${isBat ? pageCard("battery", th("more.tab.battery"), tabBattery(d, true)) : ""}
+          ${pageCard("reporting", th("page.readings"), readingsCard(d))}
+          ${pageCard("info", th("page.about"), aboutCard(d))}
+          ${pageCard("trends", th("more.tab.trends"), tabTrends(d))}
+        </div>`
+      : `<div class="card page-sec">${fns[state.moreTab](d)}</div>`;
+    const removed = st === "removed" ? `<div class="alert" style="--a:var(--text-2)">${ic("information-outline")}<div class="body"><b>${th("more.removed")}</b> ${d.removed_at ? th("more.removed_on", { date: esc(fmtDate(d.removed_at)) }) : th("more.removed_no_date")}.</div></div>` : "";
+    return `
+      <div class="crumb"><button class="btn" data-act="close">${ic("arrow-left", "s18")}${th("tabs.devices")}</button></div>
+      <div class="card dev-card">
+        <div class="dev-head tone-${tone}"><span class="disc">${ic(kindIcon(d))}</span>
+          <div class="titles"><h2 id="moreTitle" class="${name ? "" : "unknown"}">${esc(name || t("devices.unnamed"))}${d.critical && d.status !== "removed" ? ` ${critTag()}` : ""}</h2>
+            <div class="meta"><span>${esc([d.area, t("net.network", { name: netLabel(d.instance) }), deviceLine(d)].filter(Boolean).join(" · "))}</span></div><div class="meta"><span class="mono">${esc(d.ieee)}</span><button class="icon-btn sm" data-act="copy" data-ieee="${esc(d.ieee)}" aria-label="${esc(t("more.copy_ieee"))}" title="${esc(t("more.copy", { ieee: d.ieee }))}">${ic("content-copy", "s18")}</button></div></div></div>
+        <dl class="facts">${facts.map(([k, v, cls = ""]) => `<div class="${cls}"><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join("")}</dl>
+        ${removed ? `<div class="alerts">${removed}</div>` : ""}
+        ${todoBlock(d)}
+        <nav class="more-tabs" role="tablist" aria-label="${esc(t("more.details"))}">${tabs.map(([k, l]) => `<button class="tab" role="tab" id="mtab-${k}" data-tab="${k}" aria-controls="moreBody" aria-selected="${state.moreTab === k}" tabindex="${state.moreTab === k ? 0 : -1}">${th(l)}</button>`).join("")}</nav>
+      </div>
+      <div class="more-body" id="moreBody" role="tabpanel" aria-labelledby="mtab-${state.moreTab}">${body}</div>`;
+  };
+  // The device page takes the place of the current tab's content; closing it shows that content again.
+  const renderPage = (d, fresh) => {
+    const page = $("#devicePage"), view = $("#view");
+    if (!d) { if (!page.hidden) { page.hidden = true; page.innerHTML = ""; view.hidden = false; $("#page").classList.remove("wide"); syncTabs(); } return; }
+    if (!fresh && state.editing && page.contains(document.activeElement)) return;
+    const y = window.scrollY, wasOpen = !page.hidden;
+    page.innerHTML = pageHtml(d);
+    page.hidden = false; view.hidden = true;
+    syncTabs();
+    $("#page").classList.add("wide");
+    state.editing = false;
+    if (state.pageJump) { const sec = document.getElementById(`psec-${state.pageJump}`); state.pageJump = null; if (sec) { sec.scrollIntoView({ block: "start" }); fadeEdges(); return; } }
+    window.scrollTo(0, wasOpen && !state.pageTop ? y : 0);
+    state.pageTop = false;
+    fadeEdges();
+  };
   const renderMore = (fresh = false, fromList = false) => {
     const dlg = $("#more");
     const d = state.byIeee.get(state.open);
+    if (usePage()) { if (dlg.open) { state.keepOpen = true; dlg.close(); state.keepOpen = false; } renderPage(d, fresh); return; }
+    renderPage(null, true);
     if (usePane()) {
       if (dlg.open) { state.keepOpen = true; dlg.close(); state.keepOpen = false; }
       const pane = $("#pane");
@@ -4171,9 +4578,9 @@
   };
   // The hash holds the open device (#0x…) or, with none open, the tab (#devices, #network/broker). Health is the bare URL.
   const VIEWS = ["health", "devices", "network", "upkeep", "updates", "activity", "settings"];
-  const SUBS = { network: ["map", "coordinator", "broker", "radio", "groups"], upkeep: ["batteries", "maintenance", "models", "costs", "community"] };
+  const SUBS = { network: ["map", "coordinator", "broker", "radio", "groups"], upkeep: ["batteries", "updates", "maintenance", "models", "costs", "community"] };
   // Sections that only exist with Zigbee2MQTT: its coordinator info, the MQTT broker and Zigbee2MQTT groups.
-  const Z2M_ONLY_SUBS = new Set(["coordinator", "broker", "groups"]);
+  const Z2M_ONLY_SUBS = new Set(["coordinator", "broker", "groups", "updates"]);
   const isZha = () => state.data?.stack === "zha";
   const subsOf = (view) => SUBS[view].filter((k) => !(isZha() && Z2M_ONLY_SUBS.has(k)));
   // Old hashes and links: the Map tab is now Network > Map.
@@ -4194,7 +4601,11 @@
   };
   const markSelected = () => document.querySelectorAll(".dt tbody tr[data-open]").forEach((r) => r.setAttribute("aria-selected", String(r.dataset.open === state.open)));
   const openDevice = (ieee, tab) => {
-    if (state.open !== ieee) { flushNote(); state.moreTab = tab || state.moreTab || "info"; state.paneScroll = 0; }
+    if (state.open !== ieee) {
+      flushNote(); state.moreTab = tab || state.moreTab || "info"; state.paneScroll = 0;
+      // Full page: remember where the list was scrolled to, and start the new device at the top.
+      if (usePage()) { if (!state.open) state.pageBack = window.scrollY; state.pageTop = true; }
+    }
     state.open = ieee;
     syncHash();
     if (usePane() && state.view !== "devices") { state.view = "devices"; state.settingsShown = false; render(); window.scrollTo(0, 0); }
@@ -4202,7 +4613,22 @@
     markSelected();
     if (usePane()) document.querySelector(`.dt tr[data-open="${CSS.escape(ieee)}"]`)?.scrollIntoView({ block: "nearest" });
   };
-  const closeDevice = () => { flushNote(); state.open = null; syncHash(); const dlg = $("#more"); if (dlg.open) dlg.close(); if (usePane()) { renderMore(true); markSelected(); } };
+  // After saving a device's reporting profile or limit: a field in the sheet still has focus and set
+  // state.editing, so a plain re-render would be skipped. Force it, and keep the scroll position, since
+  // renderMore(true) goes back to the top and the Rhythm block sits down the Health tab.
+  const redrawSheet = async () => {
+    state.rhythmOwn = null; state.profCustom = null; state.editing = false;
+    const body = () => (usePane() ? $("#pane") : $("#more"))?.querySelector(".more-body");
+    const top = body()?.scrollTop || 0;
+    await load(); renderMore(true);
+    const after = body(); if (after) after.scrollTop = top;
+  };
+  const closeDevice = () => {
+    flushNote(); state.open = null; state.rhythmOwn = null; syncHash();
+    const dlg = $("#more"); if (dlg.open) dlg.close();
+    if (usePane()) { renderMore(true); markSelected(); }
+    if (usePage()) { renderPage(null, true); window.scrollTo(0, state.pageBack || 0); state.pageBack = 0; }
+  };
   const moveSelection = (delta) => {
     const rows = [...document.querySelectorAll(".dt tbody tr[data-open]")];
     if (!rows.length) return;
@@ -4210,14 +4636,18 @@
     i = i < 0 ? 0 : Math.max(0, Math.min(rows.length - 1, i + delta));
     openDevice(rows[i].dataset.open);
   };
-  $("#more").addEventListener("close", () => { if (state.open && !state.keepOpen) { flushNote(); state.open = null; syncHash(); } });
+  $("#more").addEventListener("close", () => { if (state.open && !state.keepOpen) { flushNote(); state.open = null; state.rhythmOwn = null; syncHash(); } });
   $("#more").addEventListener("click", (e) => { if (e.target === e.currentTarget) closeDevice(); });
   document.addEventListener("change", async (e) => {
     if (e.target.id === "repProf") {
       const ieee = e.target.dataset.ieee, profile = e.target.value;
       if (profile === "custom") { state.profCustom = ieee; renderMore(true); $("#repN")?.focus(); return; }
       state.profCustom = null;
-      try { await api("api/report_profile", { ieee, profile }); snack(t("profile.saved", { profile: e.target.selectedOptions[0].textContent })); load(); } catch (err) { snack(err.message); }
+      try {
+        await api("api/report_profile", { ieee, profile });
+        snack(t("profile.saved", { profile: e.target.selectedOptions[0].textContent }));
+        await redrawSheet();
+      } catch (err) { snack(err.message); }
       return;
     }
     if (e.target.dataset.profdef) {
@@ -4234,6 +4664,7 @@
     } catch (err) { e.target.checked = !critical; snack(err.message); }
   });
   $("#more").addEventListener("input", () => { state.editing = true; });
+  $("#devicePage").addEventListener("input", () => { state.editing = true; });
   $("#view").addEventListener("input", (e) => { if (e.target.closest("#pane")) state.editing = true; });
   $("#view").addEventListener("input", (e) => { if (e.target.id === "namePattern") $("#nameExample").textContent = namingExample(e.target.value.trim()); });
   $("#view").addEventListener("scroll", (e) => { if (e.target.classList?.contains("more-body")) state.paneScroll = e.target.scrollTop; }, true);
@@ -4276,6 +4707,17 @@
   const fadeEdges = () => document.querySelectorAll(".chips, .more-tabs, .sub-tabs").forEach(fadeEdge);
   document.addEventListener("scroll", (e) => { if (e.target instanceof Element && e.target.matches(".chips, .more-tabs, .sub-tabs")) fadeEdge(e.target); }, true);
   window.addEventListener("resize", () => requestAnimationFrame(fadeEdges));
+  // Settings: the side list marks the section at the top of the screen.
+  const markSetNav = () => {
+    if (state.view !== "settings") return;
+    const chips = [...document.querySelectorAll("#view .set-nav [data-jump]")];
+    if (!chips.length) return;
+    const top = $(".toolbar").offsetHeight + 24;
+    let cur = chips[0];
+    for (const c of chips) { const el = document.getElementById(c.dataset.jump); if (el && el.getBoundingClientRect().top <= top) cur = c; }
+    chips.forEach((c) => c.setAttribute("aria-current", String(c === cur)));
+  };
+  window.addEventListener("scroll", () => requestAnimationFrame(markSetNav), { passive: true });
   document.addEventListener("click", (e) => { const j = e.target.closest?.("[data-jump]"); const to = j && document.getElementById(j.dataset.jump); if (to) window.scrollTo({ top: to.getBoundingClientRect().top + window.scrollY - $(".toolbar").offsetHeight - 8, behavior: "smooth" }); });
 
   // A refresh redraws the view. Remember which control had keyboard focus so it can be focused again,
@@ -4302,17 +4744,13 @@
     const warn = healthRows(issues).filter((g) => g[0].severity === "warning").length;
     const badge = $("#issueBadge"); badge.textContent = warn; badge.classList.toggle("warn", warn > 0);
     const otaCount = otaList().filter((d) => d.update?.state === "available" || d.update?.state === "updating").length;
-    $("#otaBadge").textContent = otaCount; $("#otaBadge").hidden = !otaCount;
-    $("#moreBadge").textContent = otaCount; $("#moreBadge").hidden = !otaCount;
-    const upkeep = upkeepCount();
+    // Upkeep's count covers what needs buying or doing there, firmware updates included.
+    const upkeep = upkeepCount() + (isZha() ? 0 : otaCount);
     $("#upkeepBadge").textContent = upkeep; $("#upkeepBadge").hidden = !upkeep;
-    const behindMore = MORE_VIEWS.includes(state.view);
-    $("#tab-more").setAttribute("aria-selected", String(behindMore));
-    $("#moreTabLabel").textContent = t(behindMore ? `tabs.${state.view}` : "tabs.more");
     renderPause();
-    document.querySelectorAll(".toolbar .tab[data-view]").forEach((t) => { const on = t.dataset.view === state.view; t.setAttribute("aria-selected", String(on)); t.tabIndex = on ? 0 : -1; });
-    $("#view").setAttribute("aria-labelledby", `tab-${state.view}`);
-    if (state.view !== "devices") $("#page").classList.remove("wide");
+    syncTabs();
+    if (state.view !== "devices" && !(usePage() && state.open)) $("#page").classList.remove("wide");
+    $("#view").classList.toggle("set-grid", state.view === "settings");
     if (state.view === "devices") { if (!(usePane() && state.editing && $("#pane")?.contains(document.activeElement))) renderDevices(); }
     else if (state.view === "health") renderHealth();
     else if (state.view === "activity") renderActivity();
@@ -4340,25 +4778,26 @@
     if (!state.open) syncHash();
     render(); window.scrollTo(0, 0);
   };
-  const goSub = (view, sub) => { state.sub[view] = sub; store.set(`z2mt.sub.${view}`, sub); if (!state.open) syncHash(); render(); };
+  const goSub = (view, sub) => { state.view = view; state.sub[view] = sub; store.set(`z2mt.sub.${view}`, sub); if (!state.open) syncHash(); render(); };
 
   // ------------------------------------------------------------ phone "More" sheet
-  const MORE_VIEWS = ["updates", "activity", "settings"];
-  const MORE_ICONS = { updates: "update", activity: "history", settings: "cog" };
-  const closeSheet = () => { $("#tabSheet").hidden = $("#sheetScrim").hidden = true; $("#tab-more").setAttribute("aria-expanded", "false"); };
-  const openSheet = () => {
-    const ota = Number($("#otaBadge").textContent) || 0;
-    $("#tabSheet").innerHTML = MORE_VIEWS.filter((v) => !(isZha() && v === "updates")).map((v) => `<button role="menuitem" data-view="${v}"${state.view === v ? ' aria-current="page"' : ""}>${ic(MORE_ICONS[v])}<span>${th(`tabs.${v}`)}</span>${v === "updates" && ota ? `<span class="badge info">${ota}</span>` : ""}</button>`).join("");
-    $("#tabSheet").hidden = $("#sheetScrim").hidden = false;
-    $("#tab-more").setAttribute("aria-expanded", "true");
-    $("#tabSheet button")?.focus();
+  // Four tabs. Updates is a section of Upkeep, Activity opens from Health, Settings from the gear.
+  const TAB_OF = { updates: "upkeep", activity: "health", settings: null };
+  const tabOf = (view) => (view in TAB_OF ? TAB_OF[view] : view);
+  const syncTabs = () => {
+    const page = Boolean(state.open && usePage());
+    const owner = page ? "devices" : tabOf(state.view);
+    document.querySelectorAll(".toolbar .tab[data-view]").forEach((x) => { const on = x.dataset.view === owner; x.setAttribute("aria-selected", String(on)); x.tabIndex = on || (!owner && x.dataset.view === "health") ? 0 : -1; });
+    $("#settingsBtn").setAttribute("aria-pressed", String(state.view === "settings" && !page));
+    $("#view").setAttribute("aria-labelledby", owner ? `tab-${owner}` : "settingsBtn");
   };
+  const MORE_ICONS = { updates: "update", activity: "history", settings: "cog" };
+  const closeSheet = () => {};
   $("#sheetScrim").addEventListener("click", closeSheet);
 
   // ------------------------------------------------------------ actions
   const flash = (sel) => { const s = $(sel); if (!s) return; s.classList.add("show"); setTimeout(() => s.classList.remove("show"), 1600); };
   const actions = {
-    "tab-more"() { if ($("#tabSheet").hidden) openSheet(); else closeSheet(); },
     close: () => closeDevice(),
     "toggle-coord": (b) => { const o = state.openCoords; if (!o.delete(b.dataset.bt)) o.add(b.dataset.bt); render(); },
     "toggle-group": (b) => { const g = state.openGroups; if (!g.delete(b.dataset.ieee)) g.add(b.dataset.ieee); render(); },
@@ -4444,6 +4883,19 @@
         snack(t("bindings.restored", { n: r.restored }), 4000);
       } catch (err) { snack(t("bindings.restore_failed", { error: err.message }), 6000); }
       b.disabled = false; b.classList.remove("busy"); load();
+    },
+    "rhythm-own"(b) { state.rhythmOwn = b.dataset.ieee; renderMore(true); $("#repProf")?.focus(); },
+    async "rhythm-forget"(b) {
+      const ok = await confirmDialog({ title: t("rhythm.forget_title"), ok: t("rhythm.forget"), danger: true, filled: true, html: `<p>${th("rhythm.forget_text")}</p>` });
+      if (!ok) return;
+      try { await api("api/rhythm_forget", { ieee: b.dataset.ieee }); snack(t("rhythm.forget_done")); load(); } catch (err) { snack(err.message, 5000); }
+    },
+    async "rhythm-normal"(b) {
+      b.disabled = true;
+      try { await api("api/rhythm_normal", { ieee: b.dataset.ieee }); snack(t("rhythm.normal_done")); load(); } catch (err) { b.disabled = false; snack(err.message, 5000); }
+    },
+    async snooze(b) {
+      try { await api("api/mute", { ieee: b.dataset.ieee, kind: b.dataset.kind, muted: true, days: 7 }); snack(t("health.snoozed")); load(); } catch (err) { snack(err.message); }
     },
     async mute(b) {
       const d = state.byIeee.get(b.dataset.ieee);
@@ -4561,6 +5013,7 @@
     },
     async "save-wifi"() { await saveSettings({ wifi_channels: $("#wifiCh").value.trim() }); },
     async "send-summary"() { try { const r = await api("api/summary", {}); snack(r.title, 4000); } catch (err) { snack(err.message); } },
+    async "send-daily"() { try { const r = await api("api/summary", { daily: true }); snack(r.title || t("settings.daily_nothing"), 4000); } catch (err) { snack(err.message); } },
     restore() { $("#restoreFile").click(); },
     "settings-retry"(b) { b.disabled = true; renderSettings(); },
     async unmute(b) { try { await api("api/mute", { ieee: b.dataset.ieee, kind: b.dataset.kind, muted: false }); snack(t("snack.unmuted")); if (state.view === "settings") await renderSettings(); load(); } catch (err) { snack(err.message); } },
@@ -4586,9 +5039,9 @@
       const n = Number($("#repN").value), size = REPORT_UNITS.find(([k]) => k === $("#repU").value)?.[1] || 60;
       const seconds = Math.round(n * size);
       if (!n || seconds < 30 || seconds > 604800) { snack(t("report.range")); return; }
-      try { await api("api/report_every", { ieee: state.open, seconds }); state.profCustom = null; snack(t("report.saved", { every: span(seconds) })); load(); } catch (err) { snack(err.message); }
+      try { await api("api/report_every", { ieee: state.open, seconds }); snack(t("report.saved", { every: span(seconds) })); await redrawSheet(); } catch (err) { snack(err.message); }
     },
-    async "clear-report-every"() { try { await api("api/report_every", { ieee: state.open, seconds: null }); snack(t("report.cleared")); load(); } catch (err) { snack(err.message); } },
+    async "clear-report-every"() { try { await api("api/report_every", { ieee: state.open, seconds: null }); snack(t("report.cleared")); await redrawSheet(); } catch (err) { snack(err.message); } },
     async "save-note"() { const note = $("#note").value; try { await api("api/note", { ieee: state.open, note }); state.byIeee.get(state.open).note = note; flash("#savedNote"); state.editing = false; } catch (err) { snack(err.message); } },
     async "save-asset"() { const asset = Object.fromEntries(new FormData($("#assetForm")).entries()); try { await api("api/asset", { ieee: state.open, asset }); state.byIeee.get(state.open).asset = asset; flash("#savedAsset"); state.editing = false; load(); } catch (err) { snack(err.message); } },
     async "save-limits"() {
@@ -4607,8 +5060,8 @@
       devMenuItems(m)[0]?.focus();
       m.scrollIntoView({ block: "nearest" });
     },
-    async "battery-replaced"() {
-      const ieee = state.open, d = state.byIeee.get(ieee);
+    async "battery-replaced"(b) {
+      const ieee = b?.dataset?.ieee || state.open, d = state.byIeee.get(ieee);
       const ok = await confirmDialog({ title: t("battery.replaced"), ok: t("common.save"),
         html: `<p>${th(d?.battery_notes ? "battery.records_bn" : "battery.records", { name: esc(nameOf(d) || ieee) })}</p><label>${th("battery.replaced_on")}<input class="field" type="date" id="cDate" value="${todayIso()}" max="${todayIso()}"></label>${brandField(lastBrandFor(d?.battery_record?.type))}<label>${th("battery.note")}<input class="field" id="cNote" maxlength="200" autocomplete="off"></label>` });
       if (!ok) return;
@@ -4645,7 +5098,7 @@
     },
     "manage-brands"() {
       const dlg = $("#confirmDlg"); if (dlg.open) dlg.close("cancel");
-      if ($("#more").open) closeDevice();
+      if ($("#more").open || (usePage() && state.open)) closeDevice();
       state.jumpBrands = true; go("settings");
     },
     async "brand-add"() {
@@ -4871,7 +5324,7 @@
   });
   const renderUpdates = () => {
     const O = state.ota;
-    if (!O) { $("#view").innerHTML = `<div class="card">${emptyState("update", th("ota.loading"), th("ota.loading_text"))}</div>`; loadOta(); return; }
+    if (!O) { $("#view").innerHTML = `${subNav("upkeep")}<div class="card">${emptyState("update", th("ota.loading"), th("ota.loading_text"))}</div>`; loadOta(); return; }
     if (Date.now() - (state.otaAt || 0) > 30000) loadOta();
     const list = otaList().sort((a, b) => { const r = (d) => (d.update?.state === "updating" ? 0 : O.status?.[d.ieee]?.state === "queued" ? 1 : 2); return r(a) - r(b) || collator.compare(nameOf(a) || a.ieee, nameOf(b) || b.ieee); });
     const avail = list.filter((d) => ["available", "updating"].includes(d.update?.state)).length;
@@ -4902,7 +5355,7 @@
         <span class="muted" style="white-space:nowrap">${esc(fmtDate(h.start))}${ok ? esc(dur) : ""}</span>${retry}</div>`;
     }).join("");
     const [wFrom, wTo] = (O.window_valid && O.window ? O.window : "02:00-05:00").split("-");
-    $("#view").innerHTML = `
+    $("#view").innerHTML = `${subNav("upkeep")}
       <div class="card">
         <div class="ota-head"><div class="text"><div class="t1">${avail ? th("ota.available_n", { n: avail }) : th("ota.all_up_to_date")}</div><div class="t2">${checked} · ${sched}</div></div>
           <button class="btn outlined ${chk.running ? "busy" : ""}" data-act="ota-check-all" ${chk.running ? "disabled" : ""}>${ic("refresh", "s18")}${th(chk.running ? "ota.checking_short" : "ota.check_now")}</button>
@@ -5186,7 +5639,7 @@
     const assetBits = [a.purchase_date ? t("replace.bought", { date: a.purchase_date.slice(0, 7) }) : "", a.shop, a.location, old.note ? t("replace.a_note") : ""].filter(Boolean);
     const bindNames = [...new Set(binds.map((b) => repBindLabel(old, b)))];
     return [
-      ["name", t("replace.step.name"), nameOf(old), t("replace.hint.name"), !nameOf(old)],
+      ["name", t("replace.step.name"), nameOf(old), t("replace.hint.name_ids"), !nameOf(old)],
       ["area", t("replace.step.area"), old.area, old.area ? "" : t("replace.hint.no_area"), !old.area],
       ["bindings", t("replace.step.bindings"), binds.length ? t("replace.bindings_value", { n: binds.length, names: `${bindNames.slice(0, 2).join(", ")}${bindNames.length > 2 ? "…" : ""}` }) : "", t(!sameNet ? "replace.hint.other_network" : binds.length ? "replace.hint.bindings" : "replace.hint.no_bindings"), !binds.length || !sameNet],
       ["notes", t("replace.step.notes"), assetBits.join(", "), t(assetBits.length ? "replace.hint.notes" : "replace.hint.nothing"), !assetBits.length],
@@ -5458,7 +5911,7 @@
       if (older) { MAP.scanSel[bt] = null; MAP.cmpSel[bt] = null; delete (MAP.pos || {})[bt]; }
       const other = multiNet() && pickedNet() !== bt;
       if (other) state.net = bt;
-      if (!onMap()) { if ($("#more").open) closeDevice(); go("network/map"); }
+      if (!onMap()) { if ($("#more").open || (usePage() && state.open)) closeDevice(); go("network/map"); }
       else if (older || other) renderMap(true);
       updateWhatIf(bt, true);
       let next;
@@ -5490,6 +5943,7 @@
     "rep-next"() { const r = state.replace; if (!r || (r.step === 1 && !r.new)) return; r.step = Math.min(3, r.step + 1); renderReplace(); },
     "open-notes"(b) { state.moreTab = "asset"; openDevice(b.dataset.ieee, "asset"); },
     "open-history"(b) { state.moreTab = "history"; openDevice(b.dataset.ieee, "history"); },
+    "open-reporting"(b) { if (state.open === b.dataset.ieee && usePage()) { state.moreTab = "overview"; state.pageJump = "reporting"; renderMore(true); return; } const tab = usePage() ? "reporting" : "health"; state.moreTab = tab; openDevice(b.dataset.ieee, tab); },
     "open-health"(b) { state.moreTab = "health"; openDevice(b.dataset.ieee, "health"); },
     "rep-open"(b) { $("#replaceDlg").close(); openDevice(b.dataset.ieee, "history"); },
     async "rep-apply"() {
@@ -5647,11 +6101,11 @@
     if (act && actions[act.dataset.act]) { e.preventDefault(); closeMenu(); actions[act.dataset.act](act); return; }
     if (e.target.closest("#menu a")) { closeMenu(); return; }
     const tab = e.target.closest("[data-tab]");
-    if (tab) { flushNote(); const box = tab.closest("#more, #pane"); state.moreTab = tab.dataset.tab; renderMore(true); if (document.activeElement === document.body || !document.activeElement || !box?.contains(document.activeElement)) box?.querySelector(`[data-tab="${CSS.escape(state.moreTab)}"]`)?.focus(); return; }
+    if (tab) { flushNote(); const box = tab.closest("#more, #pane, #devicePage"); state.moreTab = tab.dataset.tab; renderMore(true); if (document.activeElement === document.body || !document.activeElement || !box?.contains(document.activeElement)) box?.querySelector(`[data-tab="${CSS.escape(state.moreTab)}"]`)?.focus(); return; }
     const open = e.target.closest("[data-open]");
     if (open) { e.preventDefault(); openDevice(open.dataset.open); return; }
     const view = e.target.closest("[data-view]");
-    if (view) { if ($("#more").open) closeDevice(); if (view.dataset.net && multiNet()) state.net = view.dataset.net; go(view.dataset.view); return; }
+    if (view) { if ($("#more").open || (usePage() && state.open)) closeDevice(); if (view.dataset.net && multiNet()) state.net = view.dataset.net; go(view.dataset.view); return; }
     const sub = e.target.closest("[data-sub]");
     if (sub) { const [v, k] = sub.dataset.sub.split("/"); goSub(v, k); return; }
     const chip = e.target.closest("[data-chip]");
@@ -5661,7 +6115,6 @@
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !menu.hidden) { closeMenu(); return; }
-    if (e.key === "Escape" && !$("#tabSheet").hidden) { closeSheet(); $("#tab-more").focus(); return; }
     if (e.key === "Enter" && e.target.matches("tr[data-open]")) { openDevice(e.target.dataset.open); return; }
     if (e.key === "Enter" && e.target.matches("#stockType, #stockN")) { e.preventDefault(); actions["stock-add"](); return; }
     const tl = e.target.matches?.('[role="tab"]') && e.target.closest('[role="tablist"]');
@@ -5671,12 +6124,12 @@
       const to = tabs[(n + tabs.length) % tabs.length];
       e.preventDefault();
       to.click();
-      (to.isConnected ? to : document.querySelector(`#more [data-tab="${CSS.escape(to.dataset.tab || "")}"], #pane [data-tab="${CSS.escape(to.dataset.tab || "")}"]`))?.focus();
+      (to.isConnected ? to : document.querySelector(`#more [data-tab="${CSS.escape(to.dataset.tab || "")}"], #pane [data-tab="${CSS.escape(to.dataset.tab || "")}"], #devicePage [data-tab="${CSS.escape(to.dataset.tab || "")}"]`))?.focus();
       return;
     }
     const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName);
     if (!typing && usePane() && state.view === "devices" && (e.key === "ArrowDown" || e.key === "ArrowUp")) { e.preventDefault(); moveSelection(e.key === "ArrowDown" ? 1 : -1); return; }
-    if (e.key === "Escape" && usePane() && state.open && !typing && !$("#confirmDlg").open) { closeDevice(); return; }
+    if (e.key === "Escape" && (usePane() || usePage()) && state.open && !typing && !$("#confirmDlg").open && !document.querySelector("dialog[open]")) { closeDevice(); return; }
     if (e.key === "/" && !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName) && !$("#more").open) { const q = $("#q"); if (q) { e.preventDefault(); q.focus(); } }
   });
   $("#view").addEventListener("change", async (e) => {
@@ -5711,7 +6164,7 @@
         catch (err) { snack(err instanceof SyntaxError ? t("restore.bad_json") : err.message, 5000); }
       });
     }
-    else if (el.id === "layoutSel") { state.layout = el.value; store.set("z2mt.layout", el.value); snack(el.value === "pane" ? t("settings.layout_pane") : t("settings.layout_dialog")); }
+    else if (el.id === "layoutSel") { if (state.open) closeDevice(); state.layout = el.value; store.set("z2mt.layout", el.value); snack(t(`settings.layout_${el.value}`)); }
     else if (el.dataset.checksel) {
       const s = state.settings.settings;
       const disabled = new Set(s.disabled_checks || []), notify = new Set(s.notify_checks || []);
@@ -5725,7 +6178,7 @@
   window.addEventListener("hashchange", () => {
     const h = hashValue();
     if (IEEE_RE.test(h) && h !== state.open) openDevice(h);
-    else if (parseView(h) && h !== viewHash()) { if ($("#more").open) closeDevice(); go(h); }
+    else if (parseView(h) && h !== viewHash()) { if ($("#more").open || (usePage() && state.open)) closeDevice(); go(h); }
   });
 
   // Deep links from the dashboard cards: /app/<slug>/<ieee>. HA's app panel passes the route
