@@ -1027,6 +1027,9 @@
   .ib-more { position: relative; }
   .ib-more > summary { list-style: none; cursor: pointer; }
   .ib-more > summary::-webkit-details-marker { display: none; }
+  /* The row menu can reach past the bottom of the inbox card: the card must not clip it. */
+  .card.inbox { overflow: visible; }
+  .ib-more[open] { z-index: 31; }
   .ib-menu { position: absolute; right: 0; top: 44px; z-index: 30; min-width: 200px; padding: 8px 0; background: var(--card); border-radius: 4px; box-shadow: 0 5px 5px -3px rgba(0,0,0,.2), 0 8px 10px 1px rgba(0,0,0,.14), 0 3px 14px 2px rgba(0,0,0,.12); display: grid; }
   .ib-menu .btn { border-radius: 0; justify-content: flex-start; height: 44px; padding: 0 16px; color: var(--text); font-weight: 400; }
   .ib-menu .btn.danger { color: var(--error-text); }
@@ -1288,7 +1291,7 @@
   // inline: for use mid-sentence ("Last seen just now"); Intl output is already lower case where the language wants it.
   const relTime = (iso, inline = false) => { const s = ago(iso); if (s === null) return t(inline ? "time.never_inline" : "time.never"); if (s < 60) return t(inline ? "time.just_now_inline" : "time.just_now"); if (s < 3600) return unit(Math.round(s / 60), "minute"); if (s < 172800) return unit(Math.round(s / 3600), "hour"); if (s < 5184000) return unit(Math.round(s / 86400), "day"); if (s < 63072000) return unit(Math.round(s / 2592000), "month"); return unit(Math.round(s / 31536000), "year"); };
   const todayIso = () => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`; };
-  const netLabel = (bt) => (!bt || bt === "unknown" ? t("common.unknown") : bt === "zha" ? "ZHA" : bt === "zigbee2mqtt" ? t("net.main") : cap(bt.replace(/^zigbee2mqtt[_-]?/, "").replace(/[_-]/g, " ").trim()) || bt);
+  const netLabel = (bt) => (!bt || bt === "unknown" ? t("common.unknown") : bt === "zha" ? "ZHA" : bt === "matter" ? "Matter" : bt === "zigbee2mqtt" ? t("net.main") : cap(bt.replace(/^zigbee2mqtt[_-]?/, "").replace(/[_-]/g, " ").trim()) || bt);
   const nameOf = (d) => {
     if (!d) return null;
     if (d.friendly_name && !IEEE_RE.test(d.friendly_name)) return d.friendly_name;
@@ -3848,7 +3851,7 @@
     const lowBat = typeof d.battery === "number" && (d.issues || []).some((i) => i.kind === "battery_low");
     const z2m = state.data.panels?.[d.instance];
     // Actions that go through Zigbee2MQTT: not for ZHA, nor for a device of a network not listened to.
-    const viaZ2m = !isZha() && !d.frozen && d.instance !== "zha";
+    const viaZ2m = !isZha() && !d.frozen && !viaHa(d);
     const all = [
       viaZ2m && !gone && statusOf(d) !== "offline" && { k: "reconfigure", a: `data-act="reconfigure" data-ieee="${id}"`, i: "refresh", l: th("common.reconfigure") },
       viaZ2m && !gone && { k: "rename", a: 'data-act="rename"', i: "pencil", l: th("more.rename") },
@@ -3893,16 +3896,16 @@
       ${(() => { const fn = notesFor(d); return fn.runs.length || fn.offered.length ? `<div class="alerts">${fn.runs.map((n) => `<div class="alert" style="--a:var(--warning)">${ic("note-text-outline")}<div class="body">${th("fwnote.device_runs", { version: esc(n.version), text: esc(n.text) })}</div><button class="btn" data-view="updates">${th("fwnote.notes")}</button></div>`).join("")}${fn.offered.map((n) => `<div class="alert" style="--a:var(--warning)">${ic("note-text-outline")}<div class="body">${th("fwnote.device_offered", { version: esc(n.version), text: esc(n.text) })}</div><button class="btn" data-view="updates">${th("fwnote.notes")}</button></div>`).join("")}</div>` : ""; })()}
       ${kv([[th("devices.col.model"), deviceLine(d) || t("common.unknown")], [th("more.description"), d.description], [th("devices.col.area"), d.area], [th("more.network"), netLabel(d.instance)], [th("more.signal_24h"), lqi === null ? null : Math.round(lqi)],
         [th("devices.col.battery"), typeof d.battery === "number" ? `${Math.round(d.battery)} %` : power], [th("more.first_seen"), fmtDate(d.first_seen) || t("common.unknown")], [th("devices.col.last_seen"), fmtDate(d.last_seen) || t("time.never")],
-        [th("more.availability"), d.availability ? t("more.availability_since", { state: tx(`more.availability.${d.availability}`, null, cap(d.availability)), date: fmtDate(d.availability_since) }) : null], [th("more.ieee"), d.ieee, true], [th("more.model_id"), d.model_id, true], [th("more.manufacturer"), d.manufacturer, true],
-        [th("more.radio_maker"), d.oui_vendor], [th("more.type"), typeLabel(d.type)], [th("more.power_source"), d.power_source], [th("more.firmware"), [d.software_build_id, d.date_code].filter(Boolean).join(" · ")],
+        [th("more.availability"), d.availability ? t("more.availability_since", { state: tx(`more.availability.${d.availability}`, null, cap(d.availability)), date: fmtDate(d.availability_since) }) : null], [th(d.instance === "matter" ? "page.matter_key" : "more.ieee"), d.ieee, true], [th(d.instance === "matter" ? "page.matter_model_id" : "more.model_id"), d.model_id, true], [th("more.manufacturer"), d.manufacturer, true],
+        [th("more.radio_maker"), d.oui_vendor], [th("more.type"), d.instance === "matter" ? t(d.type === "Router" ? "page.matter_router" : "page.matter_device") : typeLabel(d.type)], [th("more.power_source"), d.power_source], [th("more.firmware"), [d.software_build_id, d.date_code].filter(Boolean).join(" · ")],
         [th("more.ota"), u.installed_version !== undefined && u.installed_version !== -1 ? (u.state === "available" ? t("more.ota_available", { installed: u.installed_version, latest: u.latest_version }) : t("more.ota_latest", { installed: u.installed_version })) : null],
-        [th("more.interview"), d.interview_state ? tx(`more.interview.${d.interview_state.toLowerCase()}`, null, cap(d.interview_state.toLowerCase().replace(/_/g, " "))) : null], [th("more.ha_name"), d.ha_name]])}
+        [th("more.interview"), d.interview_state && d.instance !== "matter" ? tx(`more.interview.${d.interview_state.toLowerCase()}`, null, cap(d.interview_state.toLowerCase().replace(/_/g, " "))) : null], [th("more.ha_name"), d.ha_name]])}
       ${d.status !== "removed" && u.installed_version !== undefined && u.installed_version !== -1 && u.state !== "updating" ? `<div class="row-actions"><button class="btn" data-act="ota-check">${ic("refresh", "s18")}${th("more.ota_check")}</button></div>` : ""}
       <div class="sub-h">${th("more.routing")}</div>
       ${r ? kv([[d.type === "EndDevice" ? th("map.connects_through") : th("more.children"), d.type === "EndDevice" ? (r.parent ? nameOf(state.byIeee.get(r.parent.ieee)) || r.parent.ieee : t("more.not_in_scan")) : r.children], [th("more.depth"), r.depth], [th("more.scanned"), fmtDate(r.scanned_at)]]) +
         (r.neighbours?.length ? `<div class="rep-list">${r.neighbours.slice(0, 6).map((n) => `<div><span>${devLink(n.ieee)}</span><span class="muted">LQI ${esc(n.lqi ?? "?")}</span></div>`).join("")}</div>` : "")
         : `<div class="card-content muted">${th("more.not_scanned")}</div>`}
-      ${tabTraffic(d)}
+      ${d.instance !== "matter" ? tabTraffic(d) : ""}
       ${d.features?.length ? `<div class="sub-h">${th("more.capabilities")}</div><div class="caps">${d.features.map((f) => `<span>${esc(f)}</span>`).join("")}</div>` : ""}`;
   };
 
@@ -4312,16 +4315,19 @@
     const tm = h.lqi.trend_month, b = h.battery;
     const trend = tm === null || tm === undefined ? "—" : Math.abs(tm) < 1 ? t("trends.steady") : t("trends.per_month", { value: `${tm > 0 ? "+" : "−"}${Math.abs(Math.round(tm))}` });
     const empty = b.estimate_days === null || b.estimate_days === undefined ? "—" : b.estimate_days <= 0 ? t("trends.now") : intl((l) => new Date(b.empty_at * 1000).toLocaleDateString(l, { month: "short", year: "numeric" }));
-    const stats = [[t("trends.lqi_avg", { range: label }), h.lqi.avg === null ? "—" : Math.round(h.lqi.avg)], [t("trends.lqi_trend"), trend, tm !== null && tm <= -5 ? "var(--warning-text)" : ""],
+    // Matter over Wi-Fi has no link quality at all; Thread devices get it from the topology.
+    const hasLqi = d.instance !== "matter" || h.lqi.avg !== null || typeof d.lqi === "number";
+    const stats = [...(hasLqi ? [[t("trends.lqi_avg", { range: label }), h.lqi.avg === null ? "—" : Math.round(h.lqi.avg)], [t("trends.lqi_trend"), trend, tm !== null && tm <= -5 ? "var(--warning-text)" : ""]] : []),
       ...(isBat ? [[t("trends.battery_drain"), b.drain_month === null ? "—" : t("trends.percent_per_month", { value: b.drain_month < 1 ? b.drain_month.toFixed(1) : Math.round(b.drain_month) })], [t("trends.reaches_10"), empty, b.estimate_days !== null && b.estimate_days <= 30 ? "var(--error)" : ""]] : [])];
     const batLabel = th(TREND.range === "24h" ? "trends.battery_7d" : "trends.battery");
     return `${chips}
-      <div class="sub-h">${th("trends.lqi_title")}</div>
+      ${hasLqi ? `<div class="sub-h">${th("trends.lqi_title")}</div>
       ${lqiChart(h)}
-      ${trendLegend([["var(--primary)", th(h.range === "24h" || h.range === "7d" ? "trends.hourly_avg" : "trends.daily_avg")], ["var(--primary)", th("trends.daily_range"), "opacity:.3;height:8px;vertical-align:0"], ["var(--warning)", th("trends.weak")]])}
+      ${trendLegend([["var(--primary)", th(h.range === "24h" || h.range === "7d" ? "trends.hourly_avg" : "trends.daily_avg")], ["var(--primary)", th("trends.daily_range"), "opacity:.3;height:8px;vertical-align:0"], ["var(--warning)", th("trends.weak")]])}` : ""}
       ${pingChart(d)}
       ${isBat ? `<div class="sub-h">${batLabel}</div>${batteryChart(h, d)}${trendLegend([["var(--success)", th("trends.battery_pct")], ["var(--text-2)", th("trends.projection")], ["var(--state-icon)", th("trends.replaced"), "background:repeating-linear-gradient(90deg,var(--state-icon) 0 4px,transparent 4px 7px);opacity:.8"]])}` : ""}
-      <div class="trend-stats-wrap"><div class="trend-stats" style="--n:${stats.length}">${stats.map(([k, v, color]) => `<div><small>${esc(k)}</small><b${color ? ` style="color:${color}"` : ""}>${esc(v)}</b></div>`).join("")}</div></div>
+      ${!hasLqi && !isBat ? `<div class="card-content muted">${th("page.matter_no_trends")}</div>` : ""}
+      ${stats.length ? `<div class="trend-stats-wrap"><div class="trend-stats" style="--n:${stats.length}">${stats.map(([k, v, color]) => `<div><small>${esc(k)}</small><b${color ? ` style="color:${color}"` : ""}>${esc(v)}</b></div>`).join("")}</div></div>` : ""}
       ${isBat && (b.estimate_days === null || b.estimate_days === undefined) ? `<div class="card-content muted" style="font-size:13px">${th("trends.estimate_needs")}</div>` : ""}`;
   };
 
@@ -4410,7 +4416,7 @@
 
   const moreHtml = (d) => {
     const isBat = !!d.battery_record || typeof d.battery === "number";
-    const tabs = [["info", "more.tab.info"], ["health", "more.tab.health"], ["trends", "more.tab.trends"], ["history", "more.tab.history"], ...(isBat ? [["battery", "more.tab.battery"]] : []), ...(d.type !== "Coordinator" ? [...(isZha() ? [] : [["messages", "more.tab.messages"]]), ["community", "more.tab.community"]] : []), ["asset", "more.tab.notes"]];
+    const tabs = [["info", "more.tab.info"], ["health", "more.tab.health"], ["trends", "more.tab.trends"], ["history", "more.tab.history"], ...(isBat ? [["battery", "more.tab.battery"]] : []), ...(d.type !== "Coordinator" ? [...(isZha() || viaHa(d) ? [] : [["messages", "more.tab.messages"]]), ["community", "more.tab.community"]] : []), ["asset", "more.tab.notes"]];
     if (!tabs.find((t) => t[0] === state.moreTab)) state.moreTab = "info";
     const fn = { info: tabInfo, health: tabHealth, history: tabHistory, trends: tabTrends, battery: tabBattery, messages: tabMessages, community: tabCommunity, asset: tabAsset }[state.moreTab];
     const name = nameOf(d);
@@ -4476,21 +4482,21 @@
     const ota = u.state === "available" && d.status !== "removed" ? `<div class="alert" style="--a:var(--info)">${ic("chip")}<div class="body"><b>${th("issue.update.title")}</b> · ${esc(u.installed_version)} → ${esc(u.latest_version)}</div><button class="btn" data-act="ota-update">${th("common.update")}</button></div>`
       : u.state === "updating" ? `<div class="alert" style="--a:var(--info)">${ic("chip")}<div class="body"><b>${th("more.updating")}${u.progress != null ? ` · ${Math.round(u.progress)} %` : ""}</b></div></div>` : "";
     return `${fw || ota ? `<div class="alerts">${ota}${fw}</div>` : ""}
-      ${kv([[th("devices.col.model"), deviceLine(d) || t("common.unknown")], [th("more.description"), d.description], [th("more.type"), typeLabel(d.type)], [th("more.power_source"), d.power_source],
-        [th("more.firmware"), [d.software_build_id, d.date_code].filter(Boolean).join(" · ")], [th("more.first_seen"), fmtDate(d.first_seen) || t("common.unknown")], [th("more.ieee"), d.ieee, true],
-        [th("more.model_id"), d.model_id, true], [th("more.radio_maker"), d.oui_vendor], [th("more.ha_name"), d.ha_name],
-        [th("more.interview"), d.interview_state ? tx(`more.interview.${d.interview_state.toLowerCase()}`, null, cap(d.interview_state.toLowerCase().replace(/_/g, " "))) : null]])}
+      ${kv([[th("devices.col.model"), deviceLine(d) || t("common.unknown")], [th("more.description"), d.description], [th("more.type"), d.instance === "matter" ? t(d.type === "Router" ? "page.matter_router" : "page.matter_device") : typeLabel(d.type)], [th("more.power_source"), d.power_source],
+        [th("more.firmware"), [d.software_build_id, d.date_code].filter(Boolean).join(" · ")], [th("more.first_seen"), fmtDate(d.first_seen) || t("common.unknown")], [th(d.instance === "matter" ? "page.matter_key" : "more.ieee"), d.ieee, true],
+        [th(d.instance === "matter" ? "page.matter_model_id" : "more.model_id"), d.model_id, true], [th("more.radio_maker"), d.oui_vendor], [th("more.ha_name"), d.ha_name],
+        [th("more.interview"), d.interview_state && d.instance !== "matter" ? tx(`more.interview.${d.interview_state.toLowerCase()}`, null, cap(d.interview_state.toLowerCase().replace(/_/g, " "))) : null]])}
       ${d.status !== "removed" ? `<div class="set-row"><div class="text"><div class="t1">${th("more.critical")}</div><div class="t2">${th("more.critical_desc", { minutes: esc(o.critical_offline_minutes ?? 5), normal: esc(o.offline_alert_minutes ?? 60) })}</div></div>
         <label class="switch"><input type="checkbox" id="critSw" data-ieee="${esc(d.ieee)}" ${d.critical ? "checked" : ""} aria-label="${esc(t("more.critical"))}"><span class="track"></span><span class="thumb"></span></label></div>` : ""}
       ${pingResult(d)}
-      ${d.type !== "Coordinator" && d.status !== "removed" ? `<details class="sec-more"><summary>${th("page.traffic")}</summary>${tabTraffic(d)}</details>` : ""}
+      ${d.type !== "Coordinator" && d.status !== "removed" && d.instance !== "matter" ? `<details class="sec-more"><summary>${th("page.traffic")}</summary>${tabTraffic(d)}</details>` : ""}
       ${d.features?.length ? `<details class="sec-more"><summary>${th("more.capabilities")}</summary><div class="caps">${d.features.map((f) => `<span>${esc(f)}</span>`).join("")}</div></details>` : ""}
       ${infoActions(d).replace(/btn filled/g, "btn outlined")}`;
   };
   const pageHtml = (d) => {
     const isBat = isBattery(d) || !!d.battery_record;
     const fns = { history: tabHistory, messages: tabMessages, community: tabCommunity, asset: tabAsset };
-    const tabs = [["overview", "more.tab.overview"], ["history", "page.timeline"], ...(d.type !== "Coordinator" ? [...(isZha() ? [] : [["messages", "more.tab.messages"]]), ["community", "more.tab.community"]] : []), ["asset", "more.tab.notes"]];
+    const tabs = [["overview", "more.tab.overview"], ["history", "page.timeline"], ...(d.type !== "Coordinator" ? [...(isZha() || viaHa(d) ? [] : [["messages", "more.tab.messages"]]), ["community", "more.tab.community"]] : []), ["asset", "more.tab.notes"]];
     // A link or button that asks for Health, Trends, Info or Battery lands on Overview, at that card.
     if (OVERVIEW_TABS.includes(state.moreTab)) { state.pageJump = state.moreTab; state.moreTab = "overview"; }
     if (!tabs.find((x) => x[0] === state.moreTab)) state.moreTab = "overview";
@@ -4508,7 +4514,7 @@
     const body = state.moreTab === "overview"
       ? `<div class="page-grid">
           ${d.type !== "Coordinator" && d.status !== "removed" ? pageCard("health", th("page.when_alerts"), offlineTiming(d, false) + reportEvery(d)) : ""}
-          ${pageCard("signal", th("page.link_quality"), linkCard(d), esc(t("page.higher_better")))}
+          ${d.instance === "matter" && lqiOf(d) == null ? "" : pageCard("signal", th("page.link_quality"), linkCard(d), esc(t("page.higher_better")))}
           ${isBat ? pageCard("battery", th("more.tab.battery"), tabBattery(d, true)) : ""}
           ${pageCard("reporting", th("page.readings"), readingsCard(d))}
           ${pageCard("info", th("page.about"), aboutCard(d))}
@@ -4521,7 +4527,7 @@
       <div class="card dev-card">
         <div class="dev-head tone-${tone}"><span class="disc">${ic(kindIcon(d))}</span>
           <div class="titles"><h2 id="moreTitle" class="${name ? "" : "unknown"}">${esc(name || t("devices.unnamed"))}${d.critical && d.status !== "removed" ? ` ${critTag()}` : ""}</h2>
-            <div class="meta"><span>${esc([d.area, t("net.network", { name: netLabel(d.instance) }), deviceLine(d)].filter(Boolean).join(" · "))}</span></div><div class="meta"><span class="mono">${esc(d.ieee)}</span><button class="icon-btn sm" data-act="copy" data-ieee="${esc(d.ieee)}" aria-label="${esc(t("more.copy_ieee"))}" title="${esc(t("more.copy", { ieee: d.ieee }))}">${ic("content-copy", "s18")}</button></div></div></div>
+            <div class="meta"><span>${esc([d.area, t("net.network", { name: netLabel(d.instance) }), deviceLine(d)].filter(Boolean).join(" · "))}</span></div><div class="meta"${d.instance === "matter" ? " hidden" : ""}><span class="mono">${esc(d.ieee)}</span><button class="icon-btn sm" data-act="copy" data-ieee="${esc(d.ieee)}" aria-label="${esc(t("more.copy_ieee"))}" title="${esc(t("more.copy", { ieee: d.ieee }))}">${ic("content-copy", "s18")}</button></div></div></div>
         <dl class="facts">${facts.map(([k, v, cls = ""]) => `<div class="${cls}"><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join("")}</dl>
         ${removed ? `<div class="alerts">${removed}</div>` : ""}
         ${todoBlock(d)}
@@ -4582,6 +4588,8 @@
   // Sections that only exist with Zigbee2MQTT: its coordinator info, the MQTT broker and Zigbee2MQTT groups.
   const Z2M_ONLY_SUBS = new Set(["coordinator", "broker", "groups", "updates"]);
   const isZha = () => state.data?.stack === "zha";
+  // A device read from Home Assistant (ZHA or Matter) rather than Zigbee2MQTT: none of Zigbee2MQTT's tools.
+  const viaHa = (d) => d?.instance === "zha" || d?.instance === "matter";
   const subsOf = (view) => SUBS[view].filter((k) => !(isZha() && Z2M_ONLY_SUBS.has(k)));
   // Old hashes and links: the Map tab is now Network > Map.
   const ALIASES = { map: "network/map" };

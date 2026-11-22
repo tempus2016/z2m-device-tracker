@@ -6,7 +6,10 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 
 | Option | Default | What it does |
 | --- | --- | --- |
-| `zigbee_stack` | `z2m` | `z2m` for Zigbee2MQTT, `zha` for Home Assistant's ZHA integration (beta). See [Using ZHA instead of Zigbee2MQTT](#using-zha-instead-of-zigbee2mqtt-beta). Restart the app after changing it. |
+| `zigbee2mqtt` | `true` | Read your Zigbee2MQTT networks (the `base_topics`) over MQTT. |
+| `zha` | `false` | Read Home Assistant's ZHA integration (beta). Can be on together with `zigbee2mqtt`. See [Using ZHA](#using-zha-instead-of-zigbee2mqtt-beta). |
+| `matter` | `false` | Read Home Assistant's Matter integration (beta). See [Matter](#matter-beta). |
+| `zigbee_stack` | | Replaced by `zigbee2mqtt` and `zha`. An older install set to `zha` keeps reading ZHA only until you change one of the switches. |
 | `base_topics` | `zigbee2mqtt` | MQTT base topic of each Zigbee2MQTT instance to track. Spaces are kept, so a base topic that ends in a space works; in the YAML editor, quote it: `- "Z2MQTT "`. |
 | `z2m_panels` | empty | Links to each Zigbee2MQTT app, as `base_topic=app_slug`, e.g. `zigbee2mqtt=45df7312_zigbee2mqtt`. The slug is in the app's URL. |
 | `alerts_enabled` | `true` | Master switch for alerts. |
@@ -56,7 +59,9 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 
 ## Using ZHA instead of Zigbee2MQTT (beta)
 
-Set `zigbee_stack` to `zha` and restart the app if your Zigbee network runs on Home Assistant's ZHA integration. The app then reads ZHA through Home Assistant and doesn't use MQTT, so no broker is needed. It only reads: it never sends anything to ZHA or your devices.
+Turn on `zha` and restart the app if your Zigbee network runs on Home Assistant's ZHA integration. Turn off `zigbee2mqtt` too if you don't run Zigbee2MQTT: the app then reads ZHA through Home Assistant and doesn't use MQTT, so no broker is needed.
+
+With both on, the app reads your Zigbee2MQTT networks and ZHA side by side. ZHA shows as its own network, named ZHA, and the Zigbee2MQTT-only tools stay available for the Zigbee2MQTT devices. It only reads: it never sends anything to ZHA or your devices.
 
 ZHA support is in beta. Please report anything that looks wrong on GitHub.
 
@@ -67,6 +72,16 @@ Zigbee2MQTT-only parts are hidden with ZHA: firmware updates (OTA), reporting se
 The first time it starts with ZHA, the app removes the sensors it made over MQTT while it read Zigbee2MQTT, so they don't stay in Home Assistant as unavailable. That is the only time it talks to the broker; if there is no broker any more, it skips this.
 
 Switching between Zigbee2MQTT and ZHA keeps your history. Devices from the network the app no longer listens to stay in the list marked **Not listened to**, with no checks or alerts. If you switch back, they pick up where they left off. A device you re-pair onto the other network moves across and keeps its history.
+
+## Matter (beta)
+
+Turn on `matter` and restart the app to track your Matter devices too, over Thread or Wi-Fi. The app reads Home Assistant's Matter integration and never sends anything to your devices. Matter devices show as their own network, named Matter, next to your Zigbee networks.
+
+What you get for each Matter device: its history (added, removed, renamed), when it last reported, online and offline with offline alerts, battery level and forecasts, the learned rhythm and Stopped reporting, and its own page. When the Matter server is new enough to describe its network (Home Assistant's Matter Server app 9 or newer), the app also reads each device's role and, for Thread, the links between devices for the map.
+
+A device's last report is the newest time any of its sensors or switches reported to Home Assistant. A light or plug that only reports when it is used will look quiet; set its reporting profile to Off on its page if it shouldn't be checked for silence.
+
+Zigbee2MQTT's tools (firmware updates, reporting settings, pairing, bindings, replacing, reconfiguring) aren't available for Matter devices.
 
 ## Where things are
 

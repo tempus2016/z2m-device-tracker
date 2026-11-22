@@ -12,6 +12,7 @@ import urllib.error
 import urllib.request
 from typing import Any, Callable
 
+from matter import device_key as matter_key
 from zha import zha_ieee
 
 _LOGGER = logging.getLogger("z2m_tracker")
@@ -43,11 +44,14 @@ DEAD_STATES = (None, "unavailable", "unknown")
 
 def identifier_ieee(identifier: list | tuple) -> str | None:
     """IEEE address from one HA device identifier: Zigbee2MQTT's ("mqtt", "zigbee2mqtt_0x...") or
-    ZHA's ("zha", "88:1a:..."). The Zigbee2MQTT bridge device and groups don't match."""
+    ZHA's ("zha", "88:1a:..."). A Matter device ("matter", "deviceid_...") gives the tracker's key
+    for it. The Zigbee2MQTT bridge device and groups don't match."""
     if len(identifier) < 2:
         return None
     if identifier[0] == "zha":
         return zha_ieee(identifier[1])
+    if identifier[0] == "matter":
+        return matter_key({"identifiers": [list(identifier)]})
     match = IDENT_RE.search(str(identifier[1]))
     return match.group(1) if match else None
 
@@ -70,7 +74,7 @@ def _by_ieee(devices: list[dict], stack: str) -> dict[str, dict]:
 
 
 def _device_ieee(device: dict) -> str | None:
-    """IEEE address of a Zigbee2MQTT or ZHA device in HA's device registry."""
+    """IEEE address of a Zigbee2MQTT or ZHA device (or a Matter device's key) in HA's device registry."""
     for identifier in device.get("identifiers") or []:
         ieee = identifier_ieee(identifier)
         if ieee:

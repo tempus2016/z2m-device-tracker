@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.4.0
+
+The app can now read more than one source at once: Zigbee2MQTT and ZHA side by side, and Matter devices too (beta). Each shows as its own network. The rename promised in 2.3.0 waits, because Matter makes "Zigbee Device Tracker" the wrong name as well; nothing needs setting up again when it happens.
+
+### Added
+- **Matter devices (beta).** Turn on the new `matter` option and the app tracks your Matter devices too, over Thread or Wi-Fi, as their own network: history, last report, online and offline alerts, battery and forecasts, the learned rhythm and a page per device. With a recent Matter server it also reads each device's role and the Thread links for the map. Read-only: nothing is sent to your devices. Each Matter device links to its Home Assistant device page, with its area, name, Battery Notes and the automations that use it.
+- **Zigbee2MQTT and ZHA side by side.** The single `zigbee_stack` choice is replaced by two switches, `zigbee2mqtt` (on) and `zha` (off), which can both be on. Each ZHA network shows as its own network next to the Zigbee2MQTT ones, and the Zigbee2MQTT-only tools stay available for the Zigbee2MQTT devices. An install set to `zigbee_stack: zha` keeps reading ZHA only until you change a switch.
+- The integration's actions (**Battery replaced**, **Mute device**, **Add note**) can now pick ZHA and Matter devices. **Reconfigure** and **Firmware update** still list only Zigbee2MQTT devices, and say so if given another.
+
+### Fixed
+- **The ⋮ menu on the last row in Health was cut off.** The card it sits in clipped it, so on the bottom row only part of **Snooze 7 days** and **Ignore** showed. The menu now shows in full over whatever is below the card.
+
 ## 2.3.0
 
 A big one: the app learns each device's own rhythm and stops alerting on silences that are normal for it, the whole sidebar has a new, simpler layout with a full-width page per device, and there are three new checks and summaries. Home Assistant Container users can now run the app as a Docker image. This release also follows 2.2.0-beta.1, so everything in that beta is here too; ZHA support keeps its beta label until more ZHA users have tried it.

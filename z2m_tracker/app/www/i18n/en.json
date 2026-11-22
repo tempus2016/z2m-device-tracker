@@ -2695,5 +2695,12 @@
   "hops.scans": {
     "one": "1 scan",
     "other": "{n} scans"
-  }
+  },
+  "issue.network_offline_matter.title": "Matter offline",
+  "issue.network_offline_matter.detail": "Not responding for {duration}. Every Matter device is unreachable. Check the Matter Server app and Home Assistant's Matter integration.",
+  "page.matter_no_trends": "Nothing to chart yet: this device reports no link quality and has no battery.",
+  "page.matter_model_id": "Model ID",
+  "page.matter_key": "Tracker ID (made from its Matter ID)",
+  "page.matter_router": "Matter device that routes (Thread)",
+  "page.matter_device": "Matter device"
 }

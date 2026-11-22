@@ -19,7 +19,7 @@ _LOGGER = logging.getLogger(__name__)
 
 ZHA_INSTANCE = "zha"
 STACKS = ("z2m", "zha")
-# App actions that go through Zigbee2MQTT over MQTT; with ZHA they answer "Not available with ZHA".
+# App actions that go through Zigbee2MQTT over MQTT; for ZHA and Matter devices they answer "Only for Zigbee2MQTT devices".
 ZHA_BLOCKED_PATHS = frozenset(
     {
         "/api/bindings/restore",
@@ -79,11 +79,29 @@ def zha_checks(checks: list) -> list:
 
 
 def zigbee_stack(options: dict) -> str:
-    """Which Zigbee stack the user runs: "zha" only when chosen, "z2m" otherwise."""
+    """The older single choice, `zigbee_stack`: "zha" only when chosen, "z2m" otherwise."""
     value = options.get("zigbee_stack")
     if isinstance(value, str) and value.strip().lower() == "zha":
         return "zha"
     return "z2m"
+
+
+# Where devices come from: each one on is read side by side, as its own network.
+SOURCE_SWITCHES = (("zigbee2mqtt", "z2m"), ("zha", "zha"), ("matter", "matter"))
+
+
+def sources(options: dict) -> set[str]:
+    """The sources to read: "z2m" (the `zigbee2mqtt` switch, on unless switched off), "zha", "matter".
+
+    An install from before the switches that chose `zigbee_stack: zha` keeps reading ZHA only, as
+    long as the switches are left as they came (Zigbee2MQTT on, ZHA off). Changing a switch wins."""
+    on = {key: options.get(key) for key, _ in SOURCE_SWITCHES}
+    untouched = on["zigbee2mqtt"] is not False and on["zha"] is not True and on["matter"] is not True
+    if untouched and zigbee_stack(options) == "zha":
+        return {"zha"}
+    return {
+        name for key, name in SOURCE_SWITCHES if (on[key] is not False if key == "zigbee2mqtt" else on[key] is True)
+    }
 
 
 IEEE_PARTS = 8

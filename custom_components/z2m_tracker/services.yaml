@@ -8,6 +8,8 @@ battery_replaced:
         device:
           filter:
             - integration: mqtt
+            - integration: zha
+            - integration: matter
     ieee: &ieee
       advanced: true
       example: "0x00158d0001a2b3c4"
@@ -80,12 +82,16 @@ run_network_scan:
 
 reconfigure:
   fields:
-    device_id: *zigbee_device
+    device_id: &z2m_device
+      selector:
+        device:
+          filter:
+            - integration: mqtt
     ieee: *ieee
 
 ota_update:
   fields:
-    device_id: *zigbee_device
+    device_id: *z2m_device
     ieee: *ieee
 
 pause_alerts:

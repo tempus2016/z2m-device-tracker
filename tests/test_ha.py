@@ -148,6 +148,33 @@ def test_identifier_ieee_zha():
     assert ha.identifier_ieee(["zha", "AA:BB:CC:00:00:00:00:03"]) == "0xaabbcc0000000003"
 
 
+def test_identifier_ieee_matter():
+    key = ha.identifier_ieee(["matter", "deviceid_ABCD1234-0000000000000005-MatterNodeDevice"])
+    assert key is not None and key.startswith("0xff4d") and len(key) == 18
+    assert ha.identifier_ieee(["matter", "serial_12345"]) is None
+
+
+def test_refresh_links_matter_device(tmp_path):
+    hass = HomeAssistant(str(tmp_path), token="t")
+    devices = [
+        {
+            "id": "m1",
+            "name": "Kitchen sensor",
+            "area_id": "kitchen",
+            "identifiers": [
+                ["matter", "deviceid_ABCD1234-0000000000000005-MatterNodeDevice"],
+                ["matter", "serial_12345"],
+            ],
+        }
+    ]
+    hass._registries = lambda: (devices, [{"area_id": "kitchen", "name": "Kitchen"}], [])
+    hass.refresh()
+    key = ha.identifier_ieee(["matter", "deviceid_ABCD1234-0000000000000005-MatterNodeDevice"])
+    assert hass.device_ids == {key: "m1"}
+    assert hass.areas[key] == "Kitchen"
+    assert hass.names[key] == "Kitchen sensor"
+
+
 def test_identifier_ieee_bridge_none():
     assert ha.identifier_ieee(["mqtt", f"zigbee2mqtt_bridge_{PLUG}"]) is None
     assert ha.identifier_ieee(["hue", "abc"]) is None

@@ -289,6 +289,10 @@ class Discovery:
                     # topic that was removed) gets no entities: it would be a second device in HA.
                     if self.tracker.is_frozen(record):
                         continue
+                    # A ZHA device read next to Zigbee2MQTT gets none either: the entities attach to
+                    # a Zigbee2MQTT device in HA (zigbee2mqtt_<ieee>), which a ZHA device doesn't have.
+                    if record.get("instance") in ("zha", "matter"):
+                        continue
                     summary = self.tracker.metrics.summary(record["ieee"], now)
                     issues = issues_by_device.get(record["ieee"], [])
                     for topic, cfg in self._entities(record, summary, issues).items():

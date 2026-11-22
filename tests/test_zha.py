@@ -12,6 +12,7 @@ from zha import (
     device_entries,
     device_names,
     networkmap_value,
+    sources,
     state_payload,
     zha_checks,
     zha_ieee,
@@ -660,3 +661,58 @@ def test_first_poll_after_start_files_no_rhythm_gap(make_tracker, clock):
     devices[2]["last_seen"] = "2026-06-01T12:35:00"
     source.apply_devices(devices)
     assert sum(tracker.metrics.series[BUTTON]["gaps"].values()) == 1.0
+
+
+# ------------------------------------------------------------------ several sources at once
+def test_sources_default_is_zigbee2mqtt_only():
+    assert sources({}) == {"z2m"}
+    assert sources({"zigbee2mqtt": True, "zha": False}) == {"z2m"}
+
+
+def test_sources_both_at_once():
+    assert sources({"zigbee2mqtt": True, "zha": True}) == {"z2m", "zha"}
+
+
+def test_sources_zha_only_with_the_switches():
+    assert sources({"zigbee2mqtt": False, "zha": True}) == {"zha"}
+
+
+def test_sources_old_zigbee_stack_zha_keeps_reading_zha_only():
+    assert sources({"zigbee_stack": "zha"}) == {"zha"}
+    # The switches as they come after the update don't change that...
+    assert sources({"zigbee_stack": "zha", "zigbee2mqtt": True, "zha": False}) == {"zha"}
+    # ...but changing one does.
+    assert sources({"zigbee_stack": "zha", "zigbee2mqtt": True, "zha": True}) == {"z2m", "zha"}
+    assert sources({"zigbee_stack": "zha", "zigbee2mqtt": False, "zha": False}) == set()
+
+
+def test_sources_both_off_reads_nothing():
+    assert sources({"zigbee2mqtt": False, "zha": False}) == set()
+
+
+def test_tracker_with_both_networks_reports_z2m_stack_and_finds_each_device(make_tracker):
+    from conftest import SENSOR, send, z2m_device
+
+    tracker = make_tracker(["zigbee2mqtt", "zha"])
+    send(tracker, "bridge/devices", [z2m_device(SENSOR, "Kitchen sensor")])
+    tracker.apply_state("zha", "Hall plug", {"last_seen": "2026-06-01T12:00:00+00:00"})
+    assert tracker.instance_of(SENSOR) == "zigbee2mqtt"
+    assert tracker.instance_of("0xdoesnotexist") is None
+    import json
+
+    assert json.loads(tracker.snapshot_json())["stack"] == "z2m"
+    zha_only = make_tracker(["zha"])
+    assert json.loads(zha_only.snapshot_json())["stack"] == "zha"
+
+
+def test_zha_network_is_never_an_mqtt_topic(make_tracker):
+    tracker = make_tracker(["zigbee2mqtt", "zha"])
+    assert tracker.mqtt_topics == ["zigbee2mqtt"]
+    assert make_tracker(["zha"]).mqtt_topics == []
+
+
+def test_sources_with_matter():
+    assert sources({"matter": True}) == {"z2m", "matter"}
+    assert sources({"zigbee2mqtt": False, "matter": True}) == {"matter"}
+    # Turning Matter on counts as changing a switch: the old zigbee_stack no longer decides alone.
+    assert sources({"zigbee_stack": "zha", "matter": True}) == {"z2m", "matter"}

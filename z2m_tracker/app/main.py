@@ -40,6 +40,7 @@ from discovery import BASE as DISCOVERY_BASE
 from discovery import PREFIX as DISCOVERY_PREFIX
 from ha import HomeAssistant, plan_entity_ids
 from health import CHECKS, DEFAULT_NOTIFY, alert_title, mutes_of, nested, notify_kinds, offer_new_kinds
+from matter import MATTER_INSTANCE, MatterSource
 from metrics import Metrics
 from mqtt_status import NOTIFICATION_ID, NOTIFICATION_TITLE, MqttStatus, explain_error, explain_refusal, probe
 from naming import clean_pattern
@@ -50,12 +51,12 @@ from retained import collect as collect_retained
 from tracker import IEEE_RE, Tracker, base_topic_list, shopping_text
 from tracker import _display_name as tracker_display_name
 from usage import UsageRefresher
-from zha import ZHA_BLOCKED_PATHS, ZHA_INSTANCE, ZhaSource, zha_checks, zigbee_stack
+from zha import ZHA_BLOCKED_PATHS, ZHA_INSTANCE, ZhaSource, sources, zha_checks
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
 _LOGGER = logging.getLogger("z2m_tracker")
 
-VERSION = "2.3.0"
+VERSION = "2.4.0"
 PORT = 8099
 # Prometheus scrape port: only opened when metrics_token is set.
 METRICS_PORT = 9099
@@ -97,7 +98,9 @@ LOOPBACK = {"127.0.0.1", "::1"}
 COMMAND_COOLDOWN = 60
 
 DEFAULT_OPTIONS = {
-    "zigbee_stack": "z2m",
+    "zigbee2mqtt": True,
+    "zha": False,
+    "matter": False,
     "base_topics": ["zigbee2mqtt"],
     "z2m_panels": [],
     "persistent_notifications": True,
@@ -354,9 +357,19 @@ def load_oui() -> dict[str, str]:
 
 options = load_options()
 API_TOKEN = load_api_token()
-stack = zigbee_stack(options)
-# ZHA mode (beta): one network read from Home Assistant's ZHA integration, no MQTT at all.
-base_topics = [ZHA_INSTANCE] if stack == "zha" else base_topic_list(options.get("base_topics"))
+SOURCES = sources(options)
+# Zigbee2MQTT networks (one per base topic) and the ZHA network can be read side by side.
+# `stack` is "z2m" whenever any Zigbee2MQTT network is read: what needs MQTT runs only then.
+stack = "z2m" if "z2m" in SOURCES else "zha"
+base_topics = (
+    (base_topic_list(options.get("base_topics")) if "z2m" in SOURCES else [])
+    + ([ZHA_INSTANCE] if "zha" in SOURCES else [])
+    + ([MATTER_INSTANCE] if "matter" in SOURCES else [])
+)
+# The Zigbee2MQTT base topics only: what is read and sent over MQTT. The ZHA network is not a topic.
+mqtt_topics = [t for t in base_topics if t not in (ZHA_INSTANCE, MATTER_INSTANCE)]
+if not SOURCES:
+    _LOGGER.warning("zigbee2mqtt, zha and matter are all switched off: there is nothing to read")
 for _topic in base_topics:
     if _topic != _topic.strip():
         _LOGGER.warning("Base topic %r starts or ends with a space; it is used exactly as written", _topic)
@@ -544,7 +557,7 @@ class Alerts:
             return
         name = event.get("name") or event["ieee"]
         vendor = tracker._oui_vendor(event["ieee"]) or "unknown manufacturer"
-        network = "ZHA" if stack == "zha" else event["instance"]
+        network = {ZHA_INSTANCE: "ZHA", MATTER_INSTANCE: "Matter"}.get(event["instance"], event["instance"])
         messages = {
             "joined": f"{name} joined the {network} network (radio by {vendor}). If you weren't pairing anything, check it in the Zigbee Tracker.",
             "left": f"{name} left the {network} network.",
@@ -730,9 +743,9 @@ def on_connect(client, userdata, flags, reason_code, properties):
         alerts.queue.put(lambda: home_assistant.dismiss_notification(NOTIFICATION_ID))
     # Devices may have reported while we were away: Stopped reporting counts from now.
     tracker.mqtt_connected()
-    _LOGGER.info("Connected to MQTT, subscribing to %s", ", ".join(f"{topic}/#" for topic in base_topics))
+    _LOGGER.info("Connected to MQTT, subscribing to %s", ", ".join(f"{topic}/#" for topic in mqtt_topics))
     client.subscribe(
-        [(f"{topic}/#", 0) for topic in base_topics]
+        [(f"{topic}/#", 0) for topic in mqtt_topics]
         + [(f"{DISCOVERY_BASE}/+/reconfigure", 0), (f"{DISCOVERY_BASE}/+/battery_replaced", 0)]
     )
     if options.get("broker_stats", True):
@@ -833,7 +846,7 @@ def on_message(client, userdata, message):
             if len(parts) == 3 and parts[2] in ("battery_replaced", "reconfigure"):
                 queue_command(parts[2], parts[1])
             return
-        for base_topic in base_topics:
+        for base_topic in mqtt_topics:
             if topic.startswith(f"{base_topic}/"):
                 tracker.handle_message(base_topic, topic, message.payload, bool(message.retain))
                 return
@@ -984,7 +997,7 @@ def _scan_retained() -> None:
     found: dict[str, dict] = {}
     seen = {"last": 0.0, "subscribed": False, "full": False, "error": None}
     client = new_client(f"z2m-tracker-scan-{tracker.boot_id}")
-    filters = [(f"{topic}/#", 0) for topic in base_topics] + [
+    filters = [(f"{topic}/#", 0) for topic in mqtt_topics] + [
         (f"{DISCOVERY_PREFIX}/+/+/config", 0),
         (f"{DISCOVERY_PREFIX}/+/+/+/config", 0),
     ]
@@ -1003,7 +1016,7 @@ def _scan_retained() -> None:
         if not msg.retain:
             return
         seen["last"] = time.monotonic()
-        if not seen["full"] and not collect_retained(found, msg.topic, msg.payload, base_topics, DISCOVERY_PREFIX):
+        if not seen["full"] and not collect_retained(found, msg.topic, msg.payload, mqtt_topics, DISCOVERY_PREFIX):
             seen["full"] = True
 
     client.on_connect = connected
@@ -1393,6 +1406,7 @@ def settings_payload() -> dict:
         "version": VERSION,
         "home_assistant": home_assistant.available,
         "stack": stack,
+        "sources": sorted(SOURCES),
     }
 
 
@@ -1652,8 +1666,8 @@ def weekly_summary_text() -> tuple[str, str]:
             outages = [o for o in bridge.get("outages", []) if (o.get("start") or "") >= week_ago]
             if outages:
                 net = "Main" if bt == "zigbee2mqtt" else bt.replace("zigbee2mqtt_", "").replace("_", " ").capitalize()
-                if stack == "zha":
-                    net = "ZHA"
+                if bt in (ZHA_INSTANCE, MATTER_INSTANCE):
+                    net = "ZHA" if bt == ZHA_INSTANCE else "Matter"
                 lines.append(
                     f"{net} network went offline {len(outages)} time{'s' if len(outages) != 1 else ''} this week."
                 )
@@ -2142,11 +2156,14 @@ class Handler(BaseHTTPRequestHandler):
                 threading.Thread(target=discovery.sync, kwargs={"force": True}, daemon=True).start()
             self._json(200 if result["ok"] else 400, result)
             return
-        if stack == "zha" and path in ZHA_BLOCKED_PATHS:
-            self._json(409, {"ok": False, "error": "Not available with ZHA"})
-            return
         body = self._body()
         ieee = str(body.get("ieee") or "")
+        # Actions that go through Zigbee2MQTT: not without it, nor for a device on the ZHA network.
+        if path in ZHA_BLOCKED_PATHS and (
+            stack == "zha" or tracker.instance_of(ieee) in (ZHA_INSTANCE, MATTER_INSTANCE)
+        ):
+            self._json(409, {"ok": False, "error": "Only for Zigbee2MQTT devices"})
+            return
         try:
             if path == "/api/community/report":
                 choice = body.get("choice") if isinstance(body.get("choice"), dict) else {}
@@ -2338,7 +2355,7 @@ class Handler(BaseHTTPRequestHandler):
                 ok = tracker.dismiss_advice(str(body.get("key") or ""))
                 self._json(200 if ok else 404, {"ok": ok})
             elif path == "/api/pairing":
-                instance = body.get("instance") if body.get("instance") in base_topics else base_topics[0]
+                instance = body.get("instance") if body.get("instance") in mqtt_topics else (mqtt_topics or [""])[0]
                 result = tracker.start_pairing(
                     instance,
                     int(body.get("seconds") or 0),
@@ -2432,15 +2449,25 @@ def main() -> None:
     threading.Thread(target=offer_new_notify_kinds, name="notify-kinds", daemon=True).start()
 
     client = None
-    if stack == "zha":
-        _LOGGER.info("ZHA mode (beta): reading Home Assistant's ZHA integration, MQTT is off")
-        threading.Thread(target=remove_mqtt_entities, name="mqtt-cleanup", daemon=True).start()
+    if "zha" in SOURCES:
+        if stack == "zha":
+            _LOGGER.info("ZHA mode (beta): reading Home Assistant's ZHA integration, MQTT is off")
+            threading.Thread(target=remove_mqtt_entities, name="mqtt-cleanup", daemon=True).start()
+        else:
+            _LOGGER.info("Reading Zigbee2MQTT and Home Assistant's ZHA integration (beta) side by side")
         if home_assistant.available:
             source = ZhaSource(tracker, home_assistant._ws_connect, stop_event)
             threading.Thread(target=source.run, name="zha", daemon=True).start()
         else:
             _LOGGER.error("ZHA mode needs Home Assistant access, which the app doesn't have")
-    else:
+    if "matter" in SOURCES:
+        _LOGGER.info("Reading Home Assistant's Matter integration (beta)")
+        if home_assistant.available:
+            matter_source = MatterSource(tracker, home_assistant._ws_connect, stop_event)
+            threading.Thread(target=matter_source.run, name="matter", daemon=True).start()
+        else:
+            _LOGGER.error("Matter needs Home Assistant access, which the app doesn't have")
+    if stack == "z2m":
         client = start_mqtt()
         threading.Thread(target=command_worker, name="commands", daemon=True).start()
     threading.Thread(target=scheduler, name="scheduler", daemon=True).start()
