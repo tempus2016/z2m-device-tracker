@@ -8,6 +8,7 @@
   <a href="https://github.com/tempus2016/z2m-device-tracker/releases"><img src="https://img.shields.io/github/v/release/tempus2016/z2m-device-tracker" alt="Latest Release"></a>
   <a href="https://github.com/tempus2016/z2m-device-tracker/releases"><img src="https://img.shields.io/github/downloads/tempus2016/z2m-device-tracker/total" alt="Downloads"></a>
   <a href="https://my.home-assistant.io/redirect/marketplace_repository/?owner=tempus2016&repository=z2m-device-tracker&category=integration"><img src="https://img.shields.io/badge/Marketplace-Default-41BDF5.svg" alt="Home Assistant Marketplace"></a>
+  <a href="https://community.home-assistant.io/t/z2m-device-tracker-history-and-health-for-every-zigbee2mqtt-device"><img src="https://img.shields.io/badge/Community-Forum-41BDF5?logo=discourse&logoColor=white" alt="Home Assistant Community Forum"></a>
   <a href="https://github.com/tempus2016/z2m-device-tracker/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License"></a>
   <img src="https://img.shields.io/badge/Home%20Assistant-2025.1+-blue" alt="HA Version">
   <img src="https://img.shields.io/badge/arch-amd64%20%7C%20aarch64-blue" alt="Supported architectures">
