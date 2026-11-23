@@ -115,6 +115,8 @@ RETAINED_COMMAND_PREVIEW = 120
 GROUP_LEFT_DAYS = 30
 STATUS_ACTIVE = "active"
 STATUS_REMOVED = "removed"
+# Availability messages kept per network for names not in its device list yet.
+MAX_UNLISTED_AVAILABILITY = 200
 # App options the sidebar never needs and must not receive.
 SECRET_OPTIONS = frozenset({"mqtt_password", "metrics_token"})
 
@@ -1025,6 +1027,10 @@ class Tracker:
         self.retained_commands: dict[str, dict] = {}
         # IEEE -> arrival times of its last few live messages (memory only), for the availability mismatch check.
         self._recent: dict[str, deque] = {}
+        # base topic -> friendly name -> last availability payload for a name not in the device list yet.
+        # Zigbee2MQTT says a re-paired or renamed device is online before its new device list arrives;
+        # the list replays it. Memory only.
+        self._unlisted_availability: dict[str, dict[str, str]] = {}
         # Mosquitto's $SYS statistics (broker_stats.BrokerStats), set by main.py.
         self.broker_stats = None
         # The last messages to and from each device, for its Messages tab. Memory only.
@@ -1286,6 +1292,13 @@ class Tracker:
                 changed = True
 
             if record["status"] != STATUS_ACTIVE:
+                if record["availability"] is not None:
+                    # Its online/offline state is from before it left: unknown until Zigbee2MQTT says again.
+                    outages = record.get("outages") or []
+                    if outages and not outages[-1].get("end"):
+                        outages[-1]["end"] = now
+                    record["availability"] = None
+                    record["availability_since"] = None
                 if record["status"] == STATUS_REMOVED and tracking_already:
                     self._add_event(
                         now, base_topic, ieee, name, "rejoined", f"Back in the {_list_label(base_topic)} device list"
@@ -1372,6 +1385,10 @@ class Tracker:
                 changed = True
 
         self.names[base_topic] = names
+        unlisted = self._unlisted_availability.pop(base_topic, {})
+        for name, payload in unlisted.items():
+            if name in names:
+                self._handle_availability(base_topic, name, payload)
         self.lists_received.add(base_topic)
         if self.lists_received >= set(self.base_topics):
             self.lists_ready.set()
@@ -1934,6 +1951,12 @@ class Tracker:
     def _handle_availability(self, base_topic: str, name: str, payload: str) -> None:
         record = self._record_for(base_topic, name)
         if record is None:
+            # Not in the device list (yet): keep the latest so the next list can apply it.
+            pending = self._unlisted_availability.setdefault(base_topic, {})
+            pending.pop(name, None)
+            pending[name] = payload
+            while len(pending) > MAX_UNLISTED_AVAILABILITY:
+                del pending[next(iter(pending))]
             return
         self.messages.add(record["ieee"], "availability", payload.strip())
         state = payload.strip()
