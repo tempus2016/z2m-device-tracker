@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.4.1
+
+A fix for devices that stayed offline after being re-paired, a new way to report a bug or ask for a feature straight from the app, and the first community ratings.
+
+### Fixed
+- **A re-paired or renamed device no longer stays "Offline" while its messages keep arriving** ([#73](https://github.com/tempus2016/z2m-device-tracker/issues/73)). Zigbee2MQTT sends the device's availability before its new device list, and the app used to drop it. It now keeps that availability until the list arrives, and a device that comes back into the list starts fresh instead of keeping its old offline state.
+
+### Added
+- **Settings → Help & feedback.** Fill in a short bug report or feature request and the app opens it on GitHub with your versions, setup and the app's recent warnings already filled in. Device names, IEEE addresses, e-mail addresses, tokens and phone notify services are taken out first, and nothing is sent until you post it on GitHub yourself. You can leave out the setup or the warnings, preview the text, search existing issues, or copy it as Markdown.
+- The bug report form on GitHub gains **What did you expect to happen?**, **Steps to reproduce** and **Setup**; the feature request gains an optional **Setup** field.
+
+### Changed
+- **The first community ratings are in:** 24 models from 25 reports. A model gets a verdict once it has 5 reports, so one person can't decide it; until then it shows the reports and measured stats so far.
+- The battery library from Battery Notes is updated (2,388 devices).
+
 ## 2.4.0
 
 The app can now read more than one source at once: Zigbee2MQTT and ZHA side by side, and Matter devices too (beta). Each shows as its own network. The rename promised in 2.3.0 waits, because Matter makes "Zigbee Device Tracker" the wrong name as well; nothing needs setting up again when it happens.
