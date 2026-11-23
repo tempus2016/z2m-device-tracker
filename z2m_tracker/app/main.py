@@ -18,6 +18,8 @@ import ssl
 import sys
 import threading
 import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -28,6 +30,7 @@ from zoneinfo import ZoneInfo
 import alert_actions
 import daily_summary
 import escalation
+import feedback
 import paho.mqtt.client as mqtt
 import prometheus
 import standalone
@@ -55,6 +58,9 @@ from zha import ZHA_BLOCKED_PATHS, ZHA_INSTANCE, ZhaSource, sources, zha_checks
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stdout)
 _LOGGER = logging.getLogger("z2m_tracker")
+# The last warnings and errors, for Settings > Help & feedback.
+LOG_BUFFER = feedback.LogBuffer()
+logging.getLogger().addHandler(LOG_BUFFER)
 
 VERSION = "2.4.0"
 PORT = 8099
@@ -1382,6 +1388,98 @@ def i18n_file(name: str) -> bytes | None:
     return path.read_bytes() if path else None
 
 
+_integration_seen = [0.0]
+_feedback_env: dict = {"at": 0.0, "env": {}}
+SOURCE_LABELS = {"z2m": "Zigbee2MQTT", ZHA_INSTANCE: "ZHA", MATTER_INSTANCE: "Matter"}
+
+
+def _supervisor_get(path: str) -> dict:
+    """GET a Supervisor API path and return its `data`, or {} without Supervisor."""
+    token = os.environ.get("SUPERVISOR_TOKEN")
+    if STANDALONE or not token:
+        return {}
+    request = urllib.request.Request(f"http://supervisor{path}", headers={"Authorization": f"Bearer {token}"})
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            return (json.loads(response.read() or b"{}") or {}).get("data") or {}
+    except (urllib.error.URLError, TimeoutError, ValueError) as err:
+        _LOGGER.debug("Supervisor %s failed: %s", path, err)
+        return {}
+
+
+def feedback_environment() -> dict:
+    """What a bug report says about this install. Asked of Supervisor/HA at most every 10 minutes."""
+    if time.time() - _feedback_env["at"] < 600 and _feedback_env["env"]:
+        env = dict(_feedback_env["env"])
+    else:
+        info = _supervisor_get("/info")
+        ha_version = str(info.get("homeassistant") or "")
+        if not ha_version and home_assistant.available:
+            ha_version = str((home_assistant._request("GET", "/config") or {}).get("version") or "")
+        if STANDALONE:
+            install = "Docker (standalone app)"
+        elif info.get("hassos"):
+            install = f"Home Assistant OS {info['hassos']}"
+        elif info:
+            install = "Home Assistant Supervised"
+        else:
+            install = ""
+        env = {"ha_version": ha_version, "install": install, "arch": str(info.get("arch") or "")}
+        _feedback_env.update(at=time.time(), env=dict(env))
+    env["app_version"] = VERSION
+    env["mode"] = "Docker" if STANDALONE else "Home Assistant app"
+    with tracker.lock:
+        records = list(tracker.data["devices"].values())
+        bridges = dict(tracker.data.get("bridges") or {})
+    networks = []
+    z2m_count = len(mqtt_topics)
+    for topic in base_topics:
+        source = topic if topic in (ZHA_INSTANCE, MATTER_INSTANCE) else "z2m"
+        info = (bridges.get(topic) or {}).get("info") or {}
+        label = SOURCE_LABELS[source] + (
+            f" #{mqtt_topics.index(topic) + 1}" if source == "z2m" and z2m_count > 1 else ""
+        )
+        networks.append(
+            {
+                "source": source,
+                "label": label,
+                "version": str(info.get("version") or "") if source == "z2m" else "",
+                "coordinator": str(info.get("coordinator_type") or "") if source == "z2m" else "",
+                "devices": sum(1 for r in records if r.get("instance") == topic and r.get("status") != "removed"),
+            }
+        )
+    env["networks"] = networks
+    if not mqtt_topics:
+        env["broker"] = ""
+    elif MQTT_MANUAL or STANDALONE:
+        env["broker"] = "External broker (set in the app options)"
+    else:
+        env["broker"] = "Mosquitto broker app"
+    env["integration"] = time.time() - _integration_seen[0] < 3600
+    return env
+
+
+def feedback_names() -> list[str]:
+    """Every device name, so a report can leave them out."""
+    with tracker.lock:
+        return [str(r.get("friendly_name") or "") for r in tracker.data["devices"].values() if r.get("friendly_name")]
+
+
+def feedback_report(body: dict) -> dict:
+    env = feedback_environment()
+    env["language"] = str(body.get("language") or "")[:20]
+    env["browser"] = str(body.get("browser") or "")[:60]
+    return feedback.build(
+        str(body.get("kind") or "bug"),
+        body.get("form") if isinstance(body.get("form"), dict) else {},
+        env,
+        LOG_BUFFER.snapshot(),
+        feedback_names(),
+        include_setup=body.get("setup") is not False,
+        include_logs=body.get("logs") is not False,
+    )
+
+
 def settings_payload() -> dict:
     with tracker.lock:
         now_ts = time.time()
@@ -1881,6 +1979,8 @@ class Handler(BaseHTTPRequestHandler):
             return True
         auth = self.headers.get("Authorization") or ""
         if auth.startswith("Bearer ") and hmac.compare_digest(auth[7:].strip().encode(), API_TOKEN.encode()):
+            # Only the integration holds the API token: a bug report says whether it is connected.
+            _integration_seen[0] = time.time()
             return True
         if STANDALONE and sessions.valid(standalone.cookie_value(self.headers.get("Cookie"))):
             return True
@@ -2165,7 +2265,9 @@ class Handler(BaseHTTPRequestHandler):
             self._json(409, {"ok": False, "error": "Only for Zigbee2MQTT devices"})
             return
         try:
-            if path == "/api/community/report":
+            if path == "/api/feedback":
+                self._json(200, feedback_report(body))
+            elif path == "/api/community/report":
                 choice = body.get("choice") if isinstance(body.get("choice"), dict) else {}
                 result = tracker.community_report(ieee, choice)
                 if result is None:
