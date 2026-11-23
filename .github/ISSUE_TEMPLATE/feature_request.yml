@@ -35,3 +35,11 @@ body:
       description: Zigbee2MQTT's own frontend, automations, other integrations.
     validations:
       required: false
+
+  - type: textarea
+    id: setup
+    attributes:
+      label: Setup
+      description: Optional. Filled in for you by Settings → Help & feedback in the Zigbee Tracker sidebar.
+    validations:
+      required: false

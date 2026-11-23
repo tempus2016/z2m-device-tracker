@@ -12,6 +12,8 @@ body:
         Thanks for taking the time to report this. The more of the following you fill in, the
         faster it can be reproduced.
 
+        **Tip:** Settings → Help & feedback in the Zigbee Tracker sidebar fills most of this in for you.
+
         Please check the [app documentation](https://github.com/tempus2016/z2m-device-tracker/blob/main/z2m_tracker/DOCS.md)
         and the [existing issues](https://github.com/tempus2016/z2m-device-tracker/issues) first.
 
@@ -68,6 +70,31 @@ body:
       description: What did you expect, and what did you get instead? Screenshots help.
     validations:
       required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: false
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the Devices tab
+        2. ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: setup
+    attributes:
+      label: Setup
+      description: Filled in for you by Settings → Help & feedback in the Zigbee Tracker sidebar.
+    validations:
+      required: false
 
   - type: textarea
     id: config
