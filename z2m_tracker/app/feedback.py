@@ -36,7 +36,8 @@ KINDS = {
 }
 
 _IEEE = re.compile(r"\b0x[0-9a-fA-F]{16}\b")
-_EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+# Bounded (RFC 5321 lengths) so a long run of "+" or "." can't make the match slow.
+_EMAIL = re.compile(r"[\w.+-]{1,64}@[\w-]{1,63}\.[\w.-]{1,190}")
 _SECRET = re.compile(r"(token|access_token|api_key|password|authSig)([=:]\s*)([^&\s\"',]+)", re.IGNORECASE)
 _BEARER = re.compile(r"\bBearer\s+[\w.-]+")
 # Phones and people are usually named after someone ("notify.mobile_app_sams_iphone").

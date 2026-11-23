@@ -152,3 +152,12 @@ def test_log_buffer_keeps_the_last_warnings() -> None:
     lines = buffer.snapshot()
     assert len(lines) == 2
     assert lines[0].endswith("WARNING warning 1") and lines[1].endswith("WARNING warning 2")
+
+
+def test_email_redaction_stays_fast_on_long_runs() -> None:
+    import time
+
+    start = time.monotonic()
+    feedback.redact("+" * 20000 + " " + "a." * 10000)
+    assert time.monotonic() - start < 1
+    assert feedback.redact("mail sam.o+z2m@example.co.uk now") == "mail [email] now"
