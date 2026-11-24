@@ -1222,7 +1222,7 @@
     if (k.startsWith("interview")) return k.endsWith("successful") ? ["check", "var(--success)"] : ["alert-circle", "var(--error)"];
     return ({ joined: ["plus", "var(--success)"], added: ["plus", "var(--success)"], rejoined: ["plus", "var(--success)"], online: ["wifi", "var(--success)"], offline: ["wifi-off", "var(--error)"],
       left: ["minus", "var(--warning)"], removed: ["delete", "var(--text-2)"], renamed: ["pencil", "var(--state-icon)"], "model changed": ["swap-horizontal", "var(--state-icon)"], moved: ["swap-horizontal", "var(--state-icon)"],
-      linked: ["link-variant", "var(--state-icon)"], replaced: ["swap-horizontal", "var(--state-icon)"], "replaced by": ["swap-horizontal", "var(--text-2)"], reconfigured: ["refresh", "var(--success)"], "reconfigure failed": ["refresh", "var(--error)"], "battery replaced": ["battery-sync", "var(--success)"], "maintenance done": ["calendar-clock", "var(--success)"],
+      linked: ["link-variant", "var(--state-icon)"], replaced: ["swap-horizontal", "var(--state-icon)"], "replaced by": ["swap-horizontal", "var(--text-2)"], reconfigured: ["refresh", "var(--success)"], "reconfigure failed": ["refresh", "var(--error)"], "battery replaced": ["battery-sync", "var(--success)"], "battery change suggested": ["battery-sync", "var(--info)"], "maintenance done": ["calendar-clock", "var(--success)"],
       "update available": ["chip", "var(--info)"], "routing scanned": ["sitemap", "var(--state-icon)"],
       "binding added": ["link-variant", "var(--success)"], "binding restored": ["link-variant", "var(--success)"], "binding removed": ["link-variant", "var(--error)"], unbound: ["link-variant", "var(--text-2)"], "binding change accepted": ["check", "var(--text-2)"],
       "payload changed": ["pencil", "var(--warning)"], "reporting changed": ["tune", "var(--success)"], "reporting change failed": ["tune", "var(--error)"], "settings changed": ["cog", "var(--state-icon)"] })[k] || ["information-outline", "var(--text-2)"];
@@ -3614,6 +3614,10 @@
       <div class="card"><div class="card-header"><h2 class="ch">${th("settings.ignored")}</h2></div>
         ${S.muted.length ? S.muted.map((m) => { const c = S.checks.find((x) => x.key === m.kind); return `<div class="set-row"><div class="text"><div class="t1">${esc(m.name)}</div><div class="t2">${esc(c ? checkLabel(c) : m.kind)} · ${m.until ? th("settings.until", { date: esc(fmtDate(m.until)) }) : th("settings.forever")}</div></div><div class="ctl"><button class="btn" data-act="unmute" data-ieee="${esc(m.ieee)}" data-kind="${esc(m.kind)}">${th("common.stop_ignoring")}</button></div></div>`; }).join("") + `<div class="card-actions"><button class="btn" data-act="unmute-all">${th("settings.stop_ignoring_all")}</button></div>` : `<div class="set-row"><div class="text"><div class="t2">${th("settings.nothing_ignored")}</div></div></div>`}
       </div>
+      <div class="card" data-section="batteries"><div class="card-header"><div><h2 class="ch">${th("settings.batteries")}</h2><small>${th("settings.batteries_desc")}</small></div></div>
+        ${sw("battery_auto_detect", s.battery_auto_detect !== false, t("settings.battery_detect"), th("settings.battery_detect_desc"))}
+        ${sw("battery_confirm_detected", s.battery_confirm_detected === true, t("settings.battery_confirm"), th("settings.battery_confirm_desc"), s.battery_auto_detect === false)}
+      </div>
       <div class="card" data-section="brands"><div class="card-header"><div><h2 class="ch">${th("brands.settings_title")}</h2><small>${th("brands.settings_desc")}</small></div></div>
         ${brandList().length ? brandList().map((b) => `<div class="set-row compact"><div class="text"><div class="t1">${esc(b)}</div></div><div class="ctl"><button class="icon-btn" data-act="brand-remove" data-brand="${esc(b)}" aria-label="${esc(t("brands.remove", { brand: b }))}">${ic("delete", "s20")}</button></div></div>`).join("") : `<div class="set-row"><div class="text"><div class="t2">${th("brands.none")}</div></div></div>`}
         <div class="stock-add"><input class="field" id="brandNew" maxlength="40" autocomplete="off" placeholder="${esc(t("battery.brand_placeholder"))}" aria-label="${esc(t("brands.new"))}"><button class="btn" data-act="brand-add">${ic("plus", "s18")}${th("shop.add")}</button></div>
@@ -4218,8 +4222,9 @@
     const reps = (rec.replacements || []).map((r, i) => [r, i]).reverse();
     return `
       ${compact ? "" : `<div class="more-hero"><span class="state-ic" style="color:${batColor(d.battery, batLow(d))}">${ic("battery")}</span><div class="big">${typeof d.battery === "number" ? `${Math.round(d.battery)} %` : "—"}</div>
-        <div class="sub">${est === null || est === undefined ? th("battery.no_estimate") : est <= 0 ? th("battery.due_now") : th("battery.days_left", { n: Math.round(est) })}</div></div>
+        <div class="sub">${rec.unreliable ? th("battery.unreliable_no_estimate") : est === null || est === undefined ? th("battery.no_estimate") : est <= 0 ? th("battery.due_now") : th("battery.days_left", { n: Math.round(est) })}</div></div>
       <div class="more-actions"><button class="btn filled" data-act="battery-replaced">${ic("battery-sync", "s18")}${th("battery.replaced")}</button></div>`}
+      ${rec.pending ? `<div class="alerts"><div class="alert" style="--a:var(--info)">${ic("battery-sync")}<div class="body"><b>${th("battery.pending_title")}</b> ${th("battery.pending_text", { date: esc(fmtDate(rec.pending.date, false)), note: esc(rec.pending.note || "") })}</div><div class="alert-acts"><button class="btn" data-act="bat-pending" data-action="dismiss">${th("battery.pending_dismiss")}</button><button class="btn" data-act="bat-pending" data-action="confirm">${th("battery.pending_confirm")}</button></div></div></div>` : ""}
       ${sparkline(m.battery_spark, { min: 0, max: 100, color: batColor(d.battery, batLow(d)), hover: { key: "spark-bat", value: (v) => t("chart.battery", { value: Math.round(v) }) } })}
       <div class="sub-h">${th("battery.details")}${rec.source === "battery_notes" ? ` · ${th("battery.from_bn")}` : rec.source === "library" ? ` · ${th("battery.from_library")}` : ""}</div>
       <form class="form" id="batForm">
@@ -4229,6 +4234,8 @@
       </form>
       <datalist id="batTypes">${["CR2032", "CR2450", "CR2477", "CR1632", "CR123A", "AAA", "AA", "18650", t("battery.rechargeable")].map((x) => `<option value="${esc(x)}"></option>`).join("")}</datalist>
       <div class="row-actions"><button class="btn" data-act="save-battery">${th("common.save")}</button><span class="saved" id="savedBat">${th("common.saved")}</span></div>
+      <div class="set-row"><div class="text"><div class="t1">${th("battery.unreliable")}</div><div class="t2">${th("battery.unreliable_desc")}</div></div>
+        <label class="switch"><input type="checkbox" id="batUnrelSw" data-ieee="${esc(d.ieee)}" ${rec.unreliable ? "checked" : ""} aria-label="${esc(t("battery.unreliable"))}"><span class="track"></span><span class="thumb"></span></label></div>
       <div class="sub-h">${th("battery.history")}</div>
       ${reps.length ? `<div class="rep-list">${reps.map(([r, i]) => `<div><span>${esc(fmtDate(r.date, false))}${r.brand ? ` · ${esc(r.brand)}` : ""} <span class="muted">· ${esc(r.source)}${r.note ? ` · ${esc(r.note)}` : ""}</span></span><span class="rep-acts"><button class="icon-btn" data-act="bat-brand" data-index="${i}" aria-label="${esc(t(r.brand ? "battery.brand_edit" : "battery.brand_add"))}">${ic("pencil", "s20")}</button><button class="icon-btn" data-act="bat-remove" data-index="${i}" aria-label="${esc(t("battery.remove_entry"))}">${ic("delete", "s20")}</button></span></div>`).join("")}</div>`
         : `<div class="card-content muted">${rec.last_replaced ? th("battery.last_replaced_bn", { date: esc(fmtDate(rec.last_replaced, false)) }) : th("battery.no_replacements")}</div>`}`;
@@ -4612,7 +4619,7 @@
     const facts = [
       [t("devices.col.status"), `<span class="sdot"></span><span class="fact-st">${esc(stTxt)}</span>`, `tone-${tone}`],
       [t("page.last_message"), esc(d.last_seen ? relTime(d.last_seen) : t("time.never"))],
-      ...(typeof d.battery === "number" ? [[t("devices.col.battery"), `<span class="tnum">${Math.round(d.battery)} %</span>${est != null ? `<small>${esc(est <= 0 ? t("battery.due_now") : t("battery.days_left", { n: Math.round(est) }))}</small>` : ""}`, batTone ? `tone-${batTone} colored` : ""]] : []),
+      ...(typeof d.battery === "number" ? [[t("devices.col.battery"), `<span class="tnum">${Math.round(d.battery)} %</span>${d.battery_record?.unreliable ? `<small>${th("battery.unreliable_short")}</small>` : est != null ? `<small>${esc(est <= 0 ? t("battery.due_now") : t("battery.days_left", { n: Math.round(est) }))}</small>` : ""}`, batTone ? `tone-${batTone} colored` : ""]] : []),
       ...(lqi !== null && lqi !== undefined && d.type !== "Coordinator" ? [[t("page.link_quality"), `${bars(lqi)}<span class="tnum">${Math.round(lqi)}</span><small>${esc(t("page.of_255", { word: lqiWord(lqi) }))}</small>`]] : []),
     ];
     const body = state.moreTab === "overview"
@@ -4764,6 +4771,11 @@
     }
     if (e.target.dataset.profdef) {
       try { await api("api/report_defaults", { defaults: { [e.target.dataset.profdef]: e.target.value } }); snack(t("profile.defaults_saved")); await load(); if (state.view === "settings") renderSettings(false); } catch (err) { snack(err.message); }
+      return;
+    }
+    if (e.target.id === "batUnrelSw") {
+      const ieee = e.target.dataset.ieee, unreliable = e.target.checked;
+      try { await api("api/battery/unreliable", { ieee, unreliable }); snack(t(unreliable ? "battery.unreliable_on" : "battery.unreliable_off")); load(); } catch (err) { e.target.checked = !unreliable; snack(err.message); }
       return;
     }
     if (e.target.id !== "critSw") return;
@@ -5261,6 +5273,10 @@
         const r = await api("api/maintenance/done", { ieee: b.dataset.ieee, id: b.dataset.id });
         snack(t("maint.marked", { title: r.task.title })); load();
       } catch (err) { b.disabled = false; snack(err.message); }
+    },
+    async "bat-pending"(b) {
+      const yes = b.dataset.action === "confirm";
+      try { await api("api/battery/pending", { ieee: state.open, action: b.dataset.action }); snack(t(yes ? "battery.pending_confirmed" : "battery.pending_dismissed")); load(); } catch (err) { snack(err.message); }
     },
     async "bat-remove"(b) {
       if (!(await confirmDialog({ title: t("battery.remove_title"), ok: t("common.remove"), danger: true, html: `<p>${th("battery.remove_text")}</p>` }))) return;

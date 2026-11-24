@@ -35,6 +35,8 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `chatty_per_hour` | `1200` | Messages an hour (averaged over 6 hours) above which a device is flagged as chatty. |
 | `ota_window` | empty | Time window for automatic firmware updates, e.g. `02:00-05:00` (local time, may cross midnight). Empty turns automatic updates off. A failed update is retried once, the next night. |
 | `ota_min_battery` | `30` | Battery devices below this level are skipped by automatic and bulk updates. **Update anyway** overrides it for one device. |
+| `battery_auto_detect` | `true` | Record a battery change when a device's battery level jumps up by 25 points or more in a day. Off records changes only when you mark them. Set it in **Settings → Batteries**. See [Detected battery changes](#detected-battery-changes). |
+| `battery_confirm_detected` | `false` | Ask before recording a detected battery change: it waits in the **Battery** card on the device's page until you confirm or dismiss it. Set it in **Settings → Batteries**. |
 | `quiet_hours` | `false` | Hold alerts during quiet hours and send one summary when they end. |
 | `learn_rhythm` | `true` | Set each device's Stopped reporting limit from how often it reports. See [Learned rhythm](#learned-rhythm). |
 | `expected_outages` | `true` | Don't alert when a network goes offline at the time it does most days. See [Expected outages](#expected-outages). |
@@ -377,6 +379,16 @@ With the integration, `todo.z2m_tracker_maintenance` lists the same tasks (ticki
 ## Warranties
 
 Set **Warranty until** in a device's asset details on its **Notes** tab (next to the purchase date, shop and price). The Notes tab then says how long the warranty has left. **Upkeep → Maintenance** has a **Warranties** list: warranties ending in the next 60 days, soonest first, then those that ended in the last 90 days. **Details** opens the device's Notes tab. A warranty 30 days or less from its end is the **Warranty ending** check; it shows in Health but doesn't notify unless you turn that on in Settings → Checks.
+
+## Detected battery changes
+
+When a device's battery level jumps up by 25 points or more in a day, the tracker records a battery change (source **Detected**) and takes a battery from stock. Three settings change this:
+
+- **Settings → Batteries → Detect battery changes** (`battery_auto_detect`) off: no device gets detected changes. Mark changes with **Battery replaced** instead.
+
+- **Settings → Batteries → Ask before recording** (`battery_confirm_detected`) on: a detected change waits in the **Battery** card on the device's page. **Confirm** records it and takes the battery from stock; **Dismiss** drops it. Marking the battery replaced also answers it.
+
+- **Battery level unreliable** in the **Battery** card on a device's page: for a device whose reported level jumps around (for example from 0 % to 100 % and back), its jumps are never treated as battery changes, and it gets no battery estimate or drain rate. Its level and low-battery check stay as they are.
 
 ## Pause alerts
 

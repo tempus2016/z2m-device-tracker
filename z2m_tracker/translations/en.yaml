@@ -89,6 +89,12 @@ configuration:
   ota_min_battery:
     name: Minimum battery for updates (%)
     description: Battery devices below this level are skipped by automatic and bulk updates. Update anyway overrides it for one device.
+  battery_auto_detect:
+    name: Detect battery changes
+    description: Record a battery change when a device's battery level jumps up by 25 points or more. Off records changes only when you mark them.
+  battery_confirm_detected:
+    name: Ask before recording a detected change
+    description: A detected battery change waits on the device's page until you confirm or dismiss it.
   quiet_hours:
     name: Quiet hours
     description: Hold alerts during quiet hours and send one summary when they end.

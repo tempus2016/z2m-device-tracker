@@ -948,6 +948,7 @@ class Tracker:
         self.local_tz = local_tz
         self.metrics = metrics
         metrics.local_tz = local_tz  # rhythm slots are local time
+        metrics.no_battery_estimate = self.battery_unreliable
         self.options = options
         self.oui = oui
         self.lock = threading.RLock()
@@ -2171,10 +2172,7 @@ class Tracker:
                 structural = True
             record["battery_reported"] = reported
             replaced_from = self.metrics.add_battery(ieee, battery)
-            if replaced_from is not None:
-                self._record_replacement(
-                    record, now[:10], "Detected", f"Battery went from {replaced_from:.0f}% to {battery:.0f}%"
-                )
+            if replaced_from is not None and self._battery_jump(record, now[:10], replaced_from, battery):
                 structural = True
         if isinstance(parsed.get("battery_low"), bool):
             if record.get("battery_low") != parsed["battery_low"]:
@@ -4083,10 +4081,70 @@ class Tracker:
 
     # ---------------------------------------------------------------- battery
 
+    def battery_unreliable(self, ieee: str) -> bool:
+        """True when the user marked this device's battery level as not to be trusted."""
+        record = self.data["devices"].get(ieee) or {}
+        return bool((record.get("battery_info") or {}).get("unreliable"))
+
+    def _battery_jump(self, record: dict, date: str, before: float, after: float) -> bool:
+        """A battery level that rose sharply: record a replacement, ask first, or ignore it. True if anything changed."""
+        info = record.get("battery_info") or {}
+        if info.get("unreliable") or not self.options.get("battery_auto_detect", True):
+            return False
+        note = f"Battery went from {before:.0f}% to {after:.0f}%"
+        if not self.options.get("battery_confirm_detected", False):
+            self._record_replacement(record, date, "Detected", note)
+            return True
+        pending = info.get("pending")
+        if isinstance(pending, dict) and pending.get("date") == date:
+            return False
+        record.setdefault("battery_info", {})["pending"] = {"date": date, "note": note}
+        self._add_event(
+            _now(),
+            record.get("instance") or "unknown",
+            record["ieee"],
+            record.get("friendly_name"),
+            "battery change suggested",
+            f"{note}. Confirm or dismiss it on the device's page.",
+        )
+        return True
+
+    def resolve_battery_pending(self, ieee: str, confirm: bool) -> bool:
+        """Confirm (record it as a replacement) or dismiss a detected battery change waiting for the user."""
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            info = (record or {}).get("battery_info") or {}
+            pending = info.pop("pending", None)
+            if not isinstance(pending, dict):
+                return False
+            if confirm and re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(pending.get("date") or "")):
+                self._record_replacement(record, pending["date"], "Detected", str(pending.get("note") or ""))
+            self._changed(structural=True)
+            return True
+
+    def set_battery_unreliable(self, ieee: str, unreliable: Any) -> bool:
+        """Mark a device's battery level as unreliable: no detected replacements and no estimate."""
+        if not isinstance(unreliable, bool):
+            return False
+        with self.lock:
+            record = self.data["devices"].get(ieee)
+            if record is None:
+                return False
+            info = record.setdefault("battery_info", {})
+            if unreliable:
+                info["unreliable"] = True
+                info.pop("pending", None)
+            else:
+                info.pop("unreliable", None)
+            self._changed(structural=True)
+            return True
+
     def _record_replacement(
         self, record: dict, date: str, source: str, note: str = "", brand: str | None = None
     ) -> dict:
         info = record.setdefault("battery_info", {})
+        # Recording a change answers any detected change still waiting to be confirmed.
+        info.pop("pending", None)
         replacements = info.setdefault("replacements", [])
         entry = {"date": date, "source": source, "note": note[:200], "recorded": _now()}
         brand = _text(brand, MAX_BRAND)
@@ -4465,6 +4523,8 @@ class Tracker:
             "replacements": replacements,
             "source": source,
             "from_battery_notes": source == "battery_notes",
+            "unreliable": bool(info.get("unreliable")),
+            "pending": info.get("pending") if isinstance(info.get("pending"), dict) else None,
         }
 
     def is_battery_device(self, record: dict) -> bool:

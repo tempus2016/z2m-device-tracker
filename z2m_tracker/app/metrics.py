@@ -9,7 +9,7 @@ import os
 import random
 import threading
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from datetime import datetime, timedelta, timezone, tzinfo
 from datetime import time as clock_time
 from statistics import median
@@ -113,6 +113,8 @@ class Metrics:
         # Devices that filed a gap since their last decay. Memory only: after a restart a device can miss one
         # decay, never get an extra one.
         self._rhythm_filed: set[str] = set()
+        # True for a device whose battery level can't be trusted: no estimate or drain for it. The Tracker sets it.
+        self.no_battery_estimate: Callable[[str], bool] = lambda ieee: False
 
     def load(self) -> None:
         if not os.path.exists(self.path):
@@ -631,6 +633,7 @@ class Metrics:
 
         if bat:
             out["battery_spark"] = [[day, value] for day, value in bat if day >= now - 120 * 86400]
+        if bat and not self.no_battery_estimate(ieee):
             out["battery_estimate_days"] = self._battery_estimate(bat, now)
             drain = self._battery_drain(bat, now)
             if drain:
@@ -870,10 +873,14 @@ class Metrics:
             "estimate_days": None,
             "empty_at": None,
         }
-        fit = self._battery_fit(bat, now) if bat else None
+        if self.no_battery_estimate(ieee):
+            bat_fit: list[list[float]] = []
+        else:
+            bat_fit = bat
+        fit = self._battery_fit(bat_fit, now) if bat_fit else None
         if fit is not None:
             battery["drain_month"] = round(max(-fit[0], 0.0) * 30, 1)
-        estimate = self._battery_estimate(bat, now) if bat else None
+        estimate = self._battery_estimate(bat_fit, now) if bat_fit else None
         if estimate is not None:
             battery["estimate_days"] = estimate
             # The estimate counts from the latest reading, which is where the projection starts.

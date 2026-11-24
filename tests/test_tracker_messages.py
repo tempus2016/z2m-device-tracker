@@ -241,6 +241,76 @@ def test_battery_jump_records_replacement(tracker, clock):
     assert events_of(tracker, "battery replaced")[0]["detail"].endswith("Battery went from 20% to 100% (detected)")
 
 
+def _jump(tracker, clock):
+    send(tracker, "bridge/devices", [z2m_device(SENSOR, "S")])
+    send(tracker, "S", {"battery": 20})
+    clock.advance(days=1)
+    send(tracker, "S", {"battery": 100})
+    return tracker.data["devices"][SENSOR].get("battery_info") or {}
+
+
+def test_battery_jump_ignored_when_detection_off(make_tracker, clock):
+    tracker = make_tracker(options={"battery_auto_detect": False})
+    info = _jump(tracker, clock)
+    assert not info.get("replacements")
+    assert "pending" not in info
+    assert events_of(tracker, "battery replaced") == []
+
+
+def test_battery_jump_ignored_for_unreliable_device(tracker, clock):
+    send(tracker, "bridge/devices", [z2m_device(SENSOR, "S")])
+    assert tracker.set_battery_unreliable(SENSOR, True)
+    assert tracker.battery_unreliable(SENSOR)
+    info = _jump(tracker, clock)
+    assert not info.get("replacements")
+    assert tracker.battery_summary(tracker.data["devices"][SENSOR])["unreliable"] is True
+    assert tracker.set_battery_unreliable(SENSOR, False)
+    assert not tracker.battery_unreliable(SENSOR)
+    assert not tracker.set_battery_unreliable(SENSOR, "yes")
+
+
+def test_battery_jump_waits_for_confirmation(make_tracker, clock):
+    tracker = make_tracker(options={"battery_confirm_detected": True})
+    info = _jump(tracker, clock)
+    assert not info.get("replacements")
+    assert info["pending"] == {"date": clock.iso()[:10], "note": "Battery went from 20% to 100%"}
+    assert len(events_of(tracker, "battery change suggested")) == 1
+    assert tracker.battery_summary(tracker.data["devices"][SENSOR])["pending"]["date"] == clock.iso()[:10]
+    assert tracker.resolve_battery_pending(SENSOR, True)
+    assert [(r["date"], r["source"]) for r in info["replacements"]] == [(clock.iso()[:10], "Detected")]
+    assert "pending" not in info
+    assert not tracker.resolve_battery_pending(SENSOR, True)
+
+
+def test_battery_jump_dismissed(make_tracker, clock):
+    tracker = make_tracker(options={"battery_confirm_detected": True})
+    info = _jump(tracker, clock)
+    assert tracker.resolve_battery_pending(SENSOR, False)
+    assert "pending" not in info
+    assert not info.get("replacements")
+
+
+def test_marking_replaced_answers_pending(make_tracker, clock):
+    tracker = make_tracker(options={"battery_confirm_detected": True})
+    info = _jump(tracker, clock)
+    tracker.add_battery_replacement(SENSOR, clock.iso()[:10], "Zigbee Tracker")
+    assert "pending" not in info
+    assert [r["source"] for r in info["replacements"]] == ["Zigbee Tracker"]
+
+
+def test_unreliable_battery_has_no_estimate(tracker, clock):
+    send(tracker, "bridge/devices", [z2m_device(SENSOR, "S")])
+    for level in (100, 90, 80, 70, 60, 50, 40):
+        send(tracker, "S", {"battery": level})
+        clock.advance(days=3)
+    assert tracker.metrics.summary(SENSOR, clock.now).get("battery_estimate_days") is not None
+    tracker.set_battery_unreliable(SENSOR, True)
+    summary = tracker.metrics.summary(SENSOR, clock.now)
+    assert "battery_estimate_days" not in summary
+    assert "battery_drain" not in summary
+    assert summary["battery_spark"]
+
+
 def test_firmware_update_events(tracker):
     send(tracker, "bridge/devices", [z2m_device(SENSOR, "S")])
     send(tracker, "S", {"update": {"state": "available", "installed_version": 1, "latest_version": 2}})
