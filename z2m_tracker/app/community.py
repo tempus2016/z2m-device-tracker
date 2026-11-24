@@ -81,6 +81,7 @@ RANGES = {
 REPORTER_RE = re.compile(r"^[0-9a-f]{16}$")
 HEADING_RE = re.compile(r"^###\s+(.+?)\s*$", re.M)
 NO_RESPONSE = "_No response_"
+PLAIN_COMMENT_RE = re.compile(r"^comment:[ \t]*", re.I | re.M)
 
 
 def _norm(text: Any) -> str:
@@ -149,10 +150,19 @@ def parse_report(text: str) -> dict[str, str]:
 
 
 def parse_issue(body: str) -> dict[str, str]:
-    """Splits an issue-form body into its `### Heading` sections, keyed by lower-case heading."""
+    """Splits an issue-form body into its `### Heading` sections, keyed by lower-case heading.
+
+    A body with no headings is read as a plain report, with any comment after a `Comment:` line.
+    """
     body = str(body or "").replace("\r\n", "\n")
     sections: dict[str, str] = {}
     matches = list(HEADING_RE.finditer(body))
+    if not matches:
+        # Sent without the form (pasted, or another client): the report, then a "Comment:" line.
+        split = PLAIN_COMMENT_RE.search(body)
+        if not split:
+            return {"report": body.strip(), "comment": ""}
+        return {"report": body[: split.start()].strip(), "comment": body[split.end() :].strip()}
     for i, match in enumerate(matches):
         end = matches[i + 1].start() if i + 1 < len(matches) else len(body)
         value = body[match.end() : end].strip()
