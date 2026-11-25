@@ -2465,11 +2465,15 @@
       <div class="sub-h">${th("community.preview")}</div>
       <pre id="cmPreview" aria-live="polite">${esc(r ? cmPreviewText(r) : t("common.loading"))}</pre>
       <div class="row-actions"><button class="btn" data-act="cm-cancel">${th("common.cancel")}</button>
+        <button class="btn" id="cmCopy" data-act="cm-copy" ${ready ? "" : "disabled"}>${ic("content-copy", "s18")}${th("community.copy")}</button>
         <a class="btn filled" id="cmGo" href="${esc(ready ? r.url : "#")}" target="_blank" rel="noopener" aria-disabled="${!ready}">${ic("open-in-new", "s18")}${th("community.continue")}</a></div>
       <p class="cm-note" style="padding:0">${th(r && r.problems.length ? "community.pick_verdict" : "community.github_note")}</p>
+      <p class="cm-tip muted" style="padding:4px 0 0">${th("community.copy_note")}</p>
     </div>`;
   };
   const cmPreviewText = (r) => (r.comment ? `${r.text}\n\n${t("community.comment")}:\n${r.comment}` : r.text);
+  // Laid out like the issue form's own body, so a pasted copy reads the same as a pre-filled one.
+  const cmIssueBody = (r) => `### Report\n\n\`\`\`yaml\n${r.text}\n\`\`\`\n\n### Comment\n\n${r.comment || "_No response_"}\n`;
   let cmTimer = null, cmSeq = 0;
   const cmRefresh = async () => {
     const sh = state.share;
@@ -2482,6 +2486,8 @@
       const pre = document.getElementById("cmPreview"), go = document.getElementById("cmGo");
       if (pre) pre.textContent = cmPreviewText(r);
       if (go) { const ok = !r.problems.length; go.href = ok ? r.url : "#"; go.setAttribute("aria-disabled", String(!ok)); }
+      const copy = document.getElementById("cmCopy");
+      if (copy) copy.disabled = !!r.problems.length;
       const note = go?.closest(".cm-share")?.querySelector(":scope > .cm-note");
       if (note) note.textContent = t(r.problems.length ? "community.pick_verdict" : "community.github_note");
     } catch (err) { if (seq === cmSeq) snack(err.message); }
@@ -3772,13 +3778,13 @@
     } catch (err) { if (seq === fbSeq) { const s = $("#fbStatus"); if (s) s.textContent = err.message; } }
   };
   const fbSave = () => { store.set(FB_KEY, JSON.stringify(state.fb)); clearTimeout(fbTimer); fbTimer = setTimeout(fbRefresh, 300); };
-  const fbCopy = async (text) => {
-    try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); snack(t("feedback.copied")); return; } } catch (e) { /* plain http: fall back */ }
+  const fbCopy = async (text, done = "feedback.copied") => {
+    try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); snack(t(done)); return; } } catch (e) { /* plain http: fall back */ }
     const ta = document.createElement("textarea");
     ta.value = text; ta.setAttribute("readonly", ""); ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
     document.body.append(ta); ta.select();
     let ok = false; try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
-    ta.remove(); snack(t(ok ? "feedback.copied" : "feedback.copy_failed"));
+    ta.remove(); snack(t(ok ? done : "feedback.copy_failed"));
   };
   $("#view").addEventListener("input", (e) => {
     const key = e.target.dataset?.fb;
@@ -4997,6 +5003,7 @@
     "models-sort": (b) => { state.modelsSort = b.dataset.v; render(); document.querySelector(`[data-act="models-sort"][data-v="${CSS.escape(b.dataset.v)}"]`)?.focus(); },
     "cm-share"() { state.share = { ieee: state.open, verdict: "", tags: [], comment: "", stats: true, result: null }; renderMore(true); cmRefresh(); document.querySelector('[data-act="cm-verdict"]')?.focus(); },
     "cm-cancel"() { state.share = null; renderMore(true); },
+    "cm-copy"() { const r = state.share?.result; if (r && !r.problems.length) fbCopy(cmIssueBody(r), "community.copied"); },
     "cm-verdict": (b) => { if (!state.share) return; state.share.verdict = b.dataset.v; renderMore(true); cmRefresh(); document.querySelector(`[data-act="cm-verdict"][data-v="${CSS.escape(b.dataset.v)}"]`)?.focus(); },
     "cm-tag": (b) => {
       const sh = state.share; if (!sh) return;
