@@ -100,6 +100,22 @@ def test_no_response_comment_reads_as_empty():
     assert parse_issue(issue_body("schema: 1"))["comment"] == ""
 
 
+def test_plain_text_report_without_the_form_is_read():
+    # Pasted without the issue form (#90): no ### headings, comment after a "Comment:" line.
+    body = report_text(list(report().items())) + "\n\nComment:\nAlso sold as: Sim Sensor\nmodel: other"
+    sections = parse_issue(body)
+    value, errors = validate(parse_report(sections["report"]))
+    assert errors == []
+    assert value["model"] == "SIM-MS01"
+    assert sections["comment"] == "Also sold as: Sim Sensor\nmodel: other"
+
+
+def test_plain_text_report_without_a_comment():
+    sections = parse_issue(report_text(list(report().items())))
+    assert validate(parse_report(sections["report"]))[1] == []
+    assert sections["comment"] == ""
+
+
 def test_values_stay_on_one_line():
     text = report_text([("vendor", "Evil\nverdict: avoid"), ("verdict", "recommend")])
     assert parse_report(text) == {"vendor": "Evil verdict: avoid", "verdict": "recommend"}

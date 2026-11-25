@@ -5,12 +5,16 @@ name: Rating intake
 # (community-ratings.yml). One that can't be read gets the invalid-rating label and a comment,
 # and is checked again when its author edits it.
 #
+# It also runs when the rating label is added later, for a report opened without the form.
+# A form issue gets the label as it's opened, so it fires both opened and labeled: the second
+# run finds the issue already closed and stops, so nobody gets two comments.
+#
 # The issue text is untrusted: it's only read from the event file by the script, never put
 # into a shell command.
 
 on:
   issues:
-    types: [opened, edited, reopened]
+    types: [opened, edited, reopened, labeled]
 
 permissions:
   contents: read
@@ -22,7 +26,10 @@ concurrency:
 jobs:
   check:
     name: Check the report
-    if: ${{ contains(github.event.issue.labels.*.name, 'rating') && !contains(github.event.issue.labels.*.name, 'rating-rejected') }}
+    if: >-
+      ${{ contains(github.event.issue.labels.*.name, 'rating')
+      && !contains(github.event.issue.labels.*.name, 'rating-rejected')
+      && (github.event.action != 'labeled' || github.event.label.name == 'rating') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -32,11 +39,17 @@ jobs:
       GH_REPO: ${{ github.repository }}
       NUMBER: ${{ github.event.issue.number }}
     steps:
+      - name: Skip closed issues
+        id: state
+        run: echo "state=$(gh issue view "${NUMBER}" --json state --jq .state)" >> "${GITHUB_OUTPUT}"
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.state.outputs.state == 'OPEN'
         with:
           persist-credentials: false
 
       - name: Read the report
+        if: steps.state.outputs.state == 'OPEN'
         id: check
         run: |
           python3 scripts/community_ratings.py check "${GITHUB_EVENT_PATH}" > result.json
@@ -44,13 +57,13 @@ jobs:
           echo "valid=$(jq -r '.valid' result.json)" >> "${GITHUB_OUTPUT}"
 
       - name: Accept
-        if: steps.check.outputs.valid == 'true'
+        if: steps.state.outputs.state == 'OPEN' && steps.check.outputs.valid == 'true'
         run: |
           gh issue edit "${NUMBER}" --remove-label invalid-rating || true
           gh issue close "${NUMBER}" --reason completed --comment "$(cat comment.md)"
 
       - name: Ask for a fix
-        if: steps.check.outputs.valid != 'true'
+        if: steps.state.outputs.state == 'OPEN' && steps.check.outputs.valid != 'true'
         run: |
           gh issue edit "${NUMBER}" --add-label invalid-rating
           gh issue comment "${NUMBER}" --body-file comment.md
