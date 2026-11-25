@@ -133,6 +133,8 @@ DEFAULT_OPTIONS = {
     "chatty_per_hour": 1200,
     "ota_window": "",
     "ota_min_battery": 30,
+    "battery_auto_detect": True,
+    "battery_confirm_detected": False,
     "quiet_hours": False,
     "learn_rhythm": True,
     "expected_outages": True,
@@ -239,6 +241,8 @@ SETTINGS = {
     "notify_checks": _kinds,
     "ota_window": _ota_window,
     "ota_min_battery": _int(0, 100),
+    "battery_auto_detect": _bool,
+    "battery_confirm_detected": _bool,
     "quiet_hours": _bool,
     "learn_rhythm": _bool,
     "expected_outages": _bool,
@@ -2402,6 +2406,15 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/battery/brand":
                 ok = tracker.set_battery_brand(ieee, body.get("index"), body.get("brand"))
                 self._json(200 if ok else 400, {"ok": ok, "error": None if ok else "Invalid device, entry or brand"})
+            elif path == "/api/battery/pending":
+                action = body.get("action")
+                ok = action in ("confirm", "dismiss") and tracker.resolve_battery_pending(ieee, action == "confirm")
+                threading.Thread(target=discovery.sync, daemon=True).start()
+                self._json(200 if ok else 404, {"ok": ok})
+            elif path == "/api/battery/unreliable":
+                ok = tracker.set_battery_unreliable(ieee, body.get("unreliable"))
+                threading.Thread(target=discovery.sync, daemon=True).start()
+                self._json(200 if ok else 400, {"ok": ok})
             elif path == "/api/battery/remove":
                 ok = tracker.remove_battery_replacement(ieee, int(body.get("index", -1)))
                 threading.Thread(target=discovery.sync, daemon=True).start()

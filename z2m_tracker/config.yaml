@@ -65,6 +65,8 @@ options:
   chatty_per_hour: 1200
   ota_window: ""
   ota_min_battery: 30
+  battery_auto_detect: true
+  battery_confirm_detected: false
   quiet_hours: false
   learn_rhythm: true
   expected_outages: true
@@ -124,6 +126,8 @@ schema:
   chatty_per_hour: int(60,36000)?
   ota_window: str?
   ota_min_battery: int(0,100)?
+  battery_auto_detect: bool?
+  battery_confirm_detected: bool?
   quiet_hours: bool?
   learn_rhythm: bool?
   expected_outages: bool?
