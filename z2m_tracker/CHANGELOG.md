@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.5.0
+
+A battery level that jumps up no longer has to mean a new battery. You can now turn battery change detection off, have the app ask before it records one, or mark a single device's battery level as unreliable.
+
+### Added
+- **Choose how detected battery changes are recorded** ([#88](https://github.com/tempus2016/z2m-device-tracker/issues/88)). The app records a battery change when a device's battery level jumps up by 25 points or more in a day. Some devices report levels that jump around, and every jump was counted as a new battery and took one from stock. Three new settings fix this:
+  - **Settings → Batteries → Detect battery changes** (`battery_auto_detect`, on by default). Off records battery changes only when you mark them with **Battery replaced**.
+  - **Settings → Batteries → Ask before recording** (`battery_confirm_detected`, off by default). A detected change waits in the **Battery** card on the device's page. **Confirm** records it and takes the battery from stock, **Dismiss** drops it, and marking the battery replaced also answers it.
+  - **Battery level unreliable**, a switch in the **Battery** card on each device's page. That device's jumps are never treated as battery changes, and it gets no battery estimate or drain rate. Its level and low-battery check stay as they are.
+
+### Fixed
+- **A community rating pasted as plain text is now read.** A report sent without the issue form's headings was rejected with every field marked missing. The whole text is now read as the report. A rating whose `rating` label is added after the issue is opened is now checked too.
+
 ## 2.4.1
 
 A fix for devices that stayed offline after being re-paired, a new way to report a bug or ask for a feature straight from the app, and the first community ratings.
