@@ -6,8 +6,9 @@ name: Community ratings
 # file up within a day; the rest get it with the next release.
 #
 # Needs "Allow GitHub Actions to create and approve pull requests" switched on under
-# Settings > Actions > General. A pull request opened with GITHUB_TOKEN does not start
-# the other workflows; close and reopen it to run CI before merging.
+# Settings > Actions > General. GitHub creates the CI runs for a pull request opened
+# with GITHUB_TOKEN but holds them until a maintainer presses "Approve workflows to
+# run" on the pull request; merge once they pass.
 
 on:
   schedule:
@@ -65,5 +66,5 @@ jobs:
           if [ -z "$(gh pr list --head "${BRANCH}" --state open --json number --jq '.[].number')" ]; then
             gh pr create --head "${BRANCH}" --base "${GITHUB_REF_NAME}" \
               --title "Update the community ratings" \
-              --body "Weekly rebuild of \`z2m_tracker/app/community_ratings.json\` from the [rating issues](https://github.com/${GITHUB_REPOSITORY}/issues?q=label%3Arating). ${SUMMARY}. Close and reopen this pull request to run CI before merging."
+              --body "Weekly rebuild of \`z2m_tracker/app/community_ratings.json\` from the [rating issues](https://github.com/${GITHUB_REPOSITORY}/issues?q=label%3Arating). ${SUMMARY}. CI waits for approval: press **Approve workflows to run** below, and merge once it passes."
           fi
