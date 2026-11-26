@@ -1,0 +1,322 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Z2M Device Tracker",
+        "description": "Csatlakozik a Z2M Device Tracker apphoz, amely minden Zigbee2MQTT-eszköz előzményét rögzíti. Az app külön telepítendő a Beállítások → Bővítmények → Alkalmazásbolt menüből, és ennek az integrációnak szüksége van rá, hogy fusson. Összesítő szenzorokat és a z2m-tracker-card kártyát adja hozzá. Az app URL-je az app telepítésekor automatikusan kitöltődik. Home Assistant Container esetén helyette az app Docker-image-ét futtasd, és add meg a címét és API-tokenjét.",
+        "data": {
+          "app_url": "App URL",
+          "token": "API-token"
+        },
+        "data_description": {
+          "token": "Csak sima Dockerben futó app esetén (Home Assistant Container): az app konténerében lévő /data/api_token tartalma. Hagyd üresen, ha az app az alkalmazásboltból van telepítve."
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "A Z2M Device Tracker már be van állítva."
+    },
+    "error": {
+      "invalid_url": "Adj meg egy http:// vagy https:// címet felhasználónév és jelszó nélkül, pl. http://local-z2m-tracker:8099."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Z2M Device Tracker",
+        "data": {
+          "app_url": "App URL",
+          "token": "API-token",
+          "repairs": "Problémák megjelenítése a Beállítások > Javítások alatt",
+          "calendar_todo": "Elem- és karbantartási naptárak és teendőlisták"
+        },
+        "data_description": {
+          "token": "Csak sima Dockerben futó app esetén (Home Assistant Container): az app konténerében lévő /data/api_token tartalma. Hagyd üresen, ha az app az alkalmazásboltból van telepítve.",
+          "repairs": "Az app figyelmeztetéseit és az értesítésre állított ellenőrzéseket tükrözi. Mindegyik magától eltűnik, ha a probléma megszűnik. Semmi nem jelenik meg, amíg az app beállításaiban a riasztások vagy a Problémák megjelenítése a HA Javításokban ki van kapcsolva.",
+          "calendar_todo": "A Home Assistant felveszi a Naptárat és a Teendőket az oldalsávra, amíg bármelyik integráció biztosítja őket. Kikapcsolás után indítsd újra a Home Assistantot, hogy eltűnjenek az oldalsávról (hacsak más integráció nem használja őket). Ha a listákat meg akarod tartani, de az oldalsáv elemeit elrejtenéd, nyomd hosszan a Home Assistant címet az oldalsáv tetején."
+        }
+      }
+    },
+    "error": {
+      "invalid_url": "Adj meg egy http:// vagy https:// címet felhasználónév és jelszó nélkül, pl. http://local-z2m-tracker:8099."
+    }
+  },
+  "services": {
+    "import_history": {
+      "name": "Előzmények importálása",
+      "description": "Megkéri az appot, hogy olvassa újra a Z2M adatbázisokat, konfigurációs mentéseket, naplókat és a Home Assistant nyilvántartásait eszközök és nevek után, és fésülje össze őket az előzményekkel."
+    },
+    "battery_replaced": {
+      "name": "Elem cserélve",
+      "description": "Elemcserét rögzít egy Zigbee-eszközön. A Battery Notes-t is frissíti, ha az figyeli az eszközt.",
+      "fields": {
+        "device_id": {
+          "name": "Eszköz",
+          "description": "A Zigbee2MQTT-eszköz. Név szerint válaszd ki."
+        },
+        "ieee": {
+          "name": "IEEE-cím",
+          "description": "Eszköz helyett használható, pl. 0x00158d0001a2b3c4."
+        },
+        "date": {
+          "name": "Dátum",
+          "description": "Mikor cserélték az elemet. Hagyd üresen a mai naphoz."
+        },
+        "battery_type": {
+          "name": "Elemtípus",
+          "description": "Elmenti az eszköz elemtípusát, pl. CR2032. Hagyd üresen a jelenlegi megtartásához."
+        },
+        "brand": {
+          "name": "Márka",
+          "description": "Az új elem márkája, pl. Panasonic. Arra szolgál, hogy összevesse, melyik márka meddig bírja."
+        }
+      }
+    },
+    "mute_device": {
+      "name": "Eszköz némítása",
+      "description": "A tracker ne jelezzen problémát egy Zigbee-eszköznél.",
+      "fields": {
+        "device_id": {
+          "name": "Eszköz",
+          "description": "A Zigbee2MQTT-eszköz. Név szerint válaszd ki."
+        },
+        "ieee": {
+          "name": "IEEE-cím",
+          "description": "Eszköz helyett használható, pl. 0x00158d0001a2b3c4."
+        },
+        "checks": {
+          "name": "Ellenőrzések",
+          "description": "Mely ellenőrzéseket némítsa. Hagyd üresen az összes némításához."
+        },
+        "duration": {
+          "name": "Időtartam",
+          "description": "Meddig legyen némítva. Hagyd üresen, ha addig, amíg az appban vissza nem kapcsolod."
+        }
+      }
+    },
+    "run_network_scan": {
+      "name": "Hálózati felmérés indítása",
+      "description": "Útvonal-felmérést (hálózati térképet) indít a Zigbee2MQTT-ben. A háttérben fut, és néhány percig tarthat.",
+      "fields": {
+        "base_topic": {
+          "name": "Alaptéma",
+          "description": "A felmérendő Zigbee2MQTT-hálózat, pl. zigbee2mqtt. Hagyd üresen az összes hálózat felméréséhez."
+        }
+      }
+    },
+    "reconfigure": {
+      "name": "Újrakonfigurálás",
+      "description": "Megkéri a Zigbee2MQTT-t, hogy konfigurálja újra az eszközt. Ez újra létrehozza a jelentési kötéseit. Az elemes eszközöket előbb ébreszd fel.",
+      "fields": {
+        "device_id": {
+          "name": "Eszköz",
+          "description": "A Zigbee2MQTT-eszköz. Név szerint válaszd ki."
+        },
+        "ieee": {
+          "name": "IEEE-cím",
+          "description": "Eszköz helyett használható, pl. 0x00158d0001a2b3c4."
+        }
+      }
+    },
+    "ota_update": {
+      "name": "Firmware-frissítés",
+      "description": "Firmware-frissítést (OTA) indít. Ha az eszközt üresen hagyod, minden olyan eszközt frissít, amelyhez van elérhető frissítés.",
+      "fields": {
+        "device_id": {
+          "name": "Eszköz",
+          "description": "A Zigbee2MQTT-eszköz. Hagyd üresen az összes frissíthető eszköz frissítéséhez."
+        },
+        "ieee": {
+          "name": "IEEE-cím",
+          "description": "Eszköz helyett használható, pl. 0x00158d0001a2b3c4."
+        }
+      }
+    },
+    "pause_alerts": {
+      "name": "Riasztások szüneteltetése",
+      "description": "Egy időre leállítja a tracker riasztásait, pl. Zigbee2MQTT-n végzett munka idejére. Az Állapot oldal továbbra is listázza a problémákat. A szünet végén a még fennálló problémák egyszer kiküldésre kerülnek.",
+      "fields": {
+        "minutes": {
+          "name": "Perc",
+          "description": "Meddig szüneteljen. Hagyd üresen, ha addig, amíg vissza nem kapcsolod."
+        }
+      }
+    },
+    "resume_alerts": {
+      "name": "Riasztások folytatása",
+      "description": "Azonnal befejezi a szünetet. A szünet alatt talált, még fennálló problémák kiküldésre kerülnek."
+    },
+    "add_note": {
+      "name": "Jegyzet hozzáadása",
+      "description": "Egy sort ad egy Zigbee-eszköz trackerben lévő jegyzetéhez.",
+      "fields": {
+        "device_id": {
+          "name": "Eszköz",
+          "description": "A Zigbee2MQTT-eszköz. Név szerint válaszd ki."
+        },
+        "ieee": {
+          "name": "IEEE-cím",
+          "description": "Eszköz helyett használható, pl. 0x00158d0001a2b3c4."
+        },
+        "text": {
+          "name": "Szöveg",
+          "description": "A hozzáadandó szöveg. Új sorba kerül a meglévő jegyzet után."
+        }
+      }
+    }
+  },
+  "issues": {
+    "device_issue": {
+      "title": "Zigbee: {name} - {title}",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "{name}: {title}",
+            "description": "{detail}\n\nVálassz egy javítást. A némítás csak ennél az eszköznél állítja le ennek az ellenőrzésnek a jelzését.\n\n[Megnyitás a Zigbee Trackerben]({panel})",
+            "menu_options": {
+              "restore_binding": "Kötés visszaállítása",
+              "bindings_removed": "A kötést szándékosan távolították el",
+              "battery_replaced": "Ma cseréltem elemet",
+              "reconfigure": "Az eszköz újrakonfigurálása",
+              "install_update": "A firmware-frissítés telepítése",
+              "mute_day": "Ellenőrzés némítása 24 órára",
+              "mute_forever": "Ellenőrzés némítása, amíg vissza nem kapcsolom"
+            }
+          },
+          "restore_binding": {
+            "title": "Kötés visszaállítása",
+            "description": "Megkéri a Zigbee2MQTT-t, hogy hozza létre újra ezeket a kötéseket ezen: {name}:\n\n{bindings}\n\nHa elemes, előbb ébreszd fel, pl. a gombja megnyomásával, aztán válaszd a Küldést. Kötésenként akár egy percig is tarthat."
+          }
+        },
+        "abort": {
+          "not_loaded": "A Z2M Device Tracker nincs betöltve.",
+          "app_error": "A javítás nem sikerült: {error}"
+        }
+      }
+    },
+    "network_issue": {
+      "title": "Zigbee: {name} - {title}",
+      "description": "{detail}\n\n[A Zigbee Tracker megnyitása]({panel})"
+    },
+    "critical_offline": {
+      "title": "{name} offline (kritikus eszköz)",
+      "fix_flow": {
+        "step": {
+          "init": {
+            "title": "{name} offline",
+            "description": "{detail}\n\n{name} kritikus eszköznek van jelölve a Zigbee Trackerben. Ellenőrizd a tápellátását és a routert, amelyen keresztül kommunikál. Ez a javítás magától lezárul, amikor újra online lesz. A némítás leállítja az offline jelzését.\n\n[Megnyitás a Zigbee Trackerben]({panel})",
+            "menu_options": {
+              "mute_day": "Ellenőrzés némítása 24 órára",
+              "mute_forever": "Ellenőrzés némítása, amíg vissza nem kapcsolom"
+            }
+          }
+        },
+        "abort": {
+          "not_loaded": "A Z2M Device Tracker nincs betöltve.",
+          "app_error": "A javítás nem sikerült: {error}"
+        }
+      }
+    },
+    "network_offline": {
+      "title": "Zigbee2MQTT offline: {name}",
+      "description": "{detail}\n\nEz a javítás magától lezárul, amikor a Zigbee2MQTT visszatér.\n\n[A Zigbee Tracker megnyitása]({panel})"
+    },
+    "coordinator_backup": {
+      "title": "Koordinátor-mentési probléma: {name}",
+      "description": "{detail}\n\nEz a javítás magától lezárul, amikor a Zigbee2MQTT ír egy jó koordinátor-mentést.\n\n[A Zigbee Tracker megnyitása]({panel})"
+    }
+  },
+  "entity": {
+    "calendar": {
+      "batteries": {
+        "name": "Zigbee-elemek"
+      },
+      "maintenance": {
+        "name": "Zigbee-karbantartás"
+      }
+    },
+    "todo": {
+      "batteries": {
+        "name": "Zigbee-elemek"
+      },
+      "maintenance": {
+        "name": "Zigbee-karbantartás"
+      }
+    }
+  },
+  "selector": {
+    "check": {
+      "options": {
+        "offline": "Offline",
+        "silent": "Nem jelentkezik",
+        "late": "Abbahagyta a jelentést",
+        "frozen": "Befagyott érték",
+        "impossible_reading": "Lehetetlen érték",
+        "battery_low": "Alacsony töltöttség",
+        "battery_soon": "Merülő elem",
+        "battery_drain": "Gyorsan merülő elem",
+        "weak_signal": "Gyenge jel",
+        "signal_drop": "Romló jel",
+        "lqi_stuck": "Beragadt kapcsolatminőség",
+        "unidentified": "Azonosítatlan",
+        "update": "Firmware-frissítés",
+        "replacement": "Lehetséges csere",
+        "flapping": "Ki-be esik",
+        "chatty": "Túl beszédes eszköz",
+        "binding_lost": "Elveszett kötés",
+        "single_point": "Egyetlen meghibásodási pont",
+        "router_hopping": "Gyakran vált routert",
+        "slow_router": "Lassuló router",
+        "maintenance_due": "Esedékes karbantartás",
+        "warranty_ending": "Lejáró garancia",
+        "slow_commands": "Lassan válaszol",
+        "missed_commands": "Kihagy parancsokat",
+        "reporting_config": "Jelentési beállítások",
+        "naming": "A név nem követi a mintát",
+        "firmware_note": "Megjegyzett firmware",
+        "retained_command": "Megőrzött parancs",
+        "availability_mismatch": "Elérhetőségi ellentmondás",
+        "payload_changed": "Más adatokat küld",
+        "community_avoid": "Mások rosszul értékelik"
+      }
+    }
+  },
+  "exceptions": {
+    "not_loaded": {
+      "message": "A Z2M Device Tracker nincs betöltve."
+    },
+    "app_unreachable": {
+      "message": "A Z2M Device Tracker app nem érhető el."
+    },
+    "app_error": {
+      "message": "A Z2M Device Tracker app hibát adott vissza: {error}"
+    },
+    "no_device": {
+      "message": "Válassz eszközt, vagy adj meg egy IEEE-címet."
+    },
+    "unknown_device_id": {
+      "message": "Nincs {device} azonosítójú eszköz a Home Assistantban."
+    },
+    "not_zigbee": {
+      "message": "{device} nem Zigbee2MQTT-eszköz."
+    },
+    "bad_ieee": {
+      "message": "{ieee} nem IEEE-cím. Így kell kinéznie: 0x00158d0001a2b3c4."
+    },
+    "unknown_ieee": {
+      "message": "A trackerben nincs {ieee} eszköz."
+    },
+    "not_active": {
+      "message": "{name} már nincs a Zigbee2MQTT-ben."
+    },
+    "no_update": {
+      "message": "{name} eszközhöz nincs elérhető firmware-frissítés."
+    },
+    "unknown_base_topic": {
+      "message": "Nincs {base_topic} alaptémájú Zigbee2MQTT-hálózat. Ismertek: {known}."
+    },
+    "note_too_long": {
+      "message": "A jegyzet hosszabb lenne {limit} karakternél. Előbb rövidítsd le az appban."
+    }
+  }
+}

@@ -1,0 +1,169 @@
+configuration:
+  zigbee2mqtt:
+    name: Zigbee2MQTT
+    description: A Zigbee2MQTT-hálózataid (az alábbi alaptémák) olvasása MQTT-n keresztül. Alapból bekapcsolva.
+  zha:
+    name: ZHA (béta)
+    description: A Home Assistant ZHA integrációjának olvasása. A Zigbee2MQTT-vel együtt is bekapcsolható; mindkettő külön hálózatként jelenik meg. Módosítás után indítsd újra az appot.
+  matter:
+    name: Matter (béta)
+    description: A Home Assistant Matter integrációjának olvasása. A Matter-eszközök külön hálózatként jelennek meg a Zigbee-hálózataid mellett. Módosítás után indítsd újra az appot.
+  zigbee_stack:
+    name: Zigbee-stack (régi)
+    description: Helyette a Zigbee2MQTT és a ZHA kapcsoló szolgál. Egy ZHA-ra állított régebbi telepítés csak a ZHA-t olvassa, amíg valamelyik kapcsolót meg nem változtatod.
+  base_topics:
+    name: Zigbee2MQTT alaptémák
+    description: Minden figyelt Zigbee2MQTT-példány MQTT-alaptémája.
+  z2m_panels:
+    name: Zigbee2MQTT app-linkek
+    description: Linkek az egyes Zigbee2MQTT appokhoz, base_topic=app_slug formában, pl. zigbee2mqtt=45df7312_zigbee2mqtt. A slug az app URL-jében található.
+  alerts_enabled:
+    name: Riasztások
+    description: A riasztások főkapcsolója.
+  persistent_notifications:
+    name: Home Assistant-értesítések
+    description: A riasztások megjelenítése Home Assistant-értesítésként.
+  fire_events:
+    name: Események küldése
+    description: z2m_tracker_alert események küldése az automatizálásoknak.
+  ha_repairs:
+    name: Problémák megjelenítése a HA Javításokban
+    description: Telepített integráció esetén a problémák listázása a Beállítások > Javítások alatt, pl. offline kritikus eszközök, offline hálózatok és koordinátor-mentési problémák. Mindegyik magától lezárul, ha megszűnik.
+  notify_service:
+    name: Értesítési szolgáltatás
+    description: A riasztások küldése egy értesítési szolgáltatásnak is, pl. notify.mobile_app_telefon.
+  alert_actions:
+    name: Gombok a telefonos riasztásokon
+    description: Némítás 24 órára, Ping és Elem cserélve gombok az értesítési szolgáltatásnak küldött riasztásokon, és koppintásra az eszköz megnyitása a Zigbee Trackerben.
+  alert_on_join:
+    name: Riasztás csatlakozáskor
+    description: Riasztás, ha új eszköz csatlakozik.
+  disabled_checks:
+    name: Kikapcsolt ellenőrzések
+    description: Teljesen kikapcsolandó állapotellenőrzések.
+  notify_checks:
+    name: Riasztó ellenőrzések
+    description: Azok az állapotellenőrzések, amelyek riasztást küldenek.
+  offline_alert_minutes:
+    name: Offline riasztás késleltetése (perc)
+    description: Mennyi ideig kell egy eszköznek offline lennie a riasztás előtt.
+  critical_offline_minutes:
+    name: Kritikus eszköz offline késleltetése (perc)
+    description: Ugyanez az Adatok fülükön Kritikus eszköznek jelölt eszközökre.
+  frozen_alert_hours:
+    name: Befagyott érték késleltetése (óra)
+    description: Mennyi ideig kell egy mért értéknek változatlannak maradnia, hogy befagyottnak számítson.
+  battery_alert_percent:
+    name: Alacsony töltöttség szintje (%)
+    description: Az alacsony töltöttség riasztás küszöbe.
+  networkmap_hour:
+    name: Útvonal-felmérés órája
+    description: Az éjszakai útvonal-felmérés órája, vagy -1 a kikapcsoláshoz.
+  networkmap_timeout_minutes:
+    name: Útvonal-felmérés időkorlátja (perc)
+    description: Meddig várjon, hogy a Zigbee2MQTT befejezze az útvonal-felmérést. Nagy hálózatoknál növeld.
+  ha_entities:
+    name: Tracker-szenzorok
+    description: Tracker-szenzorok hozzáadása minden Zigbee2MQTT-eszközhöz MQTT discovery-n keresztül.
+  weekly_summary:
+    name: Heti összefoglaló
+    description: Heti összefoglaló értesítés küldése.
+  summary_day:
+    name: Összefoglaló napja
+    description: A heti összefoglaló küldésének napja (0 = hétfő).
+  summary_hour:
+    name: Összefoglaló órája
+    description: A heti és napi összefoglalók küldésének órája.
+  daily_summary:
+    name: Napi összefoglaló
+    description: Rövid összefoglaló küldése minden nap az összefoglaló órájában, azokon a napokon, amikor van mit jelenteni.
+  wifi_channels:
+    name: Wi-Fi-csatornák
+    description: A 2,4 GHz-es Wi-Fi-csatornáid, pl. 1, 6, a rádiócsatorna-ellenőrzéshez.
+  chatty_per_hour:
+    name: Beszédességi küszöb (üzenet óránként)
+    description: Óránkénti üzenetszám (6 órára átlagolva), amely fölött egy eszköz beszédesnek számít.
+  ota_window:
+    name: Automatikus frissítés időablaka
+    description: Az automatikus firmware-frissítések időablaka, pl. 02:00-05:00 (helyi idő, átnyúlhat éjfélen). Üresen az automatikus frissítés kikapcsol. A sikertelen frissítést a következő éjjel még egyszer megpróbálja.
+  ota_min_battery:
+    name: Minimális töltöttség frissítéshez (%)
+    description: Az ennél alacsonyabb töltöttségű elemes eszközöket az automatikus és a tömeges frissítés kihagyja. A Frissítés mindenképp egy eszköznél felülbírálja.
+  battery_auto_detect:
+    name: Elemcserék felismerése
+    description: Elemcserét rögzít, ha egy eszköz töltöttsége 25 vagy több ponttal megugrik. Kikapcsolva csak akkor rögzít cserét, ha te jelölöd.
+  battery_confirm_detected:
+    name: Kérdezzen a felismert csere rögzítése előtt
+    description: A felismert elemcsere az eszköz oldalán vár, amíg meg nem erősíted vagy el nem veted.
+  quiet_hours:
+    name: Csendes órák
+    description: A riasztások visszatartása a csendes órákban, és egy összefoglaló küldése a végükön.
+  learn_rhythm:
+    name: Minden eszköz ritmusának tanulása
+    description: Az egyes eszközök Abbahagyta a jelentést határértékét a jelentési gyakoriságukból állítja be, a hét időszakai szerint. Kikapcsolva a tanult határértékek nem jeleznek; a szünetek rögzítése folytatódik.
+  expected_outages:
+    name: Várt kiesések
+    description: Ne riasszon, ha egy hálózat abban az időpontban megy offline, amikor a legtöbb napon szokott, pl. éjszakai újraindításkor.
+  quiet_start:
+    name: Csendes órák kezdete
+    description: A csendes órák kezdete az app időzónájában, ÓÓ:PP formában.
+  quiet_end:
+    name: Csendes órák vége
+    description: A csendes órák vége, ÓÓ:PP formában. Az időablak átnyúlhat éjfélen.
+  escalate_enabled:
+    name: Megválaszolatlan riasztások továbbítása
+    description: Ha időben senki nem némítja, nem pingeli meg vagy nem javítja a problémát, a riasztást egy második értesítési szolgáltatásnak is elküldi. Minden probléma csak egyszer kerül továbbításra.
+  escalate_hours:
+    name: Továbbítás ennyi idő után (óra)
+    description: Mennyi ideig maradhat megválaszolatlan egy riasztás, mielőtt továbbításra kerül.
+  escalate_service:
+    name: Továbbítási értesítési szolgáltatás
+    description: A második értesítési szolgáltatás, pl. notify.mobile_app_partner_telefon.
+  escalate_critical_only:
+    name: Csak kritikus eszközök továbbítása
+    description: Csak a Kritikus eszköznek jelölt eszközök riasztásai kerülnek továbbításra.
+  naming_pattern:
+    name: Elnevezési minta
+    description: Minta az eszköznevekhez, kapcsos zárójeles elemekből - area, type, model és n (egyedivé tevő sorszám). Párosításkor kitölti az új eszközök nevét, és ez alapján működik az Elnevezés ellenőrzés. Üresen kikapcsol.
+  battery_shop_url:
+    name: Elembolt-link
+    description: Bolti keresési cím, ahol {type} az elemtípus helye, pl. https://www.emag.ro/search/{type}. Kosár gombot tesz minden megvásárolandó elem mellé. Üresen a gombok rejtve maradnak.
+  retained_autoclear:
+    name: Régi megőrzött témák törlése átnevezés után
+    description: Egy eszköz átnevezése után törli a megőrzött üzeneteket, amelyeket a bróker még a régi neve alatt tárol. Kikapcsolva a Hálózat → Bróker alatt listázza őket, hogy te töröld.
+  broker_stats:
+    name: Bróker-statisztikák olvasása
+    description: Feliratkozás a Mosquitto $SYS/broker/# témáira, hogy a Hálózat → Bróker oldal mutassa a klienseket, a megőrzött és az eldobott üzeneteket, az üzemidőt és az üzenetforgalmat.
+  impossible_temp_min:
+    name: Legalacsonyabb hihető hőmérséklet (°C)
+    description: Az ennél alacsonyabb hőmérséklet lehetetlen értéknek számít.
+  impossible_temp_max:
+    name: Legmagasabb hihető hőmérséklet (°C)
+    description: Az ennél magasabb hőmérséklet lehetetlen értéknek számít.
+  humidity_stuck_hours:
+    name: Beragadt páratartalom késleltetése (óra)
+    description: Mennyi ideig kell a páratartalomnak pontosan 0 vagy 100%-on maradnia, hogy beragadtnak számítson.
+  mqtt_host:
+    name: MQTT-bróker címe
+    description: Az MQTT-brókered, ha nem a Mosquitto bróker app. Üresen a Home Assistant által felkínált brókert használja.
+  mqtt_port:
+    name: MQTT-bróker portja
+    description: A bróker portja. Általában 1883, TLS-sel 8883.
+  mqtt_user:
+    name: MQTT-felhasználónév
+    description: Bejelentkezési név a brókerhez. Hagyd üresen, ha névtelen kapcsolódást enged.
+  mqtt_password:
+    name: MQTT-jelszó
+    description: Jelszó a brókerhez.
+  mqtt_ssl:
+    name: MQTT TLS-en keresztül
+    description: Kapcsolódás a brókerhez TLS-en keresztül.
+  mqtt_ssl_verify:
+    name: TLS-tanúsítvány ellenőrzése
+    description: A bróker TLS-tanúsítványának ellenőrzése. Önaláírt tanúsítványnál kapcsold ki.
+  metrics_token:
+    name: Prometheus-metrikák tokenje
+    description: Adj meg egy legalább 16 karakteres tokent, hogy a 9099-es porton Prometheus-metrikák legyenek elérhetők. Üresen kikapcsolva marad.
+  community_ratings_fetch:
+    name: Közösségi értékelések letöltése
+    description: Naponta egyszer letölti a legújabb közösségi eszközértékeléseket a GitHubról. Kikapcsolva az apphoz mellékelt példányt használja.

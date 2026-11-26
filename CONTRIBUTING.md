@@ -75,7 +75,7 @@ be, so it can be tested without MQTT.
 ## Translations
 
 The app and the integration ship in English, German, Dutch, French, Spanish, Italian, Polish,
-Brazilian Portuguese, Swedish, Czech, Russian and Simplified Chinese. A language is three files,
+Brazilian Portuguese, Swedish, Czech, Hungarian, Russian and Simplified Chinese. A language is three files,
 each copied from the English one next to it:
 
 | What | English source |
