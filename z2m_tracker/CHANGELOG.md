@@ -10,6 +10,7 @@ A code review of the whole app: bugs fixed, far fewer writes to the SD card, a f
 - **Hold repeated alerts** (`alert_repeat_hours`, **Settings → Thresholds**, default 24). How long a low battery, weak signal or signal drop alert that has cleared stays quiet before the same one may be sent again. 0 sends it every time.
 - **The integration checks the app's address before saving it.** A wrong address or API token now shows an error on the form, where before it made an integration with unavailable sensors. **Reconfigure** in the integration's menu changes the address and token later.
 - **Sensor names can be translated.** The integration's five sensors take their names from the language files. The English names and the entity ids stay as they are.
+- **Copy report** in the ratings share panel. The GitHub Android app can open the rating form empty ([#90](https://github.com/tempus2016/z2m-device-tracker/issues/90)); copy the report and paste it in.
 
 ### Fixed
 - **Dashboard cards in other languages showed half-filled issue text**: seconds where a duration belonged, and `{placeholders}` for most kinds of issue. The cards now fill the text the way the sidebar does, and show the English text when a language file lacks a piece.
