@@ -23,6 +23,7 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `notify_checks` | most checks | Health checks that send alerts. |
 | `offline_alert_minutes` | `60` | Extra wait after Zigbee2MQTT marks a device offline, before an alert. Zigbee2MQTT marks a device offline only after its own availability timeout (10 min for mains devices, 25 h for battery devices by default, or per device in its `configuration.yaml`). With the defaults, a mains device alerts about 70 min after its last message and a battery device about 26 h after. |
 | `critical_offline_minutes` | `5` | The same for devices marked **Critical device** on their Info tab. |
+| `alert_repeat_hours` | `24` | After a low battery, weak signal or signal drop alert has cleared, how long before the same alert may be sent again for that device. `0` sends it every time. See [When a device alerts](#when-a-device-alerts). |
 | `frozen_alert_hours` | `24` | How long a sensor reading must stay the same before it counts as frozen. A device can have its own value (Health tab, **Limits for this device**). |
 | `battery_alert_percent` | `15` | Battery level for a low battery alert. A device can have its own value (Health tab, **Limits for this device**). |
 | `networkmap_hour` | `3` | Hour of the nightly routing scan, or `-1` to turn it off. |
@@ -208,7 +209,7 @@ With `learn_rhythm: false` learned limits stop flagging anything. Gaps keep bein
 
 `offline_alert_minutes` counts from the moment Zigbee2MQTT marks the device offline, not from its last message. So with the defaults, a mains device alerts about 70 minutes after it goes quiet (10 + 60), and a battery device about 26 hours later (25 h + 60 min). Each device's **Health** tab shows its own steps under **When this device alerts**, from Zigbee2MQTT's availability settings: its own timeout or the mains/battery default, the offline delay, and Expected reporting if set. If Zigbee2MQTT availability is off for the device, only **Not heard from** applies, after 2 days.
 
-A low battery, weak signal or signal drop alert that has cleared is not sent again for the same device for 24 hours. A reading that hovers at its limit (15 %, 16 %, 15 %) would otherwise alert each time it crosses. The issue still shows on Health the whole time. Offline alerts are not held back.
+A low battery, weak signal or signal drop alert that has cleared is not sent again for the same device for 24 hours (`alert_repeat_hours`, **Settings → Thresholds → Hold repeated alerts**; 0 turns this off). A reading that hovers at its limit (15 %, 16 %, 15 %) would otherwise alert each time it crosses. The issue still shows on Health the whole time. Offline alerts are not held back.
 
 ## Pairing left open
 

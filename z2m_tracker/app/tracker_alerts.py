@@ -20,7 +20,6 @@ from tracker_base import (
     DIGEST_LINES,
     MAX_HELD_EVENTS,
     MAX_PAUSE_MINUTES,
-    RESEND_COOLDOWN,
     THRESHOLD_KINDS,
     _clock_minutes,
     _dumps,
@@ -29,6 +28,15 @@ from tracker_base import (
 )
 
 _LOGGER = logging.getLogger("z2m_tracker")
+
+
+def alert_repeat_seconds(options: dict) -> int:
+    """How long a cleared low battery or signal alert stays quiet (alert_repeat_hours; 0 is never)."""
+    try:
+        hours = int(options.get("alert_repeat_hours", 24))
+    except (TypeError, ValueError):
+        hours = 24
+    return max(0, min(hours, 168)) * 3600
 
 
 class AlertsMixin:
@@ -215,18 +223,19 @@ class AlertsMixin:
         # alerts as usual once it runs on past its usual window.
         new, alerted, dismiss = alert_plan(list(current.values()), enabled, sent)
         # A reading that hovers at its limit (battery 15 %, 16 %, 15 %) clears and comes back over
-        # and over: once such an alert has cleared, the same one is not sent again for a day.
+        # and over: once such an alert has cleared, the same one is not sent again for alert_repeat_hours.
+        hold = alert_repeat_seconds(self.options)
+        stored = self.data.get("alert_cleared")
         cleared = {
             key: at
-            for key, at in (
-                self.data.get("alert_cleared") if isinstance(self.data.get("alert_cleared"), dict) else {}
-            ).items()
-            if _finite(at) and 0 <= now - at < RESEND_COOLDOWN
+            for key, at in (stored if isinstance(stored, dict) else {}).items()
+            if _finite(at) and 0 <= now - at < hold
         }
-        for key in dismiss:
-            if key.split(":", 1)[0] in THRESHOLD_KINDS:
-                cleared[key] = now
-        if cleared or self.data.get("alert_cleared"):
+        if hold:
+            for key in dismiss:
+                if key.split(":", 1)[0] in THRESHOLD_KINDS:
+                    cleared[key] = now
+        if cleared or stored:
             self.data["alert_cleared"] = cleared
         new = [issue for issue in new if issue["key"] not in cleared]
         urgent = [issue for issue in new if issue.get("critical")]

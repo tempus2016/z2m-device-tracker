@@ -3603,6 +3603,7 @@
       <div class="card"><div class="card-header"><h2 class="ch">${th("settings.thresholds")}</h2></div>
         ${num("offline_alert_minutes", t("settings.offline_for"), th("settings.offline_for_desc"), 0, 10080, th("settings.unit_min"))}
         ${num("critical_offline_minutes", t("settings.critical_offline_for"), th("settings.critical_offline_for_desc"), 0, 1440, th("settings.unit_min"))}
+        ${num("alert_repeat_hours", t("settings.alert_repeat"), th("settings.alert_repeat_desc"), 0, 168, th("settings.unit_h"))}
         ${num("frozen_alert_hours", t("settings.frozen_for"), th("settings.frozen_for_desc"), 1, 720, th("settings.unit_h"))}
         ${num("battery_alert_percent", t("settings.battery_at"), th("settings.battery_at_desc"), 0, 100, "%")}
         ${num("chatty_per_hour", t("settings.chatty_above"), th("settings.chatty_above_desc"), 60, 36000, th("settings.unit_per_h"))}

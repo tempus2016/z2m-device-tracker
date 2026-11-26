@@ -27,9 +27,9 @@ _LOGGER = logging.getLogger("z2m_tracker")
 MAX_EVENTS = 3000
 # When the event list is full, a device's events of one kind beyond this many go first (trim_events).
 EVENTS_PER_KIND = 50
-# Checks that compare a reading with a limit, and how long one stays quiet after it cleared (plan_alerts).
+# Checks that compare a reading with a limit: once one has cleared, the same alert stays quiet for
+# alert_repeat_hours (plan_alerts).
 THRESHOLD_KINDS = frozenset({"battery_low", "weak_signal", "signal_drop"})
-RESEND_COOLDOWN = 24 * 3600
 # Changes that only move on what a device last said (last seen, readings, report counts) are written
 # at most this often; everything else is written at the next save. The whole file is rewritten each
 # time, so on a network where something reports every few seconds this is what spares the SD card.

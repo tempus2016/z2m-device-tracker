@@ -291,3 +291,26 @@ def test_login_throttle_counts_the_visitor_behind_a_proxy():
     for n in range(LOGIN_TRIES * 10):
         miss(f"198.51.100.{20 + n}")  # made-up addresses: the proxy's own limit stops it
     assert blocked("198.51.100.200")
+
+
+def test_alert_repeat_hours_sets_the_wait_and_zero_turns_it_off(make_tracker, clock):
+    enabled = {"battery_low"}
+    low = [issue("battery_low")]
+
+    def cycle(tracker) -> int:
+        sent = len(tracker.plan_alerts(low, enabled)["send"])
+        tracker.plan_alerts([], enabled)
+        return sent
+
+    short = make_tracker(options={"alert_repeat_hours": 2})
+    short.plan_alerts([], enabled)
+    assert cycle(short) == 1
+    clock.advance(hours=1)
+    assert cycle(short) == 0
+    clock.advance(hours=3)
+    assert cycle(short) == 1
+
+    off = make_tracker(options={"alert_repeat_hours": 0})
+    off.plan_alerts([], enabled)
+    assert cycle(off) == 1
+    assert cycle(off) == 1

@@ -50,6 +50,9 @@ configuration:
   critical_offline_minutes:
     name: Critical device offline delay (minutes)
     description: The same for devices marked Critical device on their Info tab.
+  alert_repeat_hours:
+    name: Hold repeated alerts (hours)
+    description: After a low battery, weak signal or signal drop alert has cleared, how long before the same one may be sent again. 0 sends it every time.
   frozen_alert_hours:
     name: Frozen reading delay (hours)
     description: How long a sensor reading must stay the same before it counts as frozen.
