@@ -84,6 +84,7 @@ from tracker_base import (
     LAST_SEEN_TEXT,
     MAX_DETAIL,
     MAX_EVENTS,
+    MAX_FORGOTTEN,
     MAX_GROUP_LEFT,
     MAX_OUTAGES,
     MAX_PAYLOAD,
@@ -466,6 +467,7 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
                 record = _new_record(ieee, base_topic)
                 record["first_seen"] = now
                 records[ieee] = record
+                self._unforget(ieee)
                 changed = True
                 if tracking_already:
                     self._add_event(
@@ -1063,6 +1065,7 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
             record = _new_record(ieee, base_topic)
             record["first_seen"] = now
             self.data["devices"][ieee] = record
+            self._unforget(ieee)
         record["last_seen"] = _max_time(record["last_seen"], now)
 
         if (
@@ -3580,8 +3583,28 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
             self._recent.pop(ieee, None)
             self.messages.forget(ieee)
             self.metrics.forget(ieee)
+            # Remembered so a later history import doesn't bring it back.
+            forgotten = [i for i in self.data.get("forgotten") or [] if i != ieee] + [ieee]
+            self.data["forgotten"] = forgotten[-MAX_FORGOTTEN:]
             self._changed(structural=True)
             return True
+
+    def forget_removed(self, ieees: list[str]) -> dict:
+        """Forget each listed device that is no longer in its network. Others are skipped."""
+        forgotten, skipped = [], []
+        with self.lock:
+            for ieee in ieees:
+                record = self.data["devices"].get(ieee)
+                if record and record.get("status") == STATUS_REMOVED and self.forget(ieee):
+                    forgotten.append(ieee)
+                else:
+                    skipped.append(ieee)
+        return {"ok": True, "forgotten": forgotten, "skipped": skipped}
+
+    def _unforget(self, ieee: str) -> None:
+        """A forgotten device is back in a network: imports may find it again."""
+        if ieee in (self.data.get("forgotten") or []):
+            self.data["forgotten"] = [i for i in self.data["forgotten"] if i != ieee]
 
     def import_history(self) -> dict[str, int]:
         result = collect_history(self.config_dir, list(self.mqtt_topics), self.local_tz)
@@ -3589,7 +3612,10 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
         new_events = 0
         with self.lock:
             records = self.data["devices"]
+            skip = set(self.data.get("forgotten") or [])
             for ieee, info in result["devices"].items():
+                if ieee in skip and ieee not in records:
+                    continue
                 record = records.get(ieee)
                 if record is None:
                     record = _new_record(ieee, info["instance"] or "unknown")
@@ -3618,6 +3644,8 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
             existing = {(event["time"], event["ieee"], event["kind"]) for event in self.data["events"]}
             for event in result["events"]:
                 key = (event["time"], event["ieee"], event["kind"])
+                if event["ieee"] in skip and event["ieee"] not in records:
+                    continue
                 if key not in existing:
                     existing.add(key)
                     self.data["events"].append(event)

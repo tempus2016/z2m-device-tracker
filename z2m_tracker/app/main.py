@@ -2215,6 +2215,14 @@ def _post_forget(body: dict, ieee: str) -> tuple[int, dict]:
     return 200 if ok else 404, {"ok": ok}
 
 
+@post("/api/forget_removed")
+def _post_forget_removed(body: dict, ieee: str) -> tuple[int, dict]:
+    ieees = body.get("ieees")
+    if not isinstance(ieees, list):
+        return 400, {"ok": False, "error": "ieees must be a list"}
+    return 200, tracker.forget_removed([str(i) for i in ieees[:5000]])
+
+
 @post("/api/settings")
 def _post_settings(body: dict, ieee: str) -> tuple[int, dict]:
     result = apply_settings(body.get("changes") if isinstance(body.get("changes"), dict) else {})

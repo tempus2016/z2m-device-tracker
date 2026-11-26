@@ -26,6 +26,7 @@ from storage import clean_stored
 _LOGGER = logging.getLogger("z2m_tracker")
 
 MAX_EVENTS = 3000
+MAX_FORGOTTEN = 1000  # forgotten IEEEs kept so a history import skips them
 # When the event list is full, a device's events of one kind beyond this many go first (trim_events).
 EVENTS_PER_KIND = 50
 # Checks that compare a reading with a limit: once one has cleared, the same alert stays quiet for
