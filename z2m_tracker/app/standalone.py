@@ -8,6 +8,7 @@ it, Home Assistant is reached at HA_URL with a long-lived access token (HA_TOKEN
 from __future__ import annotations
 
 import hmac
+import ipaddress
 import json
 import os
 import secrets
@@ -23,6 +24,8 @@ MIN_UI_CHARS = 8
 # Wrong passwords from one address before it has to wait, and how long it waits.
 LOGIN_TRIES = 5
 LOGIN_LOCKOUT = 15 * 60
+# A reverse proxy's own address may miss this many times more than one visitor (see throttle_keys).
+PROXY_TRIES_FACTOR = 10
 
 
 def is_standalone(env: dict | None = None) -> bool:
@@ -127,6 +130,26 @@ class Sessions:
             return True
 
 
+def throttle_keys(peer: str, forwarded_for: str | None) -> list[tuple[str, int]]:
+    """What a sign-in attempt counts against: (key, misses allowed) pairs, all checked.
+
+    Behind a reverse proxy every browser arrives from the proxy's address, so five wrong passwords
+    from anyone locked everybody out. When the caller is on a private address and says who it
+    forwards for, the count is kept for that visitor: the last X-Forwarded-For entry, the one the
+    proxy itself added (earlier ones are whatever the visitor sent). A header is easy to make up
+    for someone who reaches the app directly, so all the visitors of one caller share a higher limit too.
+    """
+    last = (forwarded_for or "").split(",")[-1].strip()
+    try:
+        private = ipaddress.ip_address(peer).is_private
+        visitor = str(ipaddress.ip_address(last)) if last else None
+    except ValueError:
+        private, visitor = False, None
+    if private and visitor:
+        return [(f"{peer}>{visitor}", LOGIN_TRIES), (f"{peer}>*", LOGIN_TRIES * PROXY_TRIES_FACTOR)]
+    return [(peer, LOGIN_TRIES)]
+
+
 class LoginThrottle:
     """Slows down password guessing: after LOGIN_TRIES misses an address waits LOGIN_LOCKOUT seconds."""
 
@@ -135,7 +158,7 @@ class LoginThrottle:
         self._lock = threading.Lock()
         self._misses: dict[str, list[float]] = {}
 
-    def blocked(self, client: str) -> bool:
+    def blocked(self, client: str, tries: int = LOGIN_TRIES) -> bool:
         now = self._clock()
         with self._lock:
             recent = [t for t in self._misses.get(client, []) if now - t < LOGIN_LOCKOUT]
@@ -143,7 +166,7 @@ class LoginThrottle:
                 self._misses[client] = recent
             else:
                 self._misses.pop(client, None)
-            return len(recent) >= LOGIN_TRIES
+            return len(recent) >= tries
 
     def failed(self, client: str) -> None:
         with self._lock:

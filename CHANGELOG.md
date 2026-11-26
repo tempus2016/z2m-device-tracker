@@ -18,6 +18,10 @@ A code review of the whole app: bugs fixed, far fewer writes to the SD card, and
 - **Automation actions could be missing just after a restart** while the app was slow to answer. They are now registered at start.
 - **The "Stopped reporting" check had no name** in the `mute_device` action.
 - **A page that failed to draw said "Unreachable"** and then cleared the message. It now says what failed.
+- **A power loss in a room could hold back a critical device's alert** for up to an hour, behind a device with a longer delay. A critical device now leads the alert.
+- **A firmware update that took over an hour was recorded as failed**, then a second time as an outside update. The app now keeps waiting, up to 8 hours, while Zigbee2MQTT reports progress.
+- **Behind a reverse proxy, five wrong passwords from anyone locked everybody out** (plain Docker). Wrong passwords are now counted for each visitor.
+- **One error from the Matter server switched the Thread map off** until the app was restarted. It is now asked again ten minutes later.
 - A battery stock count that isn't a number is refused instead of answering with an error page.
 
 ### Changed

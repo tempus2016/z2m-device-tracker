@@ -2502,7 +2502,8 @@ class Handler(BaseHTTPRequestHandler):
         if site in ("cross-site", "same-site"):
             self.send_error(403)
             return
-        if login_throttle.blocked(client):
+        keys = standalone.throttle_keys(client, self.headers.get("X-Forwarded-For"))
+        if any(login_throttle.blocked(key, tries) for key, tries in keys):
             self._login_page(429, "Too many wrong passwords. Wait 15 minutes, then try again.")
             return
         try:
@@ -2512,11 +2513,13 @@ class Handler(BaseHTTPRequestHandler):
         raw = self.rfile.read(length).decode("utf-8", "replace") if 0 < length <= 4096 else ""
         given = (parse_qs(raw).get("password") or [""])[0]
         if len(UI_PASSWORD) < standalone.MIN_UI_CHARS or not standalone.password_ok(given, UI_PASSWORD):
-            login_throttle.failed(client)
-            _LOGGER.warning("Wrong web UI password from %s", client)
+            for key, _tries in keys:
+                login_throttle.failed(key)
+            _LOGGER.warning("Wrong web UI password from %s", keys[0][0])
             self._login_page(401, "Wrong password.")
             return
-        login_throttle.succeeded(client)
+        # Only this visitor's count is cleared: one right password doesn't forgive a proxy's other callers.
+        login_throttle.succeeded(keys[0][0])
         secure = (self.headers.get("X-Forwarded-Proto") or "").lower() == "https"
         cookie = standalone.session_cookie(sessions.create(), secure)
         self._send(303, b"", "text/plain", {"Location": "./", "Set-Cookie": cookie})

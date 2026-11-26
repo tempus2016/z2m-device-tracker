@@ -235,6 +235,7 @@ class MatterSource:
         self._logged_down = False
         self._registry: tuple[float, list[dict], list[dict]] = (0.0, [], [])
         self.topology_supported: bool | None = None
+        self._topology_retry_at = 0.0
         self._map = MapGate()
         # None until tried; False once the short read failed, then every state is read as before.
         self.template_states: bool | None = None
@@ -334,13 +335,19 @@ class MatterSource:
         states = self.states(ws, devices, entities)
         readings = device_readings(devices, entities, states)
         topology = None
-        if self.topology_supported is not False:
+        if self.topology_supported is not False and time.monotonic() >= self._topology_retry_at:
             try:
                 topology = self._call(ws, {"type": "matter/network_topology"})
                 self.topology_supported = True
             except RuntimeError as err:
-                self.topology_supported = False
-                _LOGGER.info("The Matter server gives no network topology (%s): no Thread map or node roles", err)
+                if "unknown command" in str(err).lower():
+                    # A Matter integration from before the command existed: it never will answer.
+                    self.topology_supported = False
+                    _LOGGER.info("The Matter server gives no network topology: no Thread map or node roles")
+                else:
+                    # Anything else (the Matter server restarting) passes: ask again later.
+                    self._topology_retry_at = time.monotonic() + REGISTRY_REFRESH_SECONDS
+                    _LOGGER.info("Reading the Matter network topology failed (%s); trying again later", err)
         return devices, readings, topology_nodes(topology), topology
 
     def states(self, ws: Any, devices: list[dict], entities: list[dict]) -> list[dict]:

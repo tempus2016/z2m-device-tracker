@@ -271,3 +271,39 @@ def test_states_template_error_falls_back(make_tracker, monkeypatch):
     source = _matter_source(make_tracker)
     assert source.states(ws, MATTER_DEVICES, MATTER_ENTITIES) == []
     assert source.template_states is False
+
+
+def test_topology_error_is_tried_again_but_an_unknown_command_is_not(make_tracker, monkeypatch):
+    import matter as matter_module
+
+    clock = [1000.0]
+    monkeypatch.setattr(matter_module.time, "monotonic", lambda: clock[0])
+    ok = lambda result: [{"type": "result", "success": True, "result": result}]  # noqa: E731
+    error = ["Matter server is starting"]
+    calls = []
+
+    def topology(message):
+        calls.append(1)
+        return [{"type": "result", "success": False, "error": {"message": error[0]}}]
+
+    ws = _ScriptedWs(
+        {
+            "config_entries/get": lambda m: ok([{"entry_id": "e1", "state": "loaded"}]),
+            "config/device_registry/list": lambda m: ok([{"id": "x", "config_entries": []}]),
+            "config/entity_registry/list": lambda m: ok([]),
+            "get_states": lambda m: ok([]),
+            "matter/network_topology": topology,
+        }
+    )
+    source = _matter_source(make_tracker)
+    source.read(ws)
+    assert source.topology_supported is None and len(calls) == 1
+    source.read(ws)
+    assert len(calls) == 1  # not again straight away
+    clock[0] += matter_module.REGISTRY_REFRESH_SECONDS + 1
+    error[0] = "Unknown command."
+    source.read(ws)
+    assert source.topology_supported is False and len(calls) == 2
+    clock[0] += matter_module.REGISTRY_REFRESH_SECONDS + 1
+    source.read(ws)
+    assert len(calls) == 2

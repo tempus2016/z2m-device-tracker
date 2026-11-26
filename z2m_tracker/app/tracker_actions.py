@@ -37,7 +37,18 @@ _LOGGER = logging.getLogger("z2m_tracker")
 class ActionsMixin:
     # --------------------------------------------------------- MQTT requests
 
-    def request(self, base_topic: str, path: str, payload: dict, timeout: float = 30.0) -> dict | None:
+    def request(
+        self,
+        base_topic: str,
+        path: str,
+        payload: dict,
+        timeout: float = 30.0,
+        keep_waiting: Callable[[], float | None] | None = None,
+    ) -> dict | None:
+        """Send a request to Zigbee2MQTT and wait for its answer (None when none came).
+
+        keep_waiting is asked each time the wait runs out: seconds to wait longer for the same
+        answer, or None to give up."""
         if not self.publish:
             raise RuntimeError("MQTT is not connected")
         if base_topic not in self.base_topics:
@@ -49,7 +60,10 @@ class ActionsMixin:
             self._pending[transaction] = waiter
         try:
             self.publish(f"{base_topic}/bridge/request/{path}", {**payload, "transaction": transaction})
-            waiter["event"].wait(timeout)
+            while not waiter["event"].wait(timeout):
+                timeout = keep_waiting() if keep_waiting else None
+                if not timeout:
+                    break
             return waiter["result"]
         finally:
             with self.lock:

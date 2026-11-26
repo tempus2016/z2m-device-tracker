@@ -18,6 +18,10 @@ _LOGGER = logging.getLogger("z2m_tracker")
 MAX_HISTORY = 200
 CHECK_TIMEOUT = 45
 UPDATE_TIMEOUT = 3600
+# A slow update (a battery device on a weak link) can run for hours. Past UPDATE_TIMEOUT the wait goes
+# on in steps of this long while the progress Zigbee2MQTT reports keeps moving, up to UPDATE_LIMIT.
+UPDATE_EXTEND = 600
+UPDATE_LIMIT = 8 * 3600
 GAP_SECONDS = 20
 AUTO_RETRIES = 1
 WINDOW_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)-([01]\d|2[0-3]):([0-5]\d)$")
@@ -396,8 +400,27 @@ class OtaManager:
             self.current = {"ieee": ieee, "start": start_iso}
             self.status[ieee] = {"state": "updating", "at": start_iso}
         _LOGGER.info("Firmware update started: %s (%s -> %s)", name, from_v, to_v)
+        seen = {"progress": 0}
+
+        def still_moving() -> float | None:
+            if time.time() - start >= UPDATE_LIMIT:
+                return None
+            with self.tracker.lock:
+                update = (self._record(ieee) or {}).get("update") or {}
+            progress = update.get("progress")
+            if update.get("state") != "updating" or progress == seen["progress"]:
+                return None
+            seen["progress"] = progress
+            return UPDATE_EXTEND
+
         try:
-            result = self.tracker.request(base_topic, "device/ota_update/update", {"id": ieee}, timeout=UPDATE_TIMEOUT)
+            result = self.tracker.request(
+                base_topic,
+                "device/ota_update/update",
+                {"id": ieee},
+                timeout=UPDATE_TIMEOUT,
+                keep_waiting=still_moving,
+            )
         except Exception as err:  # noqa: BLE001 - report as a failed update
             result = {"status": "error", "error": str(err)}
         ok = bool(result and result.get("status") == "ok")

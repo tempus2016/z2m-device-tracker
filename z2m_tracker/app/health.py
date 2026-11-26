@@ -1287,7 +1287,8 @@ def group_power_loss(issues: list[dict], devices: dict[str, dict], options: dict
     still online: most likely the power there went off, not the mesh. Runs after group_router_outages,
     so devices already folded into a router's issue (and the router issues themselves) are left out:
     the router grouping wins. Counts from the moment the devices drop, before their offline delay
-    passes, like the router grouping. The device that dropped first leads: its issue gets
+    passes, like the router grouping. The device that dropped first leads (of those with an offline
+    issue already, a critical one first): its issue gets
     `power_area`, `power_devices` and the "Power loss in <area>?" text; the others get `behind` = it,
     so they don't alert on their own and the sidebar nests them. Changes the issues in place.
     """
@@ -1326,14 +1327,18 @@ def group_power_loss(issues: list[dict], devices: dict[str, dict], options: dict
                 cluster = drops[start : end + 1]
         if len(cluster) < POWER_MIN_DEVICES:
             continue
-        lead = cluster[0][1]
-        others = [ieee for _ts, ieee in cluster[1:]]
+        # The lead carries the one alert, so it must have an issue to carry it: a device whose own
+        # delay hasn't passed yet can't lead. A critical device (shorter delay) leads before the
+        # others, so its alert is never held back behind a device that alerts later.
+        ready = [ieee for _ts, ieee in cluster if ieee in offline_issue]
+        if not ready:
+            continue
+        lead = next((ieee for ieee in ready if offline_issue[ieee].get("critical")), ready[0])
+        others = [ieee for _ts, ieee in cluster if ieee != lead]
         for ieee in others:
             if ieee in offline_issue:
                 offline_issue[ieee]["behind"] = lead
-        issue = offline_issue.get(lead)
-        if issue is None:
-            continue
+        issue = offline_issue[lead]
         names = sorted(
             (_display(devices.get(ieee) or {}) or ieee for _ts, ieee in cluster),
             key=str.lower,
