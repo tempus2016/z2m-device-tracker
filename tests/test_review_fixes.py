@@ -148,3 +148,27 @@ def test_stock_count_that_is_not_a_number_is_refused(tracker):
     assert tracker.set_battery_stock("CR2032", "inf")["ok"] is False
     assert tracker.set_battery_stock("CR2032", "nan")["ok"] is False
     assert tracker.set_battery_stock("CR2032", 3)["ok"] is True
+
+
+def test_deferred_health_runs_once_before_the_issues_are_read(tracker, monkeypatch):
+    send(tracker, "bridge/devices", [z2m_device(SENSOR, "Hall sensor")])
+    runs = []
+    real = tracker.evaluate_health
+    monkeypatch.setattr(tracker, "evaluate_health", lambda: runs.append(1) or real())
+    tracker.defer_health = True
+    for kind in ("offline", "battery_low", "weak_signal"):
+        tracker.set_muted(SENSOR, kind, True)
+    assert runs == []
+    tracker.snapshot_json()
+    assert runs == [1]
+    tracker.flush_health()
+    assert runs == [1]
+
+
+def test_snapshot_parts_make_one_document(tracker):
+    send(tracker, "bridge/devices", [z2m_device(SENSOR, "Hall sensor"), z2m_device(PLUG, "Hall plug", "Router")])
+    data = json.loads(tracker.snapshot_json())
+    assert [d["ieee"] for d in data["devices"]] == [SENSOR, PLUG]
+    assert data["version"] == tracker.version
+    for key in ("events", "issues", "battery_shopping", "model_reliability", "groups", "options", "alerts_paused"):
+        assert key in data

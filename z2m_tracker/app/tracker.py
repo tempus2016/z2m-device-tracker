@@ -15,6 +15,7 @@ import uuid
 from collections import deque
 from collections.abc import Callable
 from datetime import date, datetime, timezone, tzinfo
+from time import sleep as _sleep
 from typing import Any
 
 import expected_outage
@@ -170,6 +171,11 @@ PARTS = (
 )
 
 
+def _give_way() -> None:
+    """Between two turns with the lock: lets a thread that waits for it (the MQTT one) go first."""
+    _sleep(0)
+
+
 class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, ActionsMixin, ReplaceMixin):
     """Keeps a persistent history of every device seen on Zigbee2MQTT."""
 
@@ -206,6 +212,9 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
         # /api/devices as built last: (time, revision, body, gzipped body or None). Off (0) unless the
         # app turns it on: several clients asking within seconds of a change then share one build.
         self.snapshot_seconds = 0.0
+        # Off unless the app turns it on (see _health_changed).
+        self.defer_health = False
+        self._health_pending = False
         self._snapshot: list | None = None
         # Each device's metrics summary from the last health check, for the entities published after it.
         self._summaries: tuple[float, dict[str, dict]] = (0.0, {})
@@ -943,7 +952,7 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
             )
             self._changed(structural=True)
         if ok:
-            self.evaluate_health()
+            self._health_changed()
         return {"ok": ok, "error": error, "detail": raw, "reason": None if ok else "z2m"}
 
     def acknowledge_bindings(self, ieee: str) -> bool:
@@ -962,7 +971,7 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
                 )
             record["lost_bindings"] = []
             self._changed(structural=True)
-        self.evaluate_health()
+        self._health_changed()
         return True
 
     def restore_bindings(self, ieee: str, keys: list[str] | None = None) -> dict:
@@ -2174,7 +2183,20 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
                 )
         return out
 
+    def _health_changed(self) -> None:
+        """Something a check looks at was set. The checks run at once, or (defer_health) just before
+        the issues are next read: thirty settings in a row then cost one pass over the devices, not thirty."""
+        if self.defer_health:
+            self._health_pending = True
+        else:
+            self.evaluate_health()
+
+    def flush_health(self) -> None:
+        if self._health_pending:
+            self.evaluate_health()
+
     def evaluate_health(self) -> tuple[list[dict], bool]:
+        self._health_pending = False
         now = time.time()
         self.coordinator_backups()
         with self.lock:
@@ -2414,7 +2436,7 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
                 return {"ok": False, "error": error}
             self.data["firmware_notes"] = notes
             self._changed(structural=True)
-        self.evaluate_health()
+        self._health_changed()
         return {"ok": True, "note": note}
 
     def delete_firmware_note(self, note_id: str) -> bool:
@@ -2424,7 +2446,7 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
                 return False
             self.data["firmware_notes"] = notes
             self._changed(structural=True)
-        self.evaluate_health()
+        self._health_changed()
         return True
 
     def firmware_note_block(self, record: dict | None) -> str | None:
@@ -2463,110 +2485,140 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
         return entry[3]
 
     def _build_snapshot(self, now: float) -> bytes:
+        """The page's data, built in turns with the lock rather than in one long hold: a message
+        that arrives meanwhile waits for one device or one section, not for the whole build. Each
+        part is encoded while its turn lasts, so nothing changes under it afterwards."""
+        self.flush_health()
         with self.lock:
             self.expire_commands(now)
             suggestions = self._suggestions()
             issues_by_device: dict[str, list[dict]] = {}
             for issue in self.issues:
                 issues_by_device.setdefault(issue["ieee"], []).append(issue)
-            devices = []
-            for record in self.data["devices"].values():
-                ieee = record["ieee"]
-                item = dict(record)
-                # Only the health check reads it; the issue carries what the page shows.
-                item.pop("odd_readings", None)
-                # The learning counts only matter to the tracker.
-                item.pop("payload_keys", None)
-                item.pop("reporting_sent", None)
-                item["metrics"] = self.metrics.summary(ieee, now)
-                item["uptime_30d"] = uptime(record, now)
-                item["oui_vendor"] = self._oui_vendor(ieee)
-                item["ha_device_id"] = self.ha_device_ids.get(ieee)
-                item["battery_notes"] = self.ha_battery.get(ieee)
-                used_by = self.used_by(ieee)
-                if used_by:
-                    item["used_by"] = used_by
-                item["issues"] = issues_by_device.get(ieee, [])
-                item["battery_record"] = self.battery_summary(record) if self.is_battery_device(record) else None
-                item["suggestions"] = suggestions.get(ieee, [])
-                bridge_info = (self.data.get("bridges") or {}).get(record.get("instance")) or {}
-                item["rhythm"] = self._rhythm(record, now)
-                item["reporting_profile"] = self.report_profile(record, item["metrics"], now, item["rhythm"])
-                item["offline_timing"] = offline_timing(
-                    record,
-                    (bridge_info.get("info") or {}).get("availability"),
-                    self.options,
-                    now,
-                    item["reporting_profile"]["every"] or 0,
-                )
-                item["can_ping"] = self.can_ping(record) is None
-                item["reporting_audit"] = self.reporting_audit(record, item["metrics"].get("msg_rate_6h"))
-                item["kind"] = kind_of(record)
-                item["frozen"] = self.is_frozen(record)
-                if self.community is not None:
-                    item["community_key"] = self.community.key_for(record)
-                devices.append(item)
-            # The Upkeep lists are about the networks in use, not frozen devices.
-            live = [r for r in self.data["devices"].values() if not self.is_frozen(r)]
-            payload = {
-                "devices": devices,
-                "events": self.data["events"],
-                "incidents": self.incidents(),
-                "firmware_notes": firmware_notes.clean_notes(self.data.get("firmware_notes")),
-                "firmware_note_devices": firmware_notes.matches(
-                    firmware_notes.clean_notes(self.data.get("firmware_notes")), self.data["devices"]
-                ),
-                "instances": self.base_topics,
-                # "zha" only when no Zigbee2MQTT network is read: the UI then hides what needs it.
-                "stack": "z2m" if any(_stack_of(bt) == "z2m" for bt in self.base_topics) else "zha",
-                "imported": self.data.get("imported"),
-                "issues": self.issues,
-                "networkmap": self.data.get("networkmap") or {},
-                "permit": self.permit,
-                "battery_shopping": self.battery_shopping(60),
-                "model_reliability": model_reliability(live, self.data["events"], now),
-                "device_ages": device_ages(live, self.data["events"], self._today()),
-                "community": self.community.snapshot(live, bool(self.options.get("community_ratings_fetch", True)))
-                if self.community is not None
-                else None,
-                "ha_leftovers": self.ha_leftovers,
-                "retained": self.retained_payload(),
-                "broker": self.broker_stats.snapshot(bool(self.options.get("broker_stats", True)))
-                if self.broker_stats is not None
-                else None,
-                "battery_stock": dict(self.data.get("battery_stock") or {}),
-                "battery_prices": clean_battery_prices(self.data.get("battery_prices")),
-                "running_costs": self.running_costs(now),
-                "battery_brands": self.battery_brands(),
-                "battery_brand_list": list(self.brand_list()),
-                "maintenance": self.maintenance_list(),
-                "warranties": self.warranty_list(),
-                "bridges": self.data.get("bridges") or {},
-                "radio": self.radio(),
-                "network_hours": self.network_hours(now),
-                "upgrade_impact": self.upgrade_impact(now),
-                "single_points": {bt: self.single_points(bt) for bt in self.base_topics},
-                "router_placement": {bt: self.router_placement(bt, now) for bt in self.base_topics},
-                "backups": self._backups,
-                "backup_copies": self.backup_copies(),
-                "mesh_scores": self.mesh,
-                "report_defaults": profile_defaults(self.data.get("report_profile_defaults")),
-                "groups": self.groups,
-                "group_health": self.group_health(now),
-                "scan_times": {bt: [x["at"] for x in self.scans.get(bt) or []] for bt in self.base_topics},
-                "pairing": {
-                    bt: {**s, "joined": list(s["joined"]), "progress": dict(s.get("progress") or {})}
-                    for bt, s in self.pairing_sessions.items()
-                },
-                "panels": self.options.get("_panels", {}),
-                "options": {k: v for k, v in self.options.items() if not k.startswith("_") and k not in SECRET_OPTIONS},
-                "alerts_paused": self.alert_pause_state(),
-                "version": self.version,
-            }
-            return _dumps(payload, ensure_ascii=False).encode("utf-8")
+            ieees = list(self.data["devices"])
+            version = self.version
+        devices: list[str] = []
+        for ieee in ieees:
+            with self.lock:
+                record = self.data["devices"].get(ieee)
+                if record is not None:
+                    item = self._snapshot_device(record, now, issues_by_device, suggestions)
+                    devices.append(_dumps(item, ensure_ascii=False))
+            _give_way()
+        sections: list[str] = []
+        for build in (self._snapshot_state, self._snapshot_lists, self._snapshot_rest):
+            with self.lock:
+                sections.append(_dumps(build(now), ensure_ascii=False)[1:-1])
+            _give_way()
+        sections.append(f'"version":{json.dumps(version)}')
+        body = '{"devices":[' + ",".join(devices) + "]," + ",".join(part for part in sections if part) + "}"
+        return body.encode("utf-8")
+
+    def _snapshot_device(self, record: dict, now: float, issues_by_device: dict, suggestions: dict) -> dict:
+        ieee = record["ieee"]
+        item = dict(record)
+        # Only the health check reads it; the issue carries what the page shows.
+        item.pop("odd_readings", None)
+        # The learning counts only matter to the tracker.
+        item.pop("payload_keys", None)
+        item.pop("reporting_sent", None)
+        item["metrics"] = self.metrics.summary(ieee, now)
+        item["uptime_30d"] = uptime(record, now)
+        item["oui_vendor"] = self._oui_vendor(ieee)
+        item["ha_device_id"] = self.ha_device_ids.get(ieee)
+        item["battery_notes"] = self.ha_battery.get(ieee)
+        used_by = self.used_by(ieee)
+        if used_by:
+            item["used_by"] = used_by
+        item["issues"] = issues_by_device.get(ieee, [])
+        item["battery_record"] = self.battery_summary(record) if self.is_battery_device(record) else None
+        item["suggestions"] = suggestions.get(ieee, [])
+        bridge_info = (self.data.get("bridges") or {}).get(record.get("instance")) or {}
+        item["rhythm"] = self._rhythm(record, now)
+        item["reporting_profile"] = self.report_profile(record, item["metrics"], now, item["rhythm"])
+        item["offline_timing"] = offline_timing(
+            record,
+            (bridge_info.get("info") or {}).get("availability"),
+            self.options,
+            now,
+            item["reporting_profile"]["every"] or 0,
+        )
+        item["can_ping"] = self.can_ping(record) is None
+        item["reporting_audit"] = self.reporting_audit(record, item["metrics"].get("msg_rate_6h"))
+        item["kind"] = kind_of(record)
+        item["frozen"] = self.is_frozen(record)
+        if self.community is not None:
+            item["community_key"] = self.community.key_for(record)
+        return item
+
+    def _snapshot_state(self, now: float) -> dict:
+        return {
+            "events": self.data["events"],
+            "incidents": self.incidents(),
+            "firmware_notes": firmware_notes.clean_notes(self.data.get("firmware_notes")),
+            "firmware_note_devices": firmware_notes.matches(
+                firmware_notes.clean_notes(self.data.get("firmware_notes")), self.data["devices"]
+            ),
+            "instances": self.base_topics,
+            # "zha" only when no Zigbee2MQTT network is read: the UI then hides what needs it.
+            "stack": "z2m" if any(_stack_of(bt) == "z2m" for bt in self.base_topics) else "zha",
+            "imported": self.data.get("imported"),
+            "issues": self.issues,
+            "networkmap": self.data.get("networkmap") or {},
+            "permit": self.permit,
+        }
+
+    def _snapshot_lists(self, now: float) -> dict:
+        # The Upkeep lists are about the networks in use, not frozen devices.
+        live = [r for r in self.data["devices"].values() if not self.is_frozen(r)]
+        return {
+            "battery_shopping": self.battery_shopping(60),
+            "model_reliability": model_reliability(live, self.data["events"], now),
+            "device_ages": device_ages(live, self.data["events"], self._today()),
+            "community": self.community.snapshot(live, bool(self.options.get("community_ratings_fetch", True)))
+            if self.community is not None
+            else None,
+            "ha_leftovers": self.ha_leftovers,
+            "retained": self.retained_payload(),
+            "broker": self.broker_stats.snapshot(bool(self.options.get("broker_stats", True)))
+            if self.broker_stats is not None
+            else None,
+            "battery_stock": dict(self.data.get("battery_stock") or {}),
+            "battery_prices": clean_battery_prices(self.data.get("battery_prices")),
+            "running_costs": self.running_costs(now),
+            "battery_brands": self.battery_brands(),
+            "battery_brand_list": list(self.brand_list()),
+            "maintenance": self.maintenance_list(),
+            "warranties": self.warranty_list(),
+            "bridges": self.data.get("bridges") or {},
+            "radio": self.radio(),
+            "network_hours": self.network_hours(now),
+            "upgrade_impact": self.upgrade_impact(now),
+            "single_points": {bt: self.single_points(bt) for bt in self.base_topics},
+            "router_placement": {bt: self.router_placement(bt, now) for bt in self.base_topics},
+        }
+
+    def _snapshot_rest(self, now: float) -> dict:
+        return {
+            "backups": self._backups,
+            "backup_copies": self.backup_copies(),
+            "mesh_scores": self.mesh,
+            "report_defaults": profile_defaults(self.data.get("report_profile_defaults")),
+            "groups": self.groups,
+            "group_health": self.group_health(now),
+            "scan_times": {bt: [x["at"] for x in self.scans.get(bt) or []] for bt in self.base_topics},
+            "pairing": {
+                bt: {**s, "joined": list(s["joined"]), "progress": dict(s.get("progress") or {})}
+                for bt, s in self.pairing_sessions.items()
+            },
+            "panels": self.options.get("_panels", {}),
+            "options": {k: v for k, v in self.options.items() if not k.startswith("_") and k not in SECRET_OPTIONS},
+            "alerts_paused": self.alert_pause_state(),
+        }
 
     def prometheus_snapshot(self) -> dict[str, Any]:
         """The few values the /metrics endpoint needs, read under the lock in one pass."""
+        self.flush_health()
         now = time.time()
         with self.lock:
             devices = []
@@ -2722,7 +2774,7 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
             record["asset"] = {k: v for k, v in clean.items() if v}
             self._changed(structural=True)
         # The warranty date drives the warranty_ending check.
-        self.evaluate_health()
+        self._health_changed()
         return True
 
     # ------------------------------------------------------------ maintenance
@@ -2751,7 +2803,7 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
             else:
                 tasks.append(task)
             self._changed(structural=True)
-        self.evaluate_health()
+        self._health_changed()
         return {"ok": True, "task": task}
 
     def remove_maintenance_task(self, ieee: str, task_id: str) -> bool:
@@ -2762,7 +2814,7 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
                 return False
             tasks.remove(found)
             self._changed(structural=True)
-        self.evaluate_health()
+        self._health_changed()
         return True
 
     def maintenance_done(self, ieee: str, task_id: str, day: Any = None) -> dict:
@@ -2789,7 +2841,7 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
             )
             self._changed(structural=True)
             task = dict(task)
-        self.evaluate_health()
+        self._health_changed()
         return {"ok": True, "task": task, "due": task_due(task).isoformat()}
 
     def maintenance_list(self) -> list[dict]:
@@ -2902,7 +2954,7 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
             else:
                 record["report_profile"] = profile
             self._changed(structural=True)
-        self.evaluate_health()
+        self._health_changed()
         return {"ok": True}
 
     def rhythm_normal(self, ieee: str) -> dict:
@@ -2919,7 +2971,7 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
             if time.time() - seen <= 0 or not self.metrics.teach(ieee, seen):
                 return {"ok": False, "error": "no silence to learn from"}
             self._changed(structural=True)
-        self.evaluate_health()
+        self._health_changed()
         return {"ok": True}
 
     def rhythm_forget(self, ieee: str) -> dict:
@@ -2929,7 +2981,7 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
                 return {"ok": False, "error": "unknown device"}
             self.metrics.forget_rhythm(ieee)
             self._changed(structural=True)
-        self.evaluate_health()
+        self._health_changed()
         return {"ok": True}
 
     def set_report_defaults(self, changes: Any) -> dict:
@@ -2943,7 +2995,7 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
             stored.update(clean)
             self.data["report_profile_defaults"] = stored
             self._changed(structural=True)
-        self.evaluate_health()
+        self._health_changed()
         return {"ok": True, "defaults": profile_defaults(stored)}
 
     def set_report_every(self, ieee: str, seconds: int | None) -> bool:
@@ -2982,7 +3034,7 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
             if applied:
                 self._changed(structural=True)
         if applied:
-            self.evaluate_health()
+            self._health_changed()
         return {"ok": not errors, "applied": applied, "errors": errors}
 
     def late_due(self, now: float) -> bool:
@@ -3013,7 +3065,7 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
                 current.pop(kind, None)
             record["muted"] = current
             self._changed(structural=True)
-        self.evaluate_health()
+        self._health_changed()
         return True
 
     def set_limits(self, ieee: str, changes: dict) -> dict:
@@ -3030,7 +3082,7 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
             else:
                 record.pop("limits", None)
             self._changed(structural=True)
-        self.evaluate_health()
+        self._health_changed()
         return {"ok": True, "limits": limits}
 
     # ------------------------------------------------------------ Z2M actions
@@ -3392,7 +3444,7 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
                 f"Replaced by {_display_name(new) or new_ieee} ({new_ieee})",
             )
             self._changed(structural=True)
-        self.evaluate_health()
+        self._health_changed()
         return {"ok": True}
 
     def unlink(self, old_ieee: str, new_ieee: str) -> dict:
@@ -3404,7 +3456,7 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
             if old and old.get("successor") == new_ieee:
                 old["successor"] = None
             self._changed(structural=True)
-        self.evaluate_health()
+        self._health_changed()
         return {"ok": True}
 
     def forget(self, ieee: str) -> bool:

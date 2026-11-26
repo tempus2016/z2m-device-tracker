@@ -38,6 +38,17 @@ RETRY_SECONDS = 30
 RECV_TIMEOUT = 5
 CALL_TIMEOUT = 60
 REGISTRY_REFRESH_SECONDS = 600
+# Asks Home Assistant for the states of the Matter entities only (`ids`), in the shape get_states
+# gives. Reading every state of the house each minute is megabytes on a large install.
+STATES_TEMPLATE = (
+    "{% set ns = namespace(out=[]) %}{% for e in ids %}{% set s = states[e] %}{% if s %}"
+    "{% set ns.out = ns.out + [{'entity_id': e, 'state': s.state,"
+    " 'last_reported': s.last_reported.isoformat() if s.last_reported else '',"
+    " 'last_updated': s.last_updated.isoformat() if s.last_updated else '',"
+    " 'attributes': {'device_class': s.attributes.device_class | default('', true),"
+    " 'unit_of_measurement': s.attributes.unit_of_measurement | default('', true)}}] %}"
+    "{% endif %}{% endfor %}{{ ns.out | tojson }}"
+)
 DEAD_STATES = ("unavailable", "unknown", None)
 # Node roles from the Matter server's topology, as the device types the tracker knows.
 ROLE_TYPES = {"router": "Router", "leader": "Router", "routing_end_device": "Router", "bridge": "Router"}
@@ -225,6 +236,8 @@ class MatterSource:
         self._registry: tuple[float, list[dict], list[dict]] = (0.0, [], [])
         self.topology_supported: bool | None = None
         self._map = MapGate()
+        # None until tried; False once the short read failed, then every state is read as before.
+        self.template_states: bool | None = None
 
     # ------------------------------------------------------------ feeding the tracker
     def apply(
@@ -318,7 +331,7 @@ class MatterSource:
             entities = self._call(ws, {"type": "config/entity_registry/list"}) or []
             self._registry = (time.monotonic(), registry, entities)
         devices = matter_devices(registry, loaded)
-        states = self._call(ws, {"type": "get_states"}) or []
+        states = self.states(ws, devices, entities)
         readings = device_readings(devices, entities, states)
         topology = None
         if self.topology_supported is not False:
@@ -329,6 +342,77 @@ class MatterSource:
                 self.topology_supported = False
                 _LOGGER.info("The Matter server gives no network topology (%s): no Thread map or node roles", err)
         return devices, readings, topology_nodes(topology), topology
+
+    def states(self, ws: Any, devices: list[dict], entities: list[dict]) -> list[dict]:
+        """The states the readings come from: the Matter entities' alone when Home Assistant can
+        give those, every state otherwise."""
+        if self.template_states is not False:
+            device_ids = {d.get("id") for d in devices if device_key(d)}
+            ids = sorted(
+                e["entity_id"]
+                for e in entities
+                if isinstance(e, dict)
+                and e.get("device_id") in device_ids
+                and isinstance(e.get("entity_id"), str)
+                and not e.get("disabled_by")
+            )
+            if not ids:
+                return []
+            try:
+                rows = self._render(ws, ids)
+                # Without the report times the app could not tell a quiet device from a live one.
+                if rows and not any(row.get("last_reported") for row in rows):
+                    raise ValueError("no report times in the answer")
+                self.template_states = True
+                return rows
+            except (RuntimeError, ValueError, TypeError, AttributeError, TimeoutError) as err:
+                self.template_states = False
+                _LOGGER.info("Reading only the Matter entities' states failed (%s); reading all states", err)
+        return self._call(ws, {"type": "get_states"}) or []
+
+    def _render(self, ws: Any, ids: list[str]) -> list[dict]:
+        """One render of STATES_TEMPLATE. Home Assistant answers a template with a subscription:
+        the first event carries the result, then the subscription is dropped."""
+        self._call(
+            ws,
+            {
+                "type": "render_template",
+                "template": STATES_TEMPLATE,
+                "variables": {"ids": ids},
+                "report_errors": True,
+                "timeout": 10,
+            },
+        )
+        sub = self._next_id
+        result: Any = None
+        try:
+            deadline = time.monotonic() + CALL_TIMEOUT
+            while not self.stop_event.is_set():
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("no answer to render_template")
+                try:
+                    message = json.loads(ws.recv())
+                except Exception as err:
+                    if _is_timeout(err):
+                        continue
+                    raise
+                if message.get("id") != sub:
+                    continue
+                if message.get("type") == "event":
+                    result = (message.get("event") or {}).get("result")
+                    break
+                if message.get("success") is False:
+                    raise RuntimeError((message.get("error") or {}).get("message") or "error")
+        finally:
+            try:
+                self._call(ws, {"type": "unsubscribe_events", "subscription": sub})
+            except RuntimeError:
+                pass
+        # Home Assistant hands a JSON list back as a list, or as text when it can't read it as one.
+        rows = json.loads(result) if isinstance(result, str) else result
+        if not isinstance(rows, list):
+            raise ValueError("unexpected answer")
+        return [row for row in rows if isinstance(row, dict)]
 
     def _session(self, ws: Any) -> None:
         ws.settimeout(RECV_TIMEOUT)

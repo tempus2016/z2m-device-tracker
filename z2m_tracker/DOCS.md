@@ -208,6 +208,8 @@ With `learn_rhythm: false` learned limits stop flagging anything. Gaps keep bein
 
 `offline_alert_minutes` counts from the moment Zigbee2MQTT marks the device offline, not from its last message. So with the defaults, a mains device alerts about 70 minutes after it goes quiet (10 + 60), and a battery device about 26 hours later (25 h + 60 min). Each device's **Health** tab shows its own steps under **When this device alerts**, from Zigbee2MQTT's availability settings: its own timeout or the mains/battery default, the offline delay, and Expected reporting if set. If Zigbee2MQTT availability is off for the device, only **Not heard from** applies, after 2 days.
 
+A low battery, weak signal or signal drop alert that has cleared is not sent again for the same device for 24 hours. A reading that hovers at its limit (15 %, 16 %, 15 %) would otherwise alert each time it crosses. The issue still shows on Health the whole time. Offline alerts are not held back.
+
 ## Pairing left open
 
 While pairing (permit join) is open, any nearby Zigbee device can join. The **Pairing left open** check warns and notifies when pairing stays open for 10 minutes, or straight away when something other than the Zigbee Tracker opened it (the Zigbee2MQTT frontend, Home Assistant or an automation). **Close now** on the Health tab closes it. Existing installs get this alert switched on once when they update; turn it off in Settings → Checks if you don't want it.
@@ -540,3 +542,5 @@ A bot checks each report and closes the issue. Once a week the reports are rebui
 ## Data
 
 History is stored in the app's own data folder and is included in Home Assistant backups. Use **Settings → Backup** in the app to download or restore it.
+
+To spare SD cards, the app does not write on every message. Anything you set, and every event (offline, online, joined, renamed), is written within 30 seconds. What a device last said (last seen, readings, report counts) is written at most every 10 minutes, and the trend data every 15 minutes. Stopping or restarting the app writes everything first, so only a power cut or a crash can lose those last minutes of readings.

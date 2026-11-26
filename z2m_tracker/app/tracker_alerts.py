@@ -131,7 +131,7 @@ class AlertsMixin:
             else:
                 record.pop("critical", None)
             self._changed(structural=True)
-        self.evaluate_health()
+        self._health_changed()
         return True
 
     def is_critical(self, ieee: str) -> bool:

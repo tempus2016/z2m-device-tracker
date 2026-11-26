@@ -227,5 +227,5 @@ class ReplaceMixin:
             )
             self.data["events"][-1]["ref"] = new_ieee
             self._changed(structural=True)
-        self.evaluate_health()
+        self._health_changed()
         return True

@@ -188,3 +188,86 @@ def test_idle_keeps_reading_so_pings_are_answered(make_tracker):
     stop = threading.Event()
     stop.set()
     assert MatterSource(make_tracker(["matter"]), connect=lambda: ws, stop_event=stop)._idle(ws, 1) is True
+
+
+class _ScriptedWs:
+    """Answers each request the way Home Assistant's websocket would, from a table by request type."""
+
+    def __init__(self, answers):
+        self.answers = answers
+        self.sent = []
+        self.queue = []
+
+    def send(self, text):
+        import json
+
+        message = json.loads(text)
+        self.sent.append(message)
+        for reply in self.answers[message["type"]](message):
+            self.queue.append(json.dumps({"id": message["id"], **reply}))
+
+    def recv(self):
+        return self.queue.pop(0)
+
+
+def _matter_source(make_tracker):
+    import threading
+
+    return MatterSource(make_tracker(["matter"]), connect=lambda: None, stop_event=threading.Event())
+
+
+MATTER_DEVICES = [{"id": "dev1", "identifiers": [["matter", "deviceid_1-0000000000000004-MatterNodeDevice"]]}]
+MATTER_ENTITIES = [
+    {"entity_id": "sensor.m_temp", "device_id": "dev1"},
+    {"entity_id": "sensor.m_off", "device_id": "dev1", "disabled_by": "user"},
+    {"entity_id": "sensor.other", "device_id": "dev2"},
+]
+ROW = {"entity_id": "sensor.m_temp", "state": "21", "last_reported": "2026-06-01T12:00:00+00:00", "attributes": {}}
+
+
+def test_states_asks_for_the_matter_entities_only(make_tracker, monkeypatch):
+    monkeypatch.setattr("matter.device_key", lambda d: "0xff4d000000000004")
+    ok = {"type": "result", "success": True, "result": None}
+    ws = _ScriptedWs(
+        {
+            "render_template": lambda m: [ok, {"type": "event", "event": {"result": [ROW]}}],
+            "unsubscribe_events": lambda m: [ok],
+        }
+    )
+    source = _matter_source(make_tracker)
+    assert source.states(ws, MATTER_DEVICES, MATTER_ENTITIES) == [ROW]
+    assert ws.sent[0]["variables"] == {"ids": ["sensor.m_temp"]}
+    assert [m["type"] for m in ws.sent] == ["render_template", "unsubscribe_events"]
+    assert source.template_states is True
+
+
+def test_states_falls_back_to_every_state_for_good(make_tracker, monkeypatch):
+    monkeypatch.setattr("matter.device_key", lambda d: "0xff4d000000000004")
+    ok = {"type": "result", "success": True, "result": None}
+    everything = [{"entity_id": "sensor.m_temp", "state": "21"}, {"entity_id": "light.kitchen", "state": "on"}]
+    ws = _ScriptedWs(
+        {
+            # A Home Assistant whose templates give no report time: the short read can't be trusted.
+            "render_template": lambda m: [ok, {"type": "event", "event": {"result": [{**ROW, "last_reported": ""}]}}],
+            "unsubscribe_events": lambda m: [ok],
+            "get_states": lambda m: [{"type": "result", "success": True, "result": everything}],
+        }
+    )
+    source = _matter_source(make_tracker)
+    assert source.states(ws, MATTER_DEVICES, MATTER_ENTITIES) == everything
+    assert source.template_states is False
+    assert source.states(ws, MATTER_DEVICES, MATTER_ENTITIES) == everything
+    assert [m["type"] for m in ws.sent].count("render_template") == 1
+
+
+def test_states_template_error_falls_back(make_tracker, monkeypatch):
+    monkeypatch.setattr("matter.device_key", lambda d: "0xff4d000000000004")
+    ws = _ScriptedWs(
+        {
+            "render_template": lambda m: [{"type": "result", "success": False, "error": {"message": "bad template"}}],
+            "get_states": lambda m: [{"type": "result", "success": True, "result": []}],
+        }
+    )
+    source = _matter_source(make_tracker)
+    assert source.states(ws, MATTER_DEVICES, MATTER_ENTITIES) == []
+    assert source.template_states is False

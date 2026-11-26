@@ -756,6 +756,8 @@ mqtt_status = MqttStatus(MQTT_HOST, MQTT_PORT, configured=bool(os.environ.get("M
 discovery.connected = lambda: mqtt_status.connected
 # Open pages and the integration all ask again within seconds of a change: they share one build.
 tracker.snapshot_seconds = 5
+# A run of settings (muting every check of a device is thirty requests) costs one health check, not thirty.
+tracker.defer_health = True
 
 
 def on_connect(client, userdata, flags, reason_code, properties):
@@ -1668,6 +1670,7 @@ def scheduler() -> None:
         try:
             if stack == "z2m":
                 check_mqtt()
+            tracker.flush_health()
             # A save that fails (full disk) must not skip the checks and alerts below.
             if now - last_save >= SAVE_INTERVAL:
                 last_save = now

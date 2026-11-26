@@ -1626,7 +1626,9 @@
   const emptyState = (icon, title, text) => `<div class="empty">${ic(icon)}<b>${title}</b>${text}</div>`;
 
   const DEV_LIMIT = 200;
-  const renderDevices = () => {
+  // listOnly: the search text changed. Only the chips and the list are replaced, so the search box
+  // (and a keyboard's composition in it) and the device panel beside the list stay as they are.
+  const renderDevices = (listOnly = false) => {
     const all = visible();
     const list = filtered();
     const warnCount = all.filter(CHIPS[1][2]).length;
@@ -1675,7 +1677,7 @@
         <td class="cell-sub hide-md" title="${seenTitle}">${seen}</td>
       </tr>`;
     }
-    $("#view").innerHTML = `
+    const html = `
 
       <div class="tools">
         <label class="search">${ic("magnify")}<input id="q" type="search" placeholder="${esc(t("devices.search"))}" value="${esc(state.query)}" autocomplete="off" spellcheck="false" aria-label="${esc(t("devices.search"))}"></label>
@@ -1691,11 +1693,20 @@
       <div class="count-line" style="margin:8px 4px 0;text-align:right">${th("devices.count", { shown: list.length, n: all.length })}</div>
       <div class="sel-dock" id="selBar">${selBarHtml()}</div>
       </div>${pane ? `<aside class="card pane" id="pane" aria-label="${esc(t("more.details"))}"></aside>` : ""}</div>`;
+    const view = $("#view");
+    if (listOnly && view.querySelector("#q") && view.querySelector(".split-list")) {
+      const fresh = document.createElement("template");
+      fresh.innerHTML = html;
+      for (const part of [".chips", ".split-list"]) view.querySelector(part).replaceWith(fresh.content.querySelector(part));
+      syncPicks(); markSelected();
+      return;
+    }
+    view.innerHTML = html;
     $("#page").classList.toggle("wide", pane);
     syncPicks();
     if (pane) renderMore(true, true);
     const q = $("#q");
-    q.addEventListener("input", () => { state.query = q.value; clearTimeout(q._t); q._t = setTimeout(() => { const pos = q.selectionStart; renderDevices(); const n = $("#q"); n.focus(); n.setSelectionRange(pos, pos); }, 120); });
+    q.addEventListener("input", () => { state.query = q.value; clearTimeout(q._t); q._t = setTimeout(() => renderDevices(true), 120); });
   };
 
   const restoreBindingsBtn = (ieee, lost) => `<button class="btn" data-act="restore-bindings" data-ieee="${esc(ieee)}">${ic("refresh", "s18")}${th(lost.length > 1 ? "bindings.restore_all" : "common.restore")}</button>`;

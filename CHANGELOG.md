@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased
+
+A code review of the whole app: bugs fixed, far fewer writes to the SD card, and a faster app on large networks. Nothing changes in how you use it.
+
+### Fixed
+- **Restoring a backup kept only part of it.** Firmware notes, your reporting-profile defaults, mesh score history and group history were in the backup file but dropped on restore.
+- **Matter filled the routing history in under an hour.** Every one-minute read of a Thread network was stored as a routing scan. Matter now follows the same rule as ZHA: a scan is stored when the links change, or once a day.
+- **The integration's diagnostics file could contain the API token** (plain Docker installs). It is now redacted.
+- **A full disk lost changes.** A save that failed was not tried again, left a temporary file behind and skipped that round of health checks and alerts.
+- **A group with an odd name, or a battery date that doesn't exist** (30 February), stopped the health checks or the whole sidebar.
+- **A note typed on a device could vanish** when the page refreshed in the background. A note is now saved when you leave the field, and a background refresh leaves a field you are typing in alone.
+- **Low battery and weak signal alerts repeated** when a reading hovered at its limit. Once such an alert has cleared it is not sent again for 24 hours. Offline alerts are not held back.
+- **One failing alert channel stopped the others.** If Home Assistant dropped the connection while an event was sent, the notification and the phone alert were skipped.
+- **Plain Docker ignored `MQTT_SSL_VERIFY`** for a broker given in `MQTT_HOST`.
+- **Dashboard cards stopped updating** after the integration's options were changed, until the page was reloaded.
+- **Automation actions could be missing just after a restart** while the app was slow to answer. They are now registered at start.
+- **The "Stopped reporting" check had no name** in the `mute_device` action.
+- **A page that failed to draw said "Unreachable"** and then cleared the message. It now says what failed.
+- A battery stock count that isn't a number is refused instead of answering with an error page.
+
+### Changed
+- **Far fewer writes.** What a device last said (last seen, readings) is written at most every 10 minutes instead of every 30 seconds, and trend data every 15 minutes instead of 5. Anything you set and every event is still written within 30 seconds, and stopping the app writes everything.
+- **Large networks stay responsive.** The sidebar's data is built in small steps, so incoming messages no longer wait for it (9 ms instead of 88 ms in a 300-device test). It is compressed, and shared between pages that ask at the same moment.
+- **Changing many settings at once is quicker.** Muting every check of a device ran the health checks thirty times; now once.
+- **Matter reads only its own entities** from Home Assistant each minute, not every state in the house.
+- **The sidebar stops polling while its tab is hidden**, and searching no longer redraws the search box or the open device panel.
+- Nothing is sent to the broker while it is away, and the queue of waiting messages is capped.
+
 ## 2.5.0
 
 A battery level that jumps up no longer has to mean a new battery. You can now turn battery change detection off, have the app ask before it records one, or mark a single device's battery level as unreliable.

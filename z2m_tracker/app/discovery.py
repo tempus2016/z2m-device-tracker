@@ -278,6 +278,7 @@ class Discovery:
             return
         from health import uptime
 
+        self.tracker.flush_health()
         now = time.time()
         desired: dict[str, str] = {}
         states: dict[str, str] = {}
