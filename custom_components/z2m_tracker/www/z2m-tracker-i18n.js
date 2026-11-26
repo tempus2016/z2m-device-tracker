@@ -106,9 +106,40 @@
   const netLabel = (bt) => (bt === "zigbee2mqtt" ? t("net.main") : cap(String(bt).replace(/^zigbee2mqtt[_-]?/, "").replace(/[_-]/g, " ").trim()) || bt);
 
   // The app sends English issue text plus msg + params; the same keys as the sidebar translate it.
+  // Some messages need a value worked out first (a duration, a list of names). The rules below are
+  // the sidebar's (ISSUE_VARS in the app's index.html): keep the two in step. A message this file
+  // has no rule for, or a language file without one of the small pieces, shows the app's English
+  // text rather than a half-filled sentence.
+  let incomplete = false;
+  const piece = (key, vars) => { if (!has(key) && !Object.hasOwn(EN, key)) { incomplete = true; return ""; } return t(key, vars); };
+  const num1 = (n) => intl((l) => new Intl.NumberFormat(l, { maximumFractionDigits: 1 }).format(n));
+  const day = (iso) => { const d = new Date(`${iso}T00:00:00`); return Number.isNaN(d.getTime()) ? String(iso ?? "") : intl((l) => d.toLocaleDateString(l, { day: "numeric", month: "short", year: "numeric" })); };
+  const names = (p) => list([...(p.names || []), ...(p.more ? [piece("issue.router_offline.more", { n: p.more })] : [])]);
+  const unit = (u) => (u === "%" ? "%" : ` ${u}`);
+  const suggested = (p) => { p.extra = p.suggested ? piece("issue.naming.suggested", { name: p.suggested }) : ""; };
   const ISSUE_VARS = {
-    flapping: (p) => { p.what = list([p.outages ? t("issue.flapping.outages", { n: p.outages }) : null, p.leaves ? t("issue.flapping.leaves", { n: p.leaves }) : null].filter(Boolean)); },
-    single_point: (p) => { p.extra = p.devices ? t("issue.single_point.extra", { n: p.devices }) : ""; },
+    flapping: (p) => { p.what = list([p.outages ? piece("issue.flapping.outages", { n: p.outages }) : null, p.leaves ? piece("issue.flapping.leaves", { n: p.leaves }) : null].filter(Boolean)); },
+    single_point: (p) => { p.extra = p.devices ? piece("issue.single_point.extra", { n: p.devices }) : ""; },
+    late: (p) => { p.every = span(p.every); },
+    late_learned: (p) => { p.every = span(p.every); p.longest = span(p.longest); },
+    lqi_stuck: (p) => { p.seconds = span(p.seconds); },
+    impossible_reading: (p) => { p.value = num1(p.value); p.lo = num1(p.lo); p.hi = num1(p.hi); p.unit = unit(p.unit); },
+    impossible_reading_no_range: (p) => { p.value = num1(p.value); p.unit = unit(p.unit); },
+    impossible_battery: (p) => { p.value = num1(p.value); },
+    humidity_stuck: (p) => { p.cause = piece(p.value === 100 ? "issue.humidity_stuck.cause_wet" : "issue.humidity_stuck.cause_dry"); p.value = num1(p.value); },
+    payload_changed: (p) => { p.lead = p.firmware ? piece("issue.payload_changed.since", { version: p.firmware }) : ""; p.what = list([piece("issue.payload_changed.gone", { keys: p.gone }), p.new ? piece("issue.payload_changed.new", { keys: p.new }) : null].filter(Boolean)); },
+    router_offline: (p) => { p.names = names(p); },
+    power_loss: (p) => { p.names = names(p); },
+    router_hopping: (p) => { p.quality = p.lqi_min === null || p.lqi_min === undefined ? "" : p.lqi_min === p.lqi_max ? piece("issue.router_hopping.lqi", { lqi: p.lqi_min }) : piece("issue.router_hopping.lqi_range", { min: p.lqi_min, max: p.lqi_max }); },
+    pairing_open: (p) => {
+      const parts = [p.origin === "frontend" || p.origin === "mqtt" ? piece(`issue.pairing_open.${p.origin}`) : null, p.device ? piece("issue.pairing_open.device", { device: p.device }) : null, p.left != null ? piece("issue.pairing_open.left", { duration: span(p.left) }) : null];
+      p.extra = parts.filter(Boolean).map((x) => ` · ${x}`).join("");
+    },
+    warranty_ending: (p) => { p.date = day(p.date); },
+    warranty_ending_today: (p) => { p.date = day(p.date); },
+    signal_dip: (p) => { p.period = has(`issue.signal_dip.${p.period}`) ? t(`issue.signal_dip.${p.period}`) : p.period; },
+    naming_ieee: suggested,
+    naming_pattern: suggested,
   };
   const issueVars = (i) => {
     const p = { ...(i.params || {}) };
@@ -118,9 +149,17 @@
     ISSUE_VARS[i.msg]?.(p);
     return p;
   };
+  const issueText = (i, part, english) => {
+    const key = `issue.${i.msg}.${part}`;
+    if (!i.msg || !has(key)) return english;
+    incomplete = false;
+    let out;
+    try { out = t(key, issueVars(i)); } catch (e) { return english; }
+    return incomplete || /\{\w+\}/.test(out) ? english : out;
+  };
   const issueLabel = (i) => (has(`issue.label.${i.kind}`) ? t(`issue.label.${i.kind}`) : i.label);
-  const issueTitle = (i) => (i.msg && has(`issue.${i.msg}.title`) ? t(`issue.${i.msg}.title`, issueVars(i)) : i.title);
-  const issueDetail = (i) => (i.msg && has(`issue.${i.msg}.detail`) ? t(`issue.${i.msg}.detail`, issueVars(i)) : i.detail);
+  const issueTitle = (i) => issueText(i, "title", i.title);
+  const issueDetail = (i) => issueText(i, "detail", i.detail);
 
   const notify = () => S.listeners.forEach((fn) => { try { fn(); } catch (e) { /* a card failed to render */ } });
   const apply = (lang, strings) => {
