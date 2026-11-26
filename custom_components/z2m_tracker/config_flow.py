@@ -19,6 +19,7 @@ from .const import (
     DEFAULT_APP_URL,
     DOMAIN,
 )
+from .tracker import async_test_connection
 
 
 def detect_app_url(hass) -> str:
@@ -45,6 +46,26 @@ def valid_app_url(url: str) -> bool:
     return parts.scheme in ("http", "https") and bool(parts.hostname) and not parts.username and not parts.password
 
 
+async def _checked(
+    hass, user_input: dict[str, Any], errors: dict[str, str], ask_app: bool = True
+) -> dict[str, Any] | None:
+    """The form's values ready to store, once the app answers at that address with that token.
+    Otherwise None, with the reason in errors. ask_app=False only checks the address's shape."""
+    url = str(user_input[CONF_APP_URL]).strip()
+    token = str(user_input.get(CONF_TOKEN) or "").strip()
+    if not valid_app_url(url):
+        errors[CONF_APP_URL] = "invalid_url"
+        return None
+    problem = await async_test_connection(hass, url, token or None) if ask_app else None
+    if problem == "invalid_auth":
+        errors[CONF_TOKEN if CONF_TOKEN in user_input else "base"] = problem
+        return None
+    if problem:
+        errors[CONF_APP_URL] = problem
+        return None
+    return {**user_input, CONF_APP_URL: url, CONF_TOKEN: token}
+
+
 class Z2MTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
     _discovered_url: str | None = None
@@ -61,19 +82,44 @@ class Z2MTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
-            if valid_app_url(user_input[CONF_APP_URL]):
-                data = {**user_input, CONF_TOKEN: str(user_input.get(CONF_TOKEN) or "").strip()}
+            data = await _checked(self.hass, user_input, errors)
+            if data is not None:
                 return self.async_create_entry(title="Z2M Device Tracker", data=data)
-            errors[CONF_APP_URL] = "invalid_url"
+        given = user_input or {}
         schema: dict[Any, Any] = {
-            vol.Required(CONF_APP_URL, default=self._discovered_url or detect_app_url(self.hass)): str
+            vol.Required(
+                CONF_APP_URL, default=given.get(CONF_APP_URL) or self._discovered_url or detect_app_url(self.hass)
+            ): str
         }
         if not self._discovered_url:
             # Supervisor hands the token over by itself; without it (plain Docker) it is typed in.
-            schema[vol.Optional(CONF_TOKEN, default="")] = str
+            schema[vol.Optional(CONF_TOKEN, default=given.get(CONF_TOKEN) or "")] = str
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema(schema),
+            errors=errors,
+        )
+
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Change where the app is (it moved, or its API token changed) without removing the integration."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            data = await _checked(self.hass, user_input, errors)
+            if data is not None:
+                # The options hold the address too once they were saved: both are kept the same.
+                return self.async_update_reload_and_abort(entry, data_updates=data, options={**entry.options, **data})
+        given = user_input or {}
+        url = given.get(CONF_APP_URL) or entry.options.get(CONF_APP_URL, entry.data.get(CONF_APP_URL, DEFAULT_APP_URL))
+        token = given.get(CONF_TOKEN) or entry.options.get(CONF_TOKEN, entry.data.get(CONF_TOKEN, ""))
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_APP_URL, default=url): str,
+                    vol.Optional(CONF_TOKEN, description={"suggested_value": token}): str,
+                }
+            ),
             errors=errors,
         )
 
@@ -86,15 +132,18 @@ class Z2MTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
 class Z2MTrackerOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
+        entry = self.config_entry
+        current = entry.options.get(CONF_APP_URL, entry.data.get(CONF_APP_URL, detect_app_url(self.hass)))
+        token = entry.options.get(CONF_TOKEN, entry.data.get(CONF_TOKEN, ""))
         if user_input is not None:
-            if valid_app_url(user_input[CONF_APP_URL]):
-                data = {**user_input, CONF_TOKEN: str(user_input.get(CONF_TOKEN) or "").strip()}
+            # The other options must stay changeable while the app is stopped: it is only asked
+            # when the address or the token is new.
+            moved = str(user_input[CONF_APP_URL]).strip() != current or str(
+                user_input.get(CONF_TOKEN) or ""
+            ).strip() != (token or "")
+            data = await _checked(self.hass, user_input, errors, ask_app=moved)
+            if data is not None:
                 return self.async_create_entry(data=data)
-            errors[CONF_APP_URL] = "invalid_url"
-        current = self.config_entry.options.get(
-            CONF_APP_URL, self.config_entry.data.get(CONF_APP_URL, detect_app_url(self.hass))
-        )
-        token = self.config_entry.options.get(CONF_TOKEN, self.config_entry.data.get(CONF_TOKEN, ""))
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(

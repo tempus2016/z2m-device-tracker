@@ -33,6 +33,7 @@ _LOGGER = logging.getLogger(__name__)
 POLL_INTERVAL = timedelta(seconds=15)
 FULL_REFRESH_EVERY = 8
 REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=20)
+TEST_TIMEOUT = aiohttp.ClientTimeout(total=10)
 # Requests the app answers only after Zigbee2MQTT replies (reconfigure waits up to 40 s).
 SLOW_REQUEST_TIMEOUT = aiohttp.ClientTimeout(total=60)
 # Sidebar translation keys the cards reuse, and how long a fetched language is kept.
@@ -132,6 +133,25 @@ def _network_summary(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 class TrackerAppError(Exception):
     """Raised when the app cannot be reached or returns an error."""
+
+
+async def async_test_connection(hass: HomeAssistant, app_url: str, token: str | None) -> str | None:
+    """Ask the app at app_url for its version, the way the integration will. None when it answers,
+    otherwise the error to show on the form: "invalid_auth" or "cannot_connect"."""
+    token = token or await async_discover_token(hass)
+    headers = {"Authorization": f"Bearer {token}"} if token else None
+    try:
+        async with async_get_clientsession(hass).get(
+            f"{app_url.rstrip('/')}/api/version", timeout=TEST_TIMEOUT, headers=headers, allow_redirects=False
+        ) as response:
+            if response.status in (401, 403):
+                return "invalid_auth"
+            payload = await response.json(content_type=None)
+            if response.status != 200 or not isinstance(payload, dict) or "version" not in payload:
+                return "cannot_connect"
+    except (aiohttp.ClientError, TimeoutError, ValueError):
+        return "cannot_connect"
+    return None
 
 
 class Z2MTracker:
