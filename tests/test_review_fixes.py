@@ -6,7 +6,7 @@ import json
 import os
 
 import pytest
-import tracker as tracker_module
+import tracker_base
 from conftest import PLUG, SENSOR, send, z2m_device
 from map_gate import MapGate
 from reliability import _battery_intervals
@@ -41,12 +41,12 @@ def test_failed_save_is_tried_again(tracker, monkeypatch, data_dir):
     def full_disk(*_args):
         raise OSError(28, "No space left on device")
 
-    monkeypatch.setattr(tracker_module.os, "replace", full_disk)
+    monkeypatch.setattr(tracker_base.os, "replace", full_disk)
     with pytest.raises(OSError):
         tracker.save()
     assert tracker.dirty
     assert [p.name for p in data_dir.iterdir() if p.name.endswith(".tmp")] == []
-    monkeypatch.setattr(tracker_module.os, "replace", real)
+    monkeypatch.setattr(tracker_base.os, "replace", real)
     assert tracker.save() is True
     assert not tracker.dirty
 
@@ -110,7 +110,7 @@ def test_soft_changes_wait_and_real_changes_do_not(tracker, clock):
     send(tracker, "Hall sensor", {"linkquality": 90})
     assert tracker.dirty
     assert tracker.save() is False  # a reading only: it waits
-    clock.advance(seconds=tracker_module.SOFT_SAVE_SECONDS + 1)
+    clock.advance(seconds=tracker_base.SOFT_SAVE_SECONDS + 1)
     assert tracker.save() is True
     send(tracker, "Hall sensor", {"linkquality": 91})
     tracker.set_note(SENSOR, "by the door")

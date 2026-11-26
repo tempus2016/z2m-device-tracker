@@ -10,7 +10,8 @@ from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from tracker import STATUS_ACTIVE, Tracker, _display_name, _now, friendly_z2m_error
+from tracker import Tracker
+from tracker_base import STATUS_ACTIVE, _display_name, _now, friendly_z2m_error
 
 _LOGGER = logging.getLogger("z2m_tracker")
 

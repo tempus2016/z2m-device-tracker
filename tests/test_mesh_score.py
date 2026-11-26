@@ -10,7 +10,7 @@ import prometheus
 from conftest import COORD, PLUG, ROUTER_A, ROUTER_B, SENSOR
 from discovery import Discovery
 from mesh_score import HISTORY_DAYS, clean, record, score, summary
-from tracker import STATUS_ACTIVE
+from tracker_base import STATUS_ACTIVE
 
 
 def test_score_all_good():

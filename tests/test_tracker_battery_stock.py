@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 from conftest import send, z2m_device
-from tracker import shopping_text
+from tracker_base import shopping_text
 
 DEVICES = {f"0x00158d00000000{i:02x}": f"Fake sensor {i}" for i in range(1, 4)}
 A, B, C = DEVICES

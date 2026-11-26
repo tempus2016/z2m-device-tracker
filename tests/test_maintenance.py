@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from conftest import SENSOR, events_of, send, z2m_device
 from health import ALERT_KINDS, CHECKS, DEFAULT_NOTIFY
-from tracker import MAX_TASKS, add_interval, clean_task
+from tracker_base import MAX_TASKS, add_interval, clean_task
 
 TODAY = date(2026, 6, 1)  # conftest START
 

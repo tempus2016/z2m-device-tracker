@@ -6,7 +6,7 @@ import json
 import os
 
 import pytest
-import tracker as tracker_module
+import tracker_base
 from conftest import COORD, ROUTER_A, ROUTER_B, SENSOR, coordinator, events_of, send, z2m_device
 
 # ------------------------------------------------------------------ bridge state / health / info
@@ -295,13 +295,13 @@ def test_parent_rows_skips_missing_scans_and_compares_across_the_window():
         {"at": "2026-06-04T00:00:00+00:00", "parents": {SENSOR: [ROUTER_B, 65]}},
         {"at": "2026-06-05T00:00:00+00:00", "parents": {SENSOR: [ROUTER_A]}},
     ]
-    rows = tracker_module.parent_rows(scans, SENSOR, "2026-06-02T00:00:00+00:00")
+    rows = tracker_base.parent_rows(scans, SENSOR, "2026-06-02T00:00:00+00:00")
     assert [(r["ieee"], r["lqi"], r["changed"]) for r in rows] == [
         (ROUTER_B, 60, True),  # changed against the scan just before the window
         (ROUTER_B, 65, False),  # the scan it was missing from in between doesn't count
         (ROUTER_A, None, True),
     ]
-    summary = tracker_module.hop_summary(rows)
+    summary = tracker_base.hop_summary(rows)
     assert summary == {
         "changes": 2,
         "parents": 2,
@@ -309,7 +309,7 @@ def test_parent_rows_skips_missing_scans_and_compares_across_the_window():
         "lqi_max": 65,
         "best": {"ieee": ROUTER_B, "lqi": 65},
     }
-    assert tracker_module.hop_summary([])["best"] is None
+    assert tracker_base.hop_summary([])["best"] is None
 
 
 def test_router_hopping_end_to_end(tracker, clock, tmp_path):

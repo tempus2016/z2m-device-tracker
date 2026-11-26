@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from tracker import base_topic_list
+from tracker_base import base_topic_list
 
 
 def test_trailing_space_is_kept():

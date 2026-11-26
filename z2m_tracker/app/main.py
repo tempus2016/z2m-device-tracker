@@ -52,8 +52,9 @@ from ota import OtaManager, parse_window
 from reporting import clean_fix as clean_reporting_fix
 from retained import OLD_NAME, RetainedStore
 from retained import collect as collect_retained
-from tracker import IEEE_RE, Tracker, base_topic_list, shopping_text
-from tracker import _display_name as tracker_display_name
+from tracker import Tracker
+from tracker_base import IEEE_RE, base_topic_list, shopping_text
+from tracker_base import _display_name as tracker_display_name
 from usage import UsageRefresher
 from zha import ZHA_BLOCKED_PATHS, ZHA_INSTANCE, ZhaSource, sources, zha_checks
 
