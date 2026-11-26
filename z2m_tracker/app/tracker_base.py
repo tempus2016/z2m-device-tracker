@@ -21,6 +21,7 @@ from odd_readings import clean as clean_odd_readings
 from payload_keys import clean as clean_payload_keys
 from reporting import clean as clean_reportings
 from reporting import clean_sent as clean_reporting_sent
+from storage import clean_stored
 
 _LOGGER = logging.getLogger("z2m_tracker")
 
@@ -109,6 +110,7 @@ RESTORE_KEYS = {
     "battery_stock": dict,
     "bridges": dict,
     "group_left": list,
+    "storage_groups": list,
     "notify_offered": list,
     "ota_failures": dict,
     "ota_history": list,
@@ -368,6 +370,12 @@ def _clean_record(record: dict) -> dict:
         if isinstance(kind, str) and re.fullmatch(r"[a-z_]{2,30}", kind) and (until is None or isinstance(until, str))
     }
     record["maintenance"] = _clean_tasks(record.get("maintenance"))
+    if "stored" in record:
+        stored = clean_stored(record["stored"])
+        if stored is None:
+            del record["stored"]
+        else:
+            record["stored"] = stored
     if "odd_readings" in record:
         record["odd_readings"] = clean_odd_readings(record["odd_readings"])
     if "payload_keys" in record:

@@ -142,6 +142,7 @@ DEFAULT_OPTIONS = {
     "quiet_hours": False,
     "learn_rhythm": True,
     "expected_outages": True,
+    "storage_auto_resume": True,
     "quiet_start": "23:00",
     "quiet_end": "07:00",
     "escalate_enabled": False,
@@ -251,6 +252,7 @@ SETTINGS = {
     "quiet_hours": _bool,
     "learn_rhythm": _bool,
     "expected_outages": _bool,
+    "storage_auto_resume": _bool,
     "quiet_start": _clock,
     "quiet_end": _clock,
     "escalate_enabled": _bool,
@@ -2100,6 +2102,36 @@ def _post_rhythm_forget(body: dict, ieee: str) -> tuple[int, dict]:
 def _post_report_defaults(body: dict, ieee: str) -> tuple[int, dict]:
     result = tracker.set_report_defaults(body.get("defaults"))
     return 200 if result["ok"] else 400, result
+
+
+@post("/api/stored")
+def _post_stored(body: dict, ieee: str) -> tuple[int, dict]:
+    # One device ({ieee, stored}) or many ({items: [ieee, ...], stored}).
+    items = body.get("items") if "items" in body else [ieee]
+    if not isinstance(items, list):
+        return 400, {"ok": False, "error": "items must be a list"}
+    changed = tracker.set_stored(items[:1000], bool(body.get("stored")))
+    return 200, {"ok": True, "changed": changed}
+
+
+@post("/api/storage_group")
+def _post_storage_group(body: dict, ieee: str) -> tuple[int, dict]:
+    result = tracker.save_storage_group(body.get("group"))
+    return 200 if result["ok"] else 400, result
+
+
+@post("/api/storage_group/remove")
+def _post_storage_group_remove(body: dict, ieee: str) -> tuple[int, dict]:
+    ok = tracker.remove_storage_group(str(body.get("id") or ""))
+    return 200 if ok else 404, {"ok": ok}
+
+
+@post("/api/storage_group/store")
+def _post_storage_group_store(body: dict, ieee: str) -> tuple[int, dict]:
+    changed = tracker.store_group(str(body.get("id") or ""), bool(body.get("stored")))
+    if changed is None:
+        return 404, {"ok": False, "error": "Unknown group"}
+    return 200, {"ok": True, "changed": changed}
 
 
 @post("/api/critical")

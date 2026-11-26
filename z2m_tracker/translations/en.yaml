@@ -107,6 +107,9 @@ configuration:
   expected_outages:
     name: Expected outages
     description: Don't alert when a network goes offline at the time it does most days, such as a nightly restart.
+  storage_auto_resume:
+    name: Stored devices come back by themselves
+    description: A stored device is checked again as soon as it is back online after being away. Off keeps it stored until you bring it back.
   quiet_start:
     name: Quiet hours start
     description: Start of quiet hours in the app's time zone, as HH:MM.

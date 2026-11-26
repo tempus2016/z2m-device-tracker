@@ -15,6 +15,7 @@ import firmware_notes
 from group_history import clean as clean_group_history
 from group_history import clean_state as clean_group_state
 from mesh_score import clean as clean_mesh_scores
+from storage import clean_groups
 from tracker_base import (
     MAX_EVENTS,
     RESTORE_KEEPS,
@@ -118,6 +119,8 @@ class PersistenceMixin:
                     self.data["group_history"] = clean_group_history(self.data["group_history"])
                 if "group_state" in self.data:
                     self.data["group_state"] = clean_group_state(self.data["group_state"])
+                if "storage_groups" in self.data:
+                    self.data["storage_groups"] = clean_groups(self.data["storage_groups"])
             for record in self.data["devices"].values():
                 if _stamp_offline_since(record):
                     self.dirty = True

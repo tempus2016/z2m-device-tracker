@@ -71,6 +71,7 @@ options:
   quiet_hours: false
   learn_rhythm: true
   expected_outages: true
+  storage_auto_resume: true
   quiet_start: "23:00"
   quiet_end: "07:00"
   escalate_enabled: false
@@ -133,6 +134,7 @@ schema:
   quiet_hours: bool?
   learn_rhythm: bool?
   expected_outages: bool?
+  storage_auto_resume: bool?
   quiet_start: match(^([01]\d|2[0-3]):[0-5]\d$)?
   quiet_end: match(^([01]\d|2[0-3]):[0-5]\d$)?
   escalate_enabled: bool?

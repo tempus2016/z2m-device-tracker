@@ -2,9 +2,10 @@
 
 ## Unreleased
 
-A code review of the whole app: bugs fixed, far fewer writes to the SD card, a faster app on large networks, and a spare copy of the history file.
+A code review of the whole app: bugs fixed, far fewer writes to the SD card, a faster app on large networks, and a spare copy of the history file. Also new: stored devices for seasonal decorations.
 
 ### Added
+- **Stored devices, for things you put away for the season** ([#98](https://github.com/tempus2016/z2m-device-tracker/issues/98)). Mark a device as stored, or gather devices into named storage groups (Christmas lights, garden lights) and store a whole group from **Settings → Stored devices**. A stored device gets no health checks and its time offline doesn't count against its model's reliability or the community stats. When a stored device that went offline is seen online again, monitoring starts by itself (`storage_auto_resume`, default on). Turn that off to bring devices back only by hand.
 - **A spare copy of the history file.** Each save keeps the file it replaces as `history.json.bak`. If `history.json` can't be read when the app starts, the app loads that copy, so at most the last few minutes of readings are missing, and tells you with a notification. Before, an unreadable file meant starting with an empty history.
 - **Hold repeated alerts** (`alert_repeat_hours`, **Settings → Thresholds**, default 24). How long a low battery, weak signal or signal drop alert that has cleared stays quiet before the same one may be sent again. 0 sends it every time.
 - **The integration checks the app's address before saving it.** A wrong address or API token now shows an error on the form, where before it made an integration with unavailable sensors. **Reconfigure** in the integration's menu changes the address and token later.

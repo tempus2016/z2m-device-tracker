@@ -12,6 +12,7 @@ from datetime import date, datetime
 from typing import Any
 
 from health import uptime
+from storage import is_stored
 
 WINDOW_DAYS = 30
 # A device seen for less than a day says nothing useful about dropouts per month.
@@ -104,7 +105,8 @@ def model_reliability(records: list[dict], events: list[dict], now: float) -> li
 
     groups: dict[tuple[str, str], dict] = {}
     for record in records:
-        if record.get("status") != "active" or record.get("type") == "Coordinator":
+        # A stored device is offline on purpose: its outages say nothing about the model.
+        if record.get("status") != "active" or record.get("type") == "Coordinator" or is_stored(record):
             continue
         key = _model_key(record)
         if key is None:

@@ -69,6 +69,7 @@ from reporting_profiles import defaults as profile_defaults
 from reporting_profiles import effective as effective_profile
 from retained import counts as retained_counts
 from retained import stale_entries
+from storage import check_group, clean_groups, is_stored
 from tracker_actions import ActionsMixin
 from tracker_alerts import AlertsMixin
 from tracker_base import (
@@ -723,7 +724,11 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
                 members = []
                 for ieee in ieees:
                     record = devices.get(ieee) or {}
-                    offline = record.get("status") == STATUS_ACTIVE and record.get("availability") == "offline"
+                    offline = (
+                        record.get("status") == STATUS_ACTIVE
+                        and record.get("availability") == "offline"
+                        and not is_stored(record)
+                    )
                     seconds = None
                     if offline and record.get("availability_since"):
                         try:
@@ -1192,6 +1197,14 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
             self._add_event(now, base_topic, record["ieee"], name, "offline", "")
         elif previous == "offline" and state == "online":
             self._add_event(now, base_topic, record["ieee"], name, "online", "")
+        stored = record.get("stored")
+        if isinstance(stored, dict):
+            if state == "offline" and not stored.get("away"):
+                stored["away"] = now
+            elif state == "online" and stored.get("away") and self.options.get("storage_auto_resume", True):
+                # Back up after being put away: monitoring starts again by itself.
+                del record["stored"]
+                self._add_event(now, base_topic, record["ieee"], name, "unstored", "came back online")
         self._changed(structural=True)
 
     # --------------------------------------------------------------- commands
@@ -2183,6 +2196,94 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
                 )
         return out
 
+    # ---------------------------------------------------------------- storage
+
+    def set_stored(self, ieees: Any, stored: bool, group: str | None = None) -> int:
+        """Put devices in storage (no health checks) or bring them back. Returns how many changed.
+
+        Only devices still on a network can be stored; any device can be brought back."""
+        changed = 0
+        if not isinstance(ieees, list):
+            return 0
+        with self.lock:
+            now = _now()
+            for ieee in dict.fromkeys(i for i in ieees if isinstance(i, str)):
+                record = self.data["devices"].get(ieee)
+                if record is None or is_stored(record) == stored:
+                    continue
+                if stored:
+                    if record["status"] != STATUS_ACTIVE or record.get("type") == "Coordinator":
+                        continue
+                    away = now if record.get("availability") == "offline" else None
+                    record["stored"] = {"since": now, "group": group, "away": away}
+                    self._add_event(now, record.get("instance"), ieee, _display_name(record), "stored", "")
+                else:
+                    del record["stored"]
+                    self._add_event(now, record.get("instance"), ieee, _display_name(record), "unstored", "")
+                changed += 1
+            if changed:
+                self._changed(structural=True)
+        if changed:
+            self._health_changed()
+        return changed
+
+    def storage_groups(self) -> list[dict]:
+        """Each storage group with its members, how many are stored, and members that are gone."""
+        with self.lock:
+            devices = self.data["devices"]
+            out = []
+            for group in clean_groups(self.data.get("storage_groups")):
+                members = [devices[i] for i in group["devices"] if i in devices]
+                out.append(
+                    {
+                        "id": group["id"],
+                        "name": group["name"],
+                        "devices": [r["ieee"] for r in members],
+                        "stored": sum(1 for r in members if is_stored(r)),
+                        "active": sum(1 for r in members if r["status"] == STATUS_ACTIVE),
+                    }
+                )
+            return sorted(out, key=lambda g: g["name"].casefold())
+
+    def save_storage_group(self, raw: Any) -> dict:
+        """Add a storage group or change one: {"ok", "id"} or {"ok": False, "error"}."""
+        with self.lock:
+            groups = clean_groups(self.data.get("storage_groups"))
+            known = {i for i, r in self.data["devices"].items() if r.get("type") != "Coordinator"}
+            group, error = check_group(raw, known, groups)
+            if error:
+                return {"ok": False, "error": error}
+            if group["id"] is None:
+                group["id"] = uuid.uuid4().hex[:12]
+                groups.append(group)
+            else:
+                groups = [group if g["id"] == group["id"] else g for g in groups]
+            self.data["storage_groups"] = groups
+            self._changed(structural=True)
+            return {"ok": True, "id": group["id"]}
+
+    def remove_storage_group(self, gid: str) -> bool:
+        """Delete a group. Its devices stay as they are (stored ones stay stored)."""
+        with self.lock:
+            groups = clean_groups(self.data.get("storage_groups"))
+            kept = [g for g in groups if g["id"] != gid]
+            if len(kept) == len(groups):
+                return False
+            self.data["storage_groups"] = kept
+            for record in self.data["devices"].values():
+                if is_stored(record) and record["stored"].get("group") == gid:
+                    record["stored"]["group"] = None
+            self._changed(structural=True)
+            return True
+
+    def store_group(self, gid: str, stored: bool) -> int | None:
+        """Store or bring back every device of a group. None for an unknown group, else how many changed."""
+        with self.lock:
+            group = next((g for g in clean_groups(self.data.get("storage_groups")) if g["id"] == gid), None)
+        if group is None:
+            return None
+        return self.set_stored(group["devices"], stored, gid if stored else None)
+
     def _health_changed(self) -> None:
         """Something a check looks at was set. The checks run at once, or (defer_health) just before
         the issues are next read: thirty settings in a row then cost one pass over the devices, not thirty."""
@@ -2236,19 +2337,21 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
             issues.extend(self._network_issues(now))
             issues.extend(self._retained_issues())
             issues.extend(self._group_issues(now))
-            for issue in naming_issues(list(live.values()), self.options, now):
+            # Stored devices (put away for the season) get no checks.
+            checked = [r for r in live.values() if not is_stored(r)]
+            for issue in naming_issues(checked, self.options, now):
                 record = self.data["devices"][issue["ieee"]]
                 issue["name"] = _display_name(record) or record["ieee"]
                 issue["instance"] = record["instance"]
                 issues.append(issue)
             notes = firmware_notes.clean_notes(self.data.get("firmware_notes"))
-            for issue in firmware_notes.note_issues(notes, live, self.options, now):
+            for issue in firmware_notes.note_issues(notes, {r["ieee"]: r for r in checked}, self.options, now):
                 record = self.data["devices"][issue["ieee"]]
                 issue["name"] = _display_name(record) or record["ieee"]
                 issue["instance"] = record["instance"]
                 issues.append(issue)
             if self.community is not None:
-                for issue in community_issues(list(live.values()), self.community, self.options, now):
+                for issue in community_issues(checked, self.community, self.options, now):
                     record = self.data["devices"][issue["ieee"]]
                     issue["name"] = _display_name(record) or record["ieee"]
                     issue["instance"] = record["instance"]
@@ -2272,7 +2375,10 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
         devs = [
             r
             for r in self.data["devices"].values()
-            if r.get("instance") == bt and r["status"] == STATUS_ACTIVE and r.get("type") != "Coordinator"
+            if r.get("instance") == bt
+            and r["status"] == STATUS_ACTIVE
+            and r.get("type") != "Coordinator"
+            and not is_stored(r)
         ]
         scanned_at = (self.data.get("networkmap") or {}).get(bt, {}).get("scanned_at")
         backup = backup_of = None
@@ -2589,6 +2695,7 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
             "battery_brands": self.battery_brands(),
             "battery_brand_list": list(self.brand_list()),
             "maintenance": self.maintenance_list(),
+            "storage_groups": self.storage_groups(),
             "warranties": self.warranty_list(),
             "bridges": self.data.get("bridges") or {},
             "radio": self.radio(),

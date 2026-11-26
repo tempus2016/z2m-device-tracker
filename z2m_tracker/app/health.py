@@ -14,6 +14,7 @@ from reporting import audit as reporting_audit
 from reporting import findings as reporting_findings
 from reporting import sending as reporting_sending
 from reporting import summary_text as reporting_summary
+from storage import is_stored
 
 WARNING = "warning"
 INFO = "info"
@@ -743,7 +744,8 @@ def device_issues(
 ) -> list[dict[str, Any]]:
     ieee = record["ieee"]
     issues: list[dict[str, Any]] = []
-    if record.get("type") == "Coordinator" or record.get("status") != "active":
+    if record.get("type") == "Coordinator" or record.get("status") != "active" or is_stored(record):
+        # Stored devices (put away for the season) get no checks at all.
         return issues
     muted = set(active_mutes(record, now)) | set(options.get("disabled_checks") or [])
     critical = bool(record.get("critical"))
@@ -1234,7 +1236,7 @@ def group_router_outages(issues: list[dict], devices: dict[str, dict], options: 
 
     def down(ieee: str) -> bool:
         record = devices.get(ieee) or {}
-        if record.get("type") != "Router" or record.get("status") != "active":
+        if record.get("type") != "Router" or record.get("status") != "active" or is_stored(record):
             return False
         if "offline" in active_mutes(record, now):
             return False
@@ -1299,7 +1301,7 @@ def group_power_loss(issues: list[dict], devices: dict[str, dict], options: dict
     batteries_up: dict[str, int] = {}
     for ieee, record in devices.items():
         area = record.get("area")
-        if not area or record.get("status") != "active" or record.get("type") == "Coordinator":
+        if not area or record.get("status") != "active" or record.get("type") == "Coordinator" or is_stored(record):
             continue
         if record.get("availability") != "offline":
             if is_battery(record) and record.get("availability") is not None:

@@ -41,6 +41,7 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `quiet_hours` | `false` | Hold alerts during quiet hours and send one summary when they end. |
 | `learn_rhythm` | `true` | Set each device's Stopped reporting limit from how often it reports. See [Learned rhythm](#learned-rhythm). |
 | `expected_outages` | `true` | Don't alert when a network goes offline at the time it does most days. See [Expected outages](#expected-outages). |
+| `storage_auto_resume` | `true` | A stored device is checked again by itself once it comes back online after being away. Off keeps it stored until you bring it back. Set it in **Settings → Stored devices**. See [Stored devices](#stored-devices). |
 | `quiet_start` / `quiet_end` | `23:00` / `07:00` | Quiet hours in the app's time zone, as `HH:MM`. The window can cross midnight. |
 | `escalate_enabled` | `false` | Send an alert again to a second notify service when nobody answers it in time. See [Escalation](#escalation). |
 | `escalate_hours` | `2` | How long an alert can go unanswered before it escalates (1 to 168 hours). |
@@ -338,6 +339,20 @@ Some setups take the network down on a schedule: a nightly Zigbee2MQTT restart, 
 An expected outage still shows in Health, as **Expected outage** with the usual time and length, but sends no alert. If it runs on more than 30 minutes past the end of that 90-minute window, it becomes a normal **Network offline** alert. An outage at any other time of day alerts as usual.
 
 Nothing is set by hand, and it stops applying within a week of the schedule stopping. Set `expected_outages` to `false` to be alerted every time.
+
+## Stored devices
+
+Some devices are only used for part of the year: Christmas lights, summer garden lights, a fan. While they're unplugged they would show as offline in Health all season. Put them in storage instead.
+
+A stored device keeps its history and its Home Assistant entities, but no check runs on it: no issue, no alert, no repair. Its outages don't count towards its model's reliability, the community ratings, its network's mesh score or the incidents. A **Stored** chip marks it in Devices, and the **Stored** filter lists every stored device.
+
+- **One device:** open it and turn on **Stored**. Turn it off to bring the device back.
+- **Several at once:** tick the devices on the Devices tab, then **Store** in the selection bar.
+- **Storage groups:** in **Settings → Stored devices**, make a group such as "Christmas lights". Tick its devices on the Devices tab, then **Add to group**. **Store all** and **Bring back all** act on the whole group; the pencil renames it or takes devices out. Deleting a group leaves its devices as they are.
+
+**Settings → Stored devices** also lists every device in storage now, each with a **Bring back** button.
+
+With `storage_auto_resume` on (the default), a stored device comes back by itself when it's online again after being away: plug the lights back in and they're checked again. A device stored while it's still online must go offline first, so storing lights before you take them down doesn't undo itself. Devices whose availability Zigbee2MQTT doesn't track never come back by themselves. Turn `storage_auto_resume` off to keep devices stored until you bring them back.
 
 ## Incidents
 

@@ -550,7 +550,7 @@ def community_issues(records: list[dict], ratings: CommunityRatings, options: di
         return []
     issues = []
     for record in records:
-        if record.get("status") != "active" or record.get("type") == "Coordinator":
+        if record.get("status") != "active" or record.get("type") == "Coordinator" or record.get("stored"):
             continue
         entry = ratings.lookup(record)
         if not entry or entry.get("verdict") != "avoid":
