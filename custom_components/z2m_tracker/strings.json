@@ -249,6 +249,7 @@
       "options": {
         "offline": "Offline",
         "silent": "Not heard from",
+        "late": "Stopped reporting",
         "frozen": "Frozen reading",
         "impossible_reading": "Impossible reading",
         "battery_low": "Low battery",

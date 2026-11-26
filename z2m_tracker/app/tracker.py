@@ -106,6 +106,9 @@ from z2m_config import flatten as config_flatten
 _LOGGER = logging.getLogger("z2m_tracker")
 
 MAX_EVENTS = 3000
+# Checks that compare a reading with a limit, and how long one stays quiet after it cleared (plan_alerts).
+THRESHOLD_KINDS = frozenset({"battery_low", "weak_signal", "signal_drop"})
+RESEND_COOLDOWN = 24 * 3600
 MAX_OUTAGES = 200
 # "Left the group" facts kept in history.json, and how long the Groups card shows one.
 MAX_GROUP_LEFT = 100
@@ -189,7 +192,14 @@ RESTORE_KEYS = {
     "z2m_config": dict,
     "dismissed_advice": list,
     "upgrades": dict,
+    "firmware_notes": list,
+    "report_profile_defaults": dict,
+    "mesh_scores": dict,
+    "group_history": dict,
+    "group_state": dict,
 }
+# Alert state that is about now, not about when a backup was made: a restore keeps what is loaded.
+RESTORE_KEEPS = ("alerts_paused", "quiet", "discovery_topics", "escalation", "alert_actions", "alert_cleared")
 
 # Settings advice on the Health tab: one-off notices, each dismissible for good (data["dismissed_advice"]).
 ADVICE_KINDS = frozenset({"last_seen_off"})
@@ -494,11 +504,19 @@ def _csv_safe(row: list) -> list:
 def _write_atomic(path: str, payload: str) -> None:
     """Write a file so a crash or power cut leaves the old one or the new one, never half of each."""
     tmp_path = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
-    with open(tmp_path, "w", encoding="utf-8") as handle:
-        handle.write(payload)
-        handle.flush()
-        os.fsync(handle.fileno())
-    os.replace(tmp_path, path)
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_path, path)
+    except BaseException:
+        # A failed write (often a full disk) must not leave its half-written copy behind.
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def _now() -> str:
@@ -1106,7 +1124,12 @@ class Tracker:
                     return False
                 payload = _dumps(self.data, ensure_ascii=False)
                 self.dirty = False
-            _write_atomic(self.data_path, payload)
+            try:
+                _write_atomic(self.data_path, payload)
+            except BaseException:
+                # Not on disk (full or read-only): still to be saved, so the next save tries again.
+                self.dirty = True
+                raise
         return True
 
     def _changed(self, structural: bool) -> None:
@@ -1447,7 +1470,7 @@ class Tracker:
             if not isinstance(group, dict) or group.get("id") is None:
                 continue
             gid = str(group["id"])
-            names[gid] = group.get("friendly_name") or f"Group {gid}"
+            names[gid] = _text(group.get("friendly_name")) or f"Group {gid}"
             ieees: list[str] = []
             for member in group.get("members") or []:
                 ieee = str((member or {}).get("ieee_address") or "").lower() if isinstance(member, dict) else ""
@@ -4886,6 +4909,20 @@ class Tracker:
             behind = {key for key, issue in current.items() if issue.get("behind") or issue.get("expected")}
             new = [current[key] for key in sorted(set(current) - behind - sent)]
             dismiss = sorted(sent - set(current))
+            # A reading that hovers at its limit (battery 15 %, 16 %, 15 %) clears and comes back over
+            # and over: once such an alert has cleared, the same one is not sent again for a day.
+            cleared = {
+                key: at
+                for key, at in (
+                    self.data.get("alert_cleared") if isinstance(self.data.get("alert_cleared"), dict) else {}
+                ).items()
+                if _finite(at) and 0 <= now - at < RESEND_COOLDOWN
+            }
+            for key in dismiss:
+                if key.split(":", 1)[0] in THRESHOLD_KINDS:
+                    cleared[key] = now
+            self.data["alert_cleared"] = cleared
+            new = [issue for issue in new if issue["key"] not in cleared]
             urgent = [issue for issue in new if issue.get("critical")]
             if enabled and self.in_quiet_hours(now):
                 held = self._quiet_state(now)["issues"]
@@ -5623,19 +5660,23 @@ class Tracker:
             restored["battery_brand_list"] = _brand_list(restored["battery_brand_list"])
         if "upgrades" in restored:
             restored["upgrades"] = clean_upgrades(restored["upgrades"])
+        if "mesh_scores" in restored:
+            restored["mesh_scores"] = clean_mesh_scores(restored["mesh_scores"])
+        if "group_history" in restored:
+            restored["group_history"] = clean_group_history(restored["group_history"])
+        if "group_state" in restored:
+            restored["group_state"] = clean_group_state(restored["group_state"])
+        if "firmware_notes" in restored:
+            restored["firmware_notes"] = firmware_notes.clean_notes(restored["firmware_notes"])
         with self.lock:
-            # A pause is about now, not about when the backup was made.
-            paused = self.data.get("alerts_paused")
-            # Held quiet-hours alerts are about now, not about when the backup was made.
-            quiet = self.data.get("quiet")
-            # Entities this app published: kept so the next sync removes the ones the backup doesn't need.
-            topics = self.data.get("discovery_topics")
+            # A pause, held quiet-hours alerts and running escalations are about now, not about when
+            # the backup was made. The published entities are kept so the next sync removes the ones
+            # the backup doesn't need.
+            kept = {key: self.data.get(key) for key in RESTORE_KEEPS}
             self.data = restored
-            if paused:
-                self.data["alerts_paused"] = paused
-            self.data["quiet"] = quiet
-            if topics:
-                self.data["discovery_topics"] = topics
+            for key, value in kept.items():
+                if value or key == "quiet":
+                    self.data[key] = value
             self.names = {}
             for record in self.data["devices"].values():
                 if record["status"] == STATUS_ACTIVE and record["friendly_name"] and record["instance"]:

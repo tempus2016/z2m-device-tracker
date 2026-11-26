@@ -37,12 +37,22 @@ def _model_key(record: dict) -> tuple[str, str] | None:
     return (str(record.get("vendor") or record.get("manufacturer") or ""), str(model))
 
 
+def _day(value: str) -> date | None:
+    """A YYYY-MM-DD string as a date; None for anything else, a date that doesn't exist included."""
+    if not DATE_RE.match(value):
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
 def _battery_intervals(record: dict) -> list[int]:
     """Days between consecutive battery changes, counting the install date as the first one."""
     info = record.get("battery_info") or {}
     days = {str(r.get("date") or "") for r in info.get("replacements") or [] if isinstance(r, dict)}
     days.add(str(info.get("installed") or ""))
-    points = sorted(date.fromisoformat(d) for d in days if DATE_RE.match(d))
+    points = sorted(p for p in (_day(d) for d in days) if p)
     return [(b - a).days for a, b in zip(points, points[1:], strict=False) if (b - a).days > 0]
 
 

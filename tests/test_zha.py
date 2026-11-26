@@ -442,7 +442,7 @@ def test_network_map_ignores_lqi_only_changes(make_tracker):
     source.apply_devices(changed)
     assert len(_routing_events(tracker)) == 1
     # Once a day the map is refreshed anyway, so link quality stays current.
-    source._map_applied_at -= 25 * 3600
+    source._map.applied_at -= 25 * 3600
     source.apply_devices(changed)
     assert len(_routing_events(tracker)) == 2
     assert tracker.data["devices"][BUTTON]["routing"]["parent"]["lqi"] == 90

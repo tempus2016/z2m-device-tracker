@@ -8,8 +8,9 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
-from .const import DOMAIN
+from .const import DOMAIN, SIGNAL_UPDATED
 from .tracker import TrackerAppError
 
 LANGUAGE_RE = re.compile(r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
@@ -72,7 +73,9 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
     def _forward() -> None:
         connection.send_message(websocket_api.event_message(msg["id"], {"changed": True}))
 
-    connection.subscriptions[msg["id"]] = tracker.async_add_listener(_forward)
+    # The signal, not this tracker object: an options change reloads the entry with a new tracker,
+    # and an open card must keep hearing about changes.
+    connection.subscriptions[msg["id"]] = async_dispatcher_connect(hass, SIGNAL_UPDATED, _forward)
     connection.send_result(msg["id"])
 
 

@@ -481,12 +481,20 @@ class Alerts:
                 if line:
                     message = f"{message}\n\n{line}"
                     data["message"] = message
+            # Each way out on its own: one that fails must not stop the others.
+            steps = []
             if options.get("fire_events", True):
-                home_assistant.fire_event("z2m_tracker_alert", data)
+                steps.append(lambda: home_assistant.fire_event("z2m_tracker_alert", data))
             if options.get("persistent_notifications"):
-                home_assistant.persistent_notification(title, message, f"z2m_tracker_{key.replace(':', '_')}")
+                note_id = f"z2m_tracker_{key.replace(':', '_')}"
+                steps.append(lambda: home_assistant.persistent_notification(title, message, note_id))
             if options.get("notify_service"):
-                home_assistant.notify(options["notify_service"], title, message, push)
+                steps.append(lambda: home_assistant.notify(options["notify_service"], title, message, push))
+            for step in steps:
+                try:
+                    step()
+                except Exception:  # noqa: BLE001 - the remaining channels still get the alert
+                    _LOGGER.exception("Sending alert failed")
 
         self.queue.put(job)
 
@@ -739,7 +747,8 @@ if STANDALONE and not os.environ.get("MQTT_HOST") and options.get("mqtt_host"):
 MQTT_HOST = os.environ.get("MQTT_HOST") or ("localhost" if STANDALONE else "core-mosquitto")
 MQTT_PORT = int(os.environ.get("MQTT_PORT") or 1883)
 # Set by run.sh when the broker comes from this app's options rather than the Mosquitto app.
-MQTT_MANUAL = os.environ.get("MQTT_MANUAL") == "true"
+# In plain Docker every broker is one the user named, in the options file or in MQTT_HOST.
+MQTT_MANUAL = os.environ.get("MQTT_MANUAL") == "true" or (STANDALONE and bool(os.environ.get("MQTT_HOST")))
 mqtt_status = MqttStatus(MQTT_HOST, MQTT_PORT, configured=bool(os.environ.get("MQTT_HOST")))
 
 
@@ -1651,12 +1660,19 @@ def scheduler() -> None:
         try:
             if stack == "z2m":
                 check_mqtt()
+            # A save that fails (full disk) must not skip the checks and alerts below.
             if now - last_save >= SAVE_INTERVAL:
-                tracker.save()
                 last_save = now
+                try:
+                    tracker.save()
+                except OSError as err:
+                    _LOGGER.error("Saving the history failed: %s", err)
             if now - last_metrics >= METRICS_SAVE_INTERVAL:
-                metrics.save()
                 last_metrics = now
+                try:
+                    metrics.save()
+                except OSError as err:
+                    _LOGGER.error("Saving the metrics failed: %s", err)
             changed = ha_changed_at and now - ha_changed_at >= HA_CHANGE_DELAY
             if changed or now - last_ha >= HA_REFRESH_INTERVAL:
                 ha_changed_at = 0.0
@@ -1926,6 +1942,7 @@ class MetricsHandler(BaseHTTPRequestHandler):
     """GET /metrics in Prometheus text format, for a scraper that sends the metrics_token."""
 
     server_version = f"Z2MTracker/{VERSION}"
+    timeout = 30
 
     def log_message(self, format, *args):  # noqa: A002 - signature defined by base class
         return
@@ -1972,6 +1989,8 @@ def start_metrics_server() -> ThreadingHTTPServer | None:
 
 class Handler(BaseHTTPRequestHandler):
     server_version = f"Z2MTracker/{VERSION}"
+    # A client that connects and then sends nothing (or half a request) must not hold a thread forever.
+    timeout = 60
 
     def log_message(self, format, *args):  # noqa: A002 - signature defined by base class
         return

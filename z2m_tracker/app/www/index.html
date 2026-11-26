@@ -1522,19 +1522,24 @@
     $("#conn").classList.toggle("show", !ok);
     if (!ok) $("#connText").innerHTML = `<b>${th("app.unreachable")}</b> ${th("app.retrying", { error: esc(err || "") })}`;
   };
-  const load = async () => {
+  // background: a timer asked, not the user. Such a redraw leaves a field being typed in alone.
+  const load = async (background = false) => {
+    let data;
     try {
-      state.data = await api("api/devices");
-      document.body.dataset.stack = state.data.stack || "z2m";
-      state.byIeee = new Map(state.data.devices.map((d) => [d.ieee, d]));
-      state.version = state.data.version;
+      data = await api("api/devices");
       if (state.view === "updates") { state.otaAt = Date.now(); state.ota = await api("api/ota").catch(() => state.ota); }
-      setLive(true);
-      render();
-    } catch (err) { setLive(false, err.message); }
+    } catch (err) { setLive(false, err.message); return; }
+    state.data = data;
+    document.body.dataset.stack = data.stack || "z2m";
+    state.byIeee = new Map((data.devices || []).map((d) => [d.ieee, d]));
+    state.version = data.version;
+    // A page that fails to draw is a fault here, not an app that can't be reached: say so and keep it
+    // on screen (poll leaves the banner alone) until a later load draws again.
+    try { render(background === true); state.broken = false; setLive(true); }
+    catch (err) { console.error("Z2M Tracker: drawing the page failed", err); state.broken = true; setLive(false, err.message); }
   };
   const poll = async () => {
-    try { const { version } = await api("api/version"); if (version !== state.version) await load(); else setLive(true); } catch (err) { setLive(false, err.message); }
+    try { const { version } = await api("api/version"); if (version !== state.version) await load(true); else if (!state.broken) setLive(true); } catch (err) { setLive(false, err.message); }
     // Broker statistics change every few seconds without a new version: refresh them while their tab is open.
     if (state.view === "network" && state.sub.network === "broker" && !document.hidden && (!state.broker?.at || Date.now() - state.broker.at > 25000)) loadBroker();
   };
@@ -4711,8 +4716,8 @@
   const viewHash = () => (SUBS[state.view] ? `${state.view}/${state.sub[state.view]}` : state.view);
   const syncHash = () => { const h = state.open ? encodeURIComponent(state.open) : state.view !== "health" ? viewHash() : ""; history.replaceState(null, "", h ? `#${h}` : location.pathname + location.search); };
   // A note typed but not saved is saved when the device, tab or view changes, or the dialog closes.
-  const flushNote = () => {
-    const n = document.getElementById("note"), ieee = state.open, d = state.byIeee.get(ieee);
+  const flushNote = (el) => {
+    const n = el || document.getElementById("note"), ieee = state.open, d = state.byIeee.get(ieee);
     if (!n || !d || n.value === (d.note || "")) return;
     const note = n.value, before = d.note;
     d.note = note;
@@ -4787,6 +4792,8 @@
       renderMore(true); load();
     } catch (err) { e.target.checked = !critical; snack(err.message); }
   });
+  // Leaving the note saves it: a background redraw after that shows the saved text, not the old one.
+  document.addEventListener("focusout", (e) => { if (e.target?.id === "note") flushNote(e.target); });
   $("#more").addEventListener("input", () => { state.editing = true; });
   $("#devicePage").addEventListener("input", () => { state.editing = true; });
   $("#view").addEventListener("input", (e) => { if (e.target.closest("#pane")) state.editing = true; });
@@ -4855,9 +4862,15 @@
     const host = el.parentElement?.closest(FOCUS_ATTRS.map((a) => `[${a}]`).join(","));
     return host ? `${host.tagName.toLowerCase()}${own(host)} ${el.tagName.toLowerCase()}` : null;
   };
-  const render = () => {
+  // A text field outside the device panel that has the focus: a background redraw would wipe what is typed.
+  const typingInView = () => {
+    const a = document.activeElement;
+    return !!a && $("#view").contains(a) && !a.closest("#pane") && a.id !== "q" && (a.tagName === "TEXTAREA" || a.tagName === "SELECT" || (a.tagName === "INPUT" && !["checkbox", "radio", "button"].includes(a.type)));
+  };
+  const render = (background = false) => {
     if (!state.data) return;
     const fk = focusKey(document.activeElement);
+    const keepView = background && state.view !== "devices" && typingInView();
     const issues = ownIssues(state.data.issues || []);
     // ZHA has no firmware updates tab or Zigbee2MQTT sections: send an old link or saved tab elsewhere.
     if (isZha()) {
@@ -4875,7 +4888,8 @@
     syncTabs();
     if (state.view !== "devices" && !(usePage() && state.open)) $("#page").classList.remove("wide");
     $("#view").classList.toggle("set-grid", state.view === "settings");
-    if (state.view === "devices") { if (!(usePane() && state.editing && $("#pane")?.contains(document.activeElement))) renderDevices(); }
+    if (keepView) { /* the next redraw catches up */ }
+    else if (state.view === "devices") { if (!(usePane() && state.editing && $("#pane")?.contains(document.activeElement))) renderDevices(); }
     else if (state.view === "health") renderHealth();
     else if (state.view === "activity") renderActivity();
     else if (state.view === "network") renderNetwork();
@@ -6353,7 +6367,7 @@
   setInterval(poll, 5000);
   // The Messages tab is live: fetch the open device's messages every 2 s while it shows.
   setInterval(() => { if (state.open && state.moreTab === "messages" && !MSG.paused && document.visibilityState === "visible" && document.getElementById("msgList")) loadMessages(state.open); }, 2000);
-  setInterval(load, 60000);
+  setInterval(() => load(true), 60000);
 })();
 </script>
 </body>

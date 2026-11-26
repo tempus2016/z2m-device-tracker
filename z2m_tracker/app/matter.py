@@ -27,6 +27,8 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 
+from map_gate import MapGate
+
 _LOGGER = logging.getLogger(__name__)
 
 MATTER_INSTANCE = "matter"
@@ -222,6 +224,7 @@ class MatterSource:
         self._logged_down = False
         self._registry: tuple[float, list[dict], list[dict]] = (0.0, [], [])
         self.topology_supported: bool | None = None
+        self._map = MapGate()
 
     # ------------------------------------------------------------ feeding the tracker
     def apply(
@@ -257,7 +260,8 @@ class MatterSource:
                 self.tracker.apply_state(MATTER_INSTANCE, name, payload, rhythm=not first)
         if topology is not None:
             value = networkmap_value(devices, topology)
-            if value["links"]:
+            # Not on every poll: each map is a routing scan in the tracker's history (map_gate.py).
+            if value["links"] and self._map.due(value):
                 self.tracker.apply_networkmap(MATTER_INSTANCE, value)
 
     # ------------------------------------------------------------ Home Assistant's websocket
