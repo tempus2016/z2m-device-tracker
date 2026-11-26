@@ -14,6 +14,7 @@ from reporting import audit as reporting_audit
 from reporting import findings as reporting_findings
 from reporting import sending as reporting_sending
 from reporting import summary_text as reporting_summary
+from storage import is_stored
 
 WARNING = "warning"
 INFO = "info"
@@ -743,7 +744,8 @@ def device_issues(
 ) -> list[dict[str, Any]]:
     ieee = record["ieee"]
     issues: list[dict[str, Any]] = []
-    if record.get("type") == "Coordinator" or record.get("status") != "active":
+    if record.get("type") == "Coordinator" or record.get("status") != "active" or is_stored(record):
+        # Stored devices (put away for the season) get no checks at all.
         return issues
     muted = set(active_mutes(record, now)) | set(options.get("disabled_checks") or [])
     critical = bool(record.get("critical"))
@@ -1234,7 +1236,7 @@ def group_router_outages(issues: list[dict], devices: dict[str, dict], options: 
 
     def down(ieee: str) -> bool:
         record = devices.get(ieee) or {}
-        if record.get("type") != "Router" or record.get("status") != "active":
+        if record.get("type") != "Router" or record.get("status") != "active" or is_stored(record):
             return False
         if "offline" in active_mutes(record, now):
             return False
@@ -1287,7 +1289,8 @@ def group_power_loss(issues: list[dict], devices: dict[str, dict], options: dict
     still online: most likely the power there went off, not the mesh. Runs after group_router_outages,
     so devices already folded into a router's issue (and the router issues themselves) are left out:
     the router grouping wins. Counts from the moment the devices drop, before their offline delay
-    passes, like the router grouping. The device that dropped first leads: its issue gets
+    passes, like the router grouping. The device that dropped first leads (of those with an offline
+    issue already, a critical one first): its issue gets
     `power_area`, `power_devices` and the "Power loss in <area>?" text; the others get `behind` = it,
     so they don't alert on their own and the sidebar nests them. Changes the issues in place.
     """
@@ -1298,7 +1301,7 @@ def group_power_loss(issues: list[dict], devices: dict[str, dict], options: dict
     batteries_up: dict[str, int] = {}
     for ieee, record in devices.items():
         area = record.get("area")
-        if not area or record.get("status") != "active" or record.get("type") == "Coordinator":
+        if not area or record.get("status") != "active" or record.get("type") == "Coordinator" or is_stored(record):
             continue
         if record.get("availability") != "offline":
             if is_battery(record) and record.get("availability") is not None:
@@ -1326,14 +1329,18 @@ def group_power_loss(issues: list[dict], devices: dict[str, dict], options: dict
                 cluster = drops[start : end + 1]
         if len(cluster) < POWER_MIN_DEVICES:
             continue
-        lead = cluster[0][1]
-        others = [ieee for _ts, ieee in cluster[1:]]
+        # The lead carries the one alert, so it must have an issue to carry it: a device whose own
+        # delay hasn't passed yet can't lead. A critical device (shorter delay) leads before the
+        # others, so its alert is never held back behind a device that alerts later.
+        ready = [ieee for _ts, ieee in cluster if ieee in offline_issue]
+        if not ready:
+            continue
+        lead = next((ieee for ieee in ready if offline_issue[ieee].get("critical")), ready[0])
+        others = [ieee for _ts, ieee in cluster if ieee != lead]
         for ieee in others:
             if ieee in offline_issue:
                 offline_issue[ieee]["behind"] = lead
-        issue = offline_issue.get(lead)
-        if issue is None:
-            continue
+        issue = offline_issue[lead]
         names = sorted(
             (_display(devices.get(ieee) or {}) or ieee for _ts, ieee in cluster),
             key=str.lower,

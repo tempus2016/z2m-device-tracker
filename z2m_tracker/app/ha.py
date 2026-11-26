@@ -3,6 +3,7 @@ registry files as a fallback."""
 
 from __future__ import annotations
 
+import http.client
 import json
 import logging
 import os
@@ -262,7 +263,8 @@ class HomeAssistant:
             with urllib.request.urlopen(request, timeout=15) as response:
                 raw = response.read()
                 return json.loads(raw) if raw else None
-        except (urllib.error.URLError, TimeoutError, ValueError) as err:
+        except (OSError, http.client.HTTPException, ValueError) as err:
+            # OSError covers URLError, timeouts and a connection Home Assistant drops while restarting.
             _LOGGER.warning("Home Assistant API %s %s failed: %s", method, path, err)
             return None
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 
 from conftest import SENSOR, send, z2m_device
-from tracker import MEMORY_DAYS, memory_growth, record_memory
+from tracker_base import MEMORY_DAYS, memory_growth, record_memory
 
 # A bridge/health payload as Zigbee2MQTT 2.5+ publishes it (lib/extension/health.ts).
 HEALTH = {

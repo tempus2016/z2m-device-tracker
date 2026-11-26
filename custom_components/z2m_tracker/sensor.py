@@ -18,9 +18,9 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities: AddC
     tracker: Z2MTracker = entry.runtime_data
     async_add_entities(
         [
-            CountSensor(entry, tracker, "active", "Active devices", "mdi:zigbee"),
-            CountSensor(entry, tracker, "offline", "Offline devices", "mdi:lan-disconnect"),
-            CountSensor(entry, tracker, "removed", "Removed devices", "mdi:archive-outline"),
+            CountSensor(entry, tracker, "active", "mdi:zigbee"),
+            CountSensor(entry, tracker, "offline", "mdi:lan-disconnect"),
+            CountSensor(entry, tracker, "removed", "mdi:archive-outline"),
             LastEventSensor(entry, tracker),
             IssuesSensor(entry, tracker),
         ]
@@ -57,10 +57,11 @@ class CountSensor(_TrackerEntity):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = "devices"
 
-    def __init__(self, entry, tracker: Z2MTracker, key: str, name: str, icon: str) -> None:
+    def __init__(self, entry, tracker: Z2MTracker, key: str, icon: str) -> None:
         super().__init__(entry, tracker, key)
         self._key = key
-        self._attr_name = name
+        # The name comes from the translations (entity.sensor.<key>_devices).
+        self._attr_translation_key = f"{key}_devices"
         self._attr_icon = icon
 
     @property
@@ -75,7 +76,7 @@ class CountSensor(_TrackerEntity):
 
 
 class LastEventSensor(_TrackerEntity):
-    _attr_name = "Last event"
+    _attr_translation_key = "last_event"
     _attr_icon = "mdi:history"
 
     def __init__(self, entry, tracker: Z2MTracker) -> None:
@@ -97,7 +98,7 @@ class LastEventSensor(_TrackerEntity):
 class IssuesSensor(_TrackerEntity):
     """Devices that need attention, as found by the app's health checks."""
 
-    _attr_name = "Issues"
+    _attr_translation_key = "issues"
     _attr_icon = "mdi:alert-circle-outline"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = "issues"

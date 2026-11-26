@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import gzip
 import hashlib
 import hmac
 import html
@@ -20,6 +21,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -51,8 +53,9 @@ from ota import OtaManager, parse_window
 from reporting import clean_fix as clean_reporting_fix
 from retained import OLD_NAME, RetainedStore
 from retained import collect as collect_retained
-from tracker import IEEE_RE, Tracker, base_topic_list, shopping_text
-from tracker import _display_name as tracker_display_name
+from tracker import Tracker
+from tracker_base import IEEE_RE, base_topic_list, shopping_text
+from tracker_base import _display_name as tracker_display_name
 from usage import UsageRefresher
 from zha import ZHA_BLOCKED_PATHS, ZHA_INSTANCE, ZhaSource, sources, zha_checks
 
@@ -62,7 +65,7 @@ _LOGGER = logging.getLogger("z2m_tracker")
 LOG_BUFFER = feedback.LogBuffer()
 logging.getLogger().addHandler(LOG_BUFFER)
 
-VERSION = "2.5.0"
+VERSION = "2.6.0"
 PORT = 8099
 # Prometheus scrape port: only opened when metrics_token is set.
 METRICS_PORT = 9099
@@ -86,7 +89,7 @@ LANG_RE = re.compile(r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
 # Fonts are served from this fixed list, so a request path never becomes a file path.
 FONTS = {font.name: font for font in (WWW / "fonts").glob("*.woff2")}
 SAVE_INTERVAL = 30
-METRICS_SAVE_INTERVAL = 300
+METRICS_SAVE_INTERVAL = 900
 HEALTH_INTERVAL = 60
 HA_REFRESH_INTERVAL = 6 * 3600
 # Wait this long after a registry change before re-reading, so a burst of changes
@@ -115,6 +118,7 @@ DEFAULT_OPTIONS = {
     "alert_on_join": True,
     "offline_alert_minutes": 60,
     "critical_offline_minutes": 5,
+    "alert_repeat_hours": 24,
     "frozen_alert_hours": 24,
     "battery_alert_percent": 15,
     "networkmap_hour": 3,
@@ -138,6 +142,7 @@ DEFAULT_OPTIONS = {
     "quiet_hours": False,
     "learn_rhythm": True,
     "expected_outages": True,
+    "storage_auto_resume": True,
     "quiet_start": "23:00",
     "quiet_end": "07:00",
     "escalate_enabled": False,
@@ -226,6 +231,7 @@ SETTINGS = {
     "notify_service": _service,
     "offline_alert_minutes": _int(0, 10080),
     "critical_offline_minutes": _int(0, 1440),
+    "alert_repeat_hours": _int(0, 168),
     "frozen_alert_hours": _int(0, 720),
     "battery_alert_percent": _int(0, 100),
     "networkmap_hour": _int(-1, 23),
@@ -246,6 +252,7 @@ SETTINGS = {
     "quiet_hours": _bool,
     "learn_rhythm": _bool,
     "expected_outages": _bool,
+    "storage_auto_resume": _bool,
     "quiet_start": _clock,
     "quiet_end": _clock,
     "escalate_enabled": _bool,
@@ -481,12 +488,20 @@ class Alerts:
                 if line:
                     message = f"{message}\n\n{line}"
                     data["message"] = message
+            # Each way out on its own: one that fails must not stop the others.
+            steps = []
             if options.get("fire_events", True):
-                home_assistant.fire_event("z2m_tracker_alert", data)
+                steps.append(lambda: home_assistant.fire_event("z2m_tracker_alert", data))
             if options.get("persistent_notifications"):
-                home_assistant.persistent_notification(title, message, f"z2m_tracker_{key.replace(':', '_')}")
+                note_id = f"z2m_tracker_{key.replace(':', '_')}"
+                steps.append(lambda: home_assistant.persistent_notification(title, message, note_id))
             if options.get("notify_service"):
-                home_assistant.notify(options["notify_service"], title, message, push)
+                steps.append(lambda: home_assistant.notify(options["notify_service"], title, message, push))
+            for step in steps:
+                try:
+                    step()
+                except Exception:  # noqa: BLE001 - the remaining channels still get the alert
+                    _LOGGER.exception("Sending alert failed")
 
         self.queue.put(job)
 
@@ -739,8 +754,14 @@ if STANDALONE and not os.environ.get("MQTT_HOST") and options.get("mqtt_host"):
 MQTT_HOST = os.environ.get("MQTT_HOST") or ("localhost" if STANDALONE else "core-mosquitto")
 MQTT_PORT = int(os.environ.get("MQTT_PORT") or 1883)
 # Set by run.sh when the broker comes from this app's options rather than the Mosquitto app.
-MQTT_MANUAL = os.environ.get("MQTT_MANUAL") == "true"
+# In plain Docker every broker is one the user named, in the options file or in MQTT_HOST.
+MQTT_MANUAL = os.environ.get("MQTT_MANUAL") == "true" or (STANDALONE and bool(os.environ.get("MQTT_HOST")))
 mqtt_status = MqttStatus(MQTT_HOST, MQTT_PORT, configured=bool(os.environ.get("MQTT_HOST")))
+discovery.connected = lambda: mqtt_status.connected
+# Open pages and the integration all ask again within seconds of a change: they share one build.
+tracker.snapshot_seconds = 5
+# A run of settings (muting every check of a device is thirty requests) costs one health check, not thirty.
+tracker.defer_health = True
 
 
 def on_connect(client, userdata, flags, reason_code, properties):
@@ -872,6 +893,8 @@ def _internal_broker(host: str) -> bool:
 def new_client(client_id: str) -> mqtt.Client:
     """An MQTT client with the broker login and TLS settings, not yet connected."""
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id)
+    # What can wait for a broker that is away: beyond this, publishing fails instead of filling memory.
+    client.max_queued_messages_set(2000)
     user = os.environ.get("MQTT_USER")
     if user:
         client.username_pw_set(user, os.environ.get("MQTT_PASS") or None)
@@ -1651,12 +1674,20 @@ def scheduler() -> None:
         try:
             if stack == "z2m":
                 check_mqtt()
+            tracker.flush_health()
+            # A save that fails (full disk) must not skip the checks and alerts below.
             if now - last_save >= SAVE_INTERVAL:
-                tracker.save()
                 last_save = now
+                try:
+                    tracker.save()
+                except OSError as err:
+                    _LOGGER.error("Saving the history failed: %s", err)
             if now - last_metrics >= METRICS_SAVE_INTERVAL:
-                metrics.save()
                 last_metrics = now
+                try:
+                    metrics.save()
+                except OSError as err:
+                    _LOGGER.error("Saving the metrics failed: %s", err)
             changed = ha_changed_at and now - ha_changed_at >= HA_CHANGE_DELAY
             if changed or now - last_ha >= HA_REFRESH_INTERVAL:
                 ha_changed_at = 0.0
@@ -1920,12 +1951,25 @@ LOGIN_CSP = (
 )
 # The page a browser lands on: the UI itself, or the sign-in page.
 UI_PAGES = ("/", "/index.html")
+GZIP_HEADERS = {"Content-Encoding": "gzip", "Vary": "Accept-Encoding"}
+_page: list = [None, b"", b""]
+
+
+def page_bytes() -> tuple[bytes, bytes]:
+    """index.html plain and gzipped, read again only when the file changed."""
+    path = WWW / "index.html"
+    stamp = path.stat().st_mtime_ns
+    if _page[0] != stamp:
+        raw = path.read_bytes()
+        _page[:] = [stamp, raw, gzip.compress(raw, compresslevel=6)]
+    return _page[1], _page[2]
 
 
 class MetricsHandler(BaseHTTPRequestHandler):
     """GET /metrics in Prometheus text format, for a scraper that sends the metrics_token."""
 
     server_version = f"Z2MTracker/{VERSION}"
+    timeout = 30
 
     def log_message(self, format, *args):  # noqa: A002 - signature defined by base class
         return
@@ -1970,8 +2014,486 @@ def start_metrics_server() -> ThreadingHTTPServer | None:
     return server
 
 
+# ------------------------------------------------------------------ POST routes
+# One function per route: it gets the request's JSON body and its "ieee" (empty when it has none)
+# and returns the HTTP status and the JSON to answer with.
+PostRoute = Callable[[dict, str], tuple[int, dict]]
+POST_ROUTES: dict[str, PostRoute] = {}
+
+
+def post(path: str) -> Callable[[PostRoute], PostRoute]:
+    def register(route: PostRoute) -> PostRoute:
+        POST_ROUTES[path] = route
+        return route
+
+    return register
+
+
+@post("/api/feedback")
+def _post_feedback(body: dict, ieee: str) -> tuple[int, dict]:
+    return 200, feedback_report(body)
+
+
+@post("/api/community/report")
+def _post_community_report(body: dict, ieee: str) -> tuple[int, dict]:
+    choice = body.get("choice") if isinstance(body.get("choice"), dict) else {}
+    result = tracker.community_report(ieee, choice)
+    if result is None:
+        return 404, {"error": "Unknown device or no model"}
+    else:
+        return 200, result
+
+
+@post("/api/note")
+def _post_note(body: dict, ieee: str) -> tuple[int, dict]:
+    ok = tracker.set_note(ieee, str(body.get("note") or "")[:2000])
+    return 200 if ok else 404, {"ok": ok}
+
+
+@post("/api/asset")
+def _post_asset(body: dict, ieee: str) -> tuple[int, dict]:
+    ok = tracker.set_asset(ieee, body.get("asset") if isinstance(body.get("asset"), dict) else {})
+    return 200 if ok else 404, {"ok": ok}
+
+
+@post("/api/mute")
+def _post_mute(body: dict, ieee: str) -> tuple[int, dict]:
+    days = body.get("days")
+    ok = tracker.set_muted(
+        ieee,
+        str(body.get("kind") or ""),
+        bool(body.get("muted")),
+        float(days) if isinstance(days, (int, float)) and days > 0 else None,
+    )
+    return 200 if ok else 404, {"ok": ok}
+
+
+@post("/api/report_every")
+def _post_report_every(body: dict, ieee: str) -> tuple[int, dict]:
+    # One device ({ieee, seconds}) or many ({items: [{ieee, seconds}, ...]}).
+    items = body.get("items") if "items" in body else [{"ieee": ieee, "seconds": body.get("seconds")}]
+    if not isinstance(items, list):
+        return 400, {"ok": False, "error": "items must be a list"}
+    result = tracker.set_report_every_many(items)
+    if result["errors"]:
+        result["error"] = result["errors"][0]["error"]
+    return 200 if result["applied"] or not result["errors"] else 400, result
+
+
+@post("/api/report_profile")
+def _post_report_profile(body: dict, ieee: str) -> tuple[int, dict]:
+    result = tracker.set_report_profile(ieee, body.get("profile"), body.get("seconds"))
+    return 200 if result["ok"] else 400, result
+
+
+@post("/api/rhythm_normal")
+def _post_rhythm_normal(body: dict, ieee: str) -> tuple[int, dict]:
+    result = tracker.rhythm_normal(ieee)
+    return 200 if result["ok"] else 400, result
+
+
+@post("/api/rhythm_forget")
+def _post_rhythm_forget(body: dict, ieee: str) -> tuple[int, dict]:
+    result = tracker.rhythm_forget(ieee)
+    return 200 if result["ok"] else 400, result
+
+
+@post("/api/report_defaults")
+def _post_report_defaults(body: dict, ieee: str) -> tuple[int, dict]:
+    result = tracker.set_report_defaults(body.get("defaults"))
+    return 200 if result["ok"] else 400, result
+
+
+@post("/api/stored")
+def _post_stored(body: dict, ieee: str) -> tuple[int, dict]:
+    # One device ({ieee, stored}) or many ({items: [ieee, ...], stored}).
+    items = body.get("items") if "items" in body else [ieee]
+    if not isinstance(items, list):
+        return 400, {"ok": False, "error": "items must be a list"}
+    changed = tracker.set_stored(items[:1000], bool(body.get("stored")))
+    return 200, {"ok": True, "changed": changed}
+
+
+@post("/api/storage_group")
+def _post_storage_group(body: dict, ieee: str) -> tuple[int, dict]:
+    result = tracker.save_storage_group(body.get("group"))
+    return 200 if result["ok"] else 400, result
+
+
+@post("/api/storage_group/remove")
+def _post_storage_group_remove(body: dict, ieee: str) -> tuple[int, dict]:
+    ok = tracker.remove_storage_group(str(body.get("id") or ""))
+    return 200 if ok else 404, {"ok": ok}
+
+
+@post("/api/storage_group/store")
+def _post_storage_group_store(body: dict, ieee: str) -> tuple[int, dict]:
+    changed = tracker.store_group(str(body.get("id") or ""), bool(body.get("stored")))
+    if changed is None:
+        return 404, {"ok": False, "error": "Unknown group"}
+    return 200, {"ok": True, "changed": changed}
+
+
+@post("/api/critical")
+def _post_critical(body: dict, ieee: str) -> tuple[int, dict]:
+    ok = tracker.set_critical(ieee, bool(body.get("critical")))
+    return 200 if ok else 404, {"ok": ok}
+
+
+@post("/api/limits")
+def _post_limits(body: dict, ieee: str) -> tuple[int, dict]:
+    changes = {k: body[k] for k in ("battery_percent", "frozen_hours") if k in body}
+    result = tracker.set_limits(ieee, changes)
+    return 200 if result["ok"] else (404 if result["error"] == "Unknown device" else 400), result
+
+
+@post("/api/bindings/ack")
+def _post_bindings_ack(body: dict, ieee: str) -> tuple[int, dict]:
+    ok = tracker.acknowledge_bindings(ieee)
+    return 200 if ok else 404, {"ok": ok}
+
+
+@post("/api/bindings/restore")
+def _post_bindings_restore(body: dict, ieee: str) -> tuple[int, dict]:
+    keys = body.get("keys")
+    result = tracker.restore_bindings(ieee, [str(k) for k in keys] if isinstance(keys, list) else None)
+    return 200 if result["ok"] else 502, result
+
+
+@post("/api/link")
+def _post_link(body: dict, ieee: str) -> tuple[int, dict]:
+    result = tracker.link(str(body.get("old") or ""), str(body.get("new") or ""))
+    return 200 if result["ok"] else 400, result
+
+
+@post("/api/replace")
+def _post_replace(body: dict, ieee: str) -> tuple[int, dict]:
+    carry = body.get("carry") if isinstance(body.get("carry"), dict) else {}
+    result = replace_device(str(body.get("old") or ""), str(body.get("new") or ""), carry)
+    return 200 if result["ok"] or result["steps"] else 400, result
+
+
+@post("/api/unlink")
+def _post_unlink(body: dict, ieee: str) -> tuple[int, dict]:
+    return 200, tracker.unlink(str(body.get("old") or ""), str(body.get("new") or ""))
+
+
+@post("/api/reconfigure")
+def _post_reconfigure(body: dict, ieee: str) -> tuple[int, dict]:
+    result = tracker.reconfigure(ieee)
+    return 200 if result["ok"] else 502, result
+
+
+@post("/api/reporting")
+def _post_reporting(body: dict, ieee: str) -> tuple[int, dict]:
+    # One configured reporting ({ieee, ep, cluster, attribute, min, max, change}) set through Z2M.
+    fix, error = clean_reporting_fix(body)
+    if fix is None:
+        return 400, {"ok": False, "error": error}
+    result = tracker.configure_reporting(ieee, fix)
+    status = {None: 200, "unknown": 404, "invalid": 400}.get(result.get("reason"), 502)
+    return status, result
+
+
+@post("/api/networkmap")
+def _post_networkmap(body: dict, ieee: str) -> tuple[int, dict]:
+    instance = body.get("instance") if body.get("instance") in base_topics else None
+    started = run_networkmap(instance)
+    return (200 if started else 409, {"ok": started, "error": None if started else "A scan is already running"})
+
+
+@post("/api/ping")
+def _post_ping(body: dict, ieee: str) -> tuple[int, dict]:
+    acknowledge_alerts(ieee)
+    result = tracker.ping(ieee)
+    return 200 if result["ok"] or result.get("timeout") else 400, result
+
+
+@post("/api/forget")
+def _post_forget(body: dict, ieee: str) -> tuple[int, dict]:
+    ok = tracker.forget(ieee)
+    return 200 if ok else 404, {"ok": ok}
+
+
+@post("/api/settings")
+def _post_settings(body: dict, ieee: str) -> tuple[int, dict]:
+    result = apply_settings(body.get("changes") if isinstance(body.get("changes"), dict) else {})
+    return 200 if result["ok"] else 400, result
+
+
+@post("/api/alerts/pause")
+def _post_alerts_pause(body: dict, ieee: str) -> tuple[int, dict]:
+    try:
+        state = tracker.pause_alerts(body.get("minutes"), body.get("until"), body.get("at"))
+    except ValueError as err:
+        return 400, {"ok": False, "error": str(err)}
+    else:
+        return 200, {"ok": True, "alerts_paused": state}
+
+
+@post("/api/alerts/resume")
+def _post_alerts_resume(body: dict, ieee: str) -> tuple[int, dict]:
+    resumed = tracker.resume_alerts()
+    if resumed:
+        # Send what is still wrong now rather than at the next health check.
+        threading.Thread(target=alerts.check, name="alerts-resume", daemon=True).start()
+    return 200, {"ok": True, "resumed": resumed}
+
+
+@post("/api/test-notification")
+def _post_test_notification(body: dict, ieee: str) -> tuple[int, dict]:
+    return 200, {"ok": True, "channels": alerts.test()}
+
+
+@post("/api/battery")
+def _post_battery(body: dict, ieee: str) -> tuple[int, dict]:
+    ok = tracker.set_battery_info(ieee, body.get("info") if isinstance(body.get("info"), dict) else {})
+    threading.Thread(target=discovery.sync, daemon=True).start()
+    return 200 if ok else 404, {"ok": ok}
+
+
+@post("/api/battery/replaced")
+def _post_battery_replaced(body: dict, ieee: str) -> tuple[int, dict]:
+    date = str(body.get("date") or datetime.now(tracker.local_tz).date().isoformat())
+    brand = body.get("brand") if isinstance(body.get("brand"), str) else None
+    entry = record_battery_replaced(ieee, date, "Zigbee Tracker", str(body.get("note") or ""), brand)
+    return (
+        200 if entry else 400,
+        {"ok": bool(entry), "entry": entry, "error": None if entry else "Invalid device or date"},
+    )
+
+
+@post("/api/battery_prices")
+def _post_battery_prices(body: dict, ieee: str) -> tuple[int, dict]:
+    result = tracker.set_battery_prices(body.get("prices"))
+    return 200 if result["ok"] else 400, result
+
+
+@post("/api/battery_stock")
+def _post_battery_stock(body: dict, ieee: str) -> tuple[int, dict]:
+    result = tracker.set_battery_stock(str(body.get("type") or ""), body.get("count"), body.get("delta"))
+    return 200 if result["ok"] else 400, result
+
+
+@post("/api/battery_brands/add")
+def _post_battery_brands_add(body: dict, ieee: str) -> tuple[int, dict]:
+    result = tracker.add_brand(body.get("brand"))
+    return 200 if result["ok"] else 400, result
+
+
+@post("/api/battery_brands/remove")
+def _post_battery_brands_remove(body: dict, ieee: str) -> tuple[int, dict]:
+    result = tracker.remove_brand(body.get("brand"))
+    return 200 if result["ok"] else 400, result
+
+
+@post("/api/battery/brand")
+def _post_battery_brand(body: dict, ieee: str) -> tuple[int, dict]:
+    ok = tracker.set_battery_brand(ieee, body.get("index"), body.get("brand"))
+    return 200 if ok else 400, {"ok": ok, "error": None if ok else "Invalid device, entry or brand"}
+
+
+@post("/api/battery/pending")
+def _post_battery_pending(body: dict, ieee: str) -> tuple[int, dict]:
+    action = body.get("action")
+    ok = action in ("confirm", "dismiss") and tracker.resolve_battery_pending(ieee, action == "confirm")
+    threading.Thread(target=discovery.sync, daemon=True).start()
+    return 200 if ok else 404, {"ok": ok}
+
+
+@post("/api/battery/unreliable")
+def _post_battery_unreliable(body: dict, ieee: str) -> tuple[int, dict]:
+    ok = tracker.set_battery_unreliable(ieee, body.get("unreliable"))
+    threading.Thread(target=discovery.sync, daemon=True).start()
+    return 200 if ok else 400, {"ok": ok}
+
+
+@post("/api/battery/remove")
+def _post_battery_remove(body: dict, ieee: str) -> tuple[int, dict]:
+    ok = tracker.remove_battery_replacement(ieee, int(body.get("index", -1)))
+    threading.Thread(target=discovery.sync, daemon=True).start()
+    return 200 if ok else 404, {"ok": ok}
+
+
+@post("/api/maintenance")
+def _post_maintenance(body: dict, ieee: str) -> tuple[int, dict]:
+    result = tracker.set_maintenance_task(ieee, body.get("task"))
+    return 200 if result["ok"] else (404 if result["error"] == "Unknown device" else 400), result
+
+
+@post("/api/firmware_notes")
+def _post_firmware_notes(body: dict, ieee: str) -> tuple[int, dict]:
+    result = tracker.save_firmware_note(body.get("note"))
+    return 200 if result["ok"] else 400, result
+
+
+@post("/api/firmware_notes/delete")
+def _post_firmware_notes_delete(body: dict, ieee: str) -> tuple[int, dict]:
+    ok = tracker.delete_firmware_note(str(body.get("id") or ""))
+    return 200 if ok else 404, {"ok": ok}
+
+
+@post("/api/maintenance/remove")
+def _post_maintenance_remove(body: dict, ieee: str) -> tuple[int, dict]:
+    ok = tracker.remove_maintenance_task(ieee, str(body.get("id") or ""))
+    return 200 if ok else 404, {"ok": ok}
+
+
+@post("/api/maintenance/done")
+def _post_maintenance_done(body: dict, ieee: str) -> tuple[int, dict]:
+    result = tracker.maintenance_done(ieee, str(body.get("id") or ""), body.get("date"))
+    return 200 if result["ok"] else 400, result
+
+
+@post("/api/rename")
+def _post_rename(body: dict, ieee: str) -> tuple[int, dict]:
+    result = tracker.rename(ieee, str(body.get("name") or ""))
+    return 200 if result["ok"] else 400, result
+
+
+@post("/api/area")
+def _post_area(body: dict, ieee: str) -> tuple[int, dict]:
+    device_id = tracker.ha_device_ids.get(ieee)
+    if not device_id:
+        # The device list is only re-read every few hours, so a newly
+        # paired device may be in HA already. Ask HA directly before giving up.
+        device_id = home_assistant.find_device(ieee)
+        if device_id:
+            with tracker.lock:
+                tracker.ha_device_ids[ieee] = device_id
+                home_assistant.device_ids[ieee] = device_id
+    if not device_id:
+        return 400, {"ok": False, "error": "This device isn't in Home Assistant's device list"}
+    else:
+        area_id = body.get("area_id") or None
+        home_assistant.set_device_area(device_id, area_id)
+        names = {a["id"]: a["name"] for a in home_assistant.list_areas()}
+        with tracker.lock:
+            record = tracker.data["devices"].get(ieee)
+            if record is not None:
+                record["area"] = names.get(area_id) if area_id else None
+                tracker._changed(structural=True)
+        threading.Thread(target=discovery.sync, daemon=True).start()
+        return 200, {"ok": True}
+
+
+@post("/api/z2m/last_seen")
+def _post_z2m_last_seen(body: dict, ieee: str) -> tuple[int, dict]:
+    result = tracker.turn_on_last_seen(str(body.get("instance") or ""))
+    if result["ok"]:
+        # Zigbee2MQTT sends its new settings in bridge/info just after answering.
+        threading.Timer(2, tracker.evaluate_health).start()
+    return 200 if result["ok"] else (400 if result["error"] == "Unknown network" else 502), result
+
+
+@post("/api/advice/dismiss")
+def _post_advice_dismiss(body: dict, ieee: str) -> tuple[int, dict]:
+    ok = tracker.dismiss_advice(str(body.get("key") or ""))
+    return 200 if ok else 404, {"ok": ok}
+
+
+@post("/api/pairing")
+def _post_pairing(body: dict, ieee: str) -> tuple[int, dict]:
+    instance = body.get("instance") if body.get("instance") in mqtt_topics else (mqtt_topics or [""])[0]
+    result = tracker.start_pairing(
+        instance,
+        int(body.get("seconds") or 0),
+        str(body.get("via") or "") or None,
+        str(body.get("target") or "") or None,
+    )
+    if result["ok"] and not body.get("seconds"):
+        alerts.check()
+    return 200 if result["ok"] else 502, result
+
+
+@post("/api/ota")
+def _post_ota(body: dict, ieee: str) -> tuple[int, dict]:
+    if body.get("action") == "update":
+        result = ota_manager.enqueue([ieee], force=True)
+        result["ok"] = bool(result["queued"])
+        if not result["ok"]:
+            result["error"] = (result["skipped"] or [{}])[0].get("reason") or "Already queued"
+    else:
+        result = tracker.ota(ieee, str(body.get("action") or ""))
+    return 200 if result["ok"] else 502, result
+
+
+@post("/api/ota/check")
+def _post_ota_check(body: dict, ieee: str) -> tuple[int, dict]:
+    result = ota_manager.check_all()
+    return 200 if result["ok"] else 409, result
+
+
+@post("/api/ota/queue")
+def _post_ota_queue(body: dict, ieee: str) -> tuple[int, dict]:
+    force = body.get("force") is True
+    if body.get("all") is True:
+        result = ota_manager.enqueue_all(force)
+    else:
+        ieees = [str(x) for x in body.get("ieees") or [] if isinstance(x, str)][:500]
+        result = ota_manager.enqueue(ieees, force)
+    return 200, result
+
+
+@post("/api/ota/cancel")
+def _post_ota_cancel(body: dict, ieee: str) -> tuple[int, dict]:
+    result = ota_manager.cancel(ieee)
+    return 200 if result["ok"] else 404, result
+
+
+@post("/api/ha/remove_leftovers")
+def _post_ha_remove_leftovers(body: dict, ieee: str) -> tuple[int, dict]:
+    ids = body.get("device_ids")
+    ready, known = tracker.leftover_context()
+    if not isinstance(ids, list) or not ids:
+        return 400, {"ok": False, "error": "No devices chosen"}
+    elif not ready or not home_assistant.available:
+        return 409, {"ok": False, "error": "Not ready yet, try again in a minute"}
+    else:
+        result = home_assistant.remove_leftovers([str(x) for x in ids[:500]], known)
+        try:
+            refresh_leftovers()
+        except Exception:  # noqa: BLE001 - the next refresh catches up
+            pass
+        return 200, result
+
+
+@post("/api/retained/clear")
+def _post_retained_clear(body: dict, ieee: str) -> tuple[int, dict]:
+    topics = body.get("topics")
+    if not isinstance(topics, list) or not topics:
+        return 400, {"ok": False, "error": "No topics chosen"}
+    else:
+        result = clear_retained([str(t) for t in topics[:2000]])
+        return 200 if result["ok"] else 409, result
+
+
+@post("/api/retained/scan")
+def _post_retained_scan(body: dict, ieee: str) -> tuple[int, dict]:
+    started = scan_retained()
+    return (200 if started else 409, {"ok": started, "error": None if started else "A scan is already running"})
+
+
+@post("/api/retained_command/clear")
+def _post_retained_command_clear(body: dict, ieee: str) -> tuple[int, dict]:
+    result = clear_retained_commands(ieee)
+    return 200 if result["ok"] else 404 if "topics" not in result else 502, result
+
+
+@post("/api/summary")
+def _post_summary(body: dict, ieee: str) -> tuple[int, dict]:
+    return 200, {"ok": True, **(send_daily_summary() if body.get("daily") else send_weekly_summary())}
+
+
+@post("/api/import")
+def _post_import(body: dict, ieee: str) -> tuple[int, dict]:
+    return 200, tracker.import_history()
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = f"Z2MTracker/{VERSION}"
+    # A client that connects and then sends nothing (or half a request) must not hold a thread forever.
+    timeout = 60
 
     def log_message(self, format, *args):  # noqa: A002 - signature defined by base class
         return
@@ -2014,7 +2536,8 @@ class Handler(BaseHTTPRequestHandler):
         if site in ("cross-site", "same-site"):
             self.send_error(403)
             return
-        if login_throttle.blocked(client):
+        keys = standalone.throttle_keys(client, self.headers.get("X-Forwarded-For"))
+        if any(login_throttle.blocked(key, tries) for key, tries in keys):
             self._login_page(429, "Too many wrong passwords. Wait 15 minutes, then try again.")
             return
         try:
@@ -2024,11 +2547,13 @@ class Handler(BaseHTTPRequestHandler):
         raw = self.rfile.read(length).decode("utf-8", "replace") if 0 < length <= 4096 else ""
         given = (parse_qs(raw).get("password") or [""])[0]
         if len(UI_PASSWORD) < standalone.MIN_UI_CHARS or not standalone.password_ok(given, UI_PASSWORD):
-            login_throttle.failed(client)
-            _LOGGER.warning("Wrong web UI password from %s", client)
+            for key, _tries in keys:
+                login_throttle.failed(key)
+            _LOGGER.warning("Wrong web UI password from %s", keys[0][0])
             self._login_page(401, "Wrong password.")
             return
-        login_throttle.succeeded(client)
+        # Only this visitor's count is cleared: one right password doesn't forgive a proxy's other callers.
+        login_throttle.succeeded(keys[0][0])
         secure = (self.headers.get("X-Forwarded-Proto") or "").lower() == "https"
         cookie = standalone.session_cookie(sessions.create(), secure)
         self._send(303, b"", "text/plain", {"Location": "./", "Set-Cookie": cookie})
@@ -2047,9 +2572,21 @@ class Handler(BaseHTTPRequestHandler):
             return True
         return False
 
+    def _query(self) -> dict[str, str]:
+        """The query string as it came (still percent-encoded): each route decodes its own values."""
+        text = self.path.split("?", 1)[1] if "?" in self.path else ""
+        return dict(part.split("=", 1) for part in text.split("&") if "=" in part)
+
+    def _gzip_ok(self) -> bool:
+        accepted = (self.headers.get("Accept-Encoding") or "").lower()
+        return "gzip" in (part.split(";")[0].strip() for part in accepted.split(","))
+
     def _send(
         self, status: int, body: bytes, content_type: str = "application/json", extra: dict | None = None
     ) -> None:
+        if self.command == "POST":
+            # The page asks for its data again right after a request: it must see what that changed.
+            tracker.drop_snapshot()
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
@@ -2077,6 +2614,16 @@ class Handler(BaseHTTPRequestHandler):
         return parsed if isinstance(parsed, dict) else {}
 
     def do_GET(self) -> None:  # noqa: N802 - http.server naming
+        try:
+            self._get()
+        except Exception as err:  # noqa: BLE001 - log it (it reaches bug reports) and answer, as do_POST does
+            _LOGGER.exception("API %s failed", self.path.split("?", 1)[0])
+            try:
+                self._json(500, {"ok": False, "error": str(err)})
+            except Exception:  # noqa: BLE001 - the answer had already started or the client left
+                pass
+
+    def _get(self) -> None:
         if STANDALONE and self.path.split("?", 1)[0] == "/login":
             self._login_page()
             return
@@ -2087,12 +2634,12 @@ class Handler(BaseHTTPRequestHandler):
             # "Used by" links point at HA's own editor pages, which live on Home Assistant, not here.
             self._send(302, b"", "text/plain", {"Location": HA_URL + path})
         elif path in UI_PAGES:
-            self._send(
-                200,
-                (WWW / "index.html").read_bytes(),
-                "text/html; charset=utf-8",
-                {"Content-Security-Policy": PAGE_CSP},
-            )
+            raw, packed = page_bytes()
+            headers = {"Content-Security-Policy": PAGE_CSP, "Vary": "Accept-Encoding"}
+            if self._gzip_ok():
+                self._send(200, packed, "text/html; charset=utf-8", {**headers, "Content-Encoding": "gzip"})
+            else:
+                self._send(200, raw, "text/html; charset=utf-8", headers)
         elif path.startswith("/fonts/"):
             font = FONTS.get(path.removeprefix("/fonts/"))
             if font is not None:
@@ -2112,7 +2659,10 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._send(200, body, "application/json; charset=utf-8")
         elif path == "/api/devices":
-            self._send(200, tracker.snapshot_json())
+            if self._gzip_ok():
+                self._send(200, tracker.snapshot_json(gzipped=True), extra=GZIP_HEADERS)
+            else:
+                self._send(200, tracker.snapshot_json(), extra={"Vary": "Accept-Encoding"})
         elif path == "/api/settings":
             self._json(200, settings_payload())
         elif path == "/api/community":
@@ -2122,11 +2672,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/ota":
             self._json(200, ota_manager.snapshot())
         elif path == "/api/scans":
-            query = dict(
-                part.split("=", 1)
-                for part in (self.path.split("?", 1)[1] if "?" in self.path else "").split("&")
-                if "=" in part
-            )
+            query = self._query()
             # HA ingress re-encodes a space as "+"; a base topic can't hold a real "+" (an MQTT wildcard).
             net = unquote_plus(query.get("net", ""))
             if net not in base_topics:
@@ -2134,11 +2680,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._json(200, {"scans": tracker.scan_history(net)})
         elif path == "/api/whatif":
-            query = dict(
-                part.split("=", 1)
-                for part in (self.path.split("?", 1)[1] if "?" in self.path else "").split("&")
-                if "=" in part
-            )
+            query = self._query()
             net = unquote_plus(query.get("net", ""))
             ieee = unquote(query.get("ieee", "")).lower()
             if net not in base_topics:
@@ -2152,22 +2694,14 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     self._json(200, result)
         elif path == "/api/parents":
-            query = dict(
-                part.split("=", 1)
-                for part in (self.path.split("?", 1)[1] if "?" in self.path else "").split("&")
-                if "=" in part
-            )
+            query = self._query()
             result = tracker.parent_history(unquote(query.get("ieee", "")))
             if result is None:
                 self._json(400, {"error": "Unknown device"})
             else:
                 self._json(200, result)
         elif path == "/api/messages":
-            query = dict(
-                part.split("=", 1)
-                for part in (self.path.split("?", 1)[1] if "?" in self.path else "").split("&")
-                if "=" in part
-            )
+            query = self._query()
             ieee = unquote(query.get("ieee", "")).lower()
             messages = tracker.recent_messages(ieee) if IEEE_RE.match(ieee) else None
             if messages is None:
@@ -2175,11 +2709,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._json(200, {"ieee": ieee, "messages": messages, "now": time.time()})
         elif path == "/api/metrics":
-            query = dict(
-                part.split("=", 1)
-                for part in (self.path.split("?", 1)[1] if "?" in self.path else "").split("&")
-                if "=" in part
-            )
+            query = self._query()
             ieee = unquote(query.get("ieee", ""))
             result = metrics.history(ieee, query.get("range", "")) if ieee else None
             if result is None:
@@ -2195,11 +2725,7 @@ class Handler(BaseHTTPRequestHandler):
                 {"Content-Disposition": f'attachment; filename="zigbee-tracker-backup-{stamp}.json"'},
             )
         elif path == "/api/coordinator_backup":
-            query = dict(
-                part.split("=", 1)
-                for part in (self.path.split("?", 1)[1] if "?" in self.path else "").split("&")
-                if "=" in part
-            )
+            query = self._query()
             # HA ingress re-encodes a space as "+"; a base topic can't hold a real "+" (an MQTT wildcard).
             net, copy_id = unquote_plus(query.get("net", "")), unquote(query.get("id", ""))
             found = tracker.backup_history.path(net, copy_id) if net in base_topics else None
@@ -2268,279 +2794,37 @@ class Handler(BaseHTTPRequestHandler):
         ):
             self._json(409, {"ok": False, "error": "Only for Zigbee2MQTT devices"})
             return
+        route = POST_ROUTES.get(path)
+        if route is None:
+            self.send_error(404)
+            return
         try:
-            if path == "/api/feedback":
-                self._json(200, feedback_report(body))
-            elif path == "/api/community/report":
-                choice = body.get("choice") if isinstance(body.get("choice"), dict) else {}
-                result = tracker.community_report(ieee, choice)
-                if result is None:
-                    self._json(404, {"error": "Unknown device or no model"})
-                else:
-                    self._json(200, result)
-            elif path == "/api/note":
-                ok = tracker.set_note(ieee, str(body.get("note") or "")[:2000])
-                self._json(200 if ok else 404, {"ok": ok})
-            elif path == "/api/asset":
-                ok = tracker.set_asset(ieee, body.get("asset") if isinstance(body.get("asset"), dict) else {})
-                self._json(200 if ok else 404, {"ok": ok})
-            elif path == "/api/mute":
-                days = body.get("days")
-                ok = tracker.set_muted(
-                    ieee,
-                    str(body.get("kind") or ""),
-                    bool(body.get("muted")),
-                    float(days) if isinstance(days, (int, float)) and days > 0 else None,
-                )
-                self._json(200 if ok else 404, {"ok": ok})
-            elif path == "/api/report_every":
-                # One device ({ieee, seconds}) or many ({items: [{ieee, seconds}, ...]}).
-                items = body.get("items") if "items" in body else [{"ieee": ieee, "seconds": body.get("seconds")}]
-                if not isinstance(items, list):
-                    self._json(400, {"ok": False, "error": "items must be a list"})
-                    return
-                result = tracker.set_report_every_many(items)
-                if result["errors"]:
-                    result["error"] = result["errors"][0]["error"]
-                self._json(200 if result["applied"] or not result["errors"] else 400, result)
-            elif path == "/api/report_profile":
-                result = tracker.set_report_profile(ieee, body.get("profile"), body.get("seconds"))
-                self._json(200 if result["ok"] else 400, result)
-            elif path in ("/api/rhythm_normal", "/api/rhythm_forget"):
-                act = tracker.rhythm_normal if path == "/api/rhythm_normal" else tracker.rhythm_forget
-                result = act(ieee)
-                self._json(200 if result["ok"] else 400, result)
-            elif path == "/api/report_defaults":
-                result = tracker.set_report_defaults(body.get("defaults"))
-                self._json(200 if result["ok"] else 400, result)
-            elif path == "/api/critical":
-                ok = tracker.set_critical(ieee, bool(body.get("critical")))
-                self._json(200 if ok else 404, {"ok": ok})
-            elif path == "/api/limits":
-                changes = {k: body[k] for k in ("battery_percent", "frozen_hours") if k in body}
-                result = tracker.set_limits(ieee, changes)
-                self._json(200 if result["ok"] else (404 if result["error"] == "Unknown device" else 400), result)
-            elif path == "/api/bindings/ack":
-                ok = tracker.acknowledge_bindings(ieee)
-                self._json(200 if ok else 404, {"ok": ok})
-            elif path == "/api/bindings/restore":
-                keys = body.get("keys")
-                result = tracker.restore_bindings(ieee, [str(k) for k in keys] if isinstance(keys, list) else None)
-                self._json(200 if result["ok"] else 502, result)
-            elif path == "/api/link":
-                result = tracker.link(str(body.get("old") or ""), str(body.get("new") or ""))
-                self._json(200 if result["ok"] else 400, result)
-            elif path == "/api/replace":
-                carry = body.get("carry") if isinstance(body.get("carry"), dict) else {}
-                result = replace_device(str(body.get("old") or ""), str(body.get("new") or ""), carry)
-                self._json(200 if result["ok"] or result["steps"] else 400, result)
-            elif path == "/api/unlink":
-                self._json(200, tracker.unlink(str(body.get("old") or ""), str(body.get("new") or "")))
-            elif path == "/api/reconfigure":
-                result = tracker.reconfigure(ieee)
-                self._json(200 if result["ok"] else 502, result)
-            elif path == "/api/reporting":
-                # One configured reporting ({ieee, ep, cluster, attribute, min, max, change}) set through Z2M.
-                fix, error = clean_reporting_fix(body)
-                if fix is None:
-                    self._json(400, {"ok": False, "error": error})
-                    return
-                result = tracker.configure_reporting(ieee, fix)
-                status = {None: 200, "unknown": 404, "invalid": 400}.get(result.get("reason"), 502)
-                self._json(status, result)
-            elif path == "/api/networkmap":
-                instance = body.get("instance") if body.get("instance") in base_topics else None
-                started = run_networkmap(instance)
-                self._json(
-                    200 if started else 409, {"ok": started, "error": None if started else "A scan is already running"}
-                )
-            elif path == "/api/ping":
-                acknowledge_alerts(ieee)
-                result = tracker.ping(ieee)
-                self._json(200 if result["ok"] or result.get("timeout") else 400, result)
-            elif path == "/api/forget":
-                ok = tracker.forget(ieee)
-                self._json(200 if ok else 404, {"ok": ok})
-            elif path == "/api/settings":
-                result = apply_settings(body.get("changes") if isinstance(body.get("changes"), dict) else {})
-                self._json(200 if result["ok"] else 400, result)
-            elif path == "/api/alerts/pause":
-                try:
-                    state = tracker.pause_alerts(body.get("minutes"), body.get("until"), body.get("at"))
-                except ValueError as err:
-                    self._json(400, {"ok": False, "error": str(err)})
-                else:
-                    self._json(200, {"ok": True, "alerts_paused": state})
-            elif path == "/api/alerts/resume":
-                resumed = tracker.resume_alerts()
-                if resumed:
-                    # Send what is still wrong now rather than at the next health check.
-                    threading.Thread(target=alerts.check, name="alerts-resume", daemon=True).start()
-                self._json(200, {"ok": True, "resumed": resumed})
-            elif path == "/api/test-notification":
-                self._json(200, {"ok": True, "channels": alerts.test()})
-            elif path == "/api/battery":
-                ok = tracker.set_battery_info(ieee, body.get("info") if isinstance(body.get("info"), dict) else {})
-                threading.Thread(target=discovery.sync, daemon=True).start()
-                self._json(200 if ok else 404, {"ok": ok})
-            elif path == "/api/battery/replaced":
-                date = str(body.get("date") or datetime.now(tracker.local_tz).date().isoformat())
-                brand = body.get("brand") if isinstance(body.get("brand"), str) else None
-                entry = record_battery_replaced(ieee, date, "Zigbee Tracker", str(body.get("note") or ""), brand)
-                self._json(
-                    200 if entry else 400,
-                    {"ok": bool(entry), "entry": entry, "error": None if entry else "Invalid device or date"},
-                )
-            elif path == "/api/battery_prices":
-                result = tracker.set_battery_prices(body.get("prices"))
-                self._json(200 if result["ok"] else 400, result)
-            elif path == "/api/battery_stock":
-                result = tracker.set_battery_stock(str(body.get("type") or ""), body.get("count"), body.get("delta"))
-                self._json(200 if result["ok"] else 400, result)
-            elif path == "/api/battery_brands/add":
-                result = tracker.add_brand(body.get("brand"))
-                self._json(200 if result["ok"] else 400, result)
-            elif path == "/api/battery_brands/remove":
-                result = tracker.remove_brand(body.get("brand"))
-                self._json(200 if result["ok"] else 400, result)
-            elif path == "/api/battery/brand":
-                ok = tracker.set_battery_brand(ieee, body.get("index"), body.get("brand"))
-                self._json(200 if ok else 400, {"ok": ok, "error": None if ok else "Invalid device, entry or brand"})
-            elif path == "/api/battery/pending":
-                action = body.get("action")
-                ok = action in ("confirm", "dismiss") and tracker.resolve_battery_pending(ieee, action == "confirm")
-                threading.Thread(target=discovery.sync, daemon=True).start()
-                self._json(200 if ok else 404, {"ok": ok})
-            elif path == "/api/battery/unreliable":
-                ok = tracker.set_battery_unreliable(ieee, body.get("unreliable"))
-                threading.Thread(target=discovery.sync, daemon=True).start()
-                self._json(200 if ok else 400, {"ok": ok})
-            elif path == "/api/battery/remove":
-                ok = tracker.remove_battery_replacement(ieee, int(body.get("index", -1)))
-                threading.Thread(target=discovery.sync, daemon=True).start()
-                self._json(200 if ok else 404, {"ok": ok})
-            elif path == "/api/maintenance":
-                result = tracker.set_maintenance_task(ieee, body.get("task"))
-                self._json(200 if result["ok"] else (404 if result["error"] == "Unknown device" else 400), result)
-            elif path == "/api/firmware_notes":
-                result = tracker.save_firmware_note(body.get("note"))
-                self._json(200 if result["ok"] else 400, result)
-            elif path == "/api/firmware_notes/delete":
-                ok = tracker.delete_firmware_note(str(body.get("id") or ""))
-                self._json(200 if ok else 404, {"ok": ok})
-            elif path == "/api/maintenance/remove":
-                ok = tracker.remove_maintenance_task(ieee, str(body.get("id") or ""))
-                self._json(200 if ok else 404, {"ok": ok})
-            elif path == "/api/maintenance/done":
-                result = tracker.maintenance_done(ieee, str(body.get("id") or ""), body.get("date"))
-                self._json(200 if result["ok"] else 400, result)
-            elif path == "/api/rename":
-                result = tracker.rename(ieee, str(body.get("name") or ""))
-                self._json(200 if result["ok"] else 400, result)
-            elif path == "/api/area":
-                device_id = tracker.ha_device_ids.get(ieee)
-                if not device_id:
-                    # The device list is only re-read every few hours, so a newly
-                    # paired device may be in HA already. Ask HA directly before giving up.
-                    device_id = home_assistant.find_device(ieee)
-                    if device_id:
-                        with tracker.lock:
-                            tracker.ha_device_ids[ieee] = device_id
-                            home_assistant.device_ids[ieee] = device_id
-                if not device_id:
-                    self._json(400, {"ok": False, "error": "This device isn't in Home Assistant's device list"})
-                else:
-                    area_id = body.get("area_id") or None
-                    home_assistant.set_device_area(device_id, area_id)
-                    names = {a["id"]: a["name"] for a in home_assistant.list_areas()}
-                    with tracker.lock:
-                        record = tracker.data["devices"].get(ieee)
-                        if record is not None:
-                            record["area"] = names.get(area_id) if area_id else None
-                            tracker._changed(structural=True)
-                    threading.Thread(target=discovery.sync, daemon=True).start()
-                    self._json(200, {"ok": True})
-            elif path == "/api/z2m/last_seen":
-                result = tracker.turn_on_last_seen(str(body.get("instance") or ""))
-                if result["ok"]:
-                    # Zigbee2MQTT sends its new settings in bridge/info just after answering.
-                    threading.Timer(2, tracker.evaluate_health).start()
-                self._json(200 if result["ok"] else (400 if result["error"] == "Unknown network" else 502), result)
-            elif path == "/api/advice/dismiss":
-                ok = tracker.dismiss_advice(str(body.get("key") or ""))
-                self._json(200 if ok else 404, {"ok": ok})
-            elif path == "/api/pairing":
-                instance = body.get("instance") if body.get("instance") in mqtt_topics else (mqtt_topics or [""])[0]
-                result = tracker.start_pairing(
-                    instance,
-                    int(body.get("seconds") or 0),
-                    str(body.get("via") or "") or None,
-                    str(body.get("target") or "") or None,
-                )
-                if result["ok"] and not body.get("seconds"):
-                    alerts.check()
-                self._json(200 if result["ok"] else 502, result)
-            elif path == "/api/ota":
-                if body.get("action") == "update":
-                    result = ota_manager.enqueue([ieee], force=True)
-                    result["ok"] = bool(result["queued"])
-                    if not result["ok"]:
-                        result["error"] = (result["skipped"] or [{}])[0].get("reason") or "Already queued"
-                else:
-                    result = tracker.ota(ieee, str(body.get("action") or ""))
-                self._json(200 if result["ok"] else 502, result)
-            elif path == "/api/ota/check":
-                result = ota_manager.check_all()
-                self._json(200 if result["ok"] else 409, result)
-            elif path == "/api/ota/queue":
-                force = body.get("force") is True
-                if body.get("all") is True:
-                    result = ota_manager.enqueue_all(force)
-                else:
-                    ieees = [str(x) for x in body.get("ieees") or [] if isinstance(x, str)][:500]
-                    result = ota_manager.enqueue(ieees, force)
-                self._json(200, result)
-            elif path == "/api/ota/cancel":
-                result = ota_manager.cancel(ieee)
-                self._json(200 if result["ok"] else 404, result)
-            elif path == "/api/ha/remove_leftovers":
-                ids = body.get("device_ids")
-                ready, known = tracker.leftover_context()
-                if not isinstance(ids, list) or not ids:
-                    self._json(400, {"ok": False, "error": "No devices chosen"})
-                elif not ready or not home_assistant.available:
-                    self._json(409, {"ok": False, "error": "Not ready yet, try again in a minute"})
-                else:
-                    result = home_assistant.remove_leftovers([str(x) for x in ids[:500]], known)
-                    try:
-                        refresh_leftovers()
-                    except Exception:  # noqa: BLE001 - the next refresh catches up
-                        pass
-                    self._json(200, result)
-            elif path == "/api/retained/clear":
-                topics = body.get("topics")
-                if not isinstance(topics, list) or not topics:
-                    self._json(400, {"ok": False, "error": "No topics chosen"})
-                else:
-                    result = clear_retained([str(t) for t in topics[:2000]])
-                    self._json(200 if result["ok"] else 409, result)
-            elif path == "/api/retained/scan":
-                started = scan_retained()
-                self._json(
-                    200 if started else 409, {"ok": started, "error": None if started else "A scan is already running"}
-                )
-            elif path == "/api/retained_command/clear":
-                result = clear_retained_commands(ieee)
-                self._json(200 if result["ok"] else 404 if "topics" not in result else 502, result)
-            elif path == "/api/summary":
-                self._json(200, {"ok": True, **(send_daily_summary() if body.get("daily") else send_weekly_summary())})
-            elif path == "/api/import":
-                self._json(200, tracker.import_history())
-            else:
-                self.send_error(404)
+            status, result = route(body, ieee)
         except Exception as err:  # noqa: BLE001 - report errors to the caller
             _LOGGER.exception("API %s failed", path)
-            self._json(500, {"ok": False, "error": str(err)})
+            status, result = 500, {"ok": False, "error": str(err)}
+        self._json(status, result)
+
+
+def history_notice(source: str) -> None:
+    """history.json could not be read at start: say so in Home Assistant, not only in the log."""
+    if source == "backup":
+        text = (
+            "The history file could not be read, so the app loaded the copy from the save before it. "
+            "At most the last few minutes of readings are missing. The unreadable file was kept in "
+            "the app's data folder."
+        )
+    else:
+        text = (
+            "The history file could not be read and there was no earlier copy, so the app started "
+            "with an empty history. The unreadable file was kept in the app's data folder. Restore "
+            "a backup under Settings → Backup to get your history back."
+        )
+    stop_event.wait(30)
+    try:
+        home_assistant.persistent_notification("Zigbee Tracker: history file", text, "z2m_tracker_history_file")
+    except Exception:  # noqa: BLE001 - the log already says it
+        _LOGGER.exception("Sending the history notice failed")
 
 
 def main() -> None:
@@ -2550,8 +2834,10 @@ def main() -> None:
     with tracker.lock:
         count = len(tracker.data["devices"])
     _LOGGER.info("Z2M Device Tracker %s: %d devices loaded (%s), base topics: %s", VERSION, count, source, base_topics)
-    if source == "migrated":
+    if source in ("migrated", "backup"):
         tracker.save(force=True)
+    if source in ("backup", "corrupt"):
+        threading.Thread(target=history_notice, args=(source,), name="history-notice", daemon=True).start()
     if STANDALONE:
         _LOGGER.info(
             "Standalone mode (no Supervisor): web UI on port %d, Home Assistant %s. The integration's API token is in %s",

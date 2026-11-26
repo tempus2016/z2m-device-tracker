@@ -8,11 +8,12 @@ from typing import Any
 from homeassistant.components.diagnostics import REDACTED, async_redact_data
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_APP_URL, VERSION
+from .const import CONF_APP_URL, CONF_TOKEN, VERSION
 from .tracker import TrackerAppError, Z2MTracker
 
 TO_REDACT = {
     CONF_APP_URL,
+    CONF_TOKEN,
     "asset",
     "coordinator_ieee",
     "detail",

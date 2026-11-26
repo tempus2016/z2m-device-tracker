@@ -7,7 +7,7 @@ import json
 import health
 import metrics as metrics_module
 import pytest
-import tracker as tracker_module
+import tracker_actions
 from conftest import PLUG, ROUTER_A, ROUTER_B, SENSOR, START, coordinator, send, z2m_device
 from metrics import Metrics
 
@@ -209,7 +209,7 @@ def ticks(monkeypatch):
         state["now"] += state["step"]
         return state["now"]
 
-    monkeypatch.setattr(tracker_module, "_monotonic", fake)
+    monkeypatch.setattr(tracker_actions, "_monotonic", fake)
     return state
 
 
@@ -247,8 +247,8 @@ def test_ping_endpoint_falls_back_to_first_then_1(net):
 
 
 def test_ping_no_response_is_a_timeout(net, monkeypatch):
-    monkeypatch.setattr(tracker_module, "PING_TIMEOUT", 0.01)
-    monkeypatch.setattr(tracker_module, "PING_GRACE", 0.01)
+    monkeypatch.setattr(tracker_actions, "PING_TIMEOUT", 0.01)
+    monkeypatch.setattr(tracker_actions, "PING_GRACE", 0.01)
     FakeZ2M(net, reply=lambda params: None)
     result = net.ping(PLUG)
     assert result["ok"] is False
@@ -317,7 +317,7 @@ def test_nightly_pings_each_online_router_once_spaced_out(net, ticks):
     counts = net.ping_routers(lambda seconds: waits.append(seconds) and False)
     # The plug (router, mains) and Router A; not Router B (offline), the sensor or the coordinator.
     assert sorted(answered) == sorted([PLUG, ROUTER_A])
-    assert waits == [tracker_module.PING_SPACING]
+    assert waits == [tracker_actions.PING_SPACING]
     assert counts == {"replied": 1, "no_reply": 1, "skipped": 0}
     assert net.metrics.series[PLUG]["ping"] == [[TODAY, 184]]
     assert net.metrics.series[ROUTER_A]["ping"] == [[TODAY, None]]

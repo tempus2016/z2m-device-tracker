@@ -39,6 +39,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from storage import is_stored
+
 GAP = 600
 NETWORK_WIDE_SECONDS = 60
 # Power loss: mains devices in one area dropping within this many seconds of each other. Zigbee2MQTT
@@ -87,7 +89,7 @@ def _chain(ieee: str, devices: dict[str, dict]) -> list[str]:
 
 def _still_down(ieee: str, devices: dict[str, dict]) -> bool:
     record = devices.get(ieee) or {}
-    return record.get("status") == "active" and record.get("availability") == "offline"
+    return record.get("status") == "active" and record.get("availability") == "offline" and not is_stored(record)
 
 
 def _back_now(ieee: str, devices: dict[str, dict]) -> bool:

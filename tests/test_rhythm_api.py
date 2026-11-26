@@ -237,10 +237,12 @@ def test_main_wires_mqtt_decay_and_routes():
     assert "tracker.mqtt_lost" in calls("on_disconnect")
     assert "tracker.mqtt_connected" in calls("on_connect")
     assert "tracker.metrics.decay_rhythm" in calls("scheduler")
-    route = next(
-        n for n in ast.walk(funcs["do_POST"]) if isinstance(n, ast.If) and "/api/rhythm_normal" in ast.unparse(n.test)
-    )
-    assert "self._json(200 if result['ok'] else 400, result)" in ast.unparse(route.body)
+    for name in ("rhythm_normal", "rhythm_forget"):
+        route = funcs[f"_post_{name}"]
+        assert [ast.unparse(d) for d in route.decorator_list] == [f"post('/api/{name}')"]
+        assert f"tracker.{name}" in calls(route.name)
+        assert "return (200 if result['ok'] else 400, result)" in ast.unparse(route)
+    assert "POST_ROUTES.get" in calls("do_POST")
 
 
 def test_rhythm_actions_always_say_ok(tracker, clock):

@@ -11,13 +11,27 @@
         "data_description": {
           "token": "Only for the app in plain Docker (Home Assistant Container): the contents of /data/api_token in the app's container. Leave empty when the app is installed from the app store."
         }
+      },
+      "reconfigure": {
+        "title": "Z2M Device Tracker",
+        "description": "Change the address of the Z2M Device Tracker app, or its API token. The app is asked before anything is saved.",
+        "data": {
+          "app_url": "App URL",
+          "token": "API token"
+        },
+        "data_description": {
+          "token": "Only for the app in plain Docker (Home Assistant Container): the contents of /data/api_token in the app's container. Leave empty when the app is installed from the app store."
+        }
       }
     },
     "abort": {
-      "single_instance_allowed": "Z2M Device Tracker is already set up."
+      "single_instance_allowed": "Z2M Device Tracker is already set up.",
+      "reconfigure_successful": "The new address was saved and the integration reloaded."
     },
     "error": {
-      "invalid_url": "Enter an http:// or https:// address without a user name or password, like http://local-z2m-tracker:8099."
+      "invalid_url": "Enter an http:// or https:// address without a user name or password, like http://local-z2m-tracker:8099.",
+      "cannot_connect": "The app did not answer at that address. Check that the Z2M Device Tracker app is started and the address is right.",
+      "invalid_auth": "The app refused the API token. In plain Docker, use the contents of /data/api_token from the app's container; otherwise leave the token empty."
     }
   },
   "options": {
@@ -38,7 +52,9 @@
       }
     },
     "error": {
-      "invalid_url": "Enter an http:// or https:// address without a user name or password, like http://local-z2m-tracker:8099."
+      "invalid_url": "Enter an http:// or https:// address without a user name or password, like http://local-z2m-tracker:8099.",
+      "cannot_connect": "The app did not answer at that address. Check that the Z2M Device Tracker app is started and the address is right.",
+      "invalid_auth": "The app refused the API token. In plain Docker, use the contents of /data/api_token from the app's container; otherwise leave the token empty."
     }
   },
   "services": {
@@ -227,6 +243,23 @@
     }
   },
   "entity": {
+    "sensor": {
+      "active_devices": {
+        "name": "Active devices"
+      },
+      "offline_devices": {
+        "name": "Offline devices"
+      },
+      "removed_devices": {
+        "name": "Removed devices"
+      },
+      "last_event": {
+        "name": "Last event"
+      },
+      "issues": {
+        "name": "Issues"
+      }
+    },
     "calendar": {
       "batteries": {
         "name": "Zigbee batteries"
@@ -249,6 +282,7 @@
       "options": {
         "offline": "Offline",
         "silent": "Not heard from",
+        "late": "Stopped reporting",
         "frozen": "Frozen reading",
         "impossible_reading": "Impossible reading",
         "battery_low": "Low battery",

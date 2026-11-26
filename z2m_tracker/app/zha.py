@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from map_gate import MapGate
+
 _LOGGER = logging.getLogger(__name__)
 
 ZHA_INSTANCE = "zha"
@@ -263,8 +265,6 @@ RETRY_SECONDS = 10
 RECV_TIMEOUT = 5
 # Longest wait for one reply (get_states can be large); past it the connection counts as dead.
 CALL_TIMEOUT = 60
-# The network map is taken again after this long even when no link changed, so link quality stays current.
-MAP_REFRESH_SECONDS = 24 * 3600
 
 
 def _state_time(state: dict) -> str | None:
@@ -296,10 +296,8 @@ class ZhaSource:
         self._last_seen: dict[str, str] = {}
         # Last seen of unavailable devices, waiting for a second read to confirm it (see apply_devices).
         self._unconfirmed: dict[str, str] = {}
-        # Network map: the links of the last read, of the last map given to the tracker, and when.
-        self._map_seen: frozenset | None = None
-        self._map_applied: frozenset | None = None
-        self._map_applied_at = 0.0
+        # Decides which reads of the network map go to the tracker (map_gate.py).
+        self._map = MapGate()
         # Home Assistant's time zone, for ZHA's zoneless last seen. None: the tracker uses its own.
         self._tz: ZoneInfo | None = None
         # The subscription that reports battery changes, and the entities it covers.
@@ -397,19 +395,7 @@ class ZhaSource:
         """
         value = networkmap_value(devices)
         # Empty until ZHA has scanned its neighbours; an empty map would wipe the routing shown now.
-        if not value["links"]:
-            return
-        shape = frozenset(
-            (link["sourceIeeeAddr"], link["targetIeeeAddr"], link["relationship"]) for link in value["links"]
-        )
-        settled = shape == self._map_seen
-        self._map_seen = shape
-        if not settled:
-            return
-        stale = time.monotonic() - self._map_applied_at >= MAP_REFRESH_SECONDS
-        if shape != self._map_applied or stale:
-            self._map_applied = shape
-            self._map_applied_at = time.monotonic()
+        if value["links"] and self._map.due(value):
             self.tracker.apply_networkmap(ZHA_INSTANCE, value)
 
     def apply_battery(self, entity_id: str, state: Any, when: str | None = None, replay: bool = False) -> None:

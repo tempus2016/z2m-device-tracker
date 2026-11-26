@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 import types
 from datetime import datetime, timezone
@@ -12,6 +13,11 @@ import pytest
 import tracker as tracker_module
 from metrics import Metrics
 from tracker import Tracker
+
+TRACKER_MODULES = [
+    tracker_module,
+    *(importlib.import_module(name) for name in ("tracker_base", *tracker_module.PARTS)),
+]
 
 FIXTURES = Path(__file__).parent / "fixtures"
 START = datetime(2026, 6, 1, 12, 0, 0, tzinfo=timezone.utc).timestamp()
@@ -42,8 +48,12 @@ class FakeClock:
 @pytest.fixture
 def clock(monkeypatch: pytest.MonkeyPatch) -> FakeClock:
     fake = FakeClock()
-    monkeypatch.setattr(tracker_module, "_now", fake.iso)
-    monkeypatch.setattr(tracker_module, "time", types.SimpleNamespace(time=fake.time))
+    # The tracker is one class spread over several modules: each has its own time and _now names.
+    for module in TRACKER_MODULES:
+        if hasattr(module, "_now"):
+            monkeypatch.setattr(module, "_now", fake.iso)
+        if hasattr(module, "time"):
+            monkeypatch.setattr(module, "time", types.SimpleNamespace(time=fake.time))
     monkeypatch.setattr(metrics_module, "time", types.SimpleNamespace(time=fake.time))
     return fake
 

@@ -23,6 +23,7 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `notify_checks` | most checks | Health checks that send alerts. |
 | `offline_alert_minutes` | `60` | Extra wait after Zigbee2MQTT marks a device offline, before an alert. Zigbee2MQTT marks a device offline only after its own availability timeout (10 min for mains devices, 25 h for battery devices by default, or per device in its `configuration.yaml`). With the defaults, a mains device alerts about 70 min after its last message and a battery device about 26 h after. |
 | `critical_offline_minutes` | `5` | The same for devices marked **Critical device** on their Info tab. |
+| `alert_repeat_hours` | `24` | After a low battery, weak signal or signal drop alert has cleared, how long before the same alert may be sent again for that device. `0` sends it every time. See [When a device alerts](#when-a-device-alerts). |
 | `frozen_alert_hours` | `24` | How long a sensor reading must stay the same before it counts as frozen. A device can have its own value (Health tab, **Limits for this device**). |
 | `battery_alert_percent` | `15` | Battery level for a low battery alert. A device can have its own value (Health tab, **Limits for this device**). |
 | `networkmap_hour` | `3` | Hour of the nightly routing scan, or `-1` to turn it off. |
@@ -40,6 +41,7 @@ Open **Zigbee Tracker** in the sidebar. Most settings can be changed on its **Se
 | `quiet_hours` | `false` | Hold alerts during quiet hours and send one summary when they end. |
 | `learn_rhythm` | `true` | Set each device's Stopped reporting limit from how often it reports. See [Learned rhythm](#learned-rhythm). |
 | `expected_outages` | `true` | Don't alert when a network goes offline at the time it does most days. See [Expected outages](#expected-outages). |
+| `storage_auto_resume` | `true` | A stored device is checked again by itself once it comes back online after being away. Off keeps it stored until you bring it back. Set it in **Settings → Stored devices**. See [Stored devices](#stored-devices). |
 | `quiet_start` / `quiet_end` | `23:00` / `07:00` | Quiet hours in the app's time zone, as `HH:MM`. The window can cross midnight. |
 | `escalate_enabled` | `false` | Send an alert again to a second notify service when nobody answers it in time. See [Escalation](#escalation). |
 | `escalate_hours` | `2` | How long an alert can go unanswered before it escalates (1 to 168 hours). |
@@ -208,6 +210,8 @@ With `learn_rhythm: false` learned limits stop flagging anything. Gaps keep bein
 
 `offline_alert_minutes` counts from the moment Zigbee2MQTT marks the device offline, not from its last message. So with the defaults, a mains device alerts about 70 minutes after it goes quiet (10 + 60), and a battery device about 26 hours later (25 h + 60 min). Each device's **Health** tab shows its own steps under **When this device alerts**, from Zigbee2MQTT's availability settings: its own timeout or the mains/battery default, the offline delay, and Expected reporting if set. If Zigbee2MQTT availability is off for the device, only **Not heard from** applies, after 2 days.
 
+A low battery, weak signal or signal drop alert that has cleared is not sent again for the same device for 24 hours (`alert_repeat_hours`, **Settings → Thresholds → Hold repeated alerts**; 0 turns this off). A reading that hovers at its limit (15 %, 16 %, 15 %) would otherwise alert each time it crosses. The issue still shows on Health the whole time. Offline alerts are not held back.
+
 ## Pairing left open
 
 While pairing (permit join) is open, any nearby Zigbee device can join. The **Pairing left open** check warns and notifies when pairing stays open for 10 minutes, or straight away when something other than the Zigbee Tracker opened it (the Zigbee2MQTT frontend, Home Assistant or an automation). **Close now** on the Health tab closes it. Existing installs get this alert switched on once when they update; turn it off in Settings → Checks if you don't want it.
@@ -335,6 +339,20 @@ Some setups take the network down on a schedule: a nightly Zigbee2MQTT restart, 
 An expected outage still shows in Health, as **Expected outage** with the usual time and length, but sends no alert. If it runs on more than 30 minutes past the end of that 90-minute window, it becomes a normal **Network offline** alert. An outage at any other time of day alerts as usual.
 
 Nothing is set by hand, and it stops applying within a week of the schedule stopping. Set `expected_outages` to `false` to be alerted every time.
+
+## Stored devices
+
+Some devices are only used for part of the year: Christmas lights, summer garden lights, a fan. While they're unplugged they would show as offline in Health all season. Put them in storage instead.
+
+A stored device keeps its history and its Home Assistant entities, but no check runs on it: no issue, no alert, no repair. Its outages don't count towards its model's reliability, the community ratings, its network's mesh score or the incidents. A **Stored** chip marks it in Devices, and the **Stored** filter lists every stored device.
+
+- **One device:** open it and turn on **Stored**. Turn it off to bring the device back.
+- **Several at once:** tick the devices on the Devices tab, then **Store** in the selection bar.
+- **Storage groups:** in **Settings → Stored devices**, make a group such as "Christmas lights". Tick its devices on the Devices tab, then **Add to group**. **Store all** and **Bring back all** act on the whole group; the pencil renames it or takes devices out. Deleting a group leaves its devices as they are.
+
+**Settings → Stored devices** also lists every device in storage now, each with a **Bring back** button.
+
+With `storage_auto_resume` on (the default), a stored device comes back by itself when it's online again after being away: plug the lights back in and they're checked again. A device stored while it's still online must go offline first, so storing lights before you take them down doesn't undo itself. Devices whose availability Zigbee2MQTT doesn't track never come back by themselves. Turn `storage_auto_resume` off to keep devices stored until you bring them back.
 
 ## Incidents
 
@@ -540,3 +558,9 @@ A bot checks each report and closes the issue. Once a week the reports are rebui
 ## Data
 
 History is stored in the app's own data folder and is included in Home Assistant backups. Use **Settings → Backup** in the app to download or restore it.
+
+Each save keeps the file it replaces as `history.json.bak`. If `history.json` can't be read when the app starts (a disk fault, a file cut short), the app loads that copy, so at most the last few minutes of readings are missing, and tells you with a notification in Home Assistant. The unreadable file is kept as `history.json.corrupt-<time>`.
+
+The app keeps the last 3,000 events. When that is full, room is made first from devices with more than 50 events of one kind (a device that keeps going offline and online), so one noisy device doesn't push out the history of the others.
+
+To spare SD cards, the app does not write on every message. Anything you set, and every event (offline, online, joined, renamed), is written within 30 seconds. What a device last said (last seen, readings, report counts) is written at most every 10 minutes, and the trend data every 15 minutes. Stopping or restarting the app writes everything first, so only a power cut or a crash can lose those last minutes of readings.

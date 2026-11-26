@@ -15,7 +15,9 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.typing import ConfigType
 
 from .const import (
     CARD_FILE,
@@ -41,6 +43,8 @@ PLATFORMS = [Platform.CALENDAR, Platform.SENSOR, Platform.TODO]
 OPTIONAL_PLATFORMS = (Platform.CALENDAR, Platform.TODO)
 
 type Z2MTrackerConfigEntry = ConfigEntry[Z2MTracker]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 def _platforms(entry: ConfigEntry) -> list[Platform]:
@@ -70,16 +74,9 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
     hass.data[f"{DOMAIN}_frontend"] = True
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: Z2MTrackerConfigEntry) -> bool:
-    app_url = entry.options.get(CONF_APP_URL, entry.data.get(CONF_APP_URL, DEFAULT_APP_URL))
-    token = entry.options.get(CONF_TOKEN, entry.data.get(CONF_TOKEN)) or None
-    tracker = Z2MTracker(hass, app_url, entry.options.get(CONF_REPAIRS, True), token)
-    await tracker.async_start()
-    entry.runtime_data = tracker
-    hass.data[DOMAIN] = tracker
-
-    await _async_register_frontend(hass)
-
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the actions once, at start: an automation can call them before the app has answered,
+    and during a reload, and gets "not loaded" rather than "action not found"."""
     if not hass.services.has_service(DOMAIN, "import_history"):
 
         async def _import_history(call: ServiceCall) -> ServiceResponse:
@@ -100,6 +97,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: Z2MTrackerConfigEntry) -
         )
 
     async_register_services(hass)
+    return True
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: Z2MTrackerConfigEntry) -> bool:
+    app_url = entry.options.get(CONF_APP_URL, entry.data.get(CONF_APP_URL, DEFAULT_APP_URL))
+    token = entry.options.get(CONF_TOKEN, entry.data.get(CONF_TOKEN)) or None
+    tracker = Z2MTracker(hass, app_url, entry.options.get(CONF_REPAIRS, True), token)
+    await tracker.async_start()
+    # Also runs when the rest of the setup fails, so a failed setup leaves no poll timer behind.
+    entry.async_on_unload(tracker.async_stop)
+    entry.runtime_data = tracker
+    hass.data[DOMAIN] = tracker
+
+    await _async_register_frontend(hass)
 
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     platforms = _platforms(entry)
@@ -120,6 +131,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: Z2MTrackerConfigEntry) 
     unloaded = await hass.config_entries.async_unload_platforms(entry, platforms)
     if unloaded:
         hass.data.pop(f"{DOMAIN}_platforms", None)
-        await entry.runtime_data.async_stop()
         hass.data.pop(DOMAIN, None)
     return unloaded

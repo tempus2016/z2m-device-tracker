@@ -99,9 +99,9 @@ def test_restored_reportings_are_cleaned(tracker):
 
 
 def tracker_module_clean(record):
-    import tracker as tracker_module
+    import tracker_base
 
-    return tracker_module._clean_record(record)
+    return tracker_base._clean_record(record)
 
 
 def test_interview_not_finished_is_skipped(tracker):

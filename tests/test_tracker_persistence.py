@@ -7,7 +7,7 @@ import shutil
 
 import pytest
 from conftest import FIXTURES, PLUG, SENSOR, events_of, send, z2m_device
-from tracker import _new_record
+from tracker_base import _new_record
 
 OLD_SENSOR = "0x00158d0000700001"
 
