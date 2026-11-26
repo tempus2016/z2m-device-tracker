@@ -13,6 +13,7 @@ from datetime import time as dtime
 from typing import Any
 
 from health import (
+    alert_plan,
     notify_kinds,
 )
 from tracker_base import (
@@ -212,9 +213,7 @@ class AlertsMixin:
         # Devices behind an offline router never alert on their own: the router's alert covers them.
         # Nor does a network outage that happens at this time most days (expected_outage.py); it
         # alerts as usual once it runs on past its usual window.
-        behind = {key for key, issue in current.items() if issue.get("behind") or issue.get("expected")}
-        new = [current[key] for key in sorted(set(current) - behind - sent)]
-        dismiss = sorted(sent - set(current))
+        new, alerted, dismiss = alert_plan(list(current.values()), enabled, sent)
         # A reading that hovers at its limit (battery 15 %, 16 %, 15 %) clears and comes back over
         # and over: once such an alert has cleared, the same one is not sent again for a day.
         cleared = {
@@ -252,7 +251,7 @@ class AlertsMixin:
             digest = self._digest(self.data["quiet"], [i for i in new if not i.get("critical")], current)
             self.data["quiet"] = None
             send = urgent
-        self.data["alerted"] = sorted((set(current) - behind) | (behind & sent))
+        self.data["alerted"] = alerted
         return {"send": send, "dismiss": dismiss, "digest": digest, "first": False}
 
     def _digest(self, quiet: dict, still_open: list[dict], current: dict) -> tuple[str, str] | None:

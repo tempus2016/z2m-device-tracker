@@ -1082,7 +1082,6 @@
   @media (hover: hover) and (pointer: fine) { .fine-list button:hover { background: var(--hover); } }
   .fine-list button::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--success)); }
   .fine-list small { grid-column: 2; color: var(--text-2); font-size: 12.5px; }
-  .sheet-scrim { position: fixed; inset: 0; z-index: 45; background: var(--scrim); }
   .tab-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 46; background: var(--card); border-radius: 16px 16px 0 0; padding: 8px 0 calc(16px + var(--sab, env(safe-area-inset-bottom, 0px))); box-shadow: var(--shadow); }
   .tab-sheet button { appearance: none; border: 0; background: none; width: 100%; min-height: 56px; display: flex; align-items: center; gap: 20px; padding: 0 20px; font: inherit; font-size: 16px; color: var(--text); cursor: pointer; text-align: left; }
   .tab-sheet button[aria-current="page"] { color: var(--primary-text); background: var(--chip-on); }
@@ -1170,7 +1169,6 @@
   </div>
 </header>
 
-<div class="sheet-scrim" id="sheetScrim" hidden></div>
 
 <main class="page" id="page">
   <div class="alert conn" id="conn" role="alert" style="--a: var(--error)"><span data-i="lan-disconnect"></span><div class="body" id="connText"></div></div>
@@ -4915,7 +4913,7 @@
   const go = (to) => {
     const v = parseView(to);
     if (!v) return;
-    flushNote(); closeSheet();
+    flushNote();
     state.view = v.view;
     if (v.sub) { state.sub[v.view] = v.sub; store.set(`z2mt.sub.${v.view}`, v.sub); }
     state.settingsShown = false;
@@ -4935,9 +4933,6 @@
     $("#settingsBtn").setAttribute("aria-pressed", String(state.view === "settings" && !page));
     $("#view").setAttribute("aria-labelledby", owner ? `tab-${owner}` : "settingsBtn");
   };
-  const MORE_ICONS = { updates: "update", activity: "history", settings: "cog" };
-  const closeSheet = () => {};
-  $("#sheetScrim").addEventListener("click", closeSheet);
 
   // ------------------------------------------------------------ actions
   const flash = (sel) => { const s = $(sel); if (!s) return; s.classList.add("show"); setTimeout(() => s.classList.remove("show"), 1600); };
