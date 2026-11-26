@@ -1288,7 +1288,10 @@
     document.title = t("app.title");
   };
 
-  const fmtDate = (iso, time = true) => { if (!iso) return ""; const d = new Date(typeof iso === "number" ? iso * 1000 : iso); return isNaN(d) ? "" : intl((l) => d.toLocaleString(l, time ? { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" } : { day: "numeric", month: "short", year: "numeric" })); };
+  // Formatters are costly to make and a long list asks for one per row: one of each per language.
+  const FMT = { locale: null, made: {} };
+  const fmtr = (key, make) => { if (FMT.locale !== I18N.locale) { FMT.locale = I18N.locale; FMT.made = {}; } return (FMT.made[key] ||= intl(make)); };
+  const fmtDate = (iso, time = true) => { if (!iso) return ""; const d = new Date(typeof iso === "number" ? iso * 1000 : iso); return isNaN(d) ? "" : (time ? fmtr("dt", (l) => new Intl.DateTimeFormat(l, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })) : fmtr("d", (l) => new Intl.DateTimeFormat(l, { day: "numeric", month: "short", year: "numeric" }))).format(d); };
   const fmtTime = (iso) => intl((l) => new Date(iso).toLocaleTimeString(l, { hour: "2-digit", minute: "2-digit" }));
   const ago = (iso) => { if (!iso) return null; const t = new Date(iso).getTime(); return isNaN(t) ? null : (Date.now() - t) / 1000; };
   const span = (s) => (s < 90 ? t("unit.seconds", { n: Math.max(1, Math.round(s)) }) : s < 3600 ? t("unit.minutes", { n: Math.max(1, Math.round(s / 60)) }) : s < 172800 ? t("unit.hours", { n: Math.round(s / 3600) }) : t("unit.days", { n: Math.round(s / 86400) }));
@@ -1341,7 +1344,10 @@
     return `<span class="state-ic ${tone} ${cls}">${ic(kindIcon(d))}</span>`;
   };
   // Search text: names, vendor + model (as shown in the list and the models card), type and the kind of device (bulb, plug, door...).
-  const haystack = (d) => [d.ieee, nameOf(d), d.friendly_name, ...(d.names || []).map((n) => n.name), deviceLine(d), d.model, vendorOf(d), d.vendor, d.description, d.model_id, d.manufacturer, d.oui_vendor, d.z2m_description, d.ha_name, d.area, d.note, d.instance, netLabel(d.instance), d.type, typeLabel(d.type), kindIcon(d).replace(/-/g, " "), ...Object.values(d.asset || {})].filter(Boolean).join(" ").toLowerCase();
+  // The text a search looks through, built once per device and load (and again after a language change).
+  const HAY = new WeakMap();
+  const haystack = (d) => { const c = HAY.get(d); if (c && c.l === I18N.locale) return c.h; const h = haystackOf(d); HAY.set(d, { l: I18N.locale, h }); return h; };
+  const haystackOf = (d) => [d.ieee, nameOf(d), d.friendly_name, ...(d.names || []).map((n) => n.name), deviceLine(d), d.model, vendorOf(d), d.vendor, d.description, d.model_id, d.manufacturer, d.oui_vendor, d.z2m_description, d.ha_name, d.area, d.note, d.instance, netLabel(d.instance), d.type, typeLabel(d.type), kindIcon(d).replace(/-/g, " "), ...Object.values(d.asset || {})].filter(Boolean).join(" ").toLowerCase();
   const queryTerms = () => state.query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const matchesQuery = (terms) => (d) => { if (!terms.length) return true; const h = haystack(d); return terms.every((x) => h.includes(x)); };
 
@@ -1532,7 +1538,7 @@
     state.data = data;
     document.body.dataset.stack = data.stack || "z2m";
     state.byIeee = new Map((data.devices || []).map((d) => [d.ieee, d]));
-    state.version = data.version;
+    state.version = data.version; state.loadedAt = Date.now();
     // A page that fails to draw is a fault here, not an app that can't be reached: say so and keep it
     // on screen (poll leaves the banner alone) until a later load draws again.
     try { render(background === true); state.broken = false; setLive(true); }
@@ -2309,7 +2315,7 @@
   // Tapping a model searches the device list for it. One-device models are listed but never flagged.
   const MODELS_LIMIT = 8;
   const MODEL_SORTS = [["worst", "models.sort_worst"], ["devices", "models.sort_devices"], ["battery", "models.sort_battery"]];
-  const num1 = (n) => intl((l) => new Intl.NumberFormat(l, { maximumFractionDigits: 1 }).format(n));
+  const num1 = (n) => fmtr("n1", (l) => new Intl.NumberFormat(l, { maximumFractionDigits: 1 })).format(n);
   const modelFlagged = (r) => r.devices > 1 && ((r.uptime_30d !== null && r.uptime_30d < 99) || (r.dropouts_per_month ?? 0) >= 2 || (r.interview_failures + r.repairs) / r.devices >= 1);
   const modelsCard = () => {
     if (state.modelsView === "age") return modelsTabs() + (agesCard() || subEmpty("zigbee", "ages"));
@@ -2763,7 +2769,7 @@
     if (state.view === "network" && state.sub.network === "broker" && !$("#confirmDlg").open) renderNetwork();
   };
   const fmtUptime = (s) => { const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600); return d ? t("broker.uptime_dh", { d, h }) : span(s); };
-  const fmtNum = (n) => intl((l) => Number(n).toLocaleString(l, { maximumFractionDigits: 1 }));
+  const fmtNum = (n) => num1(Number(n));
   const brokerCard = () => {
     const b = brokerNow();
     if (!state.broker?.at || Date.now() - state.broker.at > 25000) setTimeout(loadBroker, 0);
@@ -4720,7 +4726,7 @@
     const n = el || document.getElementById("note"), ieee = state.open, d = state.byIeee.get(ieee);
     if (!n || !d || n.value === (d.note || "")) return;
     const note = n.value, before = d.note;
-    d.note = note;
+    d.note = note; HAY.delete(d);
     api("api/note", { ieee, note }).then(() => snack(t("asset.note_saved"))).catch((err) => { d.note = before; snack(err.message); });
   };
   const markSelected = () => document.querySelectorAll(".dt tbody tr[data-open]").forEach((r) => r.setAttribute("aria-selected", String(r.dataset.open === state.open)));
@@ -6364,10 +6370,12 @@
     const h = hashValue();
     if (IEEE_RE.test(h) && state.byIeee.has(h)) openDevice(h);
   })();
-  setInterval(poll, 5000);
+  // A hidden tab (a phone in a pocket, a wall tablet with the screen off) asks for nothing; coming back catches up.
+  setInterval(() => { if (!document.hidden) poll(); }, 5000);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) return; if (Date.now() - (state.loadedAt || 0) > 60000) load(true); else poll(); });
   // The Messages tab is live: fetch the open device's messages every 2 s while it shows.
   setInterval(() => { if (state.open && state.moreTab === "messages" && !MSG.paused && document.visibilityState === "visible" && document.getElementById("msgList")) loadMessages(state.open); }, 2000);
-  setInterval(() => load(true), 60000);
+  setInterval(() => { if (!document.hidden) load(true); }, 60000);
 })();
 </script>
 </body>

@@ -28,6 +28,8 @@ class Discovery:
         self.version = version
         self.enabled = enabled
         self.publish: Callable[[str, str, bool], None] | None = None
+        # Tells whether the broker is connected; None when nobody said (always publish).
+        self.connected: Callable[[], bool] | None = None
         self.lock = threading.Lock()
         self._configs: dict[str, str] = {}
         self._states: dict[str, str] = {}
@@ -270,7 +272,9 @@ class Discovery:
         return configs + states
 
     def sync(self, force: bool = False) -> None:
-        if not self.publish:
+        # Nothing is sent while the broker is away (it would only queue up): the connect that follows
+        # publishes everything again.
+        if not self.publish or (self.connected is not None and not self.connected()):
             return
         from health import uptime
 
@@ -293,7 +297,7 @@ class Discovery:
                     # a Zigbee2MQTT device in HA (zigbee2mqtt_<ieee>), which a ZHA device doesn't have.
                     if record.get("instance") in ("zha", "matter"):
                         continue
-                    summary = self.tracker.metrics.summary(record["ieee"], now)
+                    summary = self.tracker.summary(record["ieee"], now)
                     issues = issues_by_device.get(record["ieee"], [])
                     for topic, cfg in self._entities(record, summary, issues).items():
                         desired[topic] = json.dumps(cfg, separators=(",", ":"))

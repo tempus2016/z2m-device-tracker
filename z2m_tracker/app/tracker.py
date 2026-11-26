@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import gzip
 import io
 import json
 import logging
@@ -109,6 +110,11 @@ MAX_EVENTS = 3000
 # Checks that compare a reading with a limit, and how long one stays quiet after it cleared (plan_alerts).
 THRESHOLD_KINDS = frozenset({"battery_low", "weak_signal", "signal_drop"})
 RESEND_COOLDOWN = 24 * 3600
+# Changes that only move on what a device last said (last seen, readings, report counts) are written
+# at most this often; everything else is written at the next save. The whole file is rewritten each
+# time, so on a network where something reports every few seconds this is what spares the SD card.
+# A power cut loses at most this much of those values; a normal stop saves everything.
+SOFT_SAVE_SECONDS = 600
 MAX_OUTAGES = 200
 # "Left the group" facts kept in history.json, and how long the Groups card shows one.
 MAX_GROUP_LEFT = 100
@@ -974,7 +980,16 @@ class Tracker:
         self.names: dict[str, dict[str, str]] = {}
         self.lists_received: set[str] = set()
         self.lists_ready = threading.Event()
-        self.dirty = False
+        # _dirty: something to save. _hard: something that must not wait for SOFT_SAVE_SECONDS.
+        self._dirty = False
+        self._hard = False
+        self._saved_at = 0.0
+        # /api/devices as built last: (time, revision, body, gzipped body or None). Off (0) unless the
+        # app turns it on: several clients asking within seconds of a change then share one build.
+        self.snapshot_seconds = 0.0
+        self._snapshot: list | None = None
+        # Each device's metrics summary from the last health check, for the entities published after it.
+        self._summaries: tuple[float, dict[str, dict]] = (0.0, {})
         self.boot_id = uuid.uuid4().hex[:8]
         self.revision = 0
         self._incidents_cache: tuple[tuple, list[dict]] | None = None
@@ -1120,9 +1135,11 @@ class Tracker:
         # One writer at a time: the scheduler, a restore and shutdown can all save at once.
         with self._save_lock:
             with self.lock:
-                if not self.dirty and not force:
+                if not self._dirty and not force:
                     return False
-                payload = _dumps(self.data, ensure_ascii=False)
+                if not force and not self._hard and 0 <= time.time() - self._saved_at < SOFT_SAVE_SECONDS:
+                    return False
+                payload = _dumps(self.data, ensure_ascii=False, separators=(",", ":"))
                 self.dirty = False
             try:
                 _write_atomic(self.data_path, payload)
@@ -1130,12 +1147,40 @@ class Tracker:
                 # Not on disk (full or read-only): still to be saved, so the next save tries again.
                 self.dirty = True
                 raise
+            self._saved_at = time.time()
         return True
 
+    @property
+    def dirty(self) -> bool:
+        return self._dirty
+
+    @dirty.setter
+    def dirty(self, value: bool) -> None:
+        """Set from outside it means "save at the next chance"; only _soft_change() can wait."""
+        self._dirty = self._hard = value
+        if value:
+            self._snapshot = None
+
+    def _soft_change(self) -> None:
+        self._dirty = True
+
     def _changed(self, structural: bool) -> None:
-        self.dirty = True
         if structural:
+            self.dirty = True
             self.revision += 1
+        else:
+            self._soft_change()
+
+    def drop_snapshot(self) -> None:
+        """Something changed that the page will ask about straight away (a request from it)."""
+        self._snapshot = None
+
+    def summary(self, ieee: str, now: float) -> dict[str, Any]:
+        """The device's metrics summary: the one the health check just worked out when there is one."""
+        at, summaries = self._summaries
+        if 0 <= now - at < 90 and ieee in summaries:
+            return summaries[ieee]
+        return self.metrics.summary(ieee, now)
 
     @property
     def version(self) -> str:
@@ -3464,8 +3509,11 @@ class Tracker:
             lqi_by_net: dict[str, list[float]] = {}
             # Devices of a network not listened to keep their history but get no checks.
             live = {ieee: r for ieee, r in self.data["devices"].items() if not self.is_frozen(r)}
+            summaries: dict[str, dict] = {}
+            self._summaries = (now, summaries)
             for record in live.values():
-                summary = {**self.metrics.summary(record["ieee"], now), **context.get(record["ieee"], {})}
+                summaries[record["ieee"]] = self.metrics.summary(record["ieee"], now)
+                summary = {**summaries[record["ieee"]], **context.get(record["ieee"], {})}
                 if (
                     record["status"] == STATUS_ACTIVE
                     and record.get("type") != "Coordinator"
@@ -3723,8 +3771,22 @@ class Tracker:
         self._incidents_cache = (key, result)
         return result
 
-    def snapshot_json(self) -> bytes:
+    def snapshot_json(self, gzipped: bool = False) -> bytes:
+        """The page's data. gzipped=True gives it compressed (about a tenth of the size)."""
         now = time.time()
+        entry = self._snapshot
+        if not (entry and entry[1] == self.revision and 0 <= now - entry[0] < self.snapshot_seconds):
+            entry = [now, self.revision, self._build_snapshot(now), None]
+            # Only kept when nothing changed while it was built.
+            if self.snapshot_seconds and entry[1] == self.revision:
+                self._snapshot = entry
+        if not gzipped:
+            return entry[2]
+        if entry[3] is None:
+            entry[3] = gzip.compress(entry[2], compresslevel=5)
+        return entry[3]
+
+    def _build_snapshot(self, now: float) -> bytes:
         with self.lock:
             self.expire_commands(now)
             suggestions = self._suggestions()
@@ -4893,60 +4955,70 @@ class Tracker:
         stamp = datetime.fromtimestamp(now, tz=timezone.utc).isoformat(timespec="seconds")
         current = {issue["key"]: issue for issue in issues if issue["kind"] in enabled}
         with self.lock:
-            initialised = self.data.get("alerts_initialised")
-            sent = set(self.data.get("alerted") or [])
-            self.data["alerts_initialised"] = True
-            self.dirty = True
-            if not enabled:
-                # Alerts are off: nothing to hold, nothing to report later.
-                self.data["quiet"] = None
-            if not initialised:
-                self.data["alerted"] = sorted(current)
-                return {"send": [], "dismiss": [], "digest": None, "first": True}
-            # Devices behind an offline router never alert on their own: the router's alert covers them.
-            # Nor does a network outage that happens at this time most days (expected_outage.py); it
-            # alerts as usual once it runs on past its usual window.
-            behind = {key for key, issue in current.items() if issue.get("behind") or issue.get("expected")}
-            new = [current[key] for key in sorted(set(current) - behind - sent)]
-            dismiss = sorted(sent - set(current))
-            # A reading that hovers at its limit (battery 15 %, 16 %, 15 %) clears and comes back over
-            # and over: once such an alert has cleared, the same one is not sent again for a day.
-            cleared = {
-                key: at
-                for key, at in (
-                    self.data.get("alert_cleared") if isinstance(self.data.get("alert_cleared"), dict) else {}
-                ).items()
-                if _finite(at) and 0 <= now - at < RESEND_COOLDOWN
-            }
-            for key in dismiss:
-                if key.split(":", 1)[0] in THRESHOLD_KINDS:
-                    cleared[key] = now
+            kept = ("alerts_initialised", "alerted", "alert_cleared", "quiet")
+            before = _dumps({key: self.data.get(key) for key in kept})
+            try:
+                return self._plan_alerts(current, enabled, now, stamp)
+            finally:
+                # This runs every minute: only a real change is worth a write.
+                if _dumps({key: self.data.get(key) for key in kept}) != before:
+                    self.dirty = True
+
+    def _plan_alerts(self, current: dict[str, dict], enabled: set[str], now: float, stamp: str) -> dict:
+        initialised = self.data.get("alerts_initialised")
+        sent = set(self.data.get("alerted") or [])
+        self.data["alerts_initialised"] = True
+        if not enabled:
+            # Alerts are off: nothing to hold, nothing to report later.
+            self.data["quiet"] = None
+        if not initialised:
+            self.data["alerted"] = sorted(current)
+            return {"send": [], "dismiss": [], "digest": None, "first": True}
+        # Devices behind an offline router never alert on their own: the router's alert covers them.
+        # Nor does a network outage that happens at this time most days (expected_outage.py); it
+        # alerts as usual once it runs on past its usual window.
+        behind = {key for key, issue in current.items() if issue.get("behind") or issue.get("expected")}
+        new = [current[key] for key in sorted(set(current) - behind - sent)]
+        dismiss = sorted(sent - set(current))
+        # A reading that hovers at its limit (battery 15 %, 16 %, 15 %) clears and comes back over
+        # and over: once such an alert has cleared, the same one is not sent again for a day.
+        cleared = {
+            key: at
+            for key, at in (
+                self.data.get("alert_cleared") if isinstance(self.data.get("alert_cleared"), dict) else {}
+            ).items()
+            if _finite(at) and 0 <= now - at < RESEND_COOLDOWN
+        }
+        for key in dismiss:
+            if key.split(":", 1)[0] in THRESHOLD_KINDS:
+                cleared[key] = now
+        if cleared or self.data.get("alert_cleared"):
             self.data["alert_cleared"] = cleared
-            new = [issue for issue in new if issue["key"] not in cleared]
-            urgent = [issue for issue in new if issue.get("critical")]
-            if enabled and self.in_quiet_hours(now):
-                held = self._quiet_state(now)["issues"]
-                for issue in new:
-                    if issue.get("critical"):
-                        held.pop(issue["key"], None)
-                        continue
-                    entry = held.setdefault(issue["key"], {"first": stamp})
-                    entry.pop("cleared", None)
-                    entry.update(name=issue["name"], label=issue["label"], detail=issue["detail"])
-                for key, entry in held.items():
-                    if key not in current and "cleared" not in entry:
-                        entry["cleared"] = stamp
-                self.data["alerted"] = sorted((sent & set(current)) | {issue["key"] for issue in urgent})
-                return {"send": urgent, "dismiss": dismiss, "digest": None, "first": False}
-            digest = None
-            send = new
-            if self.data.get("quiet"):
-                # Quiet hours are over: one digest, and what's still open counts as alerted.
-                digest = self._digest(self.data["quiet"], [i for i in new if not i.get("critical")], current)
-                self.data["quiet"] = None
-                send = urgent
-            self.data["alerted"] = sorted((set(current) - behind) | (behind & sent))
-            return {"send": send, "dismiss": dismiss, "digest": digest, "first": False}
+        new = [issue for issue in new if issue["key"] not in cleared]
+        urgent = [issue for issue in new if issue.get("critical")]
+        if enabled and self.in_quiet_hours(now):
+            held = self._quiet_state(now)["issues"]
+            for issue in new:
+                if issue.get("critical"):
+                    held.pop(issue["key"], None)
+                    continue
+                entry = held.setdefault(issue["key"], {"first": stamp})
+                entry.pop("cleared", None)
+                entry.update(name=issue["name"], label=issue["label"], detail=issue["detail"])
+            for key, entry in held.items():
+                if key not in current and "cleared" not in entry:
+                    entry["cleared"] = stamp
+            self.data["alerted"] = sorted((sent & set(current)) | {issue["key"] for issue in urgent})
+            return {"send": urgent, "dismiss": dismiss, "digest": None, "first": False}
+        digest = None
+        send = new
+        if self.data.get("quiet"):
+            # Quiet hours are over: one digest, and what's still open counts as alerted.
+            digest = self._digest(self.data["quiet"], [i for i in new if not i.get("critical")], current)
+            self.data["quiet"] = None
+            send = urgent
+        self.data["alerted"] = sorted((set(current) - behind) | (behind & sent))
+        return {"send": send, "dismiss": dismiss, "digest": digest, "first": False}
 
     def _digest(self, quiet: dict, still_open: list[dict], current: dict) -> tuple[str, str] | None:
         held = quiet.get("issues") or {}
@@ -5110,7 +5182,7 @@ class Tracker:
         }
         if memory is not None and 0 < memory < 1e7:
             bridge["memory_days"] = record_memory(bridge.get("memory_days") or [], self._today(), round(memory, 1))
-        self.dirty = True
+        self._soft_change()
 
     def _today(self) -> date:
         return datetime.fromtimestamp(time.time(), tz=self.local_tz).date()

@@ -102,3 +102,43 @@ def test_map_gate_waits_for_two_equal_reads_then_a_day(monkeypatch):
     assert gate.due(two) is True
     now[0] += 25 * 3600
     assert gate.due(two) is True
+
+
+def test_soft_changes_wait_and_real_changes_do_not(tracker, clock):
+    send(tracker, "bridge/devices", [z2m_device(SENSOR, "Hall sensor")])
+    assert tracker.save() is True
+    send(tracker, "Hall sensor", {"linkquality": 90})
+    assert tracker.dirty
+    assert tracker.save() is False  # a reading only: it waits
+    clock.advance(seconds=tracker_module.SOFT_SAVE_SECONDS + 1)
+    assert tracker.save() is True
+    send(tracker, "Hall sensor", {"linkquality": 91})
+    tracker.set_note(SENSOR, "by the door")
+    assert tracker.save() is True  # something the user did: at the next save
+    send(tracker, "Hall sensor", {"linkquality": 92})
+    assert tracker.save(force=True) is True  # stopping saves everything
+
+
+def test_alert_check_with_nothing_new_writes_nothing(tracker):
+    send(tracker, "bridge/devices", [z2m_device(SENSOR, "Hall sensor")])
+    tracker.plan_alerts([], {"offline"})
+    tracker.save(force=True)
+    tracker.plan_alerts([], {"offline"})
+    assert not tracker.dirty
+    tracker.plan_alerts([issue("offline")], {"offline"})
+    assert tracker.dirty
+
+
+def test_snapshot_is_shared_until_something_changes(tracker, clock):
+    import gzip
+
+    send(tracker, "bridge/devices", [z2m_device(SENSOR, "Hall sensor")])
+    tracker.snapshot_seconds = 5
+    first = tracker.snapshot_json()
+    assert tracker.snapshot_json() is first
+    assert gzip.decompress(tracker.snapshot_json(gzipped=True)) == first
+    tracker.set_note(SENSOR, "by the door")
+    assert b"by the door" in tracker.snapshot_json()
+    kept = tracker.snapshot_json()
+    clock.advance(seconds=6)
+    assert tracker.snapshot_json() is not kept

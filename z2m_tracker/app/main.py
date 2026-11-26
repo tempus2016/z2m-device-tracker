@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import gzip
 import hashlib
 import hmac
 import html
@@ -86,7 +87,7 @@ LANG_RE = re.compile(r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
 # Fonts are served from this fixed list, so a request path never becomes a file path.
 FONTS = {font.name: font for font in (WWW / "fonts").glob("*.woff2")}
 SAVE_INTERVAL = 30
-METRICS_SAVE_INTERVAL = 300
+METRICS_SAVE_INTERVAL = 900
 HEALTH_INTERVAL = 60
 HA_REFRESH_INTERVAL = 6 * 3600
 # Wait this long after a registry change before re-reading, so a burst of changes
@@ -750,6 +751,9 @@ MQTT_PORT = int(os.environ.get("MQTT_PORT") or 1883)
 # In plain Docker every broker is one the user named, in the options file or in MQTT_HOST.
 MQTT_MANUAL = os.environ.get("MQTT_MANUAL") == "true" or (STANDALONE and bool(os.environ.get("MQTT_HOST")))
 mqtt_status = MqttStatus(MQTT_HOST, MQTT_PORT, configured=bool(os.environ.get("MQTT_HOST")))
+discovery.connected = lambda: mqtt_status.connected
+# Open pages and the integration all ask again within seconds of a change: they share one build.
+tracker.snapshot_seconds = 5
 
 
 def on_connect(client, userdata, flags, reason_code, properties):
@@ -881,6 +885,8 @@ def _internal_broker(host: str) -> bool:
 def new_client(client_id: str) -> mqtt.Client:
     """An MQTT client with the broker login and TLS settings, not yet connected."""
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=client_id)
+    # What can wait for a broker that is away: beyond this, publishing fails instead of filling memory.
+    client.max_queued_messages_set(2000)
     user = os.environ.get("MQTT_USER")
     if user:
         client.username_pw_set(user, os.environ.get("MQTT_PASS") or None)
@@ -1936,6 +1942,18 @@ LOGIN_CSP = (
 )
 # The page a browser lands on: the UI itself, or the sign-in page.
 UI_PAGES = ("/", "/index.html")
+GZIP_HEADERS = {"Content-Encoding": "gzip", "Vary": "Accept-Encoding"}
+_page: list = [None, b"", b""]
+
+
+def page_bytes() -> tuple[bytes, bytes]:
+    """index.html plain and gzipped, read again only when the file changed."""
+    path = WWW / "index.html"
+    stamp = path.stat().st_mtime_ns
+    if _page[0] != stamp:
+        raw = path.read_bytes()
+        _page[:] = [stamp, raw, gzip.compress(raw, compresslevel=6)]
+    return _page[1], _page[2]
 
 
 class MetricsHandler(BaseHTTPRequestHandler):
@@ -2066,9 +2084,16 @@ class Handler(BaseHTTPRequestHandler):
             return True
         return False
 
+    def _gzip_ok(self) -> bool:
+        accepted = (self.headers.get("Accept-Encoding") or "").lower()
+        return "gzip" in (part.split(";")[0].strip() for part in accepted.split(","))
+
     def _send(
         self, status: int, body: bytes, content_type: str = "application/json", extra: dict | None = None
     ) -> None:
+        if self.command == "POST":
+            # The page asks for its data again right after a request: it must see what that changed.
+            tracker.drop_snapshot()
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
@@ -2106,12 +2131,12 @@ class Handler(BaseHTTPRequestHandler):
             # "Used by" links point at HA's own editor pages, which live on Home Assistant, not here.
             self._send(302, b"", "text/plain", {"Location": HA_URL + path})
         elif path in UI_PAGES:
-            self._send(
-                200,
-                (WWW / "index.html").read_bytes(),
-                "text/html; charset=utf-8",
-                {"Content-Security-Policy": PAGE_CSP},
-            )
+            raw, packed = page_bytes()
+            headers = {"Content-Security-Policy": PAGE_CSP, "Vary": "Accept-Encoding"}
+            if self._gzip_ok():
+                self._send(200, packed, "text/html; charset=utf-8", {**headers, "Content-Encoding": "gzip"})
+            else:
+                self._send(200, raw, "text/html; charset=utf-8", headers)
         elif path.startswith("/fonts/"):
             font = FONTS.get(path.removeprefix("/fonts/"))
             if font is not None:
@@ -2131,7 +2156,10 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._send(200, body, "application/json; charset=utf-8")
         elif path == "/api/devices":
-            self._send(200, tracker.snapshot_json())
+            if self._gzip_ok():
+                self._send(200, tracker.snapshot_json(gzipped=True), extra=GZIP_HEADERS)
+            else:
+                self._send(200, tracker.snapshot_json(), extra={"Vary": "Accept-Encoding"})
         elif path == "/api/settings":
             self._json(200, settings_payload())
         elif path == "/api/community":
