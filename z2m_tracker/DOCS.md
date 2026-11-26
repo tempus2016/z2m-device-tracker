@@ -543,4 +543,6 @@ A bot checks each report and closes the issue. Once a week the reports are rebui
 
 History is stored in the app's own data folder and is included in Home Assistant backups. Use **Settings → Backup** in the app to download or restore it.
 
+Each save keeps the file it replaces as `history.json.bak`. If `history.json` can't be read when the app starts (a disk fault, a file cut short), the app loads that copy, so at most the last few minutes of readings are missing, and tells you with a notification in Home Assistant. The unreadable file is kept as `history.json.corrupt-<time>`.
+
 To spare SD cards, the app does not write on every message. Anything you set, and every event (offline, online, joined, renamed), is written within 30 seconds. What a device last said (last seen, readings, report counts) is written at most every 10 minutes, and the trend data every 15 minutes. Stopping or restarting the app writes everything first, so only a power cut or a crash can lose those last minutes of readings.

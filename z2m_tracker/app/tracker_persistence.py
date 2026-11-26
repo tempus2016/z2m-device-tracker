@@ -38,26 +38,51 @@ from upgrade_impact import (
 _LOGGER = logging.getLogger("z2m_tracker")
 
 
+def _read_history(path: str) -> tuple[dict | None, str | None]:
+    """A stored history file: (its content, None), or (None, what is wrong with it). A file that
+    isn't there is (None, None). The content must be an object whose device list is one too: valid
+    JSON of another shape (a list, null) is as unusable as half a file."""
+    if not os.path.exists(path):
+        return None, None
+    try:
+        with open(path, encoding="utf-8") as handle:
+            stored = json.load(handle)
+    except (OSError, ValueError) as err:
+        return None, str(err)
+    if not isinstance(stored, dict) or not isinstance(stored.get("devices", {}), dict):
+        return None, "not a history file"
+    return stored, None
+
+
 class PersistenceMixin:
     # ------------------------------------------------------------ persistence
 
     def load(self, migrate_from: str | None = None) -> str:
         source = "new"
         stored = None
-        if os.path.exists(self.data_path):
-            try:
-                with open(self.data_path, encoding="utf-8") as handle:
-                    stored = json.load(handle)
-                source = "saved"
-            except (OSError, ValueError) as err:
-                # Keep the broken file for recovery and start empty, rather than crash-looping.
-                broken = f"{self.data_path}.corrupt-{int(time.time())}"
-                _LOGGER.error("%s can't be read (%s); moved it to %s and starting empty", self.data_path, err, broken)
-                try:
-                    os.replace(self.data_path, broken)
-                except OSError:
-                    pass
-                source = "corrupt"
+        backup_path = f"{self.data_path}.bak"
+        if os.path.exists(self.data_path) or os.path.exists(backup_path):
+            stored, problem = _read_history(self.data_path)
+            source = "saved"
+            if stored is None:
+                if problem is not None:
+                    # Keep the broken file for recovery, rather than crash-looping on it.
+                    broken = f"{self.data_path}.corrupt-{int(time.time())}"
+                    _LOGGER.error("%s can't be read (%s); moved it to %s", self.data_path, problem, broken)
+                    try:
+                        os.replace(self.data_path, broken)
+                    except OSError:
+                        pass
+                # The copy the save before last left behind: a few minutes older, but whole.
+                stored, backup_problem = _read_history(backup_path)
+                if stored is not None:
+                    _LOGGER.warning("Loaded the history from the previous save, %s", backup_path)
+                    source = "backup"
+                else:
+                    if backup_problem is not None:
+                        _LOGGER.error("%s can't be read either (%s)", backup_path, backup_problem)
+                    _LOGGER.error("Starting with an empty history")
+                    source = "corrupt"
         elif migrate_from and os.path.exists(migrate_from):
             with open(migrate_from, encoding="utf-8") as handle:
                 wrapper = json.load(handle)
@@ -65,9 +90,11 @@ class PersistenceMixin:
             source = "migrated"
         with self.lock:
             if isinstance(stored, dict):
-                self.data["events"] = list(stored.get("events") or [])
+                events = stored.get("events")
+                self.data["events"] = [e for e in events if isinstance(e, dict)] if isinstance(events, list) else []
                 self.data["imported"] = stored.get("imported")
-                self.data["networkmap"] = stored.get("networkmap") or {}
+                networkmap = stored.get("networkmap")
+                self.data["networkmap"] = networkmap if isinstance(networkmap, dict) else {}
                 # A scan that was running when the app stopped will never answer this run.
                 for info in self.data["networkmap"].values():
                     if isinstance(info, dict):
@@ -96,7 +123,7 @@ class PersistenceMixin:
                     self.dirty = True
                 if record["status"] == STATUS_ACTIVE and record["friendly_name"] and record["instance"]:
                     self.names.setdefault(record["instance"], {})[record["friendly_name"]] = record["ieee"]
-            if source == "migrated":
+            if source in ("migrated", "backup"):
                 self.dirty = True
         return source
 
@@ -111,7 +138,7 @@ class PersistenceMixin:
                 payload = _dumps(self.data, ensure_ascii=False, separators=(",", ":"))
                 self.dirty = False
             try:
-                _write_atomic(self.data_path, payload)
+                _write_atomic(self.data_path, payload, keep_previous=True)
             except BaseException:
                 # Not on disk (full or read-only): still to be saved, so the next save tries again.
                 self.dirty = True

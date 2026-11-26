@@ -2772,6 +2772,27 @@ class Handler(BaseHTTPRequestHandler):
         self._json(status, result)
 
 
+def history_notice(source: str) -> None:
+    """history.json could not be read at start: say so in Home Assistant, not only in the log."""
+    if source == "backup":
+        text = (
+            "The history file could not be read, so the app loaded the copy from the save before it. "
+            "At most the last few minutes of readings are missing. The unreadable file was kept in "
+            "the app's data folder."
+        )
+    else:
+        text = (
+            "The history file could not be read and there was no earlier copy, so the app started "
+            "with an empty history. The unreadable file was kept in the app's data folder. Restore "
+            "a backup under Settings → Backup to get your history back."
+        )
+    stop_event.wait(30)
+    try:
+        home_assistant.persistent_notification("Zigbee Tracker: history file", text, "z2m_tracker_history_file")
+    except Exception:  # noqa: BLE001 - the log already says it
+        _LOGGER.exception("Sending the history notice failed")
+
+
 def main() -> None:
     source = tracker.load(migrate_from=MIGRATE_FROM)
     metrics.load()
@@ -2779,8 +2800,10 @@ def main() -> None:
     with tracker.lock:
         count = len(tracker.data["devices"])
     _LOGGER.info("Z2M Device Tracker %s: %d devices loaded (%s), base topics: %s", VERSION, count, source, base_topics)
-    if source == "migrated":
+    if source in ("migrated", "backup"):
         tracker.save(force=True)
+    if source in ("backup", "corrupt"):
+        threading.Thread(target=history_notice, args=(source,), name="history-notice", daemon=True).start()
     if STANDALONE:
         _LOGGER.info(
             "Standalone mode (no Supervisor): web UI on port %d, Home Assistant %s. The integration's API token is in %s",

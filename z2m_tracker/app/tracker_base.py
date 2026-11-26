@@ -425,16 +425,28 @@ def _csv_safe(row: list) -> list:
     ]
 
 
-def _write_atomic(path: str, payload: str) -> None:
-    """Write a file so a crash or power cut leaves the old one or the new one, never half of each."""
+def _write_atomic(path: str, payload: str, keep_previous: bool = False) -> None:
+    """Write a file so a crash or power cut leaves the old one or the new one, never half of each.
+
+    keep_previous keeps the file being replaced as <path>.bak: a rename, so nothing more is written."""
     tmp_path = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
+    kept = False
     try:
         with open(tmp_path, "w", encoding="utf-8") as handle:
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
+        if keep_previous and os.path.exists(path):
+            os.replace(path, f"{path}.bak")
+            kept = True
         os.replace(tmp_path, path)
     except BaseException:
+        if kept:
+            # The new file never arrived: put the one just set aside back.
+            try:
+                os.replace(f"{path}.bak", path)
+            except OSError:
+                pass
         # A failed write (often a full disk) must not leave its half-written copy behind.
         try:
             os.unlink(tmp_path)
