@@ -25,6 +25,8 @@ from reporting import clean_sent as clean_reporting_sent
 _LOGGER = logging.getLogger("z2m_tracker")
 
 MAX_EVENTS = 3000
+# When the event list is full, a device's events of one kind beyond this many go first (trim_events).
+EVENTS_PER_KIND = 50
 # Checks that compare a reading with a limit, and how long one stays quiet after it cleared (plan_alerts).
 THRESHOLD_KINDS = frozenset({"battery_low", "weak_signal", "signal_drop"})
 RESEND_COOLDOWN = 24 * 3600
@@ -423,6 +425,42 @@ def _csv_safe(row: list) -> list:
     return [
         f"'{cell}" if isinstance(cell, str) and cell[:1] in ("=", "+", "-", "@", "\t", "\r") else cell for cell in row
     ]
+
+
+def trim_events(events: list[dict], limit: int = MAX_EVENTS, per_kind: int = EVENTS_PER_KIND) -> None:
+    """Make room in a full event list (oldest first), in place.
+
+    One device that keeps going offline and online would otherwise push every other device's
+    history out. So the room comes first from the devices with more than per_kind events of one
+    kind: their oldest of that kind go, never leaving fewer than per_kind. About a tenth of the list
+    is freed that way at a time, so this doesn't run on every event. Only when no device has that
+    many do the oldest events of all go, as before.
+    """
+    if len(events) <= limit:
+        return
+
+    def key(event: dict) -> tuple:
+        return (event.get("instance"), event.get("ieee"), event.get("kind"))
+
+    counts: dict[tuple, int] = {}
+    for event in events:
+        counts[key(event)] = counts.get(key(event), 0) + 1
+    excess = {k: n - per_kind for k, n in counts.items() if n > per_kind}
+    if excess:
+        need = len(events) - (limit - limit // 10)
+        total = sum(excess.values())
+        # Each noisy device gives in proportion to how far over it is.
+        drop = {k: min(n, -(-need * n // total)) for k, n in excess.items()}
+        kept = []
+        for event in events:
+            k = key(event)
+            if drop.get(k, 0) > 0:
+                drop[k] -= 1
+            else:
+                kept.append(event)
+        events[:] = kept
+    if len(events) > limit:
+        del events[: len(events) - limit]
 
 
 def _write_atomic(path: str, payload: str, keep_previous: bool = False) -> None:

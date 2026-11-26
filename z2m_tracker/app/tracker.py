@@ -136,6 +136,7 @@ from tracker_base import (
     memory_growth,
     record_memory,
     task_due,
+    trim_events,
     warranty_end,
 )
 from tracker_battery import BatteryMixin
@@ -1543,8 +1544,7 @@ class Tracker(PersistenceMixin, BatteryMixin, TopologyMixin, AlertsMixin, Action
         }
         events = self.data["events"]
         events.append(event)
-        if len(events) > MAX_EVENTS:
-            del events[: len(events) - MAX_EVENTS]
+        trim_events(events)
         if notify and self.on_event:
             self.on_event(dict(event))
 
