@@ -2,16 +2,23 @@
 
 ## Unreleased
 
-A code review of the whole app: bugs fixed, far fewer writes to the SD card, and a faster app on large networks. Nothing changes in how you use it.
+A code review of the whole app: bugs fixed, far fewer writes to the SD card, a faster app on large networks, and a spare copy of the history file.
+
+### Added
+- **A spare copy of the history file.** Each save keeps the file it replaces as `history.json.bak`. If `history.json` can't be read when the app starts, the app loads that copy, so at most the last few minutes of readings are missing, and tells you with a notification. Before, an unreadable file meant starting with an empty history.
+- **Hold repeated alerts** (`alert_repeat_hours`, **Settings → Thresholds**, default 24). How long a low battery, weak signal or signal drop alert that has cleared stays quiet before the same one may be sent again. 0 sends it every time.
+- **The integration checks the app's address before saving it.** A wrong address or API token now shows an error on the form, where before it made an integration with unavailable sensors. **Reconfigure** in the integration's menu changes the address and token later.
+- **Sensor names can be translated.** The integration's five sensors take their names from the language files. The English names and the entity ids stay as they are.
 
 ### Fixed
+- **Dashboard cards in other languages showed half-filled issue text**: seconds where a duration belonged, and `{placeholders}` for most kinds of issue. The cards now fill the text the way the sidebar does, and show the English text when a language file lacks a piece.
 - **Restoring a backup kept only part of it.** Firmware notes, your reporting-profile defaults, mesh score history and group history were in the backup file but dropped on restore.
 - **Matter filled the routing history in under an hour.** Every one-minute read of a Thread network was stored as a routing scan. Matter now follows the same rule as ZHA: a scan is stored when the links change, or once a day.
 - **The integration's diagnostics file could contain the API token** (plain Docker installs). It is now redacted.
 - **A full disk lost changes.** A save that failed was not tried again, left a temporary file behind and skipped that round of health checks and alerts.
 - **A group with an odd name, or a battery date that doesn't exist** (30 February), stopped the health checks or the whole sidebar.
 - **A note typed on a device could vanish** when the page refreshed in the background. A note is now saved when you leave the field, and a background refresh leaves a field you are typing in alone.
-- **Low battery and weak signal alerts repeated** when a reading hovered at its limit. Once such an alert has cleared it is not sent again for 24 hours. Offline alerts are not held back.
+- **Low battery and weak signal alerts repeated** when a reading hovered at its limit. Once such an alert has cleared it is not sent again for 24 hours (see **Hold repeated alerts** above). Offline alerts are not held back.
 - **One failing alert channel stopped the others.** If Home Assistant dropped the connection while an event was sent, the notification and the phone alert were skipped.
 - **Plain Docker ignored `MQTT_SSL_VERIFY`** for a broker given in `MQTT_HOST`.
 - **Dashboard cards stopped updating** after the integration's options were changed, until the page was reloaded.
@@ -25,6 +32,7 @@ A code review of the whole app: bugs fixed, far fewer writes to the SD card, and
 - A battery stock count that isn't a number is refused instead of answering with an error page.
 
 ### Changed
+- **One noisy device no longer pushes out the history of the others.** When the list of 3,000 events is full, room is made first from devices with more than 50 events of one kind, such as a device that keeps going offline and online.
 - **Far fewer writes.** What a device last said (last seen, readings) is written at most every 10 minutes instead of every 30 seconds, and trend data every 15 minutes instead of 5. Anything you set and every event is still written within 30 seconds, and stopping the app writes everything.
 - **Large networks stay responsive.** The sidebar's data is built in small steps, so incoming messages no longer wait for it (9 ms instead of 88 ms in a 300-device test). It is compressed, and shared between pages that ask at the same moment.
 - **Changing many settings at once is quicker.** Muting every check of a device ran the health checks thirty times; now once.
