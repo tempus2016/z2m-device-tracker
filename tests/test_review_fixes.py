@@ -142,3 +142,9 @@ def test_snapshot_is_shared_until_something_changes(tracker, clock):
     kept = tracker.snapshot_json()
     clock.advance(seconds=6)
     assert tracker.snapshot_json() is not kept
+
+
+def test_stock_count_that_is_not_a_number_is_refused(tracker):
+    assert tracker.set_battery_stock("CR2032", "inf")["ok"] is False
+    assert tracker.set_battery_stock("CR2032", "nan")["ok"] is False
+    assert tracker.set_battery_stock("CR2032", 3)["ok"] is True

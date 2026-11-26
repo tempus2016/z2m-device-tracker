@@ -6,6 +6,7 @@ Part of Tracker (tracker.py): these methods use its lock, data and metrics.
 from __future__ import annotations
 
 import logging
+import math
 import re
 import time
 from datetime import date as date_cls
@@ -184,7 +185,7 @@ class BatteryMixin:
                 number = float(value)
             except (TypeError, ValueError):
                 return None
-            return int(number) if number == int(number) else None
+            return int(number) if math.isfinite(number) and number == int(number) else None
 
         with self.lock:
             stock = self.data.setdefault("battery_stock", {})
