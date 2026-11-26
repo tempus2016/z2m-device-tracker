@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 2.6.0
 
 A code review of the whole app: bugs fixed, far fewer writes to the SD card, a faster app on large networks, and a spare copy of the history file. Also new: stored devices for seasonal decorations.
 

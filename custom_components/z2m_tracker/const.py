@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 
 DOMAIN = "z2m_tracker"
-VERSION = "2.5.0"
+VERSION = "2.6.0"
 
 CONF_APP_URL = "app_url"
 # The app's API token, entered by hand when there is no Supervisor to hand it over (plain Docker).

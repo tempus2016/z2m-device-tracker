@@ -65,7 +65,7 @@ _LOGGER = logging.getLogger("z2m_tracker")
 LOG_BUFFER = feedback.LogBuffer()
 logging.getLogger().addHandler(LOG_BUFFER)
 
-VERSION = "2.5.0"
+VERSION = "2.6.0"
 PORT = 8099
 # Prometheus scrape port: only opened when metrics_token is set.
 METRICS_PORT = 9099
