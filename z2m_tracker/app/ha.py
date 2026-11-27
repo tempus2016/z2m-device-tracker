@@ -445,23 +445,24 @@ class HomeAssistant:
         return {"ok": not failed and not refused, "removed": removed, "refused": refused, "failed": failed}
 
     def _remove_from_mqtt(self, device: dict) -> None:
+        remove = {"type": "config/device_registry/remove", "device_id": device["device_id"]}
+        legacy = {
+            "type": "config/device_registry/remove_config_entry",
+            "device_id": device["device_id"],
+            "config_entry_id": device["config_entry_id"],
+        }
+        if not device.get("sole_owner"):
+            # Before HA 2026.8 a device could belong to several config entries: only the MQTT one goes.
+            self._ws_call([legacy])
+            return
+        # A device owned by the MQTT entry alone is removed outright. remove_config_entry is
+        # deprecated since HA 2026.8 and goes in 2027.9; older HA has no remove command.
         try:
-            self._ws_call(
-                [
-                    {
-                        "type": "config/device_registry/remove_config_entry",
-                        "device_id": device["device_id"],
-                        "config_entry_id": device["config_entry_id"],
-                    }
-                ]
-            )
+            self._ws_call([remove])
         except RuntimeError as err:
-            # HA 2027.9 drops that command for config/device_registry/remove, which
-            # removes the device from the one config entry that owns it. Only use it
-            # when that owner is the MQTT entry.
-            if "unknown command" not in str(err).lower() or not device.get("sole_owner"):
+            if "unknown command" not in str(err).lower():
                 raise
-            self._ws_call([{"type": "config/device_registry/remove", "device_id": device["device_id"]}])
+            self._ws_call([legacy])
 
     def set_device_area(self, device_id: str, area_id: str | None) -> None:
         self._ws_call([{"type": "config/device_registry/update", "device_id": device_id, "area_id": area_id}])

@@ -1405,6 +1405,20 @@
   "forget.note": "a note",
   "forget.still_in_z2m": "It's still in Zigbee2MQTT, so it will reappear straight away with an empty history.",
   "forget.done": "Device forgotten",
+  "forget.all": {
+    "one": "Forget {n} removed device",
+    "other": "Forget all {n} removed devices"
+  },
+  "forget.all_hint": "Removed devices are no longer in their network. Forgetting them deletes their history from the tracker.",
+  "forget.all_title": {
+    "one": "Forget {n} removed device?",
+    "other": "Forget {n} removed devices?"
+  },
+  "forget.all_text": "This permanently deletes their history from the tracker. They stay gone after a history import, and come back only if they join again.",
+  "forget.all_done": {
+    "one": "{n} device forgotten",
+    "other": "{n} devices forgotten"
+  },
   "restore.title": "Restore from backup?",
   "restore.text": "Replaces the tracker's entire history with {file}. Anything recorded since that backup is lost.",
   "restore.done": "Restored {devices} devices and {events} events",

@@ -108,7 +108,8 @@ class Z2MTrackerConfigFlow(ConfigFlow, domain=DOMAIN):
             data = await _checked(self.hass, user_input, errors)
             if data is not None:
                 # The options hold the address too once they were saved: both are kept the same.
-                return self.async_update_reload_and_abort(entry, data_updates=data, options={**entry.options, **data})
+                # The entry's update listener reloads it; a reloading abort here would reload twice.
+                return self.async_update_and_abort(entry, data_updates=data, options={**entry.options, **data})
         given = user_input or {}
         url = given.get(CONF_APP_URL) or entry.options.get(CONF_APP_URL, entry.data.get(CONF_APP_URL, DEFAULT_APP_URL))
         token = given.get(CONF_TOKEN) or entry.options.get(CONF_TOKEN, entry.data.get(CONF_TOKEN, ""))

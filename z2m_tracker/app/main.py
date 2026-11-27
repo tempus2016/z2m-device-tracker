@@ -65,7 +65,7 @@ _LOGGER = logging.getLogger("z2m_tracker")
 LOG_BUFFER = feedback.LogBuffer()
 logging.getLogger().addHandler(LOG_BUFFER)
 
-VERSION = "2.6.0"
+VERSION = "2.7.0"
 PORT = 8099
 # Prometheus scrape port: only opened when metrics_token is set.
 METRICS_PORT = 9099
@@ -2213,6 +2213,14 @@ def _post_ping(body: dict, ieee: str) -> tuple[int, dict]:
 def _post_forget(body: dict, ieee: str) -> tuple[int, dict]:
     ok = tracker.forget(ieee)
     return 200 if ok else 404, {"ok": ok}
+
+
+@post("/api/forget_removed")
+def _post_forget_removed(body: dict, ieee: str) -> tuple[int, dict]:
+    ieees = body.get("ieees")
+    if not isinstance(ieees, list):
+        return 400, {"ok": False, "error": "ieees must be a list"}
+    return 200, tracker.forget_removed([str(i) for i in ieees[:5000]])
 
 
 @post("/api/settings")

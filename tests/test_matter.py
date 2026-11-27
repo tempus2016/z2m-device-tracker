@@ -77,6 +77,13 @@ def test_only_matter_devices_of_loaded_entries():
     assert matter_devices([SENSOR], {"another-entry"}) == []
 
 
+def test_matter_devices_read_the_single_config_entry_id():
+    # HA 2027.8 drops config_entries; config_entry_id (HA 2026.8+) is enough on its own.
+    new_style = {k: v for k, v in SENSOR.items() if k != "config_entries"} | {"config_entry_id": "entry-matter"}
+    assert matter_devices([new_style], {"entry-matter"}) == [new_style]
+    assert matter_devices([new_style], {"another-entry"}) == []
+
+
 def test_readings_take_the_newest_report_battery_and_availability():
     r = device_readings([SENSOR, PLUG], ENTITIES, states())
     sensor = r[device_key(SENSOR)]

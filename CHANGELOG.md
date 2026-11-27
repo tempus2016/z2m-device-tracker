@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.7.0
+
+Removed devices are easy to clear out, and the integration is ready for Home Assistant 2026.12 and the device registry changes that follow it.
+
+### Added
+- **Forget removed devices in one go** ([#101](https://github.com/tempus2016/z2m-device-tracker/issues/101)). The **Removed or not listened to** chip has a **Forget all N removed devices** bar. It follows the search, so you can narrow it first, and asks before it deletes anything. It only covers devices that are removed from Zigbee2MQTT, not devices on networks the app doesn't listen to.
+- **A Forget button on the "Removed from Zigbee2MQTT" notice** of a device, so you don't have to find it at the bottom of the Notes tab.
+
+### Fixed
+- **A forgotten device came back after a history import.** Forgotten devices are now remembered, and an import skips them. A forgotten device that joins the network again is tracked as normal.
+- **Reconfigure could fail on Home Assistant 2026.12.** It reloaded the integration twice, which HA 2026.12 turns into an error. It now reloads once.
+
+### Changed
+- **Removing a leftover device uses Home Assistant's new remove command** when only the MQTT integration owns it, instead of the one HA deprecated in 2026.8 and drops in 2027.9. Older Home Assistant versions get the old command.
+- **Matter devices are matched on their single config entry**, so they keep showing after Home Assistant 2027.8 removes the old list of config entries.
+- The integration lists its categories for the Home Assistant Marketplace, and the Marketplace page leaves out the GitHub-only install steps.
+
 ## 2.6.0
 
 A code review of the whole app: bugs fixed, far fewer writes to the SD card, a faster app on large networks, and a spare copy of the history file. Also new: stored devices for seasonal decorations.
