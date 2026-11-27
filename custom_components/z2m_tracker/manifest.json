@@ -4,6 +4,10 @@
   "after_dependencies": [
     "hassio"
   ],
+  "categories": [
+    "hubs_protocols.wireless_protocols",
+    "computers_network.monitoring"
+  ],
   "codeowners": [
     "@tempus2016"
   ],

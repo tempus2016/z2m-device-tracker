@@ -7,7 +7,9 @@
 <p align="center">
   <a href="https://github.com/tempus2016/z2m-device-tracker/releases"><img src="https://img.shields.io/github/v/release/tempus2016/z2m-device-tracker" alt="Latest Release"></a>
   <a href="https://github.com/tempus2016/z2m-device-tracker/releases"><img src="https://img.shields.io/github/downloads/tempus2016/z2m-device-tracker/total" alt="Downloads"></a>
+  <!-- ha-marketplace:exclude-start -->
   <a href="https://my.home-assistant.io/redirect/marketplace_repository/?owner=tempus2016&repository=z2m-device-tracker&category=integration"><img src="https://img.shields.io/badge/Marketplace-Default-41BDF5.svg" alt="Home Assistant Marketplace"></a>
+  <!-- ha-marketplace:exclude-end -->
   <a href="https://community.home-assistant.io/t/z2m-device-tracker-history-and-health-for-every-zigbee2mqtt-device"><img src="https://img.shields.io/badge/Community-Forum-41BDF5?logo=discourse&logoColor=white" alt="Home Assistant Community Forum"></a>
   <a href="https://github.com/tempus2016/z2m-device-tracker/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License"></a>
   <img src="https://img.shields.io/badge/Home%20Assistant-2025.1+-blue" alt="HA Version">
@@ -171,14 +173,24 @@ To build the image yourself: `docker build -f docker/Dockerfile -t z2m-tracker .
 
 Do this once the app from step 1 is installed and running. The integration is in the Home Assistant Marketplace:
 
+<!-- ha-marketplace:exclude-start -->
+
+This button opens it on your Home Assistant:
+
 [![Open your Home Assistant instance and show Z2M Device Tracker in the Marketplace.](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=tempus2016&repository=z2m-device-tracker&category=integration)
 
-1. Go to **Settings → Marketplace**, search for **Z2M Device Tracker**, install it and restart Home Assistant. The button above opens the right page.
+<!-- ha-marketplace:exclude-end -->
+
+1. Go to **Settings → Marketplace**, search for **Z2M Device Tracker**, install it and restart Home Assistant.
 2. Settings → Devices & services → Add integration → **Z2M Device Tracker**. The app's address is filled in for you.
+
+<!-- ha-marketplace:exclude-start -->
 
 On Home Assistant older than 2026.11, the Marketplace is still HACS: open HACS, search for **Z2M Device Tracker** and choose **Download**.
 
 If it doesn't show up in the search, the Marketplace may not have refreshed its list yet. Add it by hand: Marketplace (or HACS) → ⋮ → Custom repositories, add `https://github.com/tempus2016/z2m-device-tracker` as **Integration**, then carry on from step 1.
+
+<!-- ha-marketplace:exclude-end -->
 
 The integration also lists the app's problems in **Settings → Repairs**, and clears each one when it's fixed. Device problems have a **Fix** button with the actions that suit them: restore or accept a lost binding, record a battery change, reconfigure, install a firmware update, or mute the check for 24 hours or until you unmute it. Critical devices offline, offline Zigbee2MQTT networks and coordinator backup problems get their own wording and always make the list. Turn Repairs off with **Show problems in HA Repairs** in the app's settings or in the integration's options. They also stay empty while **Send alerts** is off in the app.
 

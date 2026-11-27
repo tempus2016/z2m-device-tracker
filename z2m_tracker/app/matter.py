@@ -110,7 +110,11 @@ def matter_devices(registry: list[dict], entry_ids: set[str]) -> list[dict]:
     for device in registry if isinstance(registry, list) else []:
         if not isinstance(device, dict) or device.get("disabled_by"):
             continue
-        if entry_ids and not set(device.get("config_entries") or []) & entry_ids:
+        # HA 2026.8 gave each device one config_entry_id; config_entries goes in 2027.8.
+        owners = set(device.get("config_entries") or [])
+        if device.get("config_entry_id"):
+            owners.add(device["config_entry_id"])
+        if entry_ids and not owners & entry_ids:
             continue
         if matter_id(device):
             out.append(device)
