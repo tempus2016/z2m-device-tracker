@@ -96,9 +96,10 @@ def test_plan_removal_refuses_ids_that_are_not_leftovers():
 class FakeHA:
     """Records WebSocket commands and answers them from registry data."""
 
-    def __init__(self, home: HomeAssistant, states=STATES, unknown_command=False, search=None):
+    def __init__(self, home: HomeAssistant, states=STATES, unknown_command=False, unknown_remove=False, search=None):
         self.sent: list[dict] = []
         self.unknown_command = unknown_command
+        self.unknown_remove = unknown_remove
         self.search = search or {}
         home._ws_call = self.ws_call
         home._request = lambda method, path, body=None: (
@@ -123,6 +124,8 @@ class FakeHA:
                     raise RuntimeError("Unknown command.")
                 out.append(None)
             elif kind == "config/device_registry/remove":
+                if self.unknown_remove:
+                    raise RuntimeError("Unknown command.")
                 out.append(None)
             else:
                 raise AssertionError(f"unexpected command {kind}")
@@ -155,21 +158,38 @@ def test_remove_refuses_everything_when_states_cant_be_read(home):
     assert fake.removals() == []
 
 
-def test_remove_falls_back_to_plain_remove_only_for_a_sole_mqtt_owner(home):
-    fake = FakeHA(home, unknown_command=True)
-    result = home.remove_leftovers(["dev-old"], KNOWN)
-    # Old-style device (config_entries list, no single owner): no fallback.
-    assert result["removed"] == [] and result["failed"][0]["device_id"] == "dev-old"
-    assert [m["type"] for m in fake.removals()] == ["config/device_registry/remove_config_entry"]
-
+def test_remove_uses_plain_remove_for_a_sole_mqtt_owner(home):
+    fake = FakeHA(home)
     DEVICES[1]["config_entry_id"] = MQTT
     try:
-        fake.sent.clear()
         result = home.remove_leftovers(["dev-old"], KNOWN)
     finally:
         del DEVICES[1]["config_entry_id"]
     assert result["removed"] == ["dev-old"]
-    assert fake.removals()[-1] == {"type": "config/device_registry/remove", "device_id": "dev-old"}
+    # HA 2026.8+: one owner, so the deprecated remove_config_entry is not sent.
+    assert fake.removals() == [{"type": "config/device_registry/remove", "device_id": "dev-old"}]
+
+
+def test_remove_falls_back_to_remove_config_entry_on_old_ha(home):
+    fake = FakeHA(home, unknown_remove=True)
+    DEVICES[1]["config_entry_id"] = MQTT
+    try:
+        result = home.remove_leftovers(["dev-old"], KNOWN)
+    finally:
+        del DEVICES[1]["config_entry_id"]
+    assert result["removed"] == ["dev-old"]
+    assert [m["type"] for m in fake.removals()] == [
+        "config/device_registry/remove",
+        "config/device_registry/remove_config_entry",
+    ]
+
+
+def test_remove_never_plain_removes_a_shared_device(home):
+    fake = FakeHA(home, unknown_command=True)
+    result = home.remove_leftovers(["dev-old"], KNOWN)
+    # Old-style device (config_entries list, no single owner): only the MQTT entry may go.
+    assert result["removed"] == [] and result["failed"][0]["device_id"] == "dev-old"
+    assert [m["type"] for m in fake.removals()] == ["config/device_registry/remove_config_entry"]
 
 
 def test_usage_counts_automations_and_scripts(home):
